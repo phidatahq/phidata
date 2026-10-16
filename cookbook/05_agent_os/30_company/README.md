@@ -778,10 +778,12 @@ with `--executor claude` or `--executor codex`. Both use the public
 
 The Product has a matching git Source URL and `config.branch` names its default
 branch. The agent's Repository config selects the checkout branch. Acceptance
-checks the URL; the sandbox resolves and publishes the commit on attempt one.
-The Task retains `{source_id, url, branch, commit}` in `metadata.checkout` and
+checks the URL; the sandbox resolves and publishes the commit on its first turn.
+The first successful completion records the pin, including a successful retry
+after an earlier failed or cancelled attempt. The Task retains `{source_id, url, branch, commit}` in `metadata.checkout` and
 later attempts reuse its session and verify that pin. A second sandboxed Task
-start receives 409 while another has a live job. Ordinary agents remain eligible
+start receives 409 while another has a live job, including after that Task is
+returned to Backlog, reassigned or archived. Ordinary agents remain eligible
 and report `sandboxed: false`. This marker is derived from the component and
 cannot be set on a Task.
 
@@ -805,7 +807,8 @@ Deployment requirements:
   data under `/tmp`. Run targeted tests there; full CI remains the release check.
 - Public repositories need no git credentials. Private repositories use a
   read-only token in `Sandbox.env["GITHUB_READ_TOKEN"]`; the matching Source's
-  `credential_ref` must be `GITHUB_READ_TOKEN`. Never pass a write credential to
+  `credential_ref` must be `GITHUB_READ_TOKEN`, and acceptance checks that the
+  executor has that variable in `Sandbox.env`. Never pass a write credential to
   the sandbox. Local-path git Sources remain read-only; URL Source HTTP reads
   and publishing are outside this example.
 

@@ -74,3 +74,26 @@ def test_task_checkout_and_capability_are_read_only(field):
         TaskCreate(product_id="p", project_id="pr", title="t", **{field: True})
     with pytest.raises(ValidationError):
         TaskUpdate(**{field: True})
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [r"C:\repos\project", "C:/repos/project", r"\\server\share\repo", "//server/share/repo", "/tmp/repo", "./repo"],
+)
+def test_git_local_paths_remain_valid(reference):
+    validate_source_fields({"type": "git", "reference": reference, "config": {"branch": "main"}})
+
+
+def test_explicit_read_credential_requires_sandbox_environment():
+    agent = FixtureAgent(
+        sandbox=DockerSandbox("unused", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"}),
+        repository=Repository("https://github.com/a/b"),
+    )
+    source = {"id": "s", "type": "git", "reference": agent.repository.url, "credential_ref": "GITHUB_READ_TOKEN"}
+    with pytest.raises(ValueError, match="Sandbox.env"):
+        _accept_sandbox(agent, [source])
+    agent.sandbox.env["GITHUB_READ_TOKEN"] = "test-read-token"
+    assert _accept_sandbox(agent, [source]) == source
+    source["credential_ref"] = None
+    agent.sandbox.env.pop("GITHUB_READ_TOKEN")
+    assert _accept_sandbox(agent, [source]) == source

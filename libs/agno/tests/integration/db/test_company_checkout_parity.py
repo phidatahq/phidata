@@ -141,3 +141,28 @@ async def test_git_source_partial_updates_validate_complete_reference(system):  
         with pytest.raises(ValueError):
             await _call(db, "update_source", "source", **fields)
         assert await _call(db, "get_source", "source") == updated
+
+
+@pytest.mark.asyncio
+async def test_legacy_git_source_can_be_updated_without_replacing_reference(system):  # noqa: F811
+    client, db, _, _, _ = system
+    task = await accepted(client)
+    source = await _call(
+        db,
+        "create_source",
+        {
+            "id": "legacy",
+            "product_id": task["product_id"],
+            "type": "git",
+            "reference": "https://gitlab.com/a/b",
+            "created_at": 1,
+        },
+    )
+    updated = await _call(db, "update_source", source["id"], credential_ref="READ_TOKEN", config={"branch": "main"})
+    assert updated["reference"] == source["reference"]
+    assert updated["credential_ref"] == "READ_TOKEN"
+    with pytest.raises(ValueError):
+        await _call(db, "update_source", source["id"], reference="https://gitlab.com/a/c")
+    with pytest.raises(ValueError):
+        await _call(db, "update_source", source["id"], config={"branch": "--invalid"})
+    assert await _call(db, "get_source", source["id"]) == updated

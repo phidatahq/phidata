@@ -540,3 +540,38 @@ and 21 CLI files. Tests use disposable data and scripted models; no live model,
 PostgreSQL or hosted docs requests were made.
 
 ---
+
+
+## Private OS Manager members, 2026-10-15
+
+### Discovery, loading, delegation and schedule migration
+
+**Status:** PASS
+
+**Description:** Only OS Manager is public; its builder and operator remain
+native private members. Coverage includes reserved-ID errors in explicit catalog
+and class loaders, database-independent REST errors, sync/async lookups, legacy
+rows, runner dispatch, queued replay, permissions, confirmation, continuation,
+session history and result offloading. Unmanaged specialist schedules can be
+retargeted; Studio-managed schedules require replacement because their targets
+are immutable.
+
+**Result:** The local follow-up to `61c29327f9` passed **1,411 tests** across
+manager, authorization, runner, scheduler, component-config and rehydration
+suites. Two existing duplicate OpenAPI operation-ID warnings remain. The required
+format script passed; unrelated baseline formatter changes were removed. The
+validation script passed in the existing isolated dependency environment,
+including mypy for 1,126 framework files and 21 CLI files. The shared development
+environment reported the same 33 mypy errors as the untouched base
+`28ee417d5d` (confirmed by a separate mypy run).
+
+Historical results are not current validation: `03fe8ef9b8` passed 7,890 broad
+checks with 32 skipped; `61c29327f9` passed 441 focused checks and the required
+format/validation scripts. These counts overlap and are not additive. Historical
+validation used isolated dependencies because the shared environment had
+unrelated SDK typing errors; optional Telegram files were excluded.
+
+Tests use disposable data and scripted models. No live model, hosted docs,
+PostgreSQL or frontend rendering checks were performed.
+
+---

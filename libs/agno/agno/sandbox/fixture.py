@@ -26,5 +26,5 @@ class FixtureAgent(BaseExternalAgent):
         super().__post_init__()
 
     def _media_kwargs(self, **media: Any) -> Dict[str, Any]:
-        """Images and files, like the Claude and Codex adapters; audio and video are rejected."""
+        """Images and files are staged in the sandbox workspace, as for Claude and Codex."""
         return accept_media(media)

@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, TypeVar, Uni
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-from agno.exceptions import SessionBusyError
+from agno.exceptions import SchemaMismatchError, SessionBusyError
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
@@ -160,62 +160,89 @@ class _SandboxStore:
             raise TypeError("Use async sandbox store methods with AsyncPostgresDb")
         return _sync(function(*args, **kwargs))
 
-    async def _table(self, table_type: str, table_name: str) -> Table:
+    async def _table(self, table_type: str, table_name: str, create: bool = True) -> Optional[Table]:
+        """The table, created on first use; None when ``create`` is off and it does not exist."""
         db = self.db
+
+        async def lookup(create_if_missing: bool) -> Optional[Table]:
+            if isinstance(db, AsyncPostgresDb):
+                return await db._get_table(table_type, create_table_if_not_found=create_if_missing)
+            return await _settled(
+                asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=create_if_missing)
+            )
+
         try:
-            if isinstance(db, AsyncPostgresDb):
-                table = await db._get_table(table_type, create_table_if_not_found=True)
-            else:
-                table = await _settled(asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=True))
-        except Exception as exc:
-            # Another process may have won the first CREATE TABLE.
-            cause = getattr(exc, "orig", exc)
-            if getattr(cause, "sqlstate", getattr(cause, "pgcode", None)) not in ("42P07", "23505"):
+            try:
+                table = await lookup(create)
+            except Exception as exc:
+                # Another process may have won the first CREATE TABLE (reported as a duplicate table,
+                # a duplicate catalog row, or the table's row type already existing); read back what it created.
+                cause = getattr(exc, "orig", exc)
+                if getattr(cause, "sqlstate", getattr(cause, "pgcode", None)) not in ("42P07", "23505", "42710"):
+                    raise
+                db._invalidate_table_cache(table_name)
+                table = await lookup(False)
+        except SchemaMismatchError as exc:
+            if table_type != "sandbox_bindings":
                 raise
-            db._invalidate_table_cache(table_name)
-            if isinstance(db, AsyncPostgresDb):
-                table = await db._get_table(table_type)
-            else:
-                table = await _settled(asyncio.to_thread(db._get_table, table_type))
-        if table is None:
+            # A bindings table missing columns, ours or another replica's, is as unusable as one
+            # with the wrong keys: same remedy.
+            raise SandboxError(
+                f"Sandbox table {self.db.db_schema}.{table_name} does not have the columns this version expects; "
+                "drop or rename that table, or pass PostgresDb(sandbox_table=...) to create a new one"
+            ) from exc
+        if table is None and create:
             raise SandboxError(f"Sandbox coordination could not create the {table_type} table")
         return table
 
-    async def _ensure_tables(self) -> None:
+    async def _ensure_tables(self, create: bool = True) -> None:
+        """Create the tables on first use and validate the bindings table's shape.
+
+        With ``create`` off, a deployment that provisions its own tables is only validated:
+        a table that does not exist yet is left for first use, which creates it as before.
+        """
         if self._tables_ready:
             return
         # Creation is idempotent, so concurrent first calls need no lock.
-        self.sessions = await self._table("sessions", self.db.session_table_name)
-        self.runs = await self._table("runs", self.db.runs_table_name)
-        self.bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name)
+        sessions = await self._table("sessions", self.db.session_table_name, create)
+        runs = await self._table("runs", self.db.runs_table_name, create)
+        bindings = await self._table("sandbox_bindings", self.db.sandbox_table_name, create)
+        if sessions is None or runs is None or bindings is None:
+            return
+        self.sessions, self.runs, self.bindings = sessions, runs, bindings
 
         def qualified(table: Table) -> str:
             # Reflection can leave a same-schema reference unqualified.
             return (table.schema or self.db.db_schema) + "." + table.name
 
+        def refuse(reason: str) -> None:
+            # A table from another build of this package or a different session table: say what to do.
+            raise SandboxError(
+                f"Sandbox table {qualified(self.bindings)} {reason}; drop or rename that table, "
+                "or pass PostgresDb(sandbox_table=...) to create a new one"
+            )
+
         owners = {qualified(key.column.table) for key in self.bindings.c.session_id.foreign_keys}
         if owners != {qualified(self.sessions)}:
-            raise SandboxError(
-                f"Sandbox table {self.bindings.name} belongs to session table {', '.join(sorted(owners)) or 'none'}, "
-                f"not {qualified(self.sessions)}; give each session table its own sandbox_table"
+            refuse(
+                f"belongs to session table {', '.join(sorted(owners)) or 'none'}, not {qualified(self.sessions)}; "
+                "give each session table its own sandbox_table"
             )
         if {qualified(key.column.table) for key in self.bindings.c.run_id.foreign_keys} != {qualified(self.runs)}:
-            raise SandboxError(
-                f"Sandbox table {self.bindings.name} does not reference run table {qualified(self.runs)}"
-            )
+            refuse(f"does not reference run table {qualified(self.runs)}")
         # Without cascade, deleting the run an active turn holds is refused instead of dropping its binding.
         if {(key.ondelete or "NO ACTION").upper() for key in self.bindings.c.run_id.foreign_keys} - {
             "NO ACTION",
             "RESTRICT",
         }:
-            raise SandboxError(f"Sandbox table {self.bindings.name} must not cascade deletes from the run table")
+            refuse("must not cascade deletes from the run table")
         # Deleting a session must remove its binding with it: an idle binding outlives every turn, and a
         # recreated session must start from a fresh one.
         if {(key.ondelete or "").upper() for key in self.bindings.c.session_id.foreign_keys} != {"CASCADE"}:
-            raise SandboxError(f"Sandbox table {self.bindings.name} must cascade deletes from the session table")
+            refuse("must cascade deletes from the session table")
         # The claim's ON CONFLICT relies on this key; without it two first claims could both own a session.
         if {column.name for column in self.bindings.primary_key.columns} != {"namespace", "session_id"}:
-            raise SandboxError(f"Sandbox table {self.bindings.name} must have the primary key (namespace, session_id)")
+            refuse("must have the primary key (namespace, session_id)")
         self._tables_ready = True
 
     async def _transaction(
@@ -296,7 +323,7 @@ class _SandboxStore:
             .mappings()
             .one_or_none()
         )
-        now = connection.execute(select(func.clock_timestamp())).scalar_one()
+        now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
         if (
             row is None
             or (row["agent_id"], row["user_id"], row["run_id"], row["epoch"], row["owner"], row["queue_attempt"])
@@ -331,7 +358,7 @@ class _SandboxStore:
         values: Dict[str, Any] = {"record": self._json(record)}
         if extend:
             # Only for a writer that held the binding row lock throughout, so nobody else could own it.
-            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
             values["expires_at"] = now + timedelta(seconds=record.get("lease_seconds", 60))
         row = (
             connection.execute(
@@ -445,7 +472,7 @@ class _SandboxStore:
                         "Existing conversation has no sandbox checkpoint; start a new session or migrate explicitly"
                     )
             record = dict(row["record"])
-            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
             active = record["phase"] != "idle"
             # A retryable failure this binding recorded for an earlier queue attempt of this run: the
             # queue's next attempt runs the turn again instead of reading back the stored error.
@@ -596,7 +623,7 @@ class _SandboxStore:
         def renew(connection: Connection) -> SandboxState:
             record = dict(self._locked(connection, lease)["record"])
             record["lease_seconds"] = lease_seconds
-            now = connection.execute(select(func.clock_timestamp())).scalar_one()
+            now: datetime = connection.execute(select(func.clock_timestamp())).scalar_one()
             row = (
                 connection.execute(
                     update(self.bindings)
@@ -839,6 +866,10 @@ class _SandboxStore:
                     if key in staged:
                         run[key] = staged[key]
                 run["status"] = record["stop_status"]
+                if run["status"] == "CANCELLED" and not run.get("cancellation_stage"):
+                    from agno.run.base import CancellationStage
+
+                    run["cancellation_stage"] = CancellationStage.executing.value
                 # Like core run termination: the reason fills content only when there is none.
                 if not run.get("content"):
                     run["content"] = record["stop_reason"]
@@ -925,7 +956,7 @@ class _SandboxStore:
         if row["run_data"].get("input") != value.get("input"):
             raise SandboxError("Run identity already exists with different input")
         if row["run_index"] is None:
-            index = connection.execute(
+            index: int = connection.execute(
                 select(func.coalesce(func.max(self.runs.c.run_index), -1) + 1).where(
                     self.runs.c.session_id == value["session_id"]
                 )
@@ -1002,6 +1033,8 @@ class _SandboxStore:
             raise ValueError("Queue termination requires ERROR or CANCELLED")
 
         def stop(connection: Connection) -> Any:
+            self._hold_session(connection, session_id)
+            self._lock_run(connection, run_id)
             # Insert an idle binding to serialize even a never-started run with
             # its first coordinator. A plain SELECT cannot lock an absent row.
             try:

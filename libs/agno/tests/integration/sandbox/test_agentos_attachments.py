@@ -108,7 +108,7 @@ REJECTED = {
     "empty content": dict(input_files=json.dumps([{"content": ""}])),
     "image filename": dict(images=json.dumps([{"content": b64(PNG), "format": "png", "filename": "p.png"}])),
     "json audio": dict(audio=json.dumps([{"content": b64(b"x")}])),
-    "reserved field": dict(sandbox_media=json.dumps([])),
+    "retired ticket key as a field": dict(sandbox_media=json.dumps([])),
     "reserved media field": dict(media="{}"),
     "seventeen attachments": dict(
         input_files=json.dumps([{"content": b64(b"x"), "filename": f"{i}.txt"} for i in range(17)])
@@ -390,7 +390,7 @@ async def test_a_ticket_whose_attachments_cannot_be_replayed_fails_once_and_keep
     # The ticket is damaged after acceptance: the wire no longer passes the validation every replay repeats.
     store = app.state.queue_worker.store
     payload = (await store.get_job(run_id))["payload"]
-    DAMAGE[damage](payload["kwargs"]["sandbox_media"])
+    DAMAGE[damage](payload["kwargs"]["media"])
     table = agent.db._get_table("jobs")
     with agent.db.db_engine.begin() as connection:
         connection.execute(update(table).where(table.c.id == run_id).values(payload=payload))
@@ -439,7 +439,7 @@ async def test_a_damaged_ticket_whose_run_row_is_missing_still_ends_in_error_on_
     run_id = queued.json()["run_id"]
     store = app.state.queue_worker.store
     payload = (await store.get_job(run_id))["payload"]
-    payload["kwargs"]["sandbox_media"][0]["name"] = "../escape"
+    payload["kwargs"]["media"][0]["name"] = "../escape"
     jobs, runs = agent.db._get_table("jobs"), agent.db._get_table("runs")
     with agent.db.db_engine.begin() as connection:
         connection.execute(update(jobs).where(jobs.c.id == run_id).values(payload=payload))
@@ -613,11 +613,11 @@ async def test_terminal_tickets_are_purged_by_the_queue_retention_but_pending_on
         client, background="true", files=[("files", ("wait.txt", b"waiting-marker-bytes", "text/plain"))]
     )
     store = app.state.queue_worker.store
-    assert (await store.get_job(done.json()["run_id"]))["payload"]["kwargs"]["sandbox_media"]
+    assert (await store.get_job(done.json()["run_id"]))["payload"]["kwargs"]["media"]
     # The worker's hourly retention pass is this call with its retention_seconds; 0 makes every terminal ticket due.
     assert agent.db.cleanup_jobs(0) == 1
     assert await store.get_job(done.json()["run_id"]) is None
-    assert (await store.get_job(waiting.json()["run_id"]))["payload"]["kwargs"]["sandbox_media"]
+    assert (await store.get_job(waiting.json()["run_id"]))["payload"]["kwargs"]["media"]
     # The run's own input is a separate copy with its own lifetime.
     kept = await agent.aget_run_output(done.json()["run_id"], "session")
     assert [file.get_content_bytes() for file in kept.input.files] == [b"done-marker-bytes"]
@@ -707,7 +707,7 @@ async def _damage(agent, app, run_id):
     from sqlalchemy import update
 
     payload = (await app.state.queue_worker.store.get_job(run_id))["payload"]
-    payload["kwargs"]["sandbox_media"][0]["name"] = "../escape"
+    payload["kwargs"]["media"][0]["name"] = "../escape"
     jobs = agent.db._get_table("jobs")
     with agent.db.db_engine.begin() as connection:
         connection.execute(update(jobs).where(jobs.c.id == run_id).values(payload=payload))

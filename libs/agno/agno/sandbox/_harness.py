@@ -16,12 +16,11 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from agno.exceptions import InputCheckError
 from agno.models.message import Message
 from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError
-from agno.utils.log import log_warning
+from agno.utils.log import log_error, log_warning
 
 if TYPE_CHECKING:
     from agno.agents.base import BaseExternalAgent
@@ -83,6 +82,23 @@ def _check_db(agent: "BaseExternalAgent") -> None:
 
     if not isinstance(agent.db, (PostgresDb, AsyncPostgresDb)):
         raise ValueError("A sandboxed agent requires a PostgresDb or AsyncPostgresDb, on the agent or its AgentOS")
+
+
+async def acheck_tables(agent: "BaseExternalAgent", create: bool = True) -> None:
+    """Validate the sandbox tables on the agent's database, creating them first unless ``create`` is off.
+
+    A bindings table left by another build fails every turn inside the queue worker, where
+    only the log sees it; checking at startup and at submission puts the error and its
+    remedy in front of the operator instead.
+    """
+    from agno.sandbox.postgres import _SandboxStore
+
+    _check_db(agent)
+    for db, existing in _coordinators.get(_sandbox(agent), []):
+        if db is agent.db:
+            await existing.store._ensure_tables(create)
+            return
+    await _SandboxStore(agent.db)._ensure_tables(create)  # type: ignore[arg-type]
 
 
 def validate(agent: "BaseExternalAgent") -> None:
@@ -186,29 +202,6 @@ def _config(agent: "BaseExternalAgent", output_schema: Any) -> Dict[str, Any]:
     return config
 
 
-def _media_wire(extra: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """The canonical attachment wire for a submission.
-
-    ``media`` carries Image/File objects from a Python caller or the HTTP router, whose bytes are read
-    here once; ``sandbox_media`` is the wire a queue worker replays from the ticket and is validated again.
-    """
-    from agno.sandbox.media import encode_media, validate_media
-
-    objects, replayed = extra.get("media"), extra.get("sandbox_media")
-    if objects and replayed:
-        raise ValueError("Sandbox attachments are given either as media or as sandbox_media, not both")
-    if replayed:
-        try:
-            validate_media(replayed)
-        except ValueError as error:
-            # A wire that no longer validates cannot be cured by running the turn again.
-            raise InputCheckError(f"The accepted attachments can no longer be replayed: {error}") from error
-        return list(replayed)
-    if objects:
-        return encode_media(images=objects.get("images"), files=objects.get("files"))
-    return []
-
-
 def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     """Validate one submission and return the run options it carries."""
     from agno.sandbox.protocol import validate_request
@@ -218,10 +211,10 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     extra = {key: value for key, value in kwargs.items() if value is not None}
     for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
         extra.pop(key, None)
-    unknown = set(extra) - {"output_schema", "media", "sandbox_media"}
+    media = _media_wire(extra.pop("media", None))
+    unknown = set(extra) - {"output_schema"}
     if unknown:
         raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
-    wire = _media_wire(extra)
     schema = extra.get("output_schema", agent.output_schema)
     agent._check_output_schema(schema)
     if schema is not None and not isinstance(schema, dict):
@@ -238,13 +231,33 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
             input=input,
             config=_config(agent, schema),
             execution_timeout=_sandbox(agent).execution_timeout,
-            **({"media": wire} if wire else {}),
+            **({"media": media} if media else {}),
         )
     )
-    options: Dict[str, Any] = {"output_schema": schema} if schema is not None else {}
-    if wire:
-        options["sandbox_media"] = wire
+    options: Dict[str, Any] = {}
+    if schema is not None:
+        options["output_schema"] = schema
+    if media:
+        options["media"] = media
     return options
+
+
+def _media_wire(media: Any) -> List[Dict[str, Any]]:
+    """Attachments in their runtime wire form.
+
+    A run's own images and files arrive as the adapter's accepted media mapping; a queued run
+    arrives with the wire form its submission stored, which is validated again here.
+    """
+    from agno.sandbox.media import encode_media, validate_media
+
+    if not media:
+        return []
+    if isinstance(media, list):
+        validate_media(media)
+        return media
+    if not isinstance(media, dict):
+        raise ValueError("Sandbox media must be images and files")
+    return encode_media(images=media.get("images"), files=media.get("files"))
 
 
 def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
@@ -255,7 +268,6 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     run_id = kwargs.get("run_id") or str(uuid4())
     owner = get_worker_ownership(run_id)
     return dict(
-        **decode_media(options.get("sandbox_media", [])),
         agent_id=agent.get_id(),
         run_id=run_id,
         input=input,
@@ -266,6 +278,7 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
         env=env(agent),
         queue_attempt=owner.attempt if owner is not None else None,
         execution_timeout=_sandbox(agent).execution_timeout,
+        **decode_media(options.get("media", [])),
     )
 
 
@@ -315,39 +328,23 @@ async def astream(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> Asyn
             await acleanup_run(execution["run_id"])
 
 
-async def _ticket_media(run_id: str) -> List[Dict[str, Any]]:
-    """The attachment wire the accepted ticket for this run carries (the ticket id is the run id)."""
-    from agno.os.job_queue import get_active_queue_worker
-
-    worker = get_active_queue_worker()
-    job = await worker.store.get_job(run_id) if worker is not None else None
-    return list(((job or {}).get("payload") or {}).get("kwargs", {}).get("sandbox_media") or [])
-
-
 async def aprepare_pending_run(
-    agent: "BaseExternalAgent", run_id: str, session_id: str, user_id: Optional[str], input: Any
+    agent: "BaseExternalAgent",
+    run_id: str,
+    session_id: str,
+    user_id: Optional[str],
+    input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> RunOutput:
     from agno.sandbox.media import decode_media
 
-    # The store refuses to claim a run whose input differs from this row's, and the coordinator writes the
-    # attachments at claim time, so they are written here too, from the same canonical wire.
-    try:
-        media = decode_media(await _ticket_media(run_id))
-    except ValueError:
-        # A ticket that cannot be replayed fails when it is executed, with the reason on the run. Here, where a
-        # failure would only leave the claim to go stale, keep the row the accepted request wrote, or write a
-        # text-only one if there is none so that the failure has a run to land on.
-        existing = await agent.aget_run_output(run_id, session_id, user_id=user_id)
-        if existing is not None:
-            return existing
-        media = {}
     run = RunOutput(
         run_id=run_id,
         session_id=session_id,
         agent_id=agent.get_id(),
         user_id=user_id,
         agent_name=agent.name,
-        input=RunInput(input_content=input, **media),
+        input=RunInput(input_content=input, **decode_media(media or [])),
         # The user's turn is part of the history even if the run never produces output, as on
         # the host path; the runtime's messages replace these when the turn completes.
         messages=[Message(role="user", content=str(input), created_at=int(time.time()))],
@@ -398,7 +395,30 @@ async def acancel_unowned_row(agent: "BaseExternalAgent", run_id: str) -> None:
 async def apersist_queue_terminal(
     agent: "BaseExternalAgent", job: Dict[str, Any], error: str, status: str, cancellation_stage: Any
 ) -> Any:
-    return await coordinator(agent)._aterminate(
+    runner = coordinator(agent)
+    try:
+        await runner.store._ensure_tables()
+    except SandboxError as schema_error:
+        # No turn can have run through an unusable bindings table, so there is no compute to retire:
+        # stamp the run row directly so the ticket can still settle instead of staying claimed forever.
+        from agno.run.status_persist import apersist_run_status
+
+        log_error(f"Sandbox terminal persist for run {job['id']} bypassed its bindings table: {schema_error}")
+        fields: Dict[str, Any] = {"status": "CANCELLED" if status == "cancelled" else "ERROR"}
+        stage = getattr(cancellation_stage, "value", cancellation_stage)
+        if fields["status"] == "CANCELLED" and stage is not None:
+            fields["cancellation_stage"] = stage
+        return await apersist_run_status(
+            agent,
+            "agent",
+            session_id=job["session_id"],
+            run_id=job["id"],
+            fields=fields,
+            user_id=job.get("user_id"),
+            expected_attempt=job.get("attempt"),
+            content_if_absent=error[:8192],
+        )
+    return await runner._aterminate(
         job["session_id"],
         agent_id=agent.get_id(),
         run_id=job["id"],

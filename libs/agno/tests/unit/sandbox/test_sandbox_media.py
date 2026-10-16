@@ -10,7 +10,7 @@ import pytest
 
 from agno.agents.claude import ClaudeAgent
 from agno.agents.codex import CodexAgent
-from agno.exceptions import InputCheckError, UnsupportedMediaError
+from agno.exceptions import UnsupportedMediaError
 from agno.media import Audio, File, Image
 from agno.sandbox import _harness
 from agno.sandbox.docker import DockerSandbox
@@ -31,14 +31,14 @@ def _media():
 def test_python_media_becomes_the_canonical_json_wire_in_the_run_options():
     agent = _agent()
     options = _harness.submission(agent, "hello", agent._media_kwargs(**_media()))
-    assert options["sandbox_media"] == encode_media(**_media())
+    assert options["media"] == encode_media(**_media())
     assert json.loads(json.dumps(options)) == options
 
 
 @pytest.mark.parametrize("cls", [FixtureAgent, ClaudeAgent, CodexAgent])
 def test_every_sandboxable_harness_accepts_images_and_files_and_refuses_the_rest(cls):
     agent = _agent(cls)
-    assert "sandbox_media" in _harness.submission(agent, "hello", agent._media_kwargs(**_media()))
+    assert "media" in _harness.submission(agent, "hello", agent._media_kwargs(**_media()))
     with pytest.raises(UnsupportedMediaError):
         agent._media_kwargs(audio=[Audio(content=b"audio")])
 
@@ -46,12 +46,10 @@ def test_every_sandboxable_harness_accepts_images_and_files_and_refuses_the_rest
 def test_queue_wire_is_accepted_and_revalidated_when_the_worker_replays_it():
     agent = _agent()
     wire = encode_media(**_media())
-    assert _harness.submission(agent, "hello", {"sandbox_media": wire})["sandbox_media"] == wire
-    # A damaged wire is incurable, so replaying one raises the queue's permanent-failure type (see below).
-    with pytest.raises(InputCheckError):
-        _harness.submission(agent, "hello", {"sandbox_media": [{**wire[0], "name": "../escape"}]})
-    with pytest.raises(ValueError, match="either"):
-        _harness.submission(agent, "hello", {"sandbox_media": wire, "media": _media()})
+    assert _harness.submission(agent, "hello", {"media": wire})["media"] == wire
+    # A direct caller handing over a damaged wire gets a plain input error; the queue's permanent failure is below.
+    with pytest.raises(ValueError, match="filename"):
+        _harness.submission(agent, "hello", {"media": [{**wire[0], "name": "../escape"}]})
 
 
 def test_the_whole_runtime_request_limit_counts_the_attachments():
@@ -68,7 +66,7 @@ def test_a_local_file_is_read_at_submission_and_survives_removal_of_its_source(t
     agent = _agent()
     options = _harness.submission(agent, "hello", {"media": {"files": [File(filepath=path)]}})
     path.unlink()
-    (file,) = decode_media(options["sandbox_media"])["files"]
+    (file,) = decode_media(options["media"])["files"]
     assert file.content == b"local bytes" and file.filename == "notes.txt"
     assert str(tmp_path) not in json.dumps(options)
 
@@ -76,7 +74,7 @@ def test_a_local_file_is_read_at_submission_and_survives_removal_of_its_source(t
 def test_the_coordinator_is_called_with_decoded_attachments_and_text_only_calls_are_unchanged():
     agent = _agent()
     wire = encode_media(**_media())
-    execution = _harness._execution(agent, "hello", {"sandbox_media": wire, "run_id": "r"})
+    execution = _harness._execution(agent, "hello", {"media": wire, "run_id": "r"})
     assert [image.content for image in execution["images"]] == [b"png"]
     assert [file.content for file in execution["files"]] == [b"abc"]
     text_only = _harness._execution(agent, "hello", {"run_id": "r"})
@@ -126,17 +124,13 @@ async def test_invalid_attachments_fail_before_the_coordinator_is_reached(monkey
 
 # --- the pending run row ---------------------------------------------------------------------------------------
 # The store refuses to claim a run whose input differs from the row accepted for it, so the pending row has to carry
-# exactly the attachments the coordinator will write when the run starts. They come from the ticket, which already
-# holds the canonical wire; the hook itself is only given the run id and the text.
+# exactly the attachments the coordinator will write when the run starts. The queue hands the hook the wire its
+# ticket holds, both when the request is accepted and when the worker ensures the row at claim.
 
 
 class _Store:
-    def __init__(self, payload):
+    def __init__(self):
         self.prepared = []
-        self.job = {"id": "r", "payload": payload}
-
-    async def get_job(self, run_id):
-        return self.job if run_id == "r" else None
 
     async def aprepare(self, run):
         self.prepared.append(run)
@@ -151,10 +145,9 @@ async def test_the_pending_row_carries_the_same_input_the_coordinator_writes_at_
 
     agent = _agent()
     wire = encode_media(images=[Image(content=b"png", format="png")], files=[File(content=b"abc", filename="a.txt")])
-    store = _Store({"input": "hello", "kwargs": {"sandbox_media": wire} if with_media else {}})
-    monkeypatch.setattr("agno.os.job_queue.get_active_queue_worker", lambda: SimpleNamespace(store=store))
+    store = _Store()
     monkeypatch.setattr(_harness, "coordinator", lambda _: SimpleNamespace(store=store))
-    pending = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello")
+    pending = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello", wire if with_media else None)
     claimed = RunInput(input_content="hello", **decode_media(wire if with_media else []))
     assert pending.input.to_dict() == claimed.to_dict()
     assert store.prepared[0]["input"] == claimed.to_dict()
@@ -170,59 +163,6 @@ def test_the_synchronous_public_run_forwards_attachments_too(monkeypatch, stream
         list(result)
     (execution,) = recorder.calls
     assert [file.content for file in execution["files"]] == [b"abc"]
-
-
-# --- a ticket that cannot be replayed ---------------------------------------------------------------------------
-# Retrying cannot cure a damaged wire, so the worker must fail it once and write the reason on the run. The
-# claim-time "ensure the run row" step only retries, so the pending-row hook must not raise for such a ticket.
-
-
-@pytest.mark.parametrize(
-    "damage",
-    [
-        lambda wire: wire[0].update(name="../escape"),
-        lambda wire: wire[0].update(content="not base64!"),
-        lambda wire: wire[0].update(host_path="/etc/passwd"),
-        lambda wire: wire.append("not an object"),
-    ],
-)
-def test_a_damaged_wire_is_a_permanent_input_failure_for_the_worker(damage):
-    agent = _agent()
-    wire = encode_media(files=[File(content=b"abc", filename="a.txt")])
-    damage(wire)
-    with pytest.raises(InputCheckError):
-        _harness._execution(agent, "hello", {"sandbox_media": wire, "run_id": "r"})
-
-
-class _RowStore(_Store):
-    def __init__(self, payload):
-        super().__init__(payload)
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("row_exists", [True, False])
-async def test_the_pending_row_hook_does_not_raise_for_a_ticket_that_cannot_be_replayed(monkeypatch, row_exists):
-    from types import SimpleNamespace
-
-    agent = _agent()
-    wire = encode_media(files=[File(content=b"abc", filename="a.txt")])
-    wire[0]["name"] = "../escape"
-    store = _RowStore({"input": "hello", "kwargs": {"sandbox_media": wire}})
-    accepted = object()
-
-    async def aget_run_output(run_id, session_id, user_id=None):
-        return accepted if row_exists else None
-
-    monkeypatch.setattr(agent, "aget_run_output", aget_run_output)
-    monkeypatch.setattr("agno.os.job_queue.get_active_queue_worker", lambda: SimpleNamespace(store=store))
-    monkeypatch.setattr(_harness, "coordinator", lambda _: SimpleNamespace(store=store))
-    result = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello")
-    if row_exists:
-        # The row the accepted request wrote is left alone; rewriting it would be refused as a different input.
-        assert result is accepted and store.prepared == []
-    else:
-        # No row to fail onto: a text-only one gives the failure a run to land on.
-        assert result.input.input_content == "hello" and not result.input.files and len(store.prepared) == 1
 
 
 @pytest.mark.asyncio
@@ -243,11 +183,10 @@ async def test_the_pending_row_matches_the_coordinators_input_for_images_given_w
     from agno.run.agent import RunInput
 
     agent = _agent()
-    wire = _harness.submission(agent, "hello", {"media": {"images": [image]}})["sandbox_media"]
-    store = _Store({"input": "hello", "kwargs": {"sandbox_media": wire}})
-    monkeypatch.setattr("agno.os.job_queue.get_active_queue_worker", lambda: SimpleNamespace(store=store))
+    wire = _harness.submission(agent, "hello", {"media": {"images": [image]}})["media"]
+    store = _Store()
     monkeypatch.setattr(_harness, "coordinator", lambda _: SimpleNamespace(store=store))
-    pending = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello")
+    pending = await _harness.aprepare_pending_run(agent, "r", "s", None, "hello", wire)
     rebuilt = decode_media(wire)
     claimed = RunInput(input_content="hello", **decode_media(encode_media(images=rebuilt["images"])))
     assert encode_media(images=rebuilt["images"]) == wire

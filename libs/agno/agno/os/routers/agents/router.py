@@ -898,7 +898,8 @@ def get_agent_router(
                 stream=stream,
                 background=background,
                 version=version,
-                attachments=attachments,
+                images=attachments.get("images"),
+                files=attachments.get("files"),
             )
 
         # Background execution

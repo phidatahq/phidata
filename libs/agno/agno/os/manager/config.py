@@ -7,12 +7,9 @@ from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 if TYPE_CHECKING:
     from agno.offload import ResultStore
 
-from agno.registry._reserved import BUILDER_ID as BUILDER_ID
-from agno.registry._reserved import MANAGER_TEAM_ID, RESERVED_MANAGER_IDS
-from agno.registry._reserved import OPERATOR_ID as OPERATOR_ID
+from agno.registry._reserved import MANAGER_TEAM_ID
 
 MANAGER_TEAM_NAME = "OS Manager"
-RESERVED_MEMBER_IDS = RESERVED_MANAGER_IDS - {MANAGER_TEAM_ID}
 
 
 @dataclass

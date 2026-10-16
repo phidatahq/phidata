@@ -10,8 +10,7 @@ RUN pip install --no-cache-dir "/opt/agno[claude,codex]" \
     && python -c "import agno.sandbox.runtime, claude_agent_sdk, openai_codex"
 ENV HOME=/runtime
 WORKDIR /workspace
-# A passwd entry for the runtime user: docker cp --archive resolves the container's owner by name
-# on some Docker versions and fails to restore a checkpoint when uid 1000 has none.
+# A passwd entry for the runtime user, for tools that look up the current user.
 RUN groupadd --gid 1000 sandbox && useradd --uid 1000 --gid 1000 --home-dir /runtime --no-create-home sandbox
 USER 1000:1000
 ENTRYPOINT ["python", "-I", "-c", "import time; time.sleep(2147483647)"]

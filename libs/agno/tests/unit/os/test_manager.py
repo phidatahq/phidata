@@ -1,4 +1,4 @@
-"""The manager is served as ordinary components and never enters the build palette."""
+"""Only the manager team is public; its private members never enter the build palette."""
 
 import asyncio
 import json
@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from agno.agent import Agent
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
+from agno.exceptions import ComponentRehydrationError
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
@@ -16,8 +17,10 @@ from agno.offload import ResultStore
 from agno.offload.tools import get_read_result_function
 from agno.os import AgentOS, OSManager
 from agno.os.config import AgentOSConfig, Manifest
-from agno.os.manager.config import BUILDER_ID, MANAGER_TEAM_ID, MANAGER_TEAM_NAME, OPERATOR_ID
+from agno.os.manager.config import MANAGER_TEAM_NAME
+from agno.os.utils import AgnoHTTPException
 from agno.registry import Registry
+from agno.registry._reserved import BUILDER_ID, MANAGER_TEAM_ID, OPERATOR_ID, PRODUCT_MANAGER_ID
 from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -80,7 +83,7 @@ def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, 
     family = "teams" if target == MANAGER_TEAM_ID else "agents"
     client = TestClient(os.get_app())
     response = client.post(f"/{family}/{target}/runs", headers=headers, data={"message": "hello", "stream": "false"})
-    assert response.status_code == 200, response.text
+    assert response.status_code == (200 if target == MANAGER_TEAM_ID else 422), response.text
     ordinary = client.post("/agents/ordinary/runs", headers=headers, data={"message": "hello", "stream": "false"})
     assert ordinary.status_code == 200, ordinary.text
     scheduled = client.post(
@@ -93,7 +96,7 @@ def test_manager_execution_accepts_ordinary_run_grants(db, workspace, identity, 
             "payload": {"message": "hello"},
         },
     )
-    assert scheduled.status_code == 201, scheduled.text
+    assert scheduled.status_code == (201 if target == MANAGER_TEAM_ID else 409), scheduled.text
 
 
 def test_manager_cannot_dispatch_for_a_caller_with_only_its_run_scope(db):
@@ -210,11 +213,12 @@ def workspace(tmp_path):
     return root
 
 
-def test_manager_true_uses_the_registry_model_and_always_serves_three_components(db, workspace):
+def test_manager_true_uses_the_registry_model_and_serves_only_the_team(db, workspace):
     model = OfflineModel()
     os = AgentOS(db=db, registry=Registry(models=[model]), manager=True, telemetry=False)
     # Source access does not change the two-member composition.
-    assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID]
+    assert os.agents == []
+    assert [a.id for a in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
     assert [t.id for t in os.teams] == [MANAGER_TEAM_ID]
     assert os.manager is not None and os.manager.name == MANAGER_TEAM_NAME == "OS Manager"
     assert os.manager.id == MANAGER_TEAM_ID == "os-manager-internal"
@@ -222,7 +226,8 @@ def test_manager_true_uses_the_registry_model_and_always_serves_three_components
     assert not any("read_file" in getattr(t, "functions", {}) for t in manager_member(os, OPERATOR_ID).tools)
 
     os = AgentOS(db=db, manager=OSManager(model=model, root=workspace), telemetry=False)
-    assert [a.id for a in os.agents] == [BUILDER_ID, OPERATOR_ID]
+    assert os.agents == []
+    assert [a.id for a in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
     assert manager_member(os, OPERATOR_ID) is not None
 
 
@@ -297,10 +302,16 @@ def test_operator_reads_the_workspace_but_not_env_files(db, workspace):
 
 
 def test_manifest_defaults_yield_to_the_application_config(db):
-    config = AgentOSConfig(manifest={MANAGER_TEAM_ID: Manifest(description="Our lead", quick_prompts=["Hi"])})
+    config = AgentOSConfig(
+        manifest={
+            MANAGER_TEAM_ID: Manifest(description="Our lead", quick_prompts=["Hi"]),
+            BUILDER_ID: Manifest(description="Old builder card"),
+            OPERATOR_ID: Manifest(description="Old operator card"),
+        }
+    )
     os = AgentOS(db=db, manager=OSManager(model=OfflineModel()), config=config, telemetry=False)
     assert os.config.manifest[MANAGER_TEAM_ID].description == "Our lead"
-    assert os.config.manifest[BUILDER_ID].quick_prompts
+    assert BUILDER_ID not in os.config.manifest and OPERATOR_ID not in os.config.manifest
     assert "platform-engineer" not in os.config.manifest
 
 
@@ -309,7 +320,7 @@ def test_manager_serves_over_the_ordinary_planes(db):
     client = TestClient(os.get_app())
     config = client.get("/config").json()
     assert [t["id"] for t in config["teams"]] == [MANAGER_TEAM_ID]
-    assert {a["id"] for a in config["agents"]} == {BUILDER_ID, OPERATOR_ID}
+    assert not config.get("agents")
     assert config["manifest"][MANAGER_TEAM_ID]["quick_prompts"]
     run = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "hello", "stream": "false"})
     assert run.status_code == 200, run.text
@@ -317,7 +328,7 @@ def test_manager_serves_over_the_ordinary_planes(db):
     sessions = client.get("/sessions?type=team").json()["data"]
     assert [s["session_id"] for s in sessions] == [run.json()["session_id"]]
     member = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "status", "stream": "false"})
-    assert member.status_code == 200, member.text
+    assert member.status_code == 422, member.text
 
 
 def test_diagnostics_report_sync_async_and_required_env(db, monkeypatch):
@@ -379,7 +390,7 @@ def test_manager_cannot_be_composed_through_explicit_studio_lists(db, workspace,
     studio = StudioTools(
         registry=registry,
         db=db,
-        include_agents=os.agents,
+        include_agents=os.manager.members,
         include_teams=os.teams,
         # Manager exclusion is not the overridable guard for application builders.
         allowed_tools=[c.id for c in [os.manager, *os.manager.members]],
@@ -391,11 +402,15 @@ def test_manager_cannot_be_composed_through_explicit_studio_lists(db, workspace,
         reference = component.name if by_name else component.id
         kwargs = dict(name="Wrapper", instructions="Delegate", member_ids=[reference], publish=True)
         result = asyncio.run(studio.acreate_team(**kwargs)) if use_async else studio.create_team(**kwargs)
-        assert json.loads(result)["error"]["code"] == "tool_not_allowed"
+        assert json.loads(result)["error"]["code"] == (
+            "component_not_found" if by_name and component is not os.manager else "tool_not_allowed"
+        )
         step = {"name": "Inspect", "type": "step", "team_id" if component is os.manager else "agent_id": reference}
         kwargs = dict(name="Flow", steps=[step], publish=True)
         result = asyncio.run(studio.acreate_workflow(**kwargs)) if use_async else studio.create_workflow(**kwargs)
-        assert json.loads(result)["error"]["code"] == "tool_not_allowed"
+        assert json.loads(result)["error"]["code"] == (
+            "component_not_found" if by_name and component is not os.manager else "tool_not_allowed"
+        )
     assert db.get_component("wrapper") is None
     assert db.get_component("flow") is None
 
@@ -579,7 +594,7 @@ def test_manager_runner_tracks_served_components_after_list_replacement(db, use_
     assert json.loads(result)["content"] == "local answer"
     kwargs["agent_id"] = OPERATOR_ID
     result = asyncio.run(runner.arun_agent(**kwargs)) if use_async else runner.run_agent(**kwargs)
-    assert json.loads(result)["content"] == "local answer"
+    assert "error" in json.loads(result)
 
 
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, MANAGER_TEAM_ID])
@@ -618,7 +633,7 @@ def test_manager_exclusion_survives_foreign_registry_mirrors(db, workspace, copi
     result = json.loads(
         studio.create_team(name="Wrapper", instructions="Read", member_ids=["Platform Manager"], publish=True)
     )
-    assert result["error"]["code"] == "tool_not_allowed"
+    assert result["error"]["code"] == "component_not_found"
 
 
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, MANAGER_TEAM_ID])
@@ -648,12 +663,12 @@ def test_registry_exclusion_does_not_mutate_the_served_lists(db, workspace):
     app = os.get_app()
     foreign = Registry(agents=os.agents, teams=os.teams)
     assert foreign.agents == [] and foreign.teams == []
-    assert len(os.agents) == 2 and os.teams == [os.manager]
+    assert os.agents == [] and os.teams == [os.manager]
     os.registry.agents = os.agents
     os.registry.teams = os.teams
     os.resync(app)
     assert os.registry.agents == [] and os.registry.teams == []
-    assert len(os.agents) == 2 and os.teams == [os.manager]
+    assert os.agents == [] and os.teams == [os.manager]
 
 
 @pytest.mark.parametrize("enabled", [None, False])
@@ -661,7 +676,7 @@ def test_disabled_manager_needs_neither_a_model_nor_a_workspace(db, enabled):
     os = AgentOS(db=db, manager=enabled, telemetry=False)
     assert os.manager is None
     assert not os.agents and not os.teams
-    assert os.registry.excluded_component_ids == {MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID}
+    assert os.registry.excluded_component_ids == {MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID}
 
 
 @pytest.mark.parametrize("invalid", ["true", {}, 1, 0])
@@ -774,7 +789,9 @@ def test_mcp_probe_distinguishes_reachable_from_healthy(db, monkeypatch, status_
 def test_registry_exclusion_surface_is_public_and_read_only():
     registry = Registry()
     registry.reserve_component_ids(["reserved-id", ""])
-    assert registry.excluded_component_ids == frozenset({"reserved-id", MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID})
+    assert registry.excluded_component_ids == frozenset(
+        {"reserved-id", MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID}
+    )
     with pytest.raises(AttributeError):
         registry.excluded_component_ids.add("other")  # type: ignore[attr-defined]
     agent = Agent(id="served", model=OfflineModel())
@@ -947,19 +964,21 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
         rows = [*config["agents"], *config["teams"]]
         rows += client.get("/agents").json() + client.get("/teams").json()
         team = client.get(f"/teams/{MANAGER_TEAM_ID}").json()
-        rows += [team, *team["members"]]
-        rows += [client.get(f"/agents/{cid}").json() for cid in (BUILDER_ID, OPERATOR_ID)]
+        rows.append(team)
+        assert not team.get("members")
+        assert [agent["id"] for agent in config["agents"]] == ["ordinary"]
+        assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
+        assert not {BUILDER_ID, OPERATOR_ID}.intersection(config["manifest"])
         for row in rows:
             if row["id"] == "ordinary":
                 assert row.get("metadata") in (None, ordinary_metadata)
             else:
                 assert row["metadata"]["_agno"] == {"internal": True, "id": row["id"]}
                 assert "is_manager" not in row
-        assert {member["id"] for member in team["members"]} == {BUILDER_ID, OPERATOR_ID}
-    for family, cid in (("teams", MANAGER_TEAM_ID), ("agents", OPERATOR_ID)):
-        run = client.post(f"/{family}/{cid}/runs", data={"message": "hello", "stream": "false"})
-        assert run.status_code == 200
-        assert run.json()["metadata"]["_agno"] == {"internal": True, "id": cid}
+        assert [member.id for member in os.manager.members] == [BUILDER_ID, OPERATOR_ID]
+    run = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "hello", "stream": "false"})
+    assert run.status_code == 200
+    assert run.json()["metadata"]["_agno"] == {"internal": True, "id": MANAGER_TEAM_ID}
 
 
 @pytest.mark.parametrize("declared", [False, True])
@@ -1016,7 +1035,9 @@ def test_docs_mcp_defaults_on_is_private_and_uses_os_lifecycle(db, monkeypatch, 
         assert docs[0].url == "https://docs.agno.com/mcp"
         assert os.mcp_tools == docs
     with TestClient(os.get_app()) as client:
-        assert client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
+        assert (
+            client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
+        )
     if enabled:
         assert calls[0] == ("connect", "https://docs.agno.com/mcp")
         assert calls[-1] == ("close", "https://docs.agno.com/mcp")
@@ -1080,7 +1101,8 @@ def test_docs_outage_is_nonfatal_cleans_up_and_recovers(db, monkeypatch, failure
         assert attempts == ["https://docs.agno.com/mcp"]
         assert not docs.initialized and docs.session is None
         assert docs._session_context is None
-        for target in (f"agents/{OPERATOR_ID}", f"teams/{MANAGER_TEAM_ID}"):
+        assert asyncio.run(operator.arun("Hi")).content == "local answer"
+        for target in (f"teams/{MANAGER_TEAM_ID}",):
             response = client.post(f"/{target}/runs", data={"message": "Hi", "stream": "false"})
             assert response.status_code == 200, response.text
             assert response.json()["content"] == "local answer"
@@ -1094,8 +1116,7 @@ def test_docs_outage_is_nonfatal_cleans_up_and_recovers(db, monkeypatch, failure
 
         # A later async run reconnects without restarting AgentOS.
         available = True
-        response = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"})
-        assert response.status_code == 200, response.text
+        asyncio.run(operator.arun("Hi"))
         assert "search_agno_docs" in docs.functions
         assert "search_agno_docs" in offered_tools[-1]
         os.resync(os.get_app())
@@ -1124,7 +1145,7 @@ def test_missing_optional_mcp_dependency_does_not_prevent_manager_startup(db, mo
     assert any("install agno[mcp]" in message for message in warnings)
     assert not os.mcp_tools
     with TestClient(os.get_app()) as client:
-        response = client.post(f"/agents/{OPERATOR_ID}/runs", data={"message": "Hi", "stream": "false"})
+        response = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "Hi", "stream": "false"})
         assert response.status_code == 200, response.text
 
     attempted.clear()
@@ -1144,3 +1165,431 @@ async def test_docs_connection_does_not_swallow_cancellation(db, monkeypatch):
     os = AgentOS(db=db, manager=OSManager(model=OfflineModel()), telemetry=False)
     with pytest.raises(asyncio.CancelledError):
         await os.mcp_tools[0].connect()
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_internal_members_delegate_and_keep_structured_reports(db, stream):
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    operator = manager_member(os, OPERATOR_ID)
+    operator.model = ManagerToolModel("get_platform_metrics", {"days": 7})
+    os.manager.model = ManagerToolModel(
+        "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Report platform usage"}
+    )
+    client = TestClient(os.get_app())
+    response = client.post(
+        f"/teams/{MANAGER_TEAM_ID}/runs",
+        data={"message": "Report usage", "session_id": "reports", "stream": str(stream).lower()},
+    )
+    assert response.status_code == 200, response.text
+    if stream:
+        events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+        reports = [
+            event["tool"]["result"]
+            for event in events
+            if event.get("agent_id") == OPERATOR_ID
+            and event.get("event") == "ToolCallCompleted"
+            and event.get("tool", {}).get("tool_name") == "get_platform_metrics"
+        ]
+        assert reports and json.loads(reports[0])["window_days"] == 7
+    else:
+        assert response.json()["content"] == "local answer"
+    # Persisted child runs remain available inside the manager's session for replay/diagnostics.
+    from agno.db.base import SessionType
+
+    session = db.get_session("reports", session_type=SessionType.TEAM)
+    child = next(run for run in session.runs if getattr(run, "agent_id", None) == OPERATOR_ID)
+    assert child.agent_id == OPERATOR_ID
+    assert json.loads(child.tools[0].result)["window_days"] == 7
+    assert operator.store_events
+    replay = client.get("/sessions/reports/runs")
+    assert replay.status_code == 200, replay.text
+    child_data = next(run for run in replay.json() if run.get("agent_id") == OPERATOR_ID)
+    assert json.loads(child_data["tools"][0]["result"])["window_days"] == 7
+
+
+@pytest.mark.asyncio
+async def test_mcp_config_hides_specialists_but_manager_delegates(db):
+    from fastmcp import Client
+
+    from agno.os.mcp import build_mcp_server
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    os.manager.model = ManagerToolModel("delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Answer"})
+    os.get_app()
+    async with Client(build_mcp_server(os)) as client:
+        config = await client.call_tool("get_agentos_config", {})
+        text = " ".join(block.text for block in config.content if hasattr(block, "text"))
+        assert MANAGER_TEAM_ID in text
+        assert BUILDER_ID not in text and OPERATOR_ID not in text
+        result = await client.call_tool("run_team", {"team_id": MANAGER_TEAM_ID, "message": "Answer"})
+        assert not result.is_error
+        for member_id in (BUILDER_ID, OPERATOR_ID):
+            with pytest.raises(Exception, match="is reserved"):
+                await client.call_tool("run_agent", {"agent_id": member_id, "message": "Answer"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("manager_enabled", [False, True])
+async def test_legacy_catalog_rows_cannot_restore_public_specialists(db, manager_enabled):
+    from fastmcp import Client
+
+    from agno.db.base import ComponentType
+    from agno.os.mcp import build_mcp_server
+
+    os = AgentOS(
+        db=db,
+        manager=OSManager(model=OfflineModel(), access_docs=False) if manager_enabled else False,
+        telemetry=False,
+    )
+    # Simulate rows left by an older deployment, bypassing current reservation checks.
+    for component_id in (BUILDER_ID, OPERATOR_ID, "stored-ordinary"):
+        db.create_component_with_config(
+            component_id=component_id,
+            component_type=ComponentType.AGENT,
+            name=component_id,
+            config={"name": component_id, "instructions": "Answer briefly"},
+            stage="published",
+        )
+    client = TestClient(os.get_app())
+    assert [agent["id"] for agent in client.get("/agents").json()] == ["stored-ordinary"]
+    async with Client(build_mcp_server(os)) as mcp:
+        config = await mcp.call_tool("get_agentos_config", {})
+        text = " ".join(block.text for block in config.content if hasattr(block, "text"))
+        assert "stored-ordinary" in text
+        assert BUILDER_ID not in text and OPERATOR_ID not in text
+
+
+@pytest.mark.parametrize("member_id", [BUILDER_ID, OPERATOR_ID])
+def test_schedule_cannot_be_retargeted_to_a_private_specialist(db, member_id):
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    created = client.post(
+        "/schedules",
+        json={"name": "manager-job", "cron_expr": "0 0 * * *", "endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"},
+    )
+    assert created.status_code == 201, created.text
+    path = f"/schedules/{created.json()['id']}"
+    response = client.patch(path, json={"endpoint": f"/agents/{member_id}/runs/"})
+    assert response.status_code == 409, response.text
+    assert client.get(path).json()["endpoint"] == f"/teams/{MANAGER_TEAM_ID}/runs"
+
+
+def _store_manager_test_component(db, kind, component_id, name=None):
+    from agno.db.base import ComponentType
+
+    db.create_component_with_config(
+        component_id=component_id,
+        component_type=ComponentType(kind),
+        name=name or component_id,
+        config={"name": name or component_id, "model": {"id": "fixture", "provider": "test"}},
+        stage="published",
+    )
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize("use_async", [False, True])
+def test_manager_runner_refuses_legacy_specialists(db, enabled, use_async):
+    from agno.tools.studio_runner import StudioRunnerTools
+
+    registry = Registry(models=[OfflineModel()])
+    os = AgentOS(db=db, registry=registry, manager=OSManager(access_docs=False) if enabled else False, telemetry=False)
+    for component_id in (BUILDER_ID, OPERATOR_ID):
+        _store_manager_test_component(db, "agent", component_id, "Legacy " + component_id)
+    _store_manager_test_component(db, "team", MANAGER_TEAM_ID)
+    _store_manager_test_component(db, "agent", "ordinary")
+    runner = (
+        os.manager.tools[0] if enabled else StudioRunnerTools(db=db, registry=registry, include_all_components=True)
+    )
+    for component_id in (BUILDER_ID, OPERATOR_ID):
+        for reference in (component_id, "Legacy " + component_id):
+            result = asyncio.run(runner.arun_agent(reference, "hi")) if use_async else runner.run_agent(reference, "hi")
+            assert "error" in json.loads(result)
+    data = json.loads(runner.list_agents())
+    assert data["count"] == data["total"] == 1
+    assert data["agents"][0]["id"] == "ordinary"
+    assert json.loads(runner.list_teams())["total"] == int(enabled)
+    assert data["other_components"]["teams"] == int(enabled)
+
+
+@pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
+@pytest.mark.parametrize("strict", [False, True])
+def test_catalog_cannot_restore_framework_manager_ids(db, kind, strict):
+    from importlib import import_module
+
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    registry = Registry(models=[OfflineModel()])
+    module = import_module(f"agno.{kind}.{kind}")
+    for component_id in RESERVED_MANAGER_IDS:
+        _store_manager_test_component(db, kind, component_id)
+        for loader in (getattr(module, f"get_{kind}_by_id"), getattr(module, kind.capitalize()).load):
+            for version in (None, 1):
+                with pytest.raises(ComponentRehydrationError) as exc:
+                    loader(db=db, id=component_id, registry=registry, version=version, strict=strict)
+                assert str(exc.value) == (
+                    f"Component ID '{component_id}' is reserved. Please choose a different ID for your component."
+                )
+            assert loader(db=db, id="missing", registry=registry, strict=strict) is None
+        assert db.get_component(component_id) is not None  # No implicit migration/deletion.
+    _store_manager_test_component(db, kind, "ordinary")
+    assert [c.id for c in getattr(module, f"get_{kind}s")(db=db, registry=registry)] == ["ordinary"]
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_scheduler_tools_refuse_legacy_manager_targets(db, use_async):
+    from agno.tools.scheduler import SchedulerTools
+
+    scheduler = SchedulerTools(db=db)
+    args = dict(name="invalid", cron="0 0 * * *", endpoint=f"/agents/{OPERATOR_ID}/runs")
+    result = asyncio.run(scheduler.acreate_schedule(**args)) if use_async else scheduler.create_schedule(**args)
+    assert json.loads(result)["error_type"] == "target_internal"
+    old = scheduler.manager.create(name="old", cron="0 0 * * *", endpoint=args["endpoint"])
+    for method in ("enable_schedule", "trigger_schedule"):
+        result = getattr(scheduler, ("a" if use_async else "") + method)(old.id)
+        assert json.loads(asyncio.run(result) if use_async else result)["error_type"] == "target_internal"
+    assert json.loads(scheduler.disable_schedule(old.id))["status"] == "disabled"
+    assert json.loads(scheduler.delete_schedule(old.id))["status"] == "deleted"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        f"/agents/{OPERATOR_ID}/runs",
+        "/agents/%70latform-manager-internal/runs?source=schedule",
+        f"/agents/public/../{OPERATOR_ID}/runs",
+        f"/agents/{OPERATOR_ID}/runs/old/continue",
+    ],
+)
+def test_unmanaged_specialist_schedules_can_be_retargeted(db, target):
+    from agno.tools.scheduler import SchedulerTools
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    data = {"name": "job", "cron_expr": "0 0 * * *", "endpoint": target, "payload": {"message": "hi"}}
+    assert client.post("/schedules", json=data).status_code == 409
+    old = SchedulerTools(db=db).manager.create(name="old", cron="0 0 * * *", endpoint=target)
+    path = f"/schedules/{old.id}"
+    for suffix in ("enable", "trigger"):
+        assert client.post(f"{path}/{suffix}").status_code == 409
+    assert client.patch(path, json={"payload": {"message": "replacement"}}).status_code == 409
+    assert client.post(f"{path}/disable").status_code == 200
+    assert client.patch(path, json={"endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"}).status_code == 200
+    assert client.post(f"{path}/enable").status_code == 200
+    assert client.delete(path).status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_managed_specialist_schedule_requires_replacement(db):
+    from unittest.mock import AsyncMock, patch
+
+    from agno.scheduler.executor import ScheduleExecutor
+    from agno.tools.scheduler import SchedulerTools
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    old = SchedulerTools(db=db).manager.create(
+        name="legacy-managed",
+        cron="0 0 * * *",
+        endpoint=f"/agents/{OPERATOR_ID}/runs",
+        provenance={"managed_by": "studio", "target_type": "agent", "target_id": OPERATOR_ID},
+    )
+    path = f"/schedules/{old.id}"
+    assert client.post(f"{path}/disable").status_code == 200
+    assert client.patch(path, json={"endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"}).status_code == 200
+    executor = ScheduleExecutor(base_url="http://localhost:9", internal_service_token="fixture")
+    try:
+        with patch.object(executor, "_call_endpoint", new=AsyncMock()) as call:
+            result = await executor.execute(db.get_schedule(old.id), db, release_schedule=False)
+        call.assert_not_awaited()
+        assert result["status"] == "failed"
+        assert "provenance target agent:" + OPERATOR_ID in result["error"]
+        assert client.post(f"{path}/enable").status_code == 409
+    finally:
+        await executor.close()
+    replacement = client.post(
+        "/schedules",
+        json={"name": "replacement", "cron_expr": "0 0 * * *", "endpoint": f"/teams/{MANAGER_TEAM_ID}/runs"},
+    )
+    assert replacement.status_code == 201, replacement.text
+    assert client.delete(path).status_code == 204
+
+
+@pytest.mark.parametrize("version", [None, 1])
+def test_stored_composition_cannot_restore_manager_member(db, version):
+    from agno.exceptions import ComponentRehydrationError
+    from agno.team import Team
+    from agno.workflow.step import Step
+
+    registry = Registry(models=[OfflineModel()])
+    _store_manager_test_component(db, "agent", OPERATOR_ID)
+    links = [{"link_kind": "member", "child_component_id": OPERATOR_ID, "child_version": version}]
+    with pytest.raises(ComponentRehydrationError):
+        Team.from_dict(
+            {"name": "stored", "members": [{"type": "agent", "agent_id": OPERATOR_ID}]},
+            db=db,
+            registry=registry,
+            links=links,
+            strict=True,
+        )
+    with pytest.raises(ComponentRehydrationError):
+        Step.from_dict({"name": "stored-step", "agent_id": OPERATOR_ID}, db=db, registry=registry, strict=True)
+
+
+@pytest.mark.asyncio
+async def test_queue_cannot_replay_standalone_manager_members(db):
+    from types import SimpleNamespace
+
+    from agno.job_queue.config import QueueConfig
+    from agno.job_queue.store import InMemoryQueueStore
+    from agno.os.job_queue import get_active_queue_worker, queue_lifespan
+
+    # A worker holding an old roster must still refuse a pre-existing direct job.
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    host = SimpleNamespace(
+        db=db,
+        registry=os.registry,
+        agents=os.manager.members,
+        teams=[],
+        workflows=[],
+        queue=QueueConfig(durable=True, db=InMemoryQueueStore()),
+    )
+    async with queue_lifespan(SimpleNamespace(state=SimpleNamespace()), host):
+        worker = get_active_queue_worker()
+        for component_id in (BUILDER_ID, OPERATOR_ID):
+            for source in ("registry", "db", "factory"):
+                assert (
+                    await worker._aresolve_job_component(
+                        {
+                            "component_type": "agent",
+                            "component_id": component_id,
+                            "payload": {"scope": {"source": source, "version": 1}},
+                        }
+                    )
+                    is None
+                )
+
+
+@pytest.mark.parametrize("stream", [False, True])
+def test_manager_member_confirmation_continues_through_manager(db, stream):
+    from agno.tools import tool
+
+    calls = []
+
+    @tool(requires_confirmation=True)
+    def approved_action() -> str:
+        """Execute the local fixture action."""
+        calls.append(True)
+        return "action complete"
+
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), access_docs=False), telemetry=False)
+    member = manager_member(os, OPERATOR_ID)
+    member.model = ManagerToolModel("approved_action", {})
+    member.tools.append(approved_action)
+    os.manager.model = ManagerToolModel(
+        "delegate_task_to_member", {"member_id": OPERATOR_ID, "task": "Perform the action"}
+    )
+    client = TestClient(os.get_app())
+    response = client.post(f"/teams/{MANAGER_TEAM_ID}/runs", data={"message": "act", "stream": str(stream).lower()})
+    assert response.status_code == 200
+    if stream:
+        events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+        data = next(event for event in events if event.get("event") == "TeamRunPaused")
+    else:
+        data = response.json()
+        assert data["status"] == "PAUSED"
+    assert calls == []
+    requirements = data["requirements"]
+    for req in requirements:
+        req["confirmation"] = True
+        req["tool_execution"]["confirmed"] = True
+    assert (
+        client.post(f"/agents/{OPERATOR_ID}/runs/{data['run_id']}/continue", data={"stream": "false"}).status_code
+        == 422
+    )
+    resumed = client.post(
+        f"/teams/{MANAGER_TEAM_ID}/runs/{data['run_id']}/continue",
+        data={"session_id": data["session_id"], "requirements": json.dumps(requirements), "stream": "false"},
+    )
+    assert resumed.status_code == 200, resumed.text
+    assert resumed.json()["status"] == "COMPLETED"
+    assert calls == [True]
+    history = client.get(f"/sessions/{data['session_id']}/runs").json()
+    assert any(run.get("agent_id") == OPERATOR_ID for run in history)
+
+
+@pytest.mark.asyncio
+async def test_team_detail_hides_only_framework_owned_members():
+    from agno.os.routers.teams.schema import TeamResponse
+    from agno.team import Team
+
+    member = Agent(id=OPERATOR_ID, model=OfflineModel())
+    team = Team(id="ordinary", members=[member], model=OfflineModel())
+    assert (await TeamResponse.from_team(team)).members
+    member._registry_excluded = True
+    assert not (await TeamResponse.from_team(team)).members
+
+
+@pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
+@pytest.mark.parametrize("deployment", ["manager", "catalog", "no_db", "async_db", "base_app"])
+def test_reserved_ids_have_clear_rest_errors(db, tmp_path, kind, deployment):
+    from fastapi import FastAPI
+
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    os_db = None if deployment == "no_db" else db
+    if deployment == "async_db":
+        os_db = AsyncSqliteDb(db_file=str(tmp_path / "async.db"))
+    os = AgentOS(
+        agents=[Agent(id="ordinary", model=OfflineModel())],
+        db=os_db,
+        manager=OSManager(model=OfflineModel(), access_docs=False) if deployment == "manager" else False,
+        base_app=FastAPI() if deployment == "base_app" else None,
+        telemetry=False,
+    )
+    client = TestClient(os.get_app())
+    os.resync(os.get_app())
+    for component_id in RESERVED_MANAGER_IDS:
+        if deployment == "catalog":
+            _store_manager_test_component(db, kind, component_id)
+        if kind == "team" and component_id == MANAGER_TEAM_ID and deployment == "manager":
+            assert client.get(f"/teams/{component_id}").status_code == 200
+            continue
+        path = f"/{kind}s/{component_id}"
+        # Detail, start, continuation and run management use different exception boundaries.
+        responses = [
+            client.get(path),
+            client.get(f"{path}/runs/missing", params={"session_id": "missing"}),
+            client.post(f"{path}/runs/missing/cancel"),
+            client.post(f"{path}/runs", data={"message": "run", "stream": "false"}),
+            client.post(f"{path}/runs", data={"message": "run", "stream": "true"}),
+        ]
+        if kind != "workflow":
+            responses.append(client.post(f"{path}/runs/missing/continue", data={"stream": "false"}))
+        for response in responses:
+            assert response.status_code == 422, response.text
+            assert response.json()["detail"] == (
+                f"Component ID '{component_id}' is reserved. Please choose a different ID for your component."
+            )
+    assert client.get(f"/{kind}s/missing").status_code == 404
+    assert client.post("/agents/ordinary/runs", data={"message": "Hi", "stream": "false"}).status_code == 200
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
+@pytest.mark.parametrize("database", ["sync", "async", "none"])
+async def test_reserved_errors_match_sync_and_async_os_lookup(db, tmp_path, kind, database):
+    from agno.os import utils
+    from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+    os_db = None if database == "none" else db
+    if database == "async":
+        os_db = AsyncSqliteDb(db_file=str(tmp_path / "async.db"))
+    for component_id in RESERVED_MANAGER_IDS:
+        with pytest.raises(AgnoHTTPException) as sync_error:
+            getattr(utils, f"get_{kind}_by_id")(component_id, db=os_db)
+        with pytest.raises(AgnoHTTPException) as async_error:
+            await getattr(utils, f"get_{kind}_by_id_async")(component_id, db=os_db)
+        assert sync_error.value.status_code == async_error.value.status_code == 422
+        assert sync_error.value.detail == async_error.value.detail
+    assert getattr(utils, f"get_{kind}_by_id")("missing", db=os_db) is None
+    assert await getattr(utils, f"get_{kind}_by_id_async")("missing", db=os_db) is None

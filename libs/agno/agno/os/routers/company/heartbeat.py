@@ -6,11 +6,11 @@ from typing import Any, Dict, Literal, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.routing import APIRoute
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from agno.company.declarations import AutoAccept, Product, Routine, Source
 from agno.company.manager import AsyncCompanyManager, CompanyManager
-from agno.company.routines import _routine_message, _schedule_fields
+from agno.company.routines import _routine_executor_endpoint, _routine_message, _schedule_fields
 from agno.db.base import AsyncBaseDb
 from agno.os.auth import get_authentication_dependency
 from agno.os.middleware.user_scope import get_scoped_user_id
@@ -31,6 +31,9 @@ class RoutineCreate(Routine):
 
 class RoutineUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
+    name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    executor_type: Optional[Literal["agent", "team", "workflow"]] = None
+    executor_id: Optional[str] = Field(default=None, min_length=1)
     instructions: Optional[str] = None
     cron_expr: Optional[str] = None
     timezone: Optional[str] = None
@@ -43,7 +46,7 @@ class Setup(Product):
 
 
 def get_heartbeat_router(agent_os: Any) -> APIRouter:
-    router = APIRouter(prefix="/company", tags=["Company heartbeat"])
+    router = APIRouter(prefix="/company", tags=["Company heartbeat"], dependencies=[Depends(get_scoped_user_id)])
     db = agent_os._company_db
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
     auth = get_authentication_dependency(agent_os.settings)
@@ -182,13 +185,29 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         updates: Dict[str, Any] = body.model_dump(exclude_unset=True)
         if any(value is None for value in updates.values()):
             raise HTTPException(422, "Routine fields cannot be null")
-        if "auto_accept" in updates:
-            from agno.company.routines import _authorize_auto_accept
+        from agno.company.routines import _authorize_auto_accept
 
+        if "auto_accept" in updates:
             policy = updates.pop("auto_accept")
             await _authorize_auto_accept(request, policy, agent_os)
             updates["payload"] = {**row["payload"], "metadata": {**row["payload"]["metadata"], "auto_accept": policy}}
+        product_id = row["payload"]["metadata"]["product_id"]
+        if "name" in updates:
+            updates["name"] = product_id + "." + updates["name"]
+        if "executor_type" in updates or "executor_id" in updates:
+            executor_type = updates.pop("executor_type", row["target_type"])
+            executor_id = updates.pop("executor_id", row["target_id"])
+            updates["endpoint"] = await call(_routine_executor_endpoint, executor_type, executor_id, agent_os.registry)
+            payload = updates.get("payload", row["payload"])
+            policy = payload["metadata"].get("auto_accept")
+            if policy:
+                await _authorize_auto_accept(request, policy, agent_os)
+                # Scheduler payload validation re-stamps the grant for this editor.
+                updates["payload"] = payload
+
         if "instructions" in updates:
+            if not updates["instructions"].strip():
+                raise HTTPException(422, "Routine instructions must be nonempty")
             updates["payload"] = {
                 **updates.get("payload", row["payload"]),
                 "message": _routine_message(row["payload"]["metadata"]["product_id"], updates.pop("instructions")),

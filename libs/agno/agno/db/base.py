@@ -1793,8 +1793,8 @@ class BaseDb(ABC):
         """Atomically append a Routine id without overwriting Product metadata."""
         raise NotImplementedError("Company products not supported by the configured database")
 
-    def create_source(self, source_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a Source; source_data carries its owner and timestamps."""
+    def create_source(self, source_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
+        """Create a Source; reuse atomically returns an identical reference or refuses conflicting settings."""
         raise NotImplementedError("Company sources not supported by the configured database")
 
     def get_source(
@@ -3729,8 +3729,8 @@ class AsyncBaseDb(ABC):
         """Atomically append a Routine id without overwriting Product metadata."""
         raise NotImplementedError("Company products not supported by the configured database")
 
-    async def create_source(self, source_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Create a Source; source_data carries its owner and timestamps."""
+    async def create_source(self, source_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
+        """Create a Source; reuse atomically returns an identical reference or refuses conflicting settings."""
         raise NotImplementedError("Company sources not supported by the configured database")
 
     async def get_source(

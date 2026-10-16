@@ -6984,6 +6984,15 @@ class SqliteDb(BaseDb):
                 kwargs.setdefault("disabled_reason", None)
             kwargs["updated_at"] = int(time.time())
             with self.Session() as sess, sess.begin():
+                if "endpoint" in kwargs:
+                    from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
+
+                    existing = sess.execute(select(table).where(table.c.id == schedule_id)).first()
+                    target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
+                    if existing is not None and existing._mapping.get("managed_by") == "company":
+                        if target is None:
+                            raise ValueError("Routine executor must be a run endpoint")
+                        kwargs.update(target_type=target.group(1).rstrip("s"), target_id=target.group(2))
                 stmt = table.update().where(table.c.id == schedule_id)
                 if user_id is not None:
                     stmt = stmt.where(table.c.user_id == user_id)
@@ -8008,13 +8017,15 @@ class SqliteDb(BaseDb):
 
     # --- Sources ---
 
-    def create_source(self, source_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_source(self, source_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
+        from agno.db.sql.company import create_company_source
+
         table = self._get_table(table_type="sources", create_table_if_not_found=True)
-        if table is None:
-            raise RuntimeError("Failed to get or create sources table")
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        if table is None or products is None:
+            raise RuntimeError("Failed to get or create Company tables")
         with self.Session() as sess, sess.begin():
-            result = sess.execute(table.insert().values(**source_data).returning(table)).one()
-            return dict(result._mapping)
+            return create_company_source(sess, products, table, source_data, reuse)
 
     def get_source(
         self, source_id: str, user_id: Optional[str] = None, include_deleted: bool = False

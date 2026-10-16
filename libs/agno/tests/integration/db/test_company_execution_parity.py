@@ -1093,8 +1093,9 @@ async def routine_proposal(system, tmp_path, *, policy=None, executor_id="writer
         "/company/routines",
         json={
             "product_id": product["id"],
-            "name": template,
+            "name": template or "custom",
             "template": template,
+            **({"instructions": "Inspect work and propose follow-up."} if template is None else {}),
             "executor_type": "agent",
             "executor_id": "writer",
             "cron_expr": "0 0 * * *",
@@ -2014,3 +2015,224 @@ async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch):
         len([entry for entry in (await _call(db, "get_task", task["id"]))["transitions"] if entry["target"] == "ready"])
         == 1
     )
+
+
+async def routine_executor(system):
+    from unittest.mock import AsyncMock
+
+    from agno.scheduler.executor import ScheduleExecutor
+
+    client, _, worker, _, _ = system
+    worker.authorization_app.state.internal_service_token = "contract-internal"
+
+    async def request_and_work(method, url, **kwargs):
+        response = await client.request(method, url, **kwargs)
+        if method == "POST" and response.status_code == 202:
+            job = await execute(worker)
+            assert job["status"] == "completed", job
+        return response
+
+    executor = ScheduleExecutor(base_url="http://test", internal_service_token="contract-internal", poll_interval=0)
+    executor._get_client = AsyncMock(return_value=SimpleClient(request_and_work))
+    return executor
+
+
+@pytest.mark.asyncio
+async def test_template_free_routine_quiet_run_and_edited_executor(system):
+    from agno.company.execution import _call
+
+    client, db, _, _, components = system
+    observed = []
+
+    class CapturingModel(OfflineModel):
+        def invoke(self, messages, *args, **kwargs):
+            observed.append([message.content for message in messages if message.role == "user"])
+            return super().invoke(messages, *args, **kwargs)
+
+    components["writer"].model = CapturingModel()
+    components["editors"].model = CapturingModel()
+    product = (await client.post("/company/products", json={"name": "Quiet discovery"})).json()
+    created = await client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="quiet",
+            instructions="First custom instructions",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+        ),
+    )
+    assert created.status_code == 201, created.text
+    routine = created.json()
+    executor = await routine_executor(system)
+    first = await executor.execute(await _call(db, "get_schedule", routine["id"]), db, release_schedule=False)
+    assert first["status"] == "success", first
+    assert any("First custom instructions" in str(value) for value in observed)
+    edited = await client.patch(
+        "/company/routines/" + routine["id"],
+        json=dict(
+            name="edited",
+            instructions="Second custom instructions",
+            executor_type="team",
+            executor_id="editors",
+            cron_expr="0 9 * * *",
+        ),
+    )
+    assert edited.status_code == 200, edited.text
+    assert edited.json()["target_id"] == "editors" and edited.json()["target_type"] == "team"
+    observed.clear()
+    second = await executor.execute(await _call(db, "get_schedule", routine["id"]), db, release_schedule=False)
+    assert second["status"] == "success", second
+    assert any("Second custom instructions" in str(value) for value in observed)
+    assert (await _call(db, "get_tasks", product_id=product["id"]))[1] == 0
+    assert (await _call(db, "get_sources", product_id=product["id"]))[1] == 0
+    history = (await client.get("/company/routines/" + routine["id"] + "/runs")).json()
+    assert len(history["data"]) == 2 and all(row["status"] == "success" for row in history["data"])
+
+
+@pytest.mark.asyncio
+async def test_search_routine_adds_website_and_deduplicates_three_runs(system, monkeypatch):
+    from agno.company.execution import _call
+    from agno.knowledge.document import Document
+    from agno.tools.company import CompanyTools
+
+    client, db, worker, os, components = system
+    url = "https://example.test/discovered-release"
+    monkeypatch.setattr(
+        "agno.knowledge.reader.website_reader.WebsiteReader.read",
+        lambda *args, **kwargs: [Document(content="The released API needs a migration guide.")],
+    )
+    product = (await client.post("/company/products", json={"name": "Search discovery"})).json()
+
+    class SearchModel(OfflineModel):
+        def invoke(self, messages, *args, **kwargs):
+            results = [json.loads(message.content) for message in messages if message.role == "tool"]
+            if not results:
+                name, arguments = "add_company_source", dict(product_id=product["id"], type="website", reference=url)
+            elif len(results) == 1:
+                name, arguments = "read_company_source", dict(source_id=results[0]["id"], path=url)
+            elif len(results) == 2:
+                observed = results[1]
+                assert "migration guide" in observed["content"]
+                name, arguments = (
+                    "intake_company_source",
+                    dict(
+                        source_id=results[0]["id"],
+                        title="Write migration guide",
+                        brief="Explain the released API migration",
+                        proposal_key=observed["content_hash"],
+                        evidence_links=[observed["link"]],
+                        evidence_hashes={observed["link"]: observed["content_hash"]},
+                    ),
+                )
+            else:
+                return super().invoke(messages, *args, **kwargs)
+            return ModelResponse(
+                role="assistant",
+                tool_calls=[
+                    {"id": name, "type": "function", "function": {"name": name, "arguments": json.dumps(arguments)}}
+                ],
+                response_usage=MessageMetrics(),
+            )
+
+    components["writer"].model = SearchModel()
+    components["writer"].tools = [CompanyTools(db)]
+    os.resync(worker.authorization_app)
+    created = await client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="search",
+            instructions="Discover useful pages, save website Sources, and propose evidence-backed work.",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+        ),
+    )
+    assert created.status_code == 201, created.text
+    routine = created.json()
+    executor = await routine_executor(system)
+    runs = []
+    for _ in range(3):
+        result = await executor.execute(await _call(db, "get_schedule", routine["id"]), db, release_schedule=False)
+        assert result["status"] == "success", result
+        runs.append(result["run_id"])
+    sources, count = await _call(db, "get_sources", product_id=product["id"])
+    assert count == 1
+    assert sources[0]["config"]["metadata"] == {"agent_id": "writer", "run_id": runs[0]}
+    tasks, count = await _call(db, "get_tasks", product_id=product["id"])
+    assert count == 1 and tasks[0]["status"] == "backlog"
+    assert tasks[0]["evidence"][0]["run_id"] == runs[0]
+    assert tasks[0]["evidence"][0]["link"] == url and tasks[0]["evidence"][0]["content_hash"]
+    assert tasks[0]["routine_id"] == routine["id"]
+    listed = (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"]
+    assert listed[0]["config"]["metadata"]["agent_id"] == "writer"
+    # Discovered websites use the same bounded acceptance checks as human-added Sources.
+    policy = dict(
+        executor_type="agent",
+        executor_id="writer",
+        source_ids=[sources[0]["id"]],
+        required_checks=["has_source_evidence", "executor_registered"],
+        limits={"expires_at": int(time.time()) + 3600},
+    )
+    authorized = await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})
+    assert authorized.status_code == 200, authorized.text
+    automatic, _ = await automation(system)
+    assert (await automatic._accept(tasks[0]))["status"] == "ready"
+    assert (await client.delete("/company/sources/" + sources[0]["id"])).status_code == 204
+    assert (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_template_free_policy_never_completes_projects(system, tmp_path):
+    from agno.company.execution import _call
+    from agno.company.routines import _manager_call, _policy_fingerprint
+
+    client, db, worker, os, _ = system
+    task, routine, manager = await routine_proposal(system, tmp_path, template=None)
+    assert routine["payload"]["metadata"]["template"] is None
+    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    policy = routine["payload"]["metadata"]["auto_accept"]
+    policy["complete_projects"] = True
+    assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
+    await _manager_call(manager, "refresh", task["product_id"])
+    executor, _ = await automation(system)
+    project = await _manager_call(manager, "get_project", task["project_id"])
+    proposal = await executor._completion_candidate(manager, project, routine["id"])
+    assert proposal is not None
+    with pytest.raises(ValueError, match="not authorized to complete Projects"):
+        await executor._accept(proposal, completing=True)
+    assert await executor._tick() == []
+    assert (await _manager_call(manager, "get_project", project["id"]))["status"] == "active"
+    current = await _call(db, "get_schedule", routine["id"])
+    assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(current), "") == 0
+
+
+@pytest.mark.asyncio
+async def test_routine_instruction_edit_preserves_fingerprint_and_spent_budget(system, tmp_path):
+    from agno.company.execution import _call
+    from agno.company.routines import _policy_fingerprint
+
+    client, db, worker, os, _ = system
+    task, routine, manager = await routine_proposal(system, tmp_path)
+    executor, _ = await automation(system)
+    assert (await executor._accept(task))["status"] == "ready"
+    before = await _call(db, "get_schedule", routine["id"])
+    fingerprint = _policy_fingerprint(before)
+    count = await _call(db, "count_company_acceptances", routine["id"], fingerprint, "")
+    assert count == 1
+    edited = await client.patch(
+        "/company/routines/" + routine["id"], json={"instructions": "Use the revised review instructions."}
+    )
+    assert edited.status_code == 200, edited.text
+    after = await _call(db, "get_schedule", routine["id"])
+    assert after["payload"]["message"].endswith("Use the revised review instructions.")
+    assert _policy_fingerprint(after) == fingerprint
+    assert await _call(db, "count_company_acceptances", routine["id"], fingerprint, "") == count
+    other = await intake_proposal(
+        manager, "Another proposal", task["evidence"], project_id=task["project_id"], routine_id=routine["id"]
+    )
+    with pytest.raises(ValueError, match="acceptance limit reached"):
+        await executor._accept(other)
+    assert (await _call(db, "get_task", other["id"]))["status"] == "backlog"

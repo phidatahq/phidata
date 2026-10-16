@@ -29,7 +29,7 @@ def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -
 
 def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
     """Build Project routes using native async storage or off-thread sync calls."""
-    router = APIRouter(prefix="/company", tags=["Projects"])
+    router = APIRouter(prefix="/company", tags=["Projects"], dependencies=[Depends(get_scoped_user_id)])
     auth_dependency = get_authentication_dependency(settings)
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db) if db is not None else None
 

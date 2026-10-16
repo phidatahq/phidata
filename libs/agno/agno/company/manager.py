@@ -511,6 +511,48 @@ class CompanyManager:
             }
         )
 
+    def add_source(
+        self,
+        product_id: str,
+        type: str,
+        reference: str,
+        agent_id: str,
+        run_id: str,
+        config: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
+        scoped_user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add a website discovered by an identified agent without widening an existing Source."""
+        from agno.company.playbook import _require_owner
+        from agno.db.schemas.sources import validate_source_fields
+
+        if type != "website":
+            raise PermissionError(
+                "Agents may add only website Sources; local repository and path Sources require a human"
+            )
+        if not agent_id or not run_id:
+            raise ValueError("Adding a Source requires the calling agent and run identity")
+        validate_source_fields(dict(type=type, reference=reference, config=config))
+        product = self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, scoped_user_id)
+        return self.db.create_source(
+            {
+                "id": str(uuid4()),
+                "product_id": product_id,
+                "type": type,
+                "reference": reference,
+                "credential_ref": None,
+                "user_id": user_id,
+                "config": {**(config or {}), "metadata": {"agent_id": agent_id, "run_id": run_id}},
+                "created_at": int(time.time()),
+                "updated_at": None,
+                "deleted_at": None,
+            },
+            reuse=True,
+        )
+
     def get_source(self, source_id: str, user_id: Optional[str] = None, include_deleted: bool = False):
         """Read a configured Source."""
         return self.db.get_source(source_id, user_id=user_id, include_deleted=include_deleted)
@@ -1196,6 +1238,48 @@ class AsyncCompanyManager:
                 "updated_at": None,
                 "deleted_at": None,
             }
+        )
+
+    async def add_source(
+        self,
+        product_id: str,
+        type: str,
+        reference: str,
+        agent_id: str,
+        run_id: str,
+        config: Optional[Dict[str, Any]] = None,
+        user_id: Optional[str] = None,
+        scoped_user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Add a website discovered by an identified agent without widening an existing Source."""
+        from agno.company.playbook import _require_owner
+        from agno.db.schemas.sources import validate_source_fields
+
+        if type != "website":
+            raise PermissionError(
+                "Agents may add only website Sources; local repository and path Sources require a human"
+            )
+        if not agent_id or not run_id:
+            raise ValueError("Adding a Source requires the calling agent and run identity")
+        validate_source_fields(dict(type=type, reference=reference, config=config))
+        product = await self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, scoped_user_id)
+        return await self.db.create_source(
+            {
+                "id": str(uuid4()),
+                "product_id": product_id,
+                "type": type,
+                "reference": reference,
+                "credential_ref": None,
+                "user_id": user_id,
+                "config": {**(config or {}), "metadata": {"agent_id": agent_id, "run_id": run_id}},
+                "created_at": int(time.time()),
+                "updated_at": None,
+                "deleted_at": None,
+            },
+            reuse=True,
         )
 
     async def get_source(self, source_id: str, user_id: Optional[str] = None, include_deleted: bool = False):

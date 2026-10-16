@@ -41,6 +41,7 @@ def _routine_failure(output: Any) -> Optional[str]:
     elif isinstance(output, dict):
         for tool in output.get("tools") or []:
             if tool.get("tool_call_error") and tool.get("tool_name") in {
+                "add_company_source",
                 "read_company_source",
                 "intake_company_source",
                 "propose_company_task",
@@ -104,24 +105,34 @@ async def _afailed_routines(db: Any, products: Any) -> int:
     return failed
 
 
-def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[str, Any]:
-    component = getattr(registry, "get_" + routine.executor_type)(routine.executor_id) if registry else None
+def _routine_executor_endpoint(executor_type: str, executor_id: str, registry: Any) -> str:
+    component = getattr(registry, "get_" + executor_type)(executor_id) if registry else None
     if component is None:
         raise ValueError("Routine executor is missing from the registry")
     _validate_executor_tools(component)
-    skill = load_routine_skills().get_skill(routine.template)
-    if skill is None:
-        raise ValueError("Routine template is unavailable")
-    endpoint = f"/{routine.executor_type}s/{routine.executor_id}/runs"
+    endpoint = f"/{executor_type}s/{executor_id}/runs"
     if RUN_ENDPOINT_RE.fullmatch(endpoint) is None:
         raise ValueError("Invalid Routine executor id")
+    return endpoint
+
+
+def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[str, Any]:
+    endpoint = _routine_executor_endpoint(routine.executor_type, routine.executor_id, registry)
+    instructions = routine.instructions
+    if instructions is None and routine.template is not None:
+        skill = load_routine_skills().get_skill(routine.template)
+        if skill is None:
+            raise ValueError("Routine template is unavailable")
+        instructions = skill.instructions
+    if not instructions or not instructions.strip():
+        raise ValueError("Routine instructions are required")
     fields = dict(
         name=product_id + "." + routine.name,
         cron_expr=routine.cron_expr,
         endpoint=endpoint,
         timezone=routine.timezone,
         payload={
-            "message": _routine_message(product_id, routine.instructions or skill.instructions),
+            "message": _routine_message(product_id, instructions),
             "metadata": {"product_id": product_id, "template": routine.template, "auto_accept": False},
         },
     )

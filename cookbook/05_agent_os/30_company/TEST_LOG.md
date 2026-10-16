@@ -2403,3 +2403,92 @@ An intermediate broad unit run with the superseded completion re-render failed
 two synthetic managed-role cases. The final full rerun above passes both, with
 permission-refusal assertions intact. The external release scripts were not
 rerun in this follow-up; their earlier outcomes remain recorded above.
+## Optional Routines and discovered website Sources — October 16, 2026
+
+### 08_custom_routines.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/08_custom_routines.py` using
+the development Python environment. Declared a Product with custom instructions,
+no template and no initial Sources. Saved a website through CompanyTools with
+injected agent/run identity, verified identical additions reused one Source,
+and archived it through the human HTTP route.
+
+**Result:** Passed without a model call, website request or outbound delivery.
+The stored template is null; Product, template and auto_accept metadata keys and
+the explicit Product message format are unchanged.
+
+---
+
+### Complete Company cookbook regression
+
+**Status:** PASS
+
+**Description:** Executed `01_manage_products.py`, `02_manage_projects.py`,
+`03_manage_tasks.py`, `04_manage_playbook.py`, `05_product_manager.py`,
+`06_execute_tasks.py`, `07_cascading_archive.py`, `07_heartbeat.py`, and
+`08_custom_routines.py`. Also ran `06_execute_tasks.py` with
+`COMPANY_DB=postgres` and `07_cascading_archive.py --postgres`.
+
+**Result:** All 11 invocations passed. No live model/provider calls or outbound
+messages. The PostgreSQL archive example exercised sync and async paths.
+
+---
+
+### Routine, Source, Summary and isolation regression suites
+
+**Status:** PASS
+
+**Description:** Ran Company and scheduler integrations with SQLite, async
+SQLite, PostgreSQL and async PostgreSQL, including real durable queue execution,
+lifecycle parity, scheduler ownership and filesystem transactions. The offline
+search model discovers a page, saves and reads it through CompanyTools, then
+proposes one evidence-backed Task over three schedule runs. Custom instruction
+and executor edits take effect on the next run; unauthorized targets are refused.
+Concurrent Source additions share an id, preserve first-discovery provenance and
+refuse conflicting configuration or an archived reference. Agent tools still
+cannot accept or complete Tasks. Summary acknowledgment tests cover retry,
+cancellation, completion and archive. Missing-subject scoped tokens are rejected
+on Company reads under isolation using the existing identity guard.
+
+**Result:** Final integration rerun: 708 passed, no skips. Final focused
+router/tool/heartbeat parity regressions: 205 passed. Scheduler execution
+examples also passed all eight sync/async SQLite/PostgreSQL cases. An initial
+Summary fixture tried an invalid In progress-to-Ready transition; it now uses
+the existing Backlog-to-Ready retry path. The new optional Source configuration
+uses the established nullable Company argument convention after schema tests
+caught a non-nullable schema. No unresolved focused or integration failures.
+
+`./scripts/format.sh` and `./scripts/validate.sh` passed, with their complete
+outputs read. Exact-tree validation passed after excluding four unrelated
+formatter-only changes. Mypy checked 1,155 framework and 21 CLI files. Tests and
+cookbooks used development Python 3.12; validation used clean Python 3.10.
+`git diff --check` passed. Source provenance uses the existing `config.metadata`
+JSON object, with no table or column changes.
+
+
+### Complete database, AgentOS, scheduler and Company tool unit suites
+
+**Status:** PASS
+
+**Description:** Reran the complete `libs/agno/tests/unit/db`,
+`libs/agno/tests/unit/os`, `libs/agno/tests/unit/scheduler`, and
+`libs/agno/tests/unit/tools/test_company.py` suites on the final implementation.
+
+**Result:** 6,436 passed, five conditional skips, no failures. Skips were one
+root-only check, three live-model credential checks and one optional asyncpg
+check. The earlier four new Source-schema failures are resolved. Implementation
+commit `dfaf0a59d7` was pushed for review while this final run completed; this
+record follows as a normal commit without rewriting history.
+
+
+### PR 6 integration with final Heartbeat head (17d5939068)
+
+**Status:** PASS
+
+**Description:** Integrated the final Heartbeat head as a normal merge after the timestamp compare-and-set changes. Preserved custom Routines, editable instructions and scheduler fields, discovered website Sources, and automatic acceptance. Added regression coverage for null-template completion denial, instruction edits preserving fingerprints and spent budgets, discovered website evidence, and policy reauthorization on executor edits.
+
+**Result:** 773 Company/scheduler integration tests passed without skips across SQLite/PostgreSQL sync/async and configured scheduler backends. 354 Company/scheduler unit tests passed. All 13 cookbook executions passed, including `08_custom_routines.py`, Task execution in SQLite/PostgreSQL manual/automatic modes, and PostgreSQL cascading archives. The focused merge regressions separately passed all 16 cases.
+
+`./scripts/format.sh` and clean-environment `./scripts/validate.sh` passed; complete outputs were read (1,155 framework and 21 CLI files checked by mypy). Development Python 3.12 validation retains the same 34 baseline diagnostics, with zero introduced. The previous complete database/OS unit run remains historical; this merge reran the Company/scheduler suites. Earlier external release probes were not rerun. Tests and cookbooks used offline execution.

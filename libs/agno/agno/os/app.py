@@ -1461,6 +1461,14 @@ class AgentOS:
                     if not toolkit._interfaces_explicit:
                         toolkit.interfaces = self.interfaces
                     toolkit._schedule_db = self.db
+                    toolkit.user_isolation = toolkit.user_isolation or bool(
+                        self.user_isolation
+                        or (
+                            self.authorization
+                            and self.authorization_config is not None
+                            and self.authorization_config.user_isolation
+                        )
+                    )
             if found and hasattr(component, "post_hooks"):
                 hooks = list(component.post_hooks or [])
                 if not any(isinstance(getattr(hook, "__self__", hook), _RoutineResultGuardrail) for hook in hooks):

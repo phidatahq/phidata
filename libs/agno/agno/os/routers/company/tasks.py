@@ -25,7 +25,7 @@ def get_tasks_router(
     db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings, registry: Any = None
 ) -> APIRouter:
     """Build Task routes using native async storage or off-thread sync calls."""
-    router = APIRouter(prefix="/company", tags=["Tasks"])
+    router = APIRouter(prefix="/company", tags=["Tasks"], dependencies=[Depends(get_scoped_user_id)])
     auth_dependency = get_authentication_dependency(settings)
     manager = (
         AsyncCompanyManager(db, registry=registry)

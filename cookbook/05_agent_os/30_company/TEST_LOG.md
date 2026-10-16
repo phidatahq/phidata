@@ -283,4 +283,338 @@ container was removed after the run; existing PostgreSQL services were retained.
 
 **Result:** Exit 0; completed all assertions without model calls.
 
+
+### Execution and attention — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Reran `01_manage_products.py`, `02_manage_projects.py`,
+`03_manage_tasks.py`, `04_manage_playbook.py` and `05_product_manager.py` from
+`cookbook/05_agent_os/30_company/` using the development environment after
+merging Playbook fixes at `769eee4306558569988b346a8bd71dc9b945b700`.
+The Task cookbook now supplies its executor registry at acceptance.
+
+**Result:** Every existing assertion passed. Products/Projects/Tasks retain their
+lifecycle behavior; wiki edits reject stale versions; Product Manager tools
+persist proposals, status and decisions. No model calls were made.
+
 ---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` twice:
+default SQLite Company/session storage with a PostgreSQL durable queue, and
+`COMPANY_DB=postgres` for PostgreSQL Company/session/queue storage. The real
+application lifespan starts the queue worker. A registered workflow receives
+only brief/wiki/evidence, executes an accepted Task, and persists its result.
+
+**Result:** Both runs reached In review, returned the original run for the
+repeated attempt, and listed one ordinary run in the Task session. Attention
+returned `{"proposals": 0, "in_review": 1, "failed": 0}`. Both workers shut down
+cleanly and the example removed its temporary schema. SQLite emitted the
+existing warning that its session fallback does not provide PostgreSQL's
+attempt fencing. No provider calls were made.
+
+---
+
+### Execution regression checks — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Ran the complete `libs/agno/tests/unit/db` and
+`libs/agno/tests/unit/os` suites, all Company database integrations, and the
+final execution authorization/error-handling tests. Tests use temporary SQLite
+files and isolated PostgreSQL schemas with offline model fixtures.
+
+**Result:** Full unit suites: **6,095 passed, 15 skipped**. Company integrations:
+**175 passed**, no skips, across sync/async SQLite and PostgreSQL. Final execution
+route tests: **13 passed** (10 overlap the full suite). These include the final
+503 response when Company storage is absent and 404 for deleted Product context
+without reserving a run. Format and validation passed, including both mypy
+checks, and all validation output was read. Validation used the clean Python
+3.10 environment; tests and cookbooks used the Python 3.12 development environment.
+
+---
+
+### Execution review fixes — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Reproduced rejected input consuming a Task attempt and
+`failed=false` omitting pending Tasks whose result is JSON null. All 16 new
+regression cases failed before the fix across sync/async SQLite and PostgreSQL;
+input rejection was checked for agents, teams and workflows. The existing run
+validator now checks input before reservation, and nonfailed filters include
+null extracted result statuses.
+
+**Result:** Execution, Task router/isolation and Task storage regressions passed
+**197 tests**, including all 16 new cases. Rejected input leaves Ready and its
+transition history intact; correcting the executor schema allows attempt 1 to
+complete. Pending and unstarted Tasks both appear in nonfailed counts before
+pagination; failed Tasks appear only in the failed filter. Reran
+`cookbook/05_agent_os/30_company/06_execute_tasks.py` with SQLite and with
+`COMPANY_DB=postgres`: both passed through the real durable worker, returning
+the first run on duplicate start and reporting one Task In review. No provider
+calls were made. Format and validation passed and their output was read.
+The full unit-suite result above predates these focused review fixes.
+
+---
+
+### Attention lifecycle and reserved executors — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Added 56 cases: failure attention after cancellation, Backlog,
+reacceptance, review and completion; all four framework-reserved executor IDs
+at acceptance/start on all four SQL adapters; and reserved-ID exclusion during
+registry mounting. The initial run reproduced 38 failures, with 18 existing
+reserved-specialist protections already passing. Failed/nonfailed predicates
+now partition Tasks by active error state while retaining SQL/JSON null handling.
+
+**Result:** **253 targeted tests passed**, including all 56 new cases and the
+previous review regressions. Per-Product and company-wide attention clear handled
+failures, pagination totals remain correct, and error results remain intact as
+history. Product Manager and OS Manager are rejected explicitly even with a
+custom registry resolver. Reran `06_execute_tasks.py` with SQLite and
+`COMPANY_DB=postgres`; both completed with one Task In review. Format and
+validation passed, including both mypy checks, and their output was read. No
+provider calls were made. The earlier full unit-suite result remains the baseline.
+
+---
+
+### Rebase onto merged Playbook — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Rebased PR 4 onto `main` at
+`f801d7c7421e7a7da5d6cee42fd4b0b8bceabe98`, including the final Playbook async
+filesystem transaction fixes. Preserved both branches' test-log entries during
+the sole conflict. Commit and tree comparisons confirmed the execution changes
+were preserved and the inherited filesystem code matches main.
+
+**Result:** **286 targeted tests passed**: Company execution/Task regressions
+plus the 33 filesystem transaction cases from the merged base. All six Company
+cookbooks passed, and execution also passed with PostgreSQL session storage.
+Format and validation passed; both mypy checks and all script output were read.
+No provider calls were made. The full unit-suite figures above remain their
+historical baseline; this rebase used focused regression coverage.
+
+---
+
+### Initial Task schema — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Removed the Company execution migration and its version
+registration because Company tables have not been released. Execution references,
+evidence and results remain part of the initial Task schema. Replaced the upgrade
+test with fresh custom-table creation and execution checks on sync/async SQLite
+and PostgreSQL. Restored the unrelated migration unit tests to their main versions.
+
+**Result:** **186 targeted tests passed**, covering execution, authorization,
+fresh Task schema/index creation and the restored migration suites. Both
+execution cookbook modes passed. Format and validation passed (mypy: 1,146 core
+files and 21 CLI files), and all output was read. No provider calls were made.
+Earlier migration test entries describe the implementation before this simplification.
+
+---
+
+## Queue rejection and simplification follow-up — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` with the development environment.
+
+**Result:** Product CRUD, owner filters, deletion and restore.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` with the development environment.
+
+**Result:** Project lifecycle and Product containment.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` with the development environment.
+
+**Result:** Registry-backed acceptance and explicit Task transitions.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` with the development environment.
+
+**Result:** Sync/async wiki and decision-log operations.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` with the development environment.
+
+**Result:** Product Manager construction and tool publication without provider calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` with the development environment.
+
+**Result:** Both default SQLite sessions and COMPANY_DB=postgres passed with a real PostgreSQL durable queue: accepted execution, duplicate run identity, stored results, history and attention. No provider calls.
+
+---
+
+### Queue rejection regression checks
+
+**Status:** PASS
+
+**Description:** Full database/OS unit suites and all Company integrations plus execution authorization tests.
+
+**Result:** 6,104 unit tests passed, 15 skipped; 306 integration/authorization tests passed. Added 46 regression cases covering all three executor types, all four Company adapters, unchanged Task state/results/attempts after rejection, concurrent duplicates, and recovery after enqueue with revocation and cancellation. PostgreSQL queue JSON round-trips recover correctly into SQLite Task storage. Both format and validate scripts passed; validation output was read, including mypy success for 1,146 core and 21 CLI files.
+
+## Release-test cancellation and adapter follow-up — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` with the development environment.
+
+**Result:** Product CRUD, ownership, soft deletion and restore passed.
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` with the development environment.
+
+**Result:** Project lifecycle and Product containment passed.
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` with the development environment.
+
+**Result:** Registry-backed acceptance and explicit Task lifecycle passed.
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` with the development environment.
+
+**Result:** Sync/async wiki and decision-log operations passed.
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` with the development environment.
+
+**Result:** Product Manager construction and bounded tool publication passed without provider calls.
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` with the development environment.
+
+**Result:** Default SQLite sessions and COMPANY_DB=postgres both passed with a real PostgreSQL durable queue. Execution, duplicate starts, paged history and attention passed without provider calls.
+
+### Release-test regression checks
+
+**Status:** PASS
+
+**Description:** Cancellation visibility/retry, attention lifecycle, unsupported database responses, and the full database/OS unit suites.
+
+**Result:** 247 execution/route tests passed on sync/async SQLite and PostgreSQL; 6,104 full unit tests passed, 15 skipped. Format passed. Validation passed on this branch and unchanged main at `7f5dcdf53d` with the same clean Python 3.10 environment and separate mypy caches: zero errors on either. Output was read, including mypy success for 1,146 PR core files, 1,144 main core files and 21 CLI files on each. The release reports' unannotated `prior` variables belong to later automatic-acceptance code and are absent from PR 4.
+
+
+## Main integration and round-3 execution review — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/01_manage_products.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/02_manage_projects.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/05_product_manager.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Completed all assertions using the rebased code, including the merged Company routing and nullable tool-argument fixes. No live model calls were made.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` after incorporating the merged release fixes and the final-attempt attention and revoked-submission repairs.
+
+**Result:** Execution ran with both SQLite and PostgreSQL Company/session storage and the PostgreSQL durable queue. Duplicate submission returned the first run; the Task reached In review and history/attention matched. No live model calls were made.
+
+---
+
+Final validation on the rebased code: **6,654 passed, 7 skipped** across the
+complete database, OS and agents unit suites; **396 passed, no skips** across
+Company integrations and execution/Task routes on all four adapters. The two
+separate-process restart tests pass through both ordinary session history and
+Company history/individual-run routes. Format and validation passed with output
+read; mypy checked 1,146 framework and 21 CLI files without errors.

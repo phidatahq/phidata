@@ -39,6 +39,7 @@ from agno.os.auth import (
 )
 from agno.os.event_streams import get_event_stream
 from agno.os.job_queue import (
+    _new_queued_run_id,
     aattach_waiting_on,
     acontinue_via_queue,
     aenqueue_ticket,
@@ -465,7 +466,7 @@ async def handle_workflow_via_websocket(
                 await websocket.send_text(json.dumps({"event": "error", "error": str(e.detail)}))
                 return
             assert queue_worker is not None  # narrowed by ws_submit_queueable
-            queued_run_id = str(uuid4())
+            queued_run_id = _new_queued_run_id()
             # The WebSocket has no request.state: hand the scope the same claims
             # and scopes the factory branch above built its TrustedContext from
             ws_trusted_state = SimpleNamespace(
@@ -1941,7 +1942,7 @@ def get_workflow_router(
                     assert queue_worker is not None  # narrowed by stream_queueable
                     from agno.run.base import RunStatus as _RS
 
-                    queued_run_id = str(uuid4())
+                    queued_run_id = _new_queued_run_id()
                     queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                     queued_stream_payload["scope"] = resolve_queue_scope(
                         workflow_id,
@@ -2051,7 +2052,7 @@ def get_workflow_router(
             if queue_worker is not None and workflow_is_queueable and payload_is_queueable(queued_payload):
                 # 202 must honor input_schema exactly like the inline path (400)
                 validate_seam_input(workflow, message)
-                queued_run_id = str(uuid4())
+                queued_run_id = _new_queued_run_id()
                 queued_session_id = session_id  # non-empty: defaulted at the top of the endpoint
                 queued_payload["scope"] = resolve_queue_scope(
                     workflow_id,

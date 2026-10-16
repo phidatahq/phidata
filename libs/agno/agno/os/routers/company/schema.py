@@ -108,6 +108,7 @@ class TaskCreate(BaseModel):
     title: str = Field(..., min_length=1)
     brief: Optional[str] = None
     project_id: Optional[str] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
 
     @field_validator("title")
     @classmethod
@@ -122,6 +123,7 @@ class TaskUpdate(BaseModel):
     title: Optional[str] = None
     brief: Optional[str] = None
     project_id: Optional[str] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
 
     @field_validator("title")
     @classmethod
@@ -136,6 +138,7 @@ class TaskResponse(BaseModel):
     title: str = Field(..., min_length=1)
     brief: Optional[str] = None
     project_id: Optional[str] = None
+    evidence: Optional[List[Dict[str, Any]]] = None
     id: str
     status: TaskStatus
     user_id: Optional[str] = None
@@ -147,6 +150,10 @@ class TaskResponse(BaseModel):
     executor_id: Optional[str] = None
     accepted_by: Optional[str] = None
     accepted_at: Optional[int] = None
+
+    session_id: Optional[str] = None
+    job_id: Optional[str] = None
+    result: Optional[Dict[str, Any]] = None
 
 
 class TaskTransition(BaseModel):
@@ -218,3 +225,8 @@ class DecisionResponse(BaseModel):
     team_id: Optional[str] = None
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
+
+
+class TaskRunCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    attempt: int = Field(1, ge=1, strict=True)

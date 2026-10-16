@@ -8239,6 +8239,8 @@ class SqliteDb(BaseDb):
         product_id: Optional[str] = None,
         status: Optional[str] = None,
         project_id: Optional[str] = None,
+        failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
@@ -8246,6 +8248,19 @@ class SqliteDb(BaseDb):
         if table is None:
             return [], 0
         stmt = select(table)
+        if failed is not None:
+            result_status = table.c.result["status"].as_string()
+            stmt = stmt.where(
+                and_(table.c.status == "in_progress", result_status.in_(["ERROR", "CANCELLED"]))
+                if failed
+                else or_(
+                    table.c.status != "in_progress",
+                    result_status.is_(None),
+                    result_status.not_in(["ERROR", "CANCELLED"]),
+                )
+            )
+        if session_id is not None:
+            stmt = stmt.where(table.c.session_id == session_id)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if status is not None:
@@ -8298,6 +8313,89 @@ class SqliteDb(BaseDb):
         with self.Session() as sess, sess.begin():
             result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
+
+    def start_task_run(
+        self,
+        task_id: str,
+        attempt: int,
+        expected_transitions: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        run_db_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.tasks import task_run_fields
+
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        with self.Session() as sess, sess.begin():
+            row = (sess.execute(select(table).where(table.c.id == task_id, table.c.deleted_at.is_(None)))).fetchone()
+            if row is None:
+                return None
+            existing = dict(row._mapping)
+            if existing["transitions"] != expected_transitions:
+                return None
+            fields = task_run_fields(existing, attempt, user_id, run_db_id)
+            stmt = (
+                table.update()
+                .where(
+                    table.c.id == task_id,
+                    table.c.deleted_at.is_(None),
+                    table.c.transitions == expected_transitions,
+                    table.c.status == existing["status"],
+                )
+                .values(**fields)
+                .returning(table)
+            )
+            row = (sess.execute(stmt)).fetchone()
+            return dict(row._mapping) if row else None
+
+    def complete_task_run(
+        self,
+        task_id: str,
+        job_id: str,
+        result: Dict[str, Any],
+        expected_transitions: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.tasks import task_transition_fields
+
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        with self.Session() as sess, sess.begin():
+            row = (
+                sess.execute(
+                    select(table).where(
+                        table.c.id == task_id,
+                        table.c.job_id == job_id,
+                        table.c.deleted_at.is_(None),
+                        table.c.status == "in_progress",
+                    )
+                )
+            ).fetchone()
+            if row is None:
+                return None
+            existing = dict(row._mapping)
+            if expected_transitions is not None and existing["transitions"] != expected_transitions:
+                return None
+            fields = (
+                task_transition_fields(existing, "in_review", "Execution completed; human review required")
+                if result.get("status") == "COMPLETED"
+                else {"updated_at": int(time.time())}
+            )
+            stmt = (
+                table.update()
+                .where(
+                    table.c.id == task_id,
+                    table.c.job_id == job_id,
+                    table.c.deleted_at.is_(None),
+                    table.c.status == "in_progress",
+                    table.c.transitions == existing["transitions"],
+                )
+                .values(**fields, result=result)
+                .returning(table)
+            )
+            row = (sess.execute(stmt)).fetchone()
+            return dict(row._mapping) if row else None
 
     def transition_task(
         self,

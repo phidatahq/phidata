@@ -268,9 +268,10 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     run_id = kwargs.get("run_id") or str(uuid4())
     owner = get_worker_ownership(run_id)
     media = kwargs.get("media")
-    if owner is not None and isinstance(media, list):
-        # A queue worker replaying the wire its ticket holds: if it no longer validates, running the turn
-        # again cannot cure it, so fail it as a permanent input error instead of retrying.
+    if owner is not None and media is not None:
+        # A queue worker replaying what its ticket stored, which is always the wire list (absent, null or empty
+        # means no attachments). Anything else, or a list that no longer validates, cannot be cured by running
+        # the turn again, so fail it as a permanent input error instead of retrying or dropping it.
         try:
             validate_media(media)
         except ValueError as error:

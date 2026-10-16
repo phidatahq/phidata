@@ -366,7 +366,11 @@ DAMAGE = {
 }
 
 
-@pytest.mark.parametrize("damage", list(DAMAGE))
+# What a ticket stores is always the wire list; any other stored value is damage too.
+NOT_A_LIST = {"a string": "not a list", "an object": {"images": ["x"]}}
+
+
+@pytest.mark.parametrize("damage", [*DAMAGE, *NOT_A_LIST])
 async def test_a_ticket_whose_attachments_cannot_be_replayed_fails_once_and_keeps_the_previous_checkpoint(
     service, tmp_path, damage
 ):
@@ -390,7 +394,10 @@ async def test_a_ticket_whose_attachments_cannot_be_replayed_fails_once_and_keep
     # The ticket is damaged after acceptance: the wire no longer passes the validation every replay repeats.
     store = app.state.queue_worker.store
     payload = (await store.get_job(run_id))["payload"]
-    DAMAGE[damage](payload["kwargs"]["media"])
+    if damage in NOT_A_LIST:
+        payload["kwargs"]["media"] = NOT_A_LIST[damage]
+    else:
+        DAMAGE[damage](payload["kwargs"]["media"])
     table = agent.db._get_table("jobs")
     with agent.db.db_engine.begin() as connection:
         connection.execute(update(table).where(table.c.id == run_id).values(payload=payload))

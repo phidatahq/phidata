@@ -192,6 +192,32 @@ def test_a_damaged_wire_is_a_permanent_input_failure_for_the_worker(damage):
         _harness._execution(agent, "hello", {"media": wire, "run_id": "r"})
 
 
+NOT_A_WIRE_LIST = ["oops", 5, True, {"images": ["x"]}, "", 0, False, {}]
+
+
+@pytest.mark.parametrize("stored", NOT_A_WIRE_LIST, ids=repr)
+def test_a_stored_value_that_is_not_a_wire_list_is_a_permanent_input_failure_for_the_worker(stored):
+    # A ticket only ever stores the wire list, so any other stored value (including a falsy one that would otherwise
+    # read as "no attachments" and run the turn without them) is damage that a retry cannot cure.
+    agent = _agent()
+    with worker_managed_execution("r", "w", 1):
+        with pytest.raises(InputCheckError):
+            _harness._execution(agent, "hello", {"media": stored, "run_id": "r"})
+
+
+@pytest.mark.parametrize("stored", ["oops", 5, True, {"images": ["x"]}], ids=repr)
+def test_the_same_values_stay_an_ordinary_caller_error_outside_a_queue_worker(stored):
+    with pytest.raises(ValueError):
+        _harness._execution(_agent(), "hello", {"media": stored, "run_id": "r"})
+
+
+@pytest.mark.parametrize("stored", [None, []], ids=repr)
+def test_null_and_empty_stored_media_are_text_only_for_the_worker(stored):
+    with worker_managed_execution("r", "w", 1):
+        execution = _harness._execution(_agent(), "hello", {"media": stored, "run_id": "r"})
+    assert "images" not in execution and "files" not in execution
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("row_exists", [True, False])
 async def test_the_pending_row_hook_does_not_raise_for_a_ticket_that_cannot_be_replayed(monkeypatch, row_exists):

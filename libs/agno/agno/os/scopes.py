@@ -419,7 +419,7 @@ def get_accessible_resource_ids(
     return accessible_ids
 
 
-def get_default_scope_mappings() -> Dict[str, List[str]]:
+def get_default_scope_mappings(*, company: bool = False) -> Dict[str, List[str]]:
     """
     Get default scope mappings for AgentOS endpoints.
 
@@ -556,6 +556,50 @@ def get_default_scope_mappings() -> Dict[str, List[str]]:
         "DELETE /components/*/configs/*": ["components:delete"],
         "POST /components/*/configs/*/set-current": ["components:write"],
     }
+    if company:
+        mappings.update(
+            {
+                # Company playbook and learning-decision endpoints. Keep nested
+                # wiki routes before products/*: matching is first-match and *
+                # spans slashes, so the generic Product pattern also matches wiki.
+                "GET /company/products/*/wiki": ["wiki:read"],
+                "GET /company/products/*/wiki/*": ["wiki:read"],
+                "PUT /company/products/*/wiki/*": ["wiki:write"],
+                "GET /company/wiki": ["wiki:read"],
+                "GET /company/wiki/*": ["wiki:read"],
+                "PUT /company/wiki/*": ["wiki:write"],
+                "GET /company/decisions": ["decisions:read"],
+                "POST /company/decisions": ["decisions:write"],
+                # Company Product endpoints
+                "GET /company/products": ["products:read"],
+                "GET /company/products/*": ["products:read"],
+                "POST /company/products": ["products:write"],
+                "PATCH /company/products/*": ["products:write"],
+                "DELETE /company/products/*": ["products:delete"],
+                "POST /company/products/*/restore": ["products:delete"],
+                # Company Project endpoints
+                "GET /company/projects": ["projects:read"],
+                "GET /company/projects/*": ["projects:read"],
+                "POST /company/projects": ["projects:write"],
+                "PATCH /company/projects/*": ["projects:write"],
+                "DELETE /company/projects/*": ["projects:delete"],
+                "POST /company/projects/*/restore": ["projects:delete"],
+                "POST /company/projects/*/transitions": ["projects:write"],
+                # Company Task endpoints
+                "GET /company/tasks": ["tasks:read"],
+                "GET /company/tasks/*": ["tasks:read"],
+                "POST /company/tasks": ["tasks:write"],
+                "PATCH /company/tasks/*": ["tasks:write"],
+                "DELETE /company/tasks/*": ["tasks:delete"],
+                "POST /company/tasks/*/restore": ["tasks:delete"],
+                "POST /company/tasks/*/transitions": ["tasks:write"],
+                # Company execution and attention reuse Task access; executor routes check run permission too.
+                "POST /company/tasks/*/runs": ["tasks:write", "wiki:read"],
+                "GET /company/runs/*": ["tasks:read"],
+                "POST /company/runs/*/cancel": ["tasks:write"],
+                "GET /company/attention": ["tasks:read"],
+            }
+        )
     return mappings
 
 

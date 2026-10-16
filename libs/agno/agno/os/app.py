@@ -100,6 +100,7 @@ if TYPE_CHECKING:
     # runtime here would break `import agno.os` when the extra is not installed.
     from fastmcp.server.auth import AuthProvider
 
+    from agno.company.config import CompanyConfig
     from agno.os.authz.audit import AuditSink
     from agno.os.authz.authorization import Authorization
     from agno.os.authz.provider import AuthorizationProvider
@@ -199,6 +200,7 @@ async def db_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if agent_os.auto_provision_dbs:
         agent_os._initialize_sync_databases()
         await agent_os._initialize_async_databases()
+    await agent_os._acheck_sandbox_tables()
 
     yield
 
@@ -331,6 +333,7 @@ class AgentOS:
         internal_service_token: Optional[str] = None,
         public: Optional[Any] = None,
         manager: Optional[Union[bool, "OSManager"]] = None,
+        company: Optional["CompanyConfig"] = None,
     ):
         """Initialize AgentOS.
 
@@ -350,6 +353,7 @@ class AgentOS:
             knowledge: List of knowledge bases to include in the OS
             interfaces: List of interfaces to include in the OS
             manager: Adds an OS Manager team to the OS.
+            company: Enable Company Products, inheriting db unless a Company database is provided.
             a2a_interface: Whether to expose the OS agents and teams in an A2A server
             config: Configuration file path or AgentOSConfig instance
             settings: API settings for the OS
@@ -423,7 +427,7 @@ class AgentOS:
             scheduler_base_url: Base URL for scheduler HTTP calls (default: http://127.0.0.1:7777)
             internal_service_token: Token for scheduler-to-OS auth (auto-generated if not provided)
         """
-        if not agents and not workflows and not teams and not knowledge and not db:
+        if not agents and not workflows and not teams and not knowledge and not db and company is None:
             raise ValueError("Either agents, teams, workflows, knowledge bases or a database must be provided.")
 
         self.config = load_yaml_config(config) if isinstance(config, str) else config
@@ -457,6 +461,8 @@ class AgentOS:
         self.version = version
         self.description = description
         self.db = db
+        self.company = company
+        self._company_db = (company.db if company.db is not None else db) if company is not None else None
         self.checkpoint = checkpoint
 
         self.telemetry = telemetry
@@ -620,6 +626,25 @@ class AgentOS:
         from agno.os.manager import OSManager
         from agno.os.manager.manager import _build_manager
 
+        self._product_manager: Optional[Agent] = None
+        self.product_manager_unavailable_reason: Optional[str] = None
+        if self.company is not None:
+            from agno.company.execution import _mount_executors
+            from agno.company.product_manager import _build_product_manager
+
+            _mount_executors(self)
+
+            company_model = self.company.model
+            if company_model is None and self.registry is not None and self.registry.models:
+                company_model = self.registry.models[0]
+            self._product_manager = _build_product_manager(self, company_model)
+            if self._product_manager is None:
+                self.product_manager_unavailable_reason = (
+                    "Product Manager unavailable: configure CompanyConfig(model=...) or Registry(models=[...])"
+                    if company_model is None
+                    else "Product Manager unavailable: Company requires a database"
+                )
+
         self._manager: Optional["_Manager"] = None
         if manager is not None and not isinstance(manager, (bool, OSManager)):
             raise TypeError("AgentOS.manager must be True, False, None, or OSManager")
@@ -631,6 +656,21 @@ class AgentOS:
             self.agents = list(self.agents or [])
             self.teams = [*(self.teams or []), self._manager.team]
             self._apply_manager_manifest()
+
+        if self._product_manager is not None:
+            if self.registry is None:
+                self.registry = Registry()
+            self.registry.exclude_components([self._product_manager])
+            if self._manager is not None:
+                self._manager.product_manager = self._product_manager
+                assert isinstance(self._manager.team.members, list)
+                self._manager.team.members.append(self._product_manager)
+                assert isinstance(self._manager.team.instructions, list)
+                self._manager.team.instructions.append(
+                    "Delegate Company planning, playbook updates and decisions to Product Manager."
+                )
+            else:
+                self.agents = [*(self.agents or []), self._product_manager]
 
         self._initialize_agents()
         self._initialize_teams()
@@ -665,6 +705,11 @@ class AgentOS:
     def manager(self) -> Optional[Team]:
         """The OS Manager team, or None when disabled. Supports run() and arun()."""
         return self._manager.team if self._manager is not None else None
+
+    @property
+    def product_manager(self) -> Optional[Agent]:
+        """The built-in Product Manager, or None with an unavailable reason."""
+        return self._product_manager
 
     def _owned_by_manager(self, component: Any) -> bool:
         """True for the manager's team and members, which never enter the registry."""
@@ -884,7 +929,22 @@ class AgentOS:
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
+            get_filesystem_router(self, settings=self.settings),
         ]
+        if self.company is not None:
+            from agno.os.routers.company.playbook import get_playbook_router
+            from agno.os.routers.company.products import get_products_router
+            from agno.os.routers.company.projects import get_projects_router
+            from agno.os.routers.company.runs import get_company_runs_router
+            from agno.os.routers.company.tasks import get_tasks_router
+
+            updated_routers.append(get_products_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_projects_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(
+                get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry)
+            )
+            updated_routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_company_runs_router(self))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -948,7 +1008,6 @@ class AgentOS:
         self._add_router(app, get_health_router(health_endpoint="/health"))
         self._add_router(app, get_info_router(self))
         self._add_router(app, get_base_router(self, settings=self.settings))
-        self._add_router(app, get_filesystem_router(self, settings=self.settings))
         self._add_router(app, get_agent_router(self, settings=self.settings, registry=self.registry))
         self._add_router(app, get_team_router(self, settings=self.settings, registry=self.registry))
         self._add_router(app, get_workflow_router(self, settings=self.settings))
@@ -999,7 +1058,10 @@ class AgentOS:
 
         _raise_if_reserved_ids(
             [*(self.agents or []), *(self.teams or []), *(self.workflows or [])],
-            owned=self._manager.components if self._manager is not None else (),
+            owned=[
+                *(self._manager.components if self._manager is not None else []),
+                *([self._product_manager] if self._product_manager is not None else []),
+            ],
         )
         duplicate_ids: List[str] = []
 
@@ -1046,6 +1108,18 @@ class AgentOS:
             lifespan=lifespan,
         )
 
+    async def _acheck_sandbox_tables(self) -> None:
+        """Fail startup, with the remedy, when a sandboxed agent's bindings table is from another build.
+
+        Tables are created here only when the OS provisions databases; otherwise an existing
+        table is validated and a missing one is left to the deployment, as the first run was.
+        """
+        for entry in self.agents or []:
+            if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None and entry.db is not None:
+                from agno.sandbox import _harness
+
+                await _harness.acheck_tables(entry, create=self.auto_provision_dbs)
+
     def _initialize_agents(self) -> None:
         """Initialize and configure all agents for AgentOS usage."""
         # Inject db into external framework agents (not covered by self._agents)
@@ -1054,6 +1128,11 @@ class AgentOS:
                 if self.db is not None and entry.db is None:
                     entry.db = self.db
                 entry.store_events = True
+                if entry.sandbox is not None:
+                    from agno.sandbox import _harness
+
+                    # Fail at startup, not on the first run, when the sandbox has no Postgres to coordinate on.
+                    _harness._check_db(entry)
 
         # Manager specialists need normal initialization, but are not served agents.
         agents_to_initialize = [*self._agents, *(self._manager.agents if self._manager else [])]
@@ -1698,7 +1777,20 @@ class AgentOS:
             get_knowledge_router(knowledge_instances=self.knowledge_instances),
             get_traces_router(dbs=self.dbs),
             get_database_router(self, settings=self.settings),
+            get_filesystem_router(self, settings=self.settings),
         ]
+        if self.company is not None:
+            from agno.os.routers.company.playbook import get_playbook_router
+            from agno.os.routers.company.products import get_products_router
+            from agno.os.routers.company.projects import get_projects_router
+            from agno.os.routers.company.runs import get_company_runs_router
+            from agno.os.routers.company.tasks import get_tasks_router
+
+            routers.append(get_products_router(db=self._company_db, settings=self.settings))
+            routers.append(get_projects_router(db=self._company_db, settings=self.settings))
+            routers.append(get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry))
+            routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
+            routers.append(get_company_runs_router(self))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1810,6 +1902,16 @@ class AgentOS:
                     status_code=status_code,
                     content=_error_body(detail, exc),
                 )
+
+        from agno.os.scopes import get_default_scope_mappings
+
+        scope_mappings = get_default_scope_mappings(company=self.company is not None)
+        # Use each interface's actual mount prefix. Interfaces that authenticate
+        # their own requests are excluded from the central authorization layer.
+        for interface in self.interfaces:
+            if not getattr(interface, "authenticates_own_requests", False):
+                scope_mappings.update(interface.get_scope_mappings())
+        fastapi_app.state.scope_mappings = scope_mappings
 
         # Update CORS middleware
         origin_policy = update_cors_middleware(
@@ -2181,27 +2283,12 @@ class AgentOS:
 
         middleware_kwargs["excluded_route_paths"] = excluded_route_paths
 
-        # Interface routes are authorization-gated by the scope entries each interface
-        # declares (Interface.get_scope_mappings), merged here against its ACTUAL mount
-        # prefix. This covers operator-configurable prefixes (A2A/AGUI(prefix=...)) and
-        # subclasses, which the default scope map (keyed on default prefixes) cannot -- an
-        # interface that runs entities but has no scope entry falls through to the
-        # unmapped-route default (allow). Self-authenticating interfaces are excluded from
-        # the auth layer entirely, so their mappings are irrelevant here.
-        interface_mappings: Dict[str, List[str]] = {}
-        for interface in self.interfaces:
-            if getattr(interface, "authenticates_own_requests", False):
-                continue
-            interface_mappings.update(interface.get_scope_mappings())
-        if interface_mappings:
-            # middleware_kwargs carries no scope_mappings today (AuthorizationConfig has no
-            # such field); the merge is defensive so that if one is ever threaded through,
-            # it wins over interface defaults instead of being clobbered.
-            merged = dict(middleware_kwargs.get("scope_mappings") or {})
-            interface_mappings.update(merged)
-            middleware_kwargs["scope_mappings"] = interface_mappings
+        class _AppAuthMiddleware(AuthMiddleware):
+            def _set_scope_mappings(self, scope_mappings: Optional[Dict[str, List[str]]]) -> None:
+                self.scope_mappings = fastapi_app.state.scope_mappings
+                self.service_account_scope_mappings = self.scope_mappings
 
-        fastapi_app.add_middleware(AuthMiddleware, **middleware_kwargs)
+        fastapi_app.add_middleware(_AppAuthMiddleware, **middleware_kwargs)
 
     def _admin_api_routers(self) -> List[Any]:
         """The admin-API routers to mount, so there is never a manual ``include_router``.
@@ -2601,7 +2688,9 @@ class AgentOS:
             {
                 id(db): db
                 for db in chain(
-                    chain.from_iterable(self.dbs.values()), chain.from_iterable(self.knowledge_dbs.values())
+                    chain.from_iterable(self.dbs.values()),
+                    chain.from_iterable(self.knowledge_dbs.values()),
+                    [self._company_db] if self._company_db is not None else [],
                 )
             }.values()
         )

@@ -28,10 +28,11 @@ class _Manager:
     team: Team
     builder: Agent
     operator: Agent
+    product_manager: Optional[Agent] = None
 
     @property
     def agents(self) -> List[Agent]:
-        return [self.builder, self.operator]
+        return [self.builder, self.operator, *([self.product_manager] if self.product_manager is not None else [])]
 
     @property
     def components(self) -> List[Any]:

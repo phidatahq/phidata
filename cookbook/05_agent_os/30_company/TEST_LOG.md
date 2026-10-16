@@ -3236,3 +3236,13 @@ Full format and clean Python 3.10 validation passed (1,187 framework and 21 CLI 
 **Result:** Both Claude and Codex cookbook configuration modes passed without model calls. Full format and clean Python 3.10 validation passed. The review update is pushed before wider Company/lifecycle integration and DB/AgentOS/scheduler/tools/sandbox/context unit reruns finish, so review can proceed in parallel. No live publication or paid-model execution was performed.
 
 ---
+
+### PR 9 review corrections — full regression results
+
+**Status:** PASS
+
+**Description:** The implementation was pushed at `390e2efa29` before the broader suites started, allowing review in parallel. The full DB/AgentOS/scheduler/tools/sandbox/context unit selection passed **12,330 tests**, with 55 conditional skips. The Company and lifecycle integration selection passed **1,700 tests**, with 12 optional MongoDB skips. All selected SQLite/PostgreSQL cases passed, including both sync and async adapters.
+
+**Result:** No further code changes were needed after the review push. The focused 179-case suite, both cookbook configuration modes, full format and clean Python 3.10 validation also passed. This final update records results only; the code remains based on PR 8 `52430cfe5cc95db8890abb44abb4ab3c559fead4`. No live-model calls or actual GitHub publication were performed.
+
+---

@@ -1934,3 +1934,186 @@ confirmed In review through the adapter. Live-model Intake failed with
 `OPENAI_API_KEY not set`; no live-model performance claim is made. The temporary
 server and uniquely named performance schema were cleaned up. Export/report
 helpers depend on the original snapshots and are not behavioral probes.
+
+
+## Automation on final Heartbeat and cascading archives — October 16, 2026
+
+This is the final validation for Automation on Heartbeat `c51b1842e9`, including
+cascading archives and grouped counts from PR #11114 and merged Task execution.
+The parent versions of shared files are retained, including the subsequent standalone Task restore fix that preserves queued acceptance history. Automatic acceptance uses the
+same Product hierarchy lock as archive; Project completion snapshots exclude
+computed counts. Restored Tasks are re-read because cascade restore adds history.
+The previous validation sections remain as history for their stated heads.
+
+### Complete suites and validation
+
+**Status:** PASS
+
+**Description:** Ran the complete unit/db, unit/os and unit/scheduler suites plus
+Company and SchedulerTools units. Ran all Company and scheduler integrations,
+including execution/restart, playbook, heartbeat, cascades, retention, scheduler
+ownership, lifecycle parity and SQLite adapter suites. PostgreSQL parity was
+explicitly enabled; every requested SQLite/PostgreSQL case ran.
+
+**Result:** 6515 passed, 7 skipped, 534 warnings in 423.58s (0:07:03). 739 passed, 4 skipped, 73 warnings in 287.79s (0:04:47). All 64 retention cases and the four
+restore-retry regressions also passed independently. The first focused run had
+460 passes and four fixture failures: the old retry test reused a Task snapshot
+from before cascading archive/restore. The corrected test proves stale snapshots
+are rejected and a fresh read succeeds. The final full integration run includes
+that correction and PR 5's last 12 retention cases. A later run exposed a rebase
+lock-order mistake in the existing stale-writer regression: an early lock blocked
+manual competing writers. Manual transitions now retain the parent's original
+lock timing; only automatic acceptance locks before its budget read. All 40 Task
+lifecycle parity cases passed after the correction, before the final full rerun.
+Format and validate passed, complete output read: no mypy errors in 1,155 framework
+and 21 CLI files. Unrelated baseline formatter edits were excluded and the exact
+PR tree validated. Tests/cookbooks used Python 3.12, validation clean Python 3.10.
+A development Python 3.12 comparison found the identical 53 existing
+mypy diagnostics in 13 files on parent and head, with no introduced diagnostics.
+Neither async adapter has a prior annotation error.
+
+---
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py`. Product CRUD, metadata, archive and restore.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py`. Project lifecycle and scope.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py`. Task lifecycle and accepted-scope guards.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py`. Versioned playbook, wiki, decisions and shared context.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py`. Product Manager setup, tools and read surface.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — SQLite manual
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. Durable execution, duplicate submission and results/history.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — PostgreSQL manual
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. The same manual execution contract with PostgreSQL records and queue.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — SQLite automation
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. Automatic pickup, bounded Intake acceptance, human Task review and authorized Refresh completion.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — PostgreSQL automation
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. The same automation contract with PostgreSQL records and queue.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 07_cascading_archive.py — SQLite
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py`. Sync/async hierarchy guards, grouped counts, cascading archive and exact restore.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 07_cascading_archive.py — PostgreSQL
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py`. The same sync/async hierarchy contract on PostgreSQL.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py`. Bounded Source reads, Intake deduplication, Refresh proposals, retention and restore; Refresh never accepts or completes work.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### Claude release probes on the final rebased runtime
+
+**Status:** MIXED — individual failures and unavailable checks are retained.
+
+**Description:** Reran the original scripts unchanged and the documented
+compatibility copies using PostgreSQL `ai_claude` on localhost:5532, capture port
+8161 and performance port 8110. Compatibility changes are limited to mandatory
+expiry, explicit Intake/hash inputs, the current cron argument, retired migration
+imports, and using Intake after proving the plain Routine proposal fence.
+
+**Result:** A original 222/225, compatible 223/225; C 54/55; D compatible 15/16;
+E 14/14; E2 6/6; F compatible 20/22; F2 denies both mutations; G rejects setup on
+existing Products and all three fingerprint comparisons are true. The disabled
+Company probe and Product Manager GET pass. The remaining A expectations omit
+executor run scope; C retains the existing subject-less read behavior; D targets
+unavailable MongoDB port 1; F's two payload-shape assertions do not demonstrate
+widened authority. Original obsolete signatures and D2's retired migration imports
+remain explicit non-passes, as detailed in the earlier probe table.
+
+Performance seeded 50 Products, 500 Projects, 5,000 Tasks and 200 wiki pages. All
+read checks completed; ten workflow Tasks were independently confirmed In review.
+Live-model Intake failed because OPENAI_API_KEY was absent. The temporary server
+and unique schema were cleaned up. These results do not claim a live-model pass.

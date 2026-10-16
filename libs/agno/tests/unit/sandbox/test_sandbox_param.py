@@ -86,6 +86,8 @@ def sandbox():
 @pytest.mark.asyncio
 async def test_claude_settings_travel_as_json(coordinator, sandbox, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "host-key")
+    # Only the key set here may travel; a token in the environment would be forwarded too.
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
     agent = ClaudeAgent(id="coder", permission_mode="acceptEdits", allowed_tools=["Read"], max_turns=3, sandbox=sandbox)
     result = await agent.arun("hello", session_id="s1")
     assert result.content == "done"

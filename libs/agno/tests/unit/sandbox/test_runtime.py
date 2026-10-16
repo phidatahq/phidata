@@ -860,6 +860,8 @@ async def test_sdk_adapter_receives_decoded_attachments_only_when_given(tmp_path
             return AgentSession(session_id="s", agent_id="a", session_data={})
 
     monkeypatch.setenv("CODEX_HOME", "unused")
+    # A key in the environment would make the runtime log Codex in first; that path has its own test.
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(runtime, "_agent", lambda *args: Agent())
     directory = tmp_path / "jobs/e"
     directory.mkdir(parents=True)

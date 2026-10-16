@@ -33,6 +33,14 @@ async def _run_route(
     """
     body = urlencode(form or {}).encode()
     headers = [(k, v) for k, v in request.scope["headers"] if k.lower() in {b"authorization", b"cookie", b"x-api-key"}]
+    if getattr(request.state, "is_internal_service", False):
+        from agno.run.authorization import AUTHORIZATION_HEADER
+
+        headers += [
+            (k, v)
+            for k, v in request.scope["headers"]
+            if k.lower() in {AUTHORIZATION_HEADER.lower().encode(), b"x-schedule-owner"}
+        ]
     headers += [(b"content-type", b"application/x-www-form-urlencoded"), (b"content-length", str(len(body)).encode())]
     if key:
         headers.append((b"idempotency-key", key.encode()))
@@ -115,9 +123,28 @@ def get_company_runs_router(os: Any) -> APIRouter:
     @router.post("/tasks/{task_id}/runs", status_code=202)
     async def start(task_id: str, request: Request, body: TaskRunCreate = TaskRunCreate(), _: bool = Depends(auth)):
         value = await task(task_id)
+        from agno.company.execution import _automatic_task
+
+        observed = _automatic_task.get()
+        if observed is not None and any(value[key] != observed[key] for key in ("id", "status", "updated_at")):
+            raise HTTPException(409, "Task acceptance changed before automatic dispatch")
         component = executor(value)
         path = endpoint(value)
-        await _require_endpoint_permission(request, path, "POST", action="accept")
+        if observed is None:
+            await _require_endpoint_permission(request, path, "POST", action="accept")
+        else:
+            from agno.os.authz.run_context import request_authorization
+
+            # Recheck the saved accepting authority at the Task route boundary.
+            # Managed providers decide for that human, not the transport principal.
+            authority = request_authorization(request)
+            if authority is None and getattr(request.state, "authorization_enabled", False):
+                raise HTTPException(403, "Task acceptance has no saved caller authority")
+            if authority is not None:
+                try:
+                    await authority.arequire(value["executor_type"] + "s", "run", value["executor_id"])
+                except PermissionError as exc:
+                    raise HTTPException(403, str(exc)) from exc
         queue = worker(request)
         run_id = task_run_id(task_id, body.attempt)
         existing = await queue.store.get_job(run_id)
@@ -150,6 +177,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
         if value.get("job_id") and run_database(value) is not run_db:
             raise HTTPException(409, "A Task session must stay in its original executor database")
         caller = get_scoped_user_id(request) or getattr(request.state, "user_id", None)
+        if observed is not None:
+            caller = value.get("accepted_by")
         # The ordinary run route owns session permissions, including on revisions.
         from agno.db.base import SessionType
         from agno.os.middleware.user_scope import assert_session_writable, caller_is_admin
@@ -198,7 +227,13 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 request,
                 path,
                 "POST",
-                {"message": message, "stream": "false", "background": "true", "session_id": value["session_id"]},
+                {
+                    "message": message,
+                    "stream": "false",
+                    "background": "true",
+                    "session_id": value["session_id"],
+                    **({"user_id": caller} if caller is not None else {}),
+                },
                 key=f"company:{task_id}:{body.attempt}",
             )
         finally:

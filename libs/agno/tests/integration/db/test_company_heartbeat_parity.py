@@ -491,6 +491,42 @@ async def test_routine_service_cannot_create_a_plain_task(heartbeat):
 
 
 @pytest.mark.asyncio
+async def test_intake_preserves_proposed_executor_and_project(heartbeat, tmp_path):
+    _, _, call = heartbeat
+    path = tmp_path / "release.md"
+    path.write_text("Document the API")
+    product = await call("create", "API")
+    project = await call("create_project", product["id"], "Guide")
+    source = await call("create_source", product["id"], "markdown", str(path))
+    observed = (await call("read_source", source["id"], "observation"))[0]
+    proposal = dict(
+        title="Document API",
+        brief="Write guide",
+        proposal_key="guide",
+        evidence_links=[observed["link"]],
+        evidence_hashes={observed["link"]: observed["content_hash"]},
+    )
+    task = await call(
+        "intake",
+        source["id"],
+        "scan",
+        proposal,
+        routine_id="reader-routine",
+        executor_type="agent",
+        executor_id="writer",
+        project_id=project["id"],
+    )
+    assert task["status"] == "backlog"
+    assert task["executor_type"] == "agent" and task["executor_id"] == "writer"
+    assert task["project_id"] == project["id"]
+    assert task["origin"] == "routine" and task["routine_id"] == "reader-routine"
+    other = await call("create", "Other")
+    outside = await call("create_project", other["id"], "Outside")
+    with pytest.raises(ValueError, match="same Product"):
+        await call("intake", source["id"], "outside", proposal, project_id=outside["id"])
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("window", [0, 14])
 @pytest.mark.parametrize("legacy", [False, True])
 async def test_summary_retention_preserves_delivery_state(heartbeat, monkeypatch, window, legacy):
@@ -537,7 +573,10 @@ async def test_summary_retention_preserves_delivery_state(heartbeat, monkeypatch
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["link", "enable"])
-async def test_routine_creation_recovers_after_storage_failure(heartbeat, monkeypatch, failure):
+@pytest.mark.parametrize("auto_accept", [False, True])
+async def test_routine_creation_recovers_after_storage_failure(heartbeat, monkeypatch, failure, auto_accept):
+    import time
+
     from httpx import ASGITransport, AsyncClient
 
     from agno.company.execution import _call
@@ -556,6 +595,12 @@ async def test_routine_creation_recovers_after_storage_failure(heartbeat, monkey
         executor_id="reader",
         cron_expr="0 * * * *",
     )
+    if auto_accept:
+        body["auto_accept"] = {
+            "executor_type": "agent",
+            "executor_id": "reader",
+            "limits": {"expires_at": int(time.time()) + 3600},
+        }
     method = "add_product_routine" if failure == "link" else "update_schedule"
     original = getattr(db, method)
 

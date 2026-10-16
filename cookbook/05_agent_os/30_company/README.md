@@ -266,7 +266,7 @@ instead of silently dropping its Routine. Give it `CompanyTools(db)` and
 interfaces to custom `CompanyTools(db)` executors automatically; an explicit
 `interfaces=` override is preserved, and `summary_tools=False` disables delivery.
 Product Manager has no outbound Summary tool. Enable the existing AgentOS scheduler and queue to run schedules; the
-cookbook only creates and inspects them. Scheduling never grants acceptance.
+cookbook only creates and inspects them. Scheduling alone never grants acceptance.
 The OS scheduler database owns Routine definitions/history even with a separate
 Company database. `metadata.routine_ids` links them to Products.
 
@@ -360,7 +360,161 @@ Task evidence identity and deduplication are part of the initial Company schema.
 Task responses expose `origin`, `routine_id` and `dedupe_key`. Human-created Tasks
 have origin `human`, Product Manager proposals have `product_manager`, and Routine
 proposals have `routine` with the trusted Routine id.
-Automatic acceptance and automatic Task pickup are not enabled by this change.
+Automatic acceptance is opt-in as described below.
+
+
+## Automation
+
+Enabling Company serves eligible registry executors on their ordinary AgentOS
+routes (for example, `/agents/{id}/runs`), with the usual run permissions.
+Registry-only executors holding `SchedulerTools`, including nested agents in
+teams or workflows, are excluded from mounting. Explicitly served components
+retain their ordinary routes but cannot serve as Company executors if they hold
+`SchedulerTools`.
+
+With Company, `scheduler=True`, and the durable queue configured, the scheduler
+creates one managed `Company automation` schedule. This runtime-owned row cannot
+be edited, disabled, deleted or manually triggered through schedule APIs or
+SchedulerTools; those operations return a refusal. Ordinary Routines remain
+editable and pausable. When the scheduler starts without Company configured, it
+disables any existing managed automation row before polling; a fresh deployment
+without Company creates no such row. Enabling Company again re-enables that row
+and preserves its history. Deployments sharing scheduler storage must use the
+same Company configuration.
+
+Candidate queries select Backlog, Ready and In progress
+Tasks before pagination, leaving completed history out of the pickup scan.
+Automatic transitions compare the observed `updated_at` with the stored value,
+including SQL NULL for a record that has never been updated. The existing status
+and terminal-Task predicates remain in the database UPDATE. `updated_at` uses
+epoch seconds: two writes in the same second share that timestamp, while the
+status predicate still holds in that window. There are no field snapshots or
+child-set comparisons in SQL or Python. A same-second scope edit is therefore
+indistinguishable from the checked record. Project completion still refuses any
+current non-terminal Task, but child evidence changes do not advance the Project's
+timestamp and are not fenced by this comparison.
+
+Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
+release, and run history. No extra loop, table, or route is installed. Skipped
+Tasks and proposals have their reasons in this schedule's run output, readable
+through `/schedules/{id}/runs`.
+
+The tick stops admitting work 240 seconds after its claim, before the scheduler's
+default 300-second stale-lock threshold. It checks again after IO and before
+acceptance or dispatch, without cancelling a database transaction. Releases match
+both the worker ID and the claim timestamp on the built-in scheduler adapters,
+so an expired invocation cannot release a later claim by that same worker.
+
+Run both behaviors without a model call:
+
+```bash
+COMPANY_AUTOMATION=1 .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+COMPANY_AUTOMATION=1 COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+```
+
+The example advances the existing schedule's due time to avoid a one-minute
+wait. The poller still claims the schedule, and Tasks still enter the ordinary
+executor run route and durable queue. A pending submission retains its original
+attempt on restart. The queue owns execution retry limits; new ticks do not
+start additional attempts for running or failed Tasks. A human can request a
+retry using the existing run route. Returning queued work to Backlog prevents
+its executor from starting. Once a Task has been accepted, returning it to
+Backlog requires fresh human acceptance before another pickup; automation does
+not treat it as a new proposal. This also applies to automatic policy withdrawals.
+The distinct-Task policy budget is unchanged. Successful work remains In review.
+
+An authenticated human needs `routines:write`, `schedules:write`, `tasks:write`,
+`wiki:read`, and run permission for both the Routine target and the proposed Task
+executor. Automatic acceptance rechecks wiki access before and after required
+checks, so missing or revoked access leaves the proposal in Backlog without
+spending its acceptance budget or queuing a run.
+POST `/company/routines` accepts `auto_accept` at creation; PATCH
+`/company/routines/{id}` can authorize, edit, or revoke it. For example, replace
+the IDs below with real records and PATCH this body:
+
+```json
+{
+  "auto_accept": {
+    "executor_type": "agent",
+    "executor_id": "writer",
+    "source_ids": ["release-notes"],
+    "work_scope": {
+      "product_ids": ["documentation"],
+      "project_ids": ["release-documentation"]
+    },
+    "required_checks": ["project_active", "has_source_evidence", "executor_registered"],
+    "limits": {"max_acceptances": 5, "expires_at": 1798761600}
+  }
+}
+```
+
+Every authorization names an exact executor type and ID. A proposal with no
+executor receives that authorized executor at acceptance. A proposal that names
+an executor must name the same one. It must belong to the Routine's Product and
+carry the framework's Routine origin. `propose_company_task` and
+`intake_company_source` can name a proposed executor and Project; neither can
+accept work. Source IDs and work scope are optional bounds. Omitted Source/scope
+bounds impose no additional restriction; an empty allowed-ID list permits no matching work.
+`project_ids` can include `null` to allow independent Tasks. Unknown fields and
+check names fail closed. A Source bound requires verified reader evidence.
+Omitting `required_checks` defaults to `["executor_registered"]`; an explicit
+empty check list is rejected. Every policy therefore runs at least one server-side
+check. `limits.expires_at` is required on every policy creation or replacement,
+including PATCH, and must be a UTC epoch-second timestamp in the future.
+Automatic executors must be local and have a database for durable run storage.
+
+| Built-in required check | Server-side fact checked |
+| --- | --- |
+| `project_active` | The proposal's Project exists, belongs to the same Product, and is active. Independent Tasks fail this check. |
+| `has_source_evidence` | Evidence names an existing Source in this Product; a fresh read through its configured reader matches each content hash and link. An asserted hash or `passed` field is insufficient. |
+| `executor_registered` | The proposed executor exists in the current registry and passes the ordinary Company executor checks. Registry validation is also mandatory for every acceptance and dispatch. |
+
+`limits.max_acceptances` defaults to **1**. Each distinct Task counts at most
+once per policy version, including archived Tasks; returning a Task to Backlog
+and re-accepting it under the same policy does not spend another slot. The version
+is a fingerprint of the executor, Source/work scope, checks and limits. Editing
+that content (including raising a limit) starts a new version with its own budget.
+Re-sending the same policy, refreshing a token, changing instructions or restarting
+does not change the version or revoke its in-flight acceptances. The existing
+Product row serializes accounting on SQLite and PostgreSQL so concurrent ticks
+cannot exceed the limit. An early budget check skips exhausted proposals before
+reading Sources or running application checks; the transaction still checks the
+limit again. Changing the policy opens the new version's budget on the next tick.
+Other failed checks are retried because server facts may change. Cheap built-in
+checks and application checks run before Source IO. Source bounds
+and `has_source_evidence` share one fresh evidence read per acceptance.
+
+Applications can add checks with
+`CompanyConfig(acceptance_checks={"custom_check": callable})`. Every built-in
+and custom callable has the same `(task, manager)` signature: a copy of the
+proposal and the sync or async Company manager for the configured database.
+A callable may be sync or async and must return exactly `True` to pass. Errors,
+false results, and missing names keep the proposal in Backlog. Built-in names
+cannot be overridden. Registration is application code, never a Routine payload
+or agent tool operation.
+
+PATCH `{"auto_accept": false}` to revoke. Every tick reloads the schedule,
+checks the saved human's current authority using the scheduler's authorization
+conventions, and repeats the checks before acceptance. Changed or revoked
+policies also block already accepted automatic work at dispatch and in the
+queue. An unchanged Ready Task whose policy was withdrawn returns to Backlog
+with the reason in its transition history, so it is visible for human attention.
+Human acceptance snapshots use the same scheduler convention: stored-role
+changes are re-evaluated; token-scope grants retain their saved scopes. Tasks
+accepted before snapshots were introduced need fresh acceptance before pickup.
+A disabled human cannot authorize automatic work through the user directory.
+The Routine API validates executor registration and check names before saving a
+policy; unknown names return 422. Generic schedule mutations of Company Routines
+return 409: edit them through `/company/routines`. Direct Python ScheduleManager
+payload writes strip acceptance grants; only the human API can issue them after
+checking the caller's authority.
+
+In a local deployment with authentication disabled, API callers are trusted
+operators, as for the existing scheduler. Code/YAML declarations remain
+proposal-only: write an automatic authorization through the human API.
+Executors and Product Manager retain no `schedules:write` or SchedulerTools.
+Private authorization is removed from public payloads and executor input;
+Routine metadata is data, never a source of broader executor authority.
 
 ### Refresh, completion and retention
 
@@ -416,6 +570,31 @@ after restart and across replicas so saved run database references resolve.
 This does not rewrite references saved with older randomly generated IDs;
 retaining a known old ID explicitly is necessary for those references.
 
+### Bounded Project completion
+
+`auto_accept.complete_projects` defaults to `false`, preserving existing Task-only
+policy fingerprints and budgets. Set it to `true` on a
+Refresh Routine to allow the automation tick to accept its persisted completion
+proposals. The human author must also hold `projects:write`. Refresh itself only
+proposes completion and archives eligible terminal work; it never accepts Tasks
+or transitions a Project to Done.
+
+Completion uses the same executor/run permission, Source and Product/Project
+scope, required checks, expiry and count as Task acceptance. The proposed
+Project must still be active, its Tasks (including archived Tasks) must all be
+terminal, and its stored Refresh proposal must still match those facts. Checks
+receive the Project as the work record, with `project_id` set to its ID and
+`evidence` collected from its Tasks. The policy supplies the executor fields and
+its executor still requires registry validation and the human's run permission.
+`has_source_evidence` re-reads that evidence;
+a Project without evidence fails Source bounds and that check. `project_active`
+and `executor_registered` work without application registration.
+
+Each distinct Project completion spends one slot in the same per-policy budget
+as distinct Task acceptances. Archived records still count. The completion
+permission is part of the policy fingerprint; changing it creates a new policy
+version. Project completion creates no executor run. Existing Task completion
+still requires human review.
 
 ### Custom Routines and discovered websites
 
@@ -459,7 +638,12 @@ Routines through the scheduler and durable queue on all four SQL adapters.
 With a template, creation copies its Skill text unless explicit instructions are
 supplied. Name, instructions, executor type/id, cron expression and timezone can
 be edited with PATCH. Executor edits reuse scheduler authorization and target
-checks. Stored instructions are not refreshed when Skill files change.
+checks. If a policy is present, executor edits also recheck the human's permission
+to run the policy executor and re-stamp the grant. Editing instructions preserves
+the policy fingerprint and its spent acceptance budget. Stored instructions are
+not refreshed when Skill files change.
+A Routine with `template: null` never completes Projects automatically, even
+when its policy sets `complete_projects: true`.
 A custom Routine does maintenance only when it calls the Refresh tool, and
 Summary bookkeeping only when it calls the Summary tool.
 
@@ -470,7 +654,9 @@ field, `config`: server-stamped `config.metadata.agent_id` and
 `config.metadata.run_id` identify the first discovery. These fields are not
 reader options or model-supplied identities. Matching additions reuse the same
 Source; conflicting settings or archived references are refused with the existing
-Source id. A human can inspect provenance in GET `/company/sources` and archive
+Source id. Policies may name these website Sources in `source_ids`;
+`has_source_evidence` reads and verifies them like human-added Sources.
+A human can inspect provenance in GET `/company/sources` and archive
 through DELETE `/company/sources/{id}`. AgentOS applies its isolation setting to
 custom Company toolkits. Non-admin scoped tokens missing a subject are rejected
 under isolation on Company reads as well as writes; the existing administrator

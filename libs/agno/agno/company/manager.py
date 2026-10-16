@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from agno.company.summary import _serialized_summary
-from agno.db.base import AsyncBaseDb, BaseDb
+from agno.db.base import _UNSET_UPDATED_AT, AsyncBaseDb, BaseDb
 from agno.db.schemas.products import validate_product_fields
 
 
@@ -206,6 +206,8 @@ class CompanyManager:
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
         from agno.company.routines import _RoutineAuthorization
@@ -228,6 +230,8 @@ class CompanyManager:
             reason,
             user_id=user_id,
             accepted_by=accepted_by,
+            expected_updated_at=expected_updated_at,
+            auto_accept=auto_accept,
         )
 
     def create_task(
@@ -241,6 +245,8 @@ class CompanyManager:
         evidence: Optional[List[Dict[str, Any]]] = None,
         origin: str = "human",
         routine_id: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create task work; scoped_user_id filters parents while user_id records the creator."""
         from agno.company.routines import _RoutineAuthorization
@@ -252,7 +258,14 @@ class CompanyManager:
             )
         from agno.db.schemas.tasks import validate_task_fields
 
-        fields = {"title": title, "brief": brief, "project_id": project_id, "evidence": evidence}
+        fields = {
+            "title": title,
+            "brief": brief,
+            "project_id": project_id,
+            "evidence": evidence,
+            "executor_type": executor_type,
+            "executor_id": executor_id,
+        }
         validate_task_fields(fields)
         if self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
@@ -270,6 +283,7 @@ class CompanyManager:
                 "status": "backlog",
                 "origin": origin,
                 "routine_id": routine_id,
+                **_proposal_origin(),
                 "session_id": str(uuid4()),
                 "user_id": user_id,
                 "transitions": [],
@@ -351,6 +365,8 @@ class CompanyManager:
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
         from agno.company.routines import _RoutineAuthorization
@@ -370,6 +386,8 @@ class CompanyManager:
             accepted_by=accepted_by,
             executor_type=executor_type,
             executor_id=executor_id,
+            expected_updated_at=expected_updated_at,
+            auto_accept=auto_accept,
         )
 
     def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
@@ -651,10 +669,16 @@ class CompanyManager:
         proposal: Any,
         user_id: Optional[str] = None,
         routine_id: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """Persist an explicit proposal with verified evidence and a stable Source-local identity."""
         from agno.company.declarations import IntakeProposal
         from agno.company.sources import _proposal_fields
+        from agno.db.schemas.tasks import validate_task_fields
+
+        validate_task_fields({"executor_type": executor_type, "executor_id": executor_id, "project_id": project_id})
 
         source = self.get_source(source_id)
         from agno.company.routines import _require_routine_product
@@ -663,15 +687,23 @@ class CompanyManager:
             _require_routine_product(source["product_id"])
         if source is None:
             raise LookupError("Source not found")
+        if project_id is not None:
+            project = self.get_project(project_id)
+            if project is None or project["product_id"] != source["product_id"]:
+                raise ValueError("Task and Project must belong to the same Product")
         proposal = IntakeProposal.model_validate(proposal)
         evidence = self.read_source(source_id, run_id, links=proposal.evidence_links)
         fields = _proposal_fields(source_id, proposal, evidence)
+        routine_id = _proposal_origin().get("routine_id", routine_id)
         return self.db.create_task(
             {
                 **fields,
                 "id": str(uuid4()),
                 "product_id": source["product_id"],
                 "status": "backlog",
+                "executor_type": executor_type,
+                "executor_id": executor_id,
+                "project_id": project_id,
                 "origin": "routine" if routine_id else "product_manager",
                 "routine_id": routine_id,
                 "session_id": str(uuid4()),
@@ -929,6 +961,8 @@ class AsyncCompanyManager:
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
         from agno.company.routines import _RoutineAuthorization
@@ -953,6 +987,8 @@ class AsyncCompanyManager:
             reason,
             user_id=user_id,
             accepted_by=accepted_by,
+            expected_updated_at=expected_updated_at,
+            auto_accept=auto_accept,
         )
 
     async def create_task(
@@ -966,6 +1002,8 @@ class AsyncCompanyManager:
         evidence: Optional[List[Dict[str, Any]]] = None,
         origin: str = "human",
         routine_id: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create task work; scoped_user_id filters parents while user_id records the creator."""
         from agno.company.routines import _RoutineAuthorization
@@ -977,7 +1015,14 @@ class AsyncCompanyManager:
             )
         from agno.db.schemas.tasks import validate_task_fields
 
-        fields = {"title": title, "brief": brief, "project_id": project_id, "evidence": evidence}
+        fields = {
+            "title": title,
+            "brief": brief,
+            "project_id": project_id,
+            "evidence": evidence,
+            "executor_type": executor_type,
+            "executor_id": executor_id,
+        }
         validate_task_fields(fields)
         if await self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
@@ -995,6 +1040,7 @@ class AsyncCompanyManager:
                 "status": "backlog",
                 "origin": origin,
                 "routine_id": routine_id,
+                **_proposal_origin(),
                 "session_id": str(uuid4()),
                 "user_id": user_id,
                 "transitions": [],
@@ -1078,6 +1124,8 @@ class AsyncCompanyManager:
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
         from agno.company.routines import _RoutineAuthorization
@@ -1097,6 +1145,8 @@ class AsyncCompanyManager:
             accepted_by=accepted_by,
             executor_type=executor_type,
             executor_id=executor_id,
+            expected_updated_at=expected_updated_at,
+            auto_accept=auto_accept,
         )
 
     async def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
@@ -1378,10 +1428,16 @@ class AsyncCompanyManager:
         proposal: Any,
         user_id: Optional[str] = None,
         routine_id: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
+        project_id: Optional[str] = None,
     ):
         """Persist an explicit proposal with verified evidence and a stable Source-local identity."""
         from agno.company.declarations import IntakeProposal
         from agno.company.sources import _proposal_fields
+        from agno.db.schemas.tasks import validate_task_fields
+
+        validate_task_fields({"executor_type": executor_type, "executor_id": executor_id, "project_id": project_id})
 
         source = await self.get_source(source_id)
         from agno.company.routines import _require_routine_product
@@ -1390,15 +1446,23 @@ class AsyncCompanyManager:
             _require_routine_product(source["product_id"])
         if source is None:
             raise LookupError("Source not found")
+        if project_id is not None:
+            project = await self.get_project(project_id)
+            if project is None or project["product_id"] != source["product_id"]:
+                raise ValueError("Task and Project must belong to the same Product")
         proposal = IntakeProposal.model_validate(proposal)
         evidence = await self.read_source(source_id, run_id, links=proposal.evidence_links)
         fields = _proposal_fields(source_id, proposal, evidence)
+        routine_id = _proposal_origin().get("routine_id", routine_id)
         return await self.db.create_task(
             {
                 **fields,
                 "id": str(uuid4()),
                 "product_id": source["product_id"],
                 "status": "backlog",
+                "executor_type": executor_type,
+                "executor_id": executor_id,
+                "project_id": project_id,
                 "origin": "routine" if routine_id else "product_manager",
                 "routine_id": routine_id,
                 "session_id": str(uuid4()),
@@ -1473,3 +1537,13 @@ class AsyncCompanyManager:
         await state_fs.awrite(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
         await self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
         return {"path": path, "delivered": True, "quiet": not rows}
+
+
+def _proposal_origin():
+    from agno.company.routines import _RoutineAuthorization
+    from agno.run.authorization import current_authorization
+
+    authority = current_authorization()
+    if isinstance(authority, _RoutineAuthorization) and authority.routine_id:
+        return {"origin": "routine", "routine_id": authority.routine_id}
+    return {}

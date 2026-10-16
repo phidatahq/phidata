@@ -6,7 +6,7 @@ import time
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun
+from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun, _require_mutable_schedule
 from agno.run.authorization import (
     arequire_schedule_target,
     current_authorization,
@@ -14,6 +14,18 @@ from agno.run.authorization import (
     stamp_authorization,
 )
 from agno.utils.log import log_debug, log_warning
+
+
+def _schedule_payload(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Drop acceptance grants from direct Python writes; only human routes issue them.
+
+    Company HTTP handlers persist through their own adapter calls after checking
+    and stamping authority, so they do not use this manager payload boundary.
+    """
+    if payload is not None:
+        payload = {key: value for key, value in payload.items() if key != "_agno_company_acceptance"}
+    return stamp_authorization(payload)
+
 
 # Valid DB method names for the scheduler
 SchedulerDbMethod = Literal[
@@ -182,6 +194,7 @@ class ScheduleManager:
                 log_debug(f"Schedule '{name}' already exists, skipping")
                 return existing
             if if_exists == "update":
+                _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
                 next_run_at = compute_next_run(cron, timezone)
                 updated = self._to_schedule(
@@ -193,7 +206,7 @@ class ScheduleManager:
                         endpoint=endpoint,
                         method=method.upper(),
                         description=description,
-                        payload=stamp_authorization(payload),
+                        payload=_schedule_payload(payload),
                         timezone=timezone,
                         timeout_seconds=timeout_seconds,
                         max_retries=max_retries,
@@ -214,7 +227,7 @@ class ScheduleManager:
             description=description,
             method=method.upper(),
             endpoint=endpoint,
-            payload=stamp_authorization(payload),
+            payload=_schedule_payload(payload),
             cron_expr=cron,
             timezone=timezone,
             timeout_seconds=timeout_seconds,
@@ -297,21 +310,28 @@ class ScheduleManager:
 
     def update(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
-        if current_authorization() is None and "payload" not in kwargs:
+        _require_mutable_schedule(schedule_id)
+        if current_authorization() is None and not {"payload", "endpoint", "method"}.intersection(kwargs):
             return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = self.get(schedule_id, user_id=user_id)
         if existing is None:
             return None
         require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        kwargs["payload"] = stamp_authorization(kwargs.get("payload", existing.payload))
+        # Caller payloads cannot mint acceptance grants. Metadata-only changes
+        # retain the trusted stored grant while refreshing ordinary run authority.
+        kwargs["payload"] = (
+            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+        )
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     def delete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
         """Delete a schedule."""
+        _require_mutable_schedule(schedule_id)
         return self._call("delete_schedule", schedule_id, user_id=user_id)
 
     def enable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Enable a schedule and compute next run."""
+        _require_mutable_schedule(schedule_id)
         schedule = self._to_schedule(self._call("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
@@ -324,6 +344,7 @@ class ScheduleManager:
 
     def disable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Disable a schedule."""
+        _require_mutable_schedule(schedule_id)
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, enabled=False))
 
     def trigger(self, schedule_id: str) -> None:
@@ -410,6 +431,7 @@ class ScheduleManager:
                 log_debug(f"Schedule '{name}' already exists, skipping")
                 return existing
             if if_exists == "update":
+                _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
                 next_run_at = compute_next_run(cron, timezone)
                 updated = self._to_schedule(
@@ -421,7 +443,7 @@ class ScheduleManager:
                         endpoint=endpoint,
                         method=method.upper(),
                         description=description,
-                        payload=stamp_authorization(payload),
+                        payload=_schedule_payload(payload),
                         timezone=timezone,
                         timeout_seconds=timeout_seconds,
                         max_retries=max_retries,
@@ -442,7 +464,7 @@ class ScheduleManager:
             description=description,
             method=method.upper(),
             endpoint=endpoint,
-            payload=stamp_authorization(payload),
+            payload=_schedule_payload(payload),
             cron_expr=cron,
             timezone=timezone,
             timeout_seconds=timeout_seconds,
@@ -525,21 +547,28 @@ class ScheduleManager:
 
     async def aupdate(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Async update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
-        if current_authorization() is None and "payload" not in kwargs:
+        _require_mutable_schedule(schedule_id)
+        if current_authorization() is None and not {"payload", "endpoint", "method"}.intersection(kwargs):
             return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = await self.aget(schedule_id, user_id=user_id)
         if existing is None:
             return None
         await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        kwargs["payload"] = stamp_authorization(kwargs.get("payload", existing.payload))
+        # Caller payloads cannot mint acceptance grants. Metadata-only changes
+        # retain the trusted stored grant while refreshing ordinary run authority.
+        kwargs["payload"] = (
+            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+        )
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     async def adelete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
         """Async delete a schedule."""
+        _require_mutable_schedule(schedule_id)
         return await self._acall("delete_schedule", schedule_id, user_id=user_id)
 
     async def aenable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Async enable a schedule."""
+        _require_mutable_schedule(schedule_id)
         schedule = self._to_schedule(await self._acall("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
@@ -552,6 +581,7 @@ class ScheduleManager:
 
     async def adisable(self, schedule_id: str, user_id: Optional[str] = None) -> Optional[Schedule]:
         """Async disable a schedule."""
+        _require_mutable_schedule(schedule_id)
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, enabled=False))
 
     async def aget_runs(

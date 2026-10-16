@@ -3,7 +3,7 @@ import threading
 from abc import ABC, abstractmethod
 from datetime import date, datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Sequence, Set, Tuple, Union, cast
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -18,6 +18,9 @@ from agno.run.team import TeamRunOutput
 from agno.run.workflow import WorkflowRunOutput
 from agno.session import Session
 from agno.utils.log import log_debug
+
+# Distinguish an omitted comparison from an observed SQL NULL timestamp.
+_UNSET_UPDATED_AT = cast(Optional[int], object())
 
 
 class SessionType(str, Enum):
@@ -1917,8 +1920,16 @@ class BaseDb(ABC):
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Transition a visible Project and record the caller and reason."""
+        """Transition a visible Project and record the caller and reason.
+
+        Automatic completion requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds; the current non-terminal-Task gate still
+        applies even when two writes share a timestamp.
+        """
         raise NotImplementedError("Company projects not supported by the configured database")
 
     # --- Tasks (Optional) ---
@@ -1983,6 +1994,12 @@ class BaseDb(ABC):
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
 
+    def count_company_acceptances(
+        self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None
+    ) -> int:
+        """Count accepted Tasks and completed Projects, including archived records."""
+        raise NotImplementedError("Company automatic acceptance not supported by this database")
+
     def transition_task(
         self,
         task_id: str,
@@ -1992,8 +2009,15 @@ class BaseDb(ABC):
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Transition a visible task with a reason, recording acceptance for Tasks."""
+        """Transition a visible Task and record the caller and reason.
+
+        Automatic acceptance requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds, so same-second writes are indistinguishable.
+        """
         raise NotImplementedError("Company tasks not supported by the configured database")
 
     # --- Schedules (Optional) ---
@@ -2080,8 +2104,15 @@ class BaseDb(ABC):
         """Atomically claim a due schedule for execution."""
         raise NotImplementedError
 
-    def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
-        """Release a claimed schedule and optionally update next_run_at."""
+    def release_schedule(
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
+    ) -> bool:
+        """Release a schedule, optionally matching its worker and individual claim timestamp."""
         raise NotImplementedError
 
     # --- Schedule Runs (Optional) ---
@@ -3837,8 +3868,16 @@ class AsyncBaseDb(ABC):
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Transition a visible Project and record the caller and reason."""
+        """Transition a visible Project and record the caller and reason.
+
+        Automatic completion requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds; the current non-terminal-Task gate still
+        applies even when two writes share a timestamp.
+        """
         raise NotImplementedError("Company projects not supported by the configured database")
 
     # --- Tasks (Optional) ---
@@ -3905,6 +3944,12 @@ class AsyncBaseDb(ABC):
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
 
+    async def count_company_acceptances(
+        self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None
+    ) -> int:
+        """Count accepted Tasks and completed Projects, including archived records."""
+        raise NotImplementedError("Company automatic acceptance not supported by this database")
+
     async def transition_task(
         self,
         task_id: str,
@@ -3914,8 +3959,15 @@ class AsyncBaseDb(ABC):
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
-        """Transition a visible task with a reason, recording acceptance for Tasks."""
+        """Transition a visible Task and record the caller and reason.
+
+        Automatic acceptance requires expected_updated_at. Explicit None matches
+        SQL NULL; omission leaves manual transitions without a timestamp guard.
+        Timestamps are epoch seconds, so same-second writes are indistinguishable.
+        """
         raise NotImplementedError("Company tasks not supported by the configured database")
 
     # --- Schedules (Optional) ---
@@ -3988,8 +4040,15 @@ class AsyncBaseDb(ABC):
         """Atomically claim a due schedule for execution."""
         raise NotImplementedError
 
-    async def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
-        """Release a claimed schedule and optionally update next_run_at."""
+    async def release_schedule(
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
+    ) -> bool:
+        """Release a schedule, optionally matching its worker and individual claim timestamp."""
         raise NotImplementedError
 
     # --- Schedule Runs (Optional) ---

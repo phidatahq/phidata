@@ -19,6 +19,8 @@ async def arehydrate_product(
     import time
 
     product_id = product.id or str(uuid5(NAMESPACE_URL, "agno:company:product:" + product.name))
+    if any(routine.auto_accept for routine in product.routines):
+        raise ValueError("Authorize automatic acceptance through the Routine API")
     routine_fields = [_schedule_fields(product_id, routine, registry) for routine in product.routines]
     row = await _call(db, "get_product", product_id, include_deleted=True)
     if row is None:

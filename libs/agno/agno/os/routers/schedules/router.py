@@ -42,6 +42,7 @@ def get_schedule_router(
     include_workflows: Optional[Sequence[Any]] = None,
     managed_by: Optional[str] = None,
     company_reads: bool = False,
+    agent_os: Any = None,
     defer_activation: bool = False,
 ) -> APIRouter:
     """Factory that creates and returns the schedule router.
@@ -57,6 +58,7 @@ def get_schedule_router(
             and a code-defined target that also carries a draft row is refused.
         include_teams: Same as ``include_agents`` but for teams.
         include_workflows: Same as ``include_agents`` but for workflows.
+        agent_os: Optional Company registry and acceptance-check context for policy validation.
         defer_activation: Save new managed schedules disabled until their owner integration
             explicitly enables them. Matching retries by the creator recover pending creates.
 
@@ -181,6 +183,12 @@ def get_schedule_router(
         if creator_user_id == INTERNAL_SCHEDULER_USER_ID:
             raise HTTPException(status_code=403, detail="The scheduler executor may not own a schedule")
 
+        payload = body.payload
+        if managed_by == "company":
+            from agno.company.routines import _stamp_auto_accept
+
+            payload = await _stamp_auto_accept(request, payload, agent_os)
+
         # Deferred retries address the creator's name bucket even when reads are unscoped.
         existing = await _db_call(
             "get_schedule_by_name", body.name, user_id=creator_user_id if defer_activation else scoped_user_id
@@ -189,24 +197,33 @@ def get_schedule_router(
             from agno.run.authorization import AUTHORIZATION_KEY
 
             # Recover only the identical unfinished request, never a paused or edited schedule.
-            payload = existing.get("payload") or {}
+            stored_payload = existing.get("payload") or {}
             expected = body.model_dump()
             observed = {key: existing.get(key) for key in expected}
-            observed["payload"] = {
-                key: value for key, value in payload.items() if key not in {pending_key, AUTHORIZATION_KEY}
-            }
-            expected["payload"] = {
-                key: value for key, value in (body.payload or {}).items() if key != AUTHORIZATION_KEY
-            }
+            generated_keys = {pending_key, AUTHORIZATION_KEY}
+            if managed_by == "company":
+                generated_keys.add("_agno_company_acceptance")
+            observed["payload"] = {key: value for key, value in stored_payload.items() if key not in generated_keys}
+            expected["payload"] = {key: value for key, value in (payload or {}).items() if key not in generated_keys}
             if (
                 defer_activation
-                and payload.get(pending_key) is True
+                and stored_payload.get(pending_key) is True
                 and not existing["enabled"]
                 and existing.get("managed_by") == managed_by
                 and existing.get("user_id") == creator_user_id
                 and observed == expected
             ):
-                return existing
+                # The retry reauthorizes the same request; retain current human grants,
+                # not the credentials saved by an interrupted creation.
+                result = await _db_call(
+                    "update_schedule",
+                    existing["id"],
+                    user_id=creator_user_id,
+                    payload={**(stamp_authorization(payload) or {}), pending_key: True},
+                )
+                if result is None:
+                    raise HTTPException(status_code=500, detail="Failed to recover schedule")
+                return result
             raise HTTPException(status_code=409, detail=f"Schedule with name '{body.name}' already exists")
 
         next_run_at = compute_next_run(body.cron_expr, body.timezone)
@@ -218,7 +235,7 @@ def get_schedule_router(
             "description": body.description,
             "method": body.method,
             "endpoint": body.endpoint,
-            "payload": stamp_authorization(body.payload),
+            "payload": stamp_authorization(payload),
             "cron_expr": body.cron_expr,
             "timezone": body.timezone,
             "timeout_seconds": body.timeout_seconds,
@@ -283,6 +300,13 @@ def get_schedule_router(
         if existing.get("managed_by") == "company" and managed_by != "company":
             raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
         updates = body.model_dump(exclude_unset=True)
         if not updates:
             return existing
@@ -345,6 +369,11 @@ def get_schedule_router(
             if dup is not None:
                 raise HTTPException(status_code=409, detail=f"Schedule with name '{updates['name']}' already exists")
 
+        if existing.get("managed_by") == "company" and "payload" in updates:
+            from agno.company.routines import _stamp_auto_accept
+
+            updates["payload"] = await _stamp_auto_accept(request, updates["payload"], agent_os)
+
         # Timing and descriptive edits must not replace the saved execution identity.
         # Only changes checked against the target above acquire the editor's authority.
         if execution_changed:
@@ -371,6 +400,12 @@ def get_schedule_router(
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
             raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
         deleted = await _db_call("delete_schedule", schedule_id, user_id=scoped_user_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete schedule")
@@ -387,6 +422,13 @@ def get_schedule_router(
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
             raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
+
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
         # Re-arming puts the endpoint back on the poller, so it needs the same permission as creating it.
         await _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
@@ -455,6 +497,13 @@ def get_schedule_router(
         if existing.get("managed_by") == "company" and managed_by != "company":
             raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
+
         updates: Dict[str, Any] = {"enabled": False}
         if defer_activation and pending_key in (existing.get("payload") or {}):
             # An explicit pause overrides automatic recovery of an interrupted creation.
@@ -476,6 +525,13 @@ def get_schedule_router(
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
             raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
+
+        from agno.db.schemas.scheduler import _require_mutable_schedule
+
+        try:
+            _require_mutable_schedule(schedule_id)
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail=str(exc))
 
         if not existing.get("enabled", True):
             raise HTTPException(status_code=409, detail="Schedule is disabled")

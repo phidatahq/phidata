@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from agno.company.execution import _call
 from agno.company.playbook import _require_owner
@@ -27,6 +27,28 @@ def _generated_page(path: str, content: str) -> bool:
     return (path == "summary.md" and "<!-- Company summary snapshot:" in content) or (
         path.startswith("project-completion/") and content.startswith("<!-- Company completion proposal -->\n")
     )
+
+
+def _completion_proposal(project: Dict[str, Any], tasks: List[Dict[str, Any]]) -> Tuple[str, str]:
+    """Render the same server facts for Refresh and automatic acceptance."""
+    path = "project-completion/" + hash_string_sha256(project["id"]) + ".md"
+    content = (
+        "<!-- Company completion proposal -->\n# Complete "
+        + project["name"]
+        + "\n\n"
+        + "Proposed transition: Done. Every Task is terminal. A human must review and accept this proposal "
+        + "through the Project transition API. Refresh has not changed the Project's status.\n\n"
+        + "Project: "
+        + project["id"]
+        + "\n\n"
+        + "\n".join(
+            "- " + task["id"] + ": " + task["status"]
+            for task in sorted(tasks, key=lambda task: task["id"])
+            if task.get("deleted_at") is None
+        )
+        + "\n"
+    )
+    return path, content
 
 
 async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str] = None) -> Dict[str, Any]:
@@ -83,23 +105,7 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
         tasks = await _records(manager, "list_tasks", project_id=project["id"], include_deleted=True)
         if not tasks or any(task["status"] not in {"done", "cancelled"} for task in tasks):
             continue
-        path = "project-completion/" + hash_string_sha256(project["id"]) + ".md"
-        content = (
-            "<!-- Company completion proposal -->\n# Complete "
-            + project["name"]
-            + "\n\n"
-            + "Proposed transition: Done. Every Task is terminal. A human must review and accept this proposal "
-            + "through the Project transition API. Refresh has not changed the Project's status.\n\n"
-            + "Project: "
-            + project["id"]
-            + "\n\n"
-            + "\n".join(
-                "- " + task["id"] + ": " + task["status"]
-                for task in sorted(tasks, key=lambda task: task["id"])
-                if task.get("deleted_at") is None
-            )
-            + "\n"
-        )
+        path, content = _completion_proposal(project, tasks)
         existing = await filesystem.aread_with_meta(path)
         if existing is None or existing.content != content:
             await _call(

@@ -3,7 +3,6 @@
 from typing import Any, Dict
 
 from agno.company.execution import _call
-from agno.company.routines import _require_active_routine_product
 from agno.db.schemas.scheduler import Schedule
 from agno.scheduler.executor import ScheduleExecutor
 
@@ -15,6 +14,8 @@ class CompanyScheduleExecutor(ScheduleExecutor):
         self.schedule_db = schedule_db
 
     async def _call_endpoint(self, schedule: Schedule) -> Dict[str, Any]:
+        from agno.company.routines import _require_active_routine_product
+
         if schedule.managed_by == "company":
             try:
                 await _require_active_routine_product(

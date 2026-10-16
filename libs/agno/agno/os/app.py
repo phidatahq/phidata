@@ -224,15 +224,21 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if internal_token is None:
         raise ValueError("internal_service_token must be set when scheduler is enabled")
 
+    from agno.company.routines import _ensure_automation_schedule
+
+    # Reconcile before the poller can claim a stale Company schedule.
+    await _ensure_automation_schedule(agent_os.db, enabled=agent_os.company is not None)
     executor: ScheduleExecutor
     if agent_os.company is not None:
-        from agno.company.scheduler import CompanyScheduleExecutor
+        from agno.company.routines import _CompanyScheduleExecutor
 
-        executor = CompanyScheduleExecutor(
-            base_url=base_url,
-            internal_service_token=internal_token,
+        executor = _CompanyScheduleExecutor(
+            agent_os,
+            app,
             company_db=agent_os._company_db,
             schedule_db=agent_os.db,
+            base_url=base_url,
+            internal_service_token=internal_token,
         )
     else:
         executor = ScheduleExecutor(base_url=base_url, internal_service_token=internal_token)
@@ -987,6 +993,7 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
+                    agent_os=self,
                 )
             )
             updated_routers.append(get_approval_router(os_db=self.db, settings=self.settings))
@@ -1876,6 +1883,7 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
+                    agent_os=self,
                 )
             )
             routers.append(get_approval_router(os_db=self.db, settings=self.settings))

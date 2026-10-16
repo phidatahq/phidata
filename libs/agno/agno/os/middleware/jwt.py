@@ -1559,6 +1559,15 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.user_id = INTERNAL_SCHEDULER_USER_ID
             request.state.session_id = None
             internal_scopes = list(INTERNAL_SERVICE_SCOPES)
+            if method == "POST" and path.startswith("/company/tasks/"):
+                from agno.company.execution import _automatic_task
+
+                task = _automatic_task.get()
+                # Only the in-process Company tick can enter this path. The
+                # saved accepting identity is checked below as for every schedule.
+                # A network caller cannot supply this request-local observation.
+                if task is not None and path == f"/company/tasks/{task['id']}/runs":
+                    internal_scopes.extend(["tasks:write", "wiki:read"])
             request.state.scopes = internal_scopes
             # Trusted internal caller: mark AFTER the constant-time hmac match above so the
             # provider-backed per-resource gate (check_resource_access) short-circuits — the

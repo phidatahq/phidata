@@ -17,6 +17,15 @@ SCHEDULE_OWNER_HEADER: str = "X-Schedule-Owner"
 # (see ``is_reserved_principal``) and it may not own a schedule.
 INTERNAL_SCHEDULER_USER_ID: str = "__scheduler__"
 
+# Reserved runtime schedule: public management must not stop Company pickup.
+COMPANY_AUTOMATION_SCHEDULE_ID = "agno-company-automation"
+
+
+def _require_mutable_schedule(schedule_id: str) -> None:
+    if schedule_id == COMPANY_AUTOMATION_SCHEDULE_ID:
+        raise ValueError("Company automation is a runtime-managed schedule and cannot be modified")
+
+
 # Matches a run endpoint and captures resource type + ID. ``\Z`` rather than ``$`` so a trailing
 # newline can't slip past the run-endpoint check.
 RUN_ENDPOINT_RE = re.compile(r"^/(agents|teams|workflows)/([^/]+)/runs/?\Z")

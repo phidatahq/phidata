@@ -24,3 +24,8 @@ read one document; next_content_offset continues large documents. Compare the
 full-document content_hash across fragments and reread if it changes. Never infer
 content from an index entry. Use intake_company_source for Task proposals;
 propose_company_task is unavailable to Routines.
+
+When proposing work, name the proposed executor and optional Project through the
+Intake tool. If auto_accept metadata names an executor, it is a suggested target,
+not permission to accept work. The server checks the current human authorization
+and its bounds separately; proposals remain Backlog until that check succeeds.

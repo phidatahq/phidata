@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from agno.tracing.schemas import Span, Trace
 
 from agno.db.base import (
+    _UNSET_UPDATED_AT,
     DELETED_CONFIG_STAGE,
     PIN_LINK_KINDS,
     BaseDb,
@@ -7187,7 +7188,14 @@ class SqliteDb(BaseDb):
             log_debug(f"Error claiming schedule: {e}")
             return None
 
-    def release_schedule(self, schedule_id: str, next_run_at: Optional[int] = None) -> bool:
+    def release_schedule(
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
+    ) -> bool:
         try:
             table = self._get_table(table_type="schedules")
             if table is None:
@@ -7195,8 +7203,13 @@ class SqliteDb(BaseDb):
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
             if next_run_at is not None:
                 updates["next_run_at"] = next_run_at
+            statement = table.update().where(table.c.id == schedule_id)
+            if worker_id is not None:
+                statement = statement.where(table.c.locked_by == worker_id)
+            if locked_at is not None:
+                statement = statement.where(table.c.locked_at == locked_at)
             with self.Session() as sess, sess.begin():
-                result = sess.execute(table.update().where(table.c.id == schedule_id).values(**updates))
+                result = sess.execute(statement.values(**updates))
                 return result.rowcount > 0
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")
@@ -8361,15 +8374,19 @@ class SqliteDb(BaseDb):
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.projects import project_transition_fields
+        from agno.db.schemas.tasks import _acceptance_count
         from agno.db.sql.company import lock_child
 
         table = self._get_table(table_type="projects")
         if table is None:
             return None
         tasks_table = self._get_table(table_type="tasks") if target == "done" else None
+        tasks = tasks_table if auto_accept else None
         stmt = select(table).where(table.c.id == project_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
@@ -8377,6 +8394,24 @@ class SqliteDb(BaseDb):
         projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
             lock_child(sess, products, projects, table, project_id)
+            if auto_accept is not None:
+                if target != "done" or expected_updated_at is _UNSET_UPDATED_AT or products is None or tasks is None:
+                    raise ValueError("Automatic completion requires expected_updated_at and a Project with Tasks")
+                task_histories = (
+                    (sess.execute(select(tasks.c.transitions).where(tasks.c.routine_id == auto_accept["routine_id"])))
+                    .scalars()
+                    .all()
+                )
+                project_histories = (
+                    (sess.execute(select(table.c.transitions).where(table.c.id != project_id))).scalars().all()
+                )
+                if (
+                    _acceptance_count(
+                        list(task_histories) + list(project_histories), auto_accept["routine_id"], auto_accept["policy"]
+                    )
+                    >= auto_accept["max_acceptances"]
+                ):
+                    raise ValueError("Routine acceptance limit reached")
             row = sess.execute(stmt).fetchone()
             if row is None:
                 return None
@@ -8389,6 +8424,8 @@ class SqliteDb(BaseDb):
                 )
                 open_tasks = [dict(task._mapping) for task in sess.execute(open_query).fetchall()]
             fields = project_transition_fields(existing, target, reason, accepted_by, tasks=open_tasks)
+            if auto_accept is not None:
+                fields["transitions"][-1]["auto_accept"] = auto_accept
             update = table.update().where(
                 table.c.id == project_id,
                 table.c.deleted_at.is_(None),
@@ -8397,6 +8434,8 @@ class SqliteDb(BaseDb):
             )
             if tasks_table is not None:
                 update = update.where(~open_query.exists())
+            if expected_updated_at is not _UNSET_UPDATED_AT:
+                update = update.where(table.c.updated_at == expected_updated_at)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = sess.execute(update.values(**fields).returning(table)).fetchone()
@@ -8671,6 +8710,28 @@ class SqliteDb(BaseDb):
             row = (sess.execute(stmt)).fetchone()
             return dict(row._mapping) if row else None
 
+    def count_company_acceptances(
+        self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None
+    ) -> int:
+        """Count accepted Tasks and completed Projects, including archived records."""
+        from agno.db.schemas.tasks import _acceptance_count
+
+        table = self._get_table(table_type="tasks")
+        projects = self._get_table(table_type="projects")
+        if table is None:
+            return 0
+        stmt = select(table.c.transitions).where(table.c.routine_id == routine_id, table.c.id != exclude_task_id)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess:
+            histories = (sess.execute(stmt)).scalars().all()
+            if projects is not None:
+                project_stmt = select(projects.c.transitions)
+                if user_id is not None:
+                    project_stmt = project_stmt.where(projects.c.user_id == user_id)
+                histories = list(histories) + list((sess.execute(project_stmt)).scalars().all())
+        return _acceptance_count(histories, routine_id, policy)
+
     def transition_task(
         self,
         task_id: str,
@@ -8680,9 +8741,11 @@ class SqliteDb(BaseDb):
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
+        auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
-        from agno.db.schemas.tasks import task_transition_fields
+        from agno.db.schemas.tasks import _acceptance_count, task_transition_fields
         from agno.db.sql.company import lock_child
 
         table = self._get_table(table_type="tasks")
@@ -8694,18 +8757,43 @@ class SqliteDb(BaseDb):
         products = self._get_table(table_type="products", create_table_if_not_found=True)
         projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            if auto_accept is not None:
+                lock_child(sess, products, projects, table, task_id)
+                if expected_updated_at is _UNSET_UPDATED_AT or products is None:
+                    raise ValueError("Automatic acceptance requires expected_updated_at and a Product")
+                prior = (
+                    sess.execute(
+                        select(table.c.transitions).where(
+                            table.c.routine_id == auto_accept["routine_id"], table.c.id != task_id
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                if projects is not None:
+                    prior = list(prior) + list((sess.execute(select(projects.c.transitions))).scalars().all())
+                if (
+                    _acceptance_count(prior, auto_accept["routine_id"], auto_accept["policy"])
+                    >= auto_accept["max_acceptances"]
+                ):
+                    raise ValueError("Routine acceptance limit reached")
             row = sess.execute(stmt).fetchone()
             if row is None:
                 return None
             existing = dict(row._mapping)
             fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
-            lock_child(sess, products, projects, table, task_id)
+            if auto_accept is not None:
+                fields["transitions"][-1]["auto_accept"] = auto_accept
+            else:
+                lock_child(sess, products, projects, table, task_id)
             update = table.update().where(
                 table.c.id == task_id,
                 table.c.deleted_at.is_(None),
                 table.c.status == existing["status"],
                 table.c.transitions == existing["transitions"],
             )
+            if expected_updated_at is not _UNSET_UPDATED_AT:
+                update = update.where(table.c.updated_at == expected_updated_at)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = sess.execute(update.values(**fields).returning(table)).fetchone()

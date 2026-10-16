@@ -58,6 +58,37 @@ def test_routine_scheduler_wrappers(system):
     assert len(client.get("/company/routines").json()["data"]) == 1
 
 
+def test_routine_routes_hide_automation_and_report_missing_product(system):
+    from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
+
+    client, _, db = system
+    for identifier in (COMPANY_AUTOMATION_SCHEDULE_ID, "missing-product"):
+        if db.get_schedule(identifier) is None:
+            db.create_schedule(
+                Schedule(
+                    id=identifier,
+                    name=identifier,
+                    cron_expr="0 * * * *",
+                    endpoint="/agents/reader/runs",
+                    managed_by="company",
+                    payload={"metadata": {}},
+                ).to_dict()
+            )
+        path = "/company/routines/" + identifier
+        responses = [
+            client.patch(path, json={"instructions": "Updated"}),
+            client.post(path + "/pause"),
+            client.post(path + "/resume"),
+            client.get(path + "/runs"),
+        ]
+        expected = 404 if identifier == COMPANY_AUTOMATION_SCHEDULE_ID else 409
+        for response in responses:
+            assert response.status_code == expected, response.text
+            if expected == 409:
+                assert response.json()["detail"] == "Routine is missing its Product metadata"
+    assert client.get("/company/routines").json()["data"] == []
+
+
 @pytest.mark.parametrize("field,value", [("cron_expr", "bad cron"), ("timezone", "not/a/timezone")])
 def test_invalid_setup_does_not_create_records(system, field, value):
     client, _, db = system
@@ -943,6 +974,71 @@ def test_summary_failure_predicate_matches_attention(task_status, run_status):
     assert ("No failed Tasks." not in report) == unresolved
 
 
+@pytest.mark.parametrize("isolation", [False, True])
+def test_executor_edit_reauthorizes_existing_policy_and_restamps_grant(tmp_path, isolation):
+    import jwt
+
+    from agno.os.config import AuthorizationConfig
+
+    secret = "company-policy-executor-edit-secret"
+    db = SqliteDb(db_file=str(tmp_path / "policy-edit.db"))
+    os = AgentOS(
+        id="policy-edit",
+        db=db,
+        agents=[Agent(id="reader", db=db, telemetry=False), Agent(id="other", db=db, telemetry=False)],
+        company=CompanyConfig(),
+        telemetry=False,
+        authorization=True,
+        authorization_config=AuthorizationConfig(
+            verification_keys=[secret], algorithm="HS256", user_isolation=isolation
+        ),
+    )
+
+    def headers(scopes):
+        return {
+            "Authorization": "Bearer "
+            + jwt.encode({"sub": "owner", "aud": "policy-edit", "scopes": scopes}, secret, algorithm="HS256")
+        }
+
+    admin = headers(["agent_os:admin"])
+    with TestClient(os.get_app()) as client:
+        product = client.post("/company/products", json={"name": "Policy"}, headers=admin).json()
+        created = client.post(
+            "/company/routines",
+            json=dict(
+                product_id=product["id"],
+                name="custom",
+                instructions="Inspect",
+                executor_type="agent",
+                executor_id="reader",
+                cron_expr="0 * * * *",
+                auto_accept=dict(executor_type="agent", executor_id="reader", limits={"expires_at": 4102444800}),
+            ),
+            headers=admin,
+        )
+        assert created.status_code == 201, created.text
+        routine_id = created.json()["id"]
+        before = db.get_schedule(routine_id)
+        scopes = ["products:read", "routines:write", "schedules:write", "tasks:write", "wiki:read", "agents:other:run"]
+        denied = client.patch("/company/routines/" + routine_id, json={"executor_id": "other"}, headers=headers(scopes))
+        assert denied.status_code == 403, denied.text
+        assert db.get_schedule(routine_id) == before
+        generic = client.patch(
+            "/schedules/" + routine_id, json={"endpoint": "/agents/other/runs"}, headers=headers(scopes)
+        )
+        assert generic.status_code == 409, generic.text
+        assert db.get_schedule(routine_id) == before
+        scopes.append("agents:reader:run")
+        changed = client.patch(
+            "/company/routines/" + routine_id, json={"executor_id": "other"}, headers=headers(scopes)
+        )
+        assert changed.status_code == 200, changed.text
+        after = db.get_schedule(routine_id)
+        assert after["target_id"] == "other"
+        assert after["payload"]["metadata"]["auto_accept"] == before["payload"]["metadata"]["auto_accept"]
+        assert after["payload"]["_agno_company_acceptance"] != before["payload"]["_agno_company_acceptance"]
+
+
 def test_managed_schedule_mutations_use_company_routes(system):
     client, os, db = system
     product = client.post("/company/products", json={"name": "SDK"}).json()
@@ -968,7 +1064,11 @@ def test_managed_schedule_mutations_use_company_routes(system):
 
 
 @pytest.mark.asyncio
-async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch):
+@pytest.mark.parametrize("automation", [False, True])
+async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch, automation):
+    from types import SimpleNamespace
+
+    from agno.company.routines import _CompanyScheduleExecutor
     from agno.company.scheduler import CompanyScheduleExecutor
     from agno.scheduler import ScheduleManager
 
@@ -985,13 +1085,17 @@ async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch
     manager.delete(product["id"])
     dispatch = AsyncMock()
     monkeypatch.setattr(ScheduleExecutor, "_call_endpoint", dispatch)
-    executor = CompanyScheduleExecutor(
-        company_db=db, schedule_db=db, base_url="http://test", internal_service_token="internal"
+    options = dict(company_db=db, schedule_db=db, base_url="http://test", internal_service_token="internal")
+    executor = (
+        _CompanyScheduleExecutor(SimpleNamespace(_company_db=db, db=db), None, **options)
+        if automation
+        else CompanyScheduleExecutor(**options)
     )
     result = await executor.execute(schedule, db)
     assert result["status"] == "failed" and "archived" in result["error"]
     dispatch.assert_not_awaited()
     assert db.get_schedule(schedule.id)["enabled"] is False
+    assert db.get_schedule(schedule.id)["disabled_reason"] == "company_product_archived"
     db.close()
 
 

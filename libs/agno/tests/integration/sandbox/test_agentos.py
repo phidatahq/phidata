@@ -409,6 +409,31 @@ async def test_outdated_bindings_table_refuses_submissions_and_fails_claimed_tic
     assert not handles, "no computer was ever created for the turn"
 
 
+@pytest.mark.parametrize(("first_user", "second_user"), [(None, "someone"), ("owner", None), ("owner", "someone")])
+async def test_submission_on_a_session_another_user_holds_is_refused_before_any_ticket(
+    service, first_user, second_user
+):
+    client, agent, app, handles = service
+    worker = app.state.queue_worker
+    data = {"message": "mine", "session_id": "held", "stream": "false", "background": "true"}
+    if first_user is not None:
+        data["user_id"] = first_user
+    first = await client.post("/agents/coder/runs", data=data)
+    assert first.status_code == 202, first.text
+    assert (await settled(app, first.json()["run_id"]))["status"] == "completed"
+    created = len(handles)
+
+    data["message"] = "theirs"
+    data.pop("user_id", None)
+    if second_user is not None:
+        data["user_id"] = second_user
+    second = await client.post("/agents/coder/runs", data=data)
+    assert second.status_code == 404 and second.json()["detail"] == "Session not found", second.text
+    assert len(handles) == created, "no computer was created for the refused turn"
+    jobs, total = await worker.store.list_jobs(limit=50)
+    assert total == 1 and jobs[0]["id"] == first.json()["run_id"], "the refused submission left no ticket"
+
+
 async def test_cancel_detached_direct_sdk_run_retires_computer(service):
     _, agent, _, handles = service
     agent.delay = 10

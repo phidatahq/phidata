@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
 from fastapi import HTTPException, Request
@@ -45,6 +45,12 @@ async def enqueue_sandbox_run(
         raise ValueError("Sandbox submission exceeds 1 MiB")
     # Before the ticket exists: a bindings table from another build would otherwise fail only inside the worker.
     await _harness.acheck_tables(agent)
+    owner = await _session_owner(agent, session_id)
+    if owner is not None and owner != (agent.get_id(), user_id or None):
+        # Stricter than the route's shared-session rule, which admits a user into an unowned session:
+        # the sandbox binding pins the session to one agent and one user for good, so the store would
+        # refuse this turn as a lost lease after the ticket exists. Answer as that rule does.
+        raise HTTPException(status_code=404, detail="Session not found")
     job = QueuedJob(
         id=run_id or str(uuid4()),
         component_type="agent",
@@ -82,6 +88,23 @@ async def enqueue_sandbox_run(
         worker, agent, "agent", job["id"], session_id, user_id, input, **({"media": media} if media else {})
     )
     return job
+
+
+async def _session_owner(agent: Any, session_id: str) -> Optional[Tuple[Optional[str], Optional[str]]]:
+    """The (agent_id, user_id) a stored session belongs to, or None when the session does not exist."""
+    from agno.db.base import AsyncBaseDb, SessionType
+
+    if isinstance(agent.db, AsyncBaseDb):
+        row = await agent.db.get_session(
+            session_id=session_id, session_type=SessionType.AGENT, deserialize=False, runs_limit=1
+        )
+    else:
+        row = await asyncio.to_thread(
+            agent.db.get_session, session_id=session_id, session_type=SessionType.AGENT, deserialize=False, runs_limit=1
+        )
+    if not isinstance(row, dict):
+        return None
+    return row.get("agent_id"), row.get("user_id") or None
 
 
 def _uploaded_media(images: List[Any], files: List[Any]) -> Dict[str, List[Any]]:

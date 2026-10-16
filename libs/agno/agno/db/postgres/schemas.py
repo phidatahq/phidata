@@ -266,6 +266,19 @@ LEARNINGS_TABLE_SCHEMA = {
 }
 
 
+SOURCES_TABLE_SCHEMA = {
+    "id": {"type": String, "primary_key": True},
+    "product_id": {"type": String, "nullable": False, "index": True},
+    "reference": {"type": Text, "nullable": False},
+    "type": {"type": String, "nullable": False},
+    "credential_ref": {"type": String, "nullable": True},
+    "user_id": {"type": String, "nullable": True, "index": True},
+    "config": {"type": JSONB, "nullable": True},
+    "created_at": {"type": BigInteger, "nullable": False, "index": True},
+    "updated_at": {"type": BigInteger, "nullable": True},
+    "deleted_at": {"type": BigInteger, "nullable": True},
+}
+
 PRODUCTS_TABLE_SCHEMA = {
     "id": {"type": String, "primary_key": True},
     "name": {"type": String, "nullable": True, "index": True},
@@ -293,6 +306,16 @@ TASKS_TABLE_SCHEMA = {
     "executor_id": {"type": String, "nullable": True},
     "accepted_by": {"type": String, "nullable": True},
     "accepted_at": {"type": BigInteger, "nullable": True},
+    "session_id": {"type": String, "nullable": True, "index": True},
+    "job_id": {"type": String, "nullable": True, "index": True},
+    "evidence": {"type": JSONB, "nullable": True},
+    "result": {"type": JSONB, "nullable": True},
+    "origin": {"type": String, "nullable": True},
+    "routine_id": {"type": String, "nullable": True},
+    "dedupe_key": {"type": String, "nullable": True},
+    "_unique_constraints": [
+        {"name": "uq_company_task_evidence", "columns": ["product_id", "dedupe_key"]},
+    ],
 }
 
 PROJECTS_TABLE_SCHEMA = {
@@ -656,6 +679,7 @@ def get_table_schema_definition(
         "learnings": LEARNINGS_TABLE_SCHEMA,
         "schedules": SCHEDULE_TABLE_SCHEMA,
         "products": PRODUCTS_TABLE_SCHEMA,
+        "sources": SOURCES_TABLE_SCHEMA,
         "projects": PROJECTS_TABLE_SCHEMA,
         "tasks": TASKS_TABLE_SCHEMA,
         "jobs": JOBS_TABLE_SCHEMA,

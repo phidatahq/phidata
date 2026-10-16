@@ -24,7 +24,7 @@ from agno.utils.log import log_warning
 from agno.utils.string import sanitize_postgres_strings
 
 try:
-    from sqlalchemy import Table, func, select, text, update
+    from sqlalchemy import Float, Table, func, select, text, update
     from sqlalchemy.dialects.postgresql import insert
     from sqlalchemy.engine import Connection
     from sqlalchemy.exc import IntegrityError
@@ -530,10 +530,17 @@ class _SandboxStore:
             epoch = row["epoch"] if reused_lease else row["epoch"] + 1
             opened_turn = not active
             if not active:
+                # A computer kept warm by the last commit stays with its generation; the coordinator
+                # decides whether it is still usable. Otherwise the turn gets a fresh generation.
+                warm = (
+                    record.get("warm_until") is not None
+                    and record.get("computer") is not None
+                    and not record.get("computer_stopped")
+                )
                 record.update(
                     phase="executing",
-                    generation=record["generation"] + 1,
-                    computer=None,
+                    generation=record["generation"] if warm else record["generation"] + 1,
+                    computer=record["computer"] if warm else None,
                     computer_stopped=False,
                     stopped_ref=None,
                     stop_status=None,
@@ -732,26 +739,29 @@ class _SandboxStore:
     def confirm_stopped(self, lease: SandboxLease, provider_ref: str) -> SandboxState:
         return self._sync(self.aconfirm_stopped, lease, provider_ref)
 
-    async def acommit(self, lease: SandboxLease) -> Dict[str, Any]:
+    async def acommit(self, lease: SandboxLease, *, keep_computer_until: Optional[float] = None) -> Dict[str, Any]:
         """Publish the staged result and checkpoint with the run, atomically.
 
         Raises SandboxRunFinished if another writer finished the run first. Cleanup is
         already confirmed by then, so the session is released before raising: the stored
         outcome stands and the previous checkpoint stays the recovery point.
+
+        ``keep_computer_until`` keeps the turn's computer bound to the session, paused or
+        idle, so the next turn may resume it instead of restoring the checkpoint. The
+        checkpoint is still the recovery point; the computer is only a shortcut to it.
         """
 
         def commit(connection: Connection) -> Tuple[bool, Dict[str, Any]]:
             row = self._locked(connection, lease)
             record = dict(row["record"])
-            if (
-                record["phase"] != "finalizing"
-                or not record.get("staged_checkpoint")
-                or not record.get("computer_stopped")
-            ):
+            cleaned_up = record.get("computer_stopped") or (
+                keep_computer_until is not None and record.get("computer") is not None
+            )
+            if record["phase"] != "finalizing" or not record.get("staged_checkpoint") or not cleaned_up:
                 raise SandboxError("Durable completion requires staged recovery bytes and confirmed compute cleanup")
             previous_run, session = self._service_run(connection, lease)
             if str(previous_run["status"]).upper() in _FINISHED:
-                record.update(phase="idle", result=None, staged_checkpoint=None)
+                record.update(phase="idle", result=None, staged_checkpoint=None, warm_until=None)
                 connection.execute(
                     update(self.bindings)
                     .where(self._key(lease.session_id))
@@ -774,6 +784,8 @@ class _SandboxStore:
                     "native_metadata": native_metadata,
                     "epoch": lease.epoch,
                     "generation": record["generation"],
+                    # Whether the turn ran on the computer kept warm by the previous turn.
+                    "resumed": bool(record.get("resumed")),
                     "checkpoint": record["staged_checkpoint"],
                     "execution_id": record["execution_id"],
                 },
@@ -805,6 +817,7 @@ class _SandboxStore:
                 last_run_id=lease.run_id,
                 result=None,
                 staged_checkpoint=None,
+                warm_until=keep_computer_until,
             )
             connection.execute(
                 update(self.bindings)
@@ -819,8 +832,8 @@ class _SandboxStore:
             raise SandboxRunFinished(run)
         return run
 
-    def commit(self, lease: SandboxLease) -> Dict[str, Any]:
-        return self._sync(self.acommit, lease)
+    def commit(self, lease: SandboxLease, *, keep_computer_until: Optional[float] = None) -> Dict[str, Any]:
+        return self._sync(self.acommit, lease, keep_computer_until=keep_computer_until)
 
     async def abegin_stop(
         self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False
@@ -896,7 +909,7 @@ class _SandboxStore:
                 if record.get("stop_retryable"):
                     # Lets the queue's next attempt of this run reopen it.
                     record["retryable_failure"] = {"run_id": lease.run_id, "queue_attempt": lease.queue_attempt}
-            record.update(phase="idle", result=None, staged_checkpoint=None)
+            record.update(phase="idle", result=None, staged_checkpoint=None, warm_until=None)
             connection.execute(
                 update(self.bindings)
                 .where(self._key(lease.session_id))
@@ -1164,6 +1177,56 @@ class _SandboxStore:
             # let the next owner mutate that same computer concurrently.
             await _drain(task)
             raise
+
+    async def arelease_warm(
+        self, session_id: str, *, agent_id: str, user_id: Optional[str], before: Optional[float] = None
+    ) -> Optional[Dict[str, Any]]:
+        """Take the warm computer off an idle binding so the caller can destroy it.
+
+        Returns the computer's handle fields, or None when the binding holds no warm
+        computer, is not idle, or its window ends after ``before``. The next claim then
+        opens a fresh generation; the checkpoint stays the recovery point.
+        """
+
+        def release(connection: Connection) -> Optional[Dict[str, Any]]:
+            row = (
+                connection.execute(select(self.bindings).where(self._key(session_id)).with_for_update())
+                .mappings()
+                .one_or_none()
+            )
+            if row is None or row["agent_id"] != agent_id or row["user_id"] != user_id:
+                return None
+            record = dict(row["record"])
+            computer, until = record.get("computer"), record.get("warm_until")
+            if record["phase"] != "idle" or computer is None or until is None:
+                return None
+            if before is not None and float(until) > before:
+                return None
+            record.update(computer=None, computer_stopped=True, warm_until=None)
+            connection.execute(update(self.bindings).where(self._key(session_id)).values(record=self._json(record)))
+            return dict(computer)
+
+        return await self._transaction(release)
+
+    def release_warm(
+        self, session_id: str, *, agent_id: str, user_id: Optional[str], before: Optional[float] = None
+    ) -> Optional[Dict[str, Any]]:
+        return self._sync(self.arelease_warm, session_id, agent_id=agent_id, user_id=user_id, before=before)
+
+    async def aexpired_warm(self, before: float) -> list:
+        """Sessions whose idle binding keeps a computer whose warm window ended before ``before``."""
+
+        def expired(connection: Connection) -> list:
+            rows = connection.execute(
+                select(self.bindings.c.session_id, self.bindings.c.agent_id, self.bindings.c.user_id).where(
+                    (self.bindings.c.namespace == self.namespace)
+                    & (self.bindings.c.record["phase"].astext == "idle")
+                    & (self.bindings.c.record["warm_until"].astext.cast(Float) < before)
+                )
+            ).all()
+            return [tuple(row) for row in rows]
+
+        return await self._transaction(expired)
 
     async def arelinquish(self, lease: SandboxLease) -> None:
         """Detach the coordinator after draining its control calls; preserve ongoing execution."""

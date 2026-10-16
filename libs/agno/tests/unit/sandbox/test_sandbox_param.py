@@ -86,6 +86,8 @@ def sandbox():
 @pytest.mark.asyncio
 async def test_claude_settings_travel_as_json(coordinator, sandbox, monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "host-key")
+    # Only the key set here may travel; a token in the environment would be forwarded too.
+    monkeypatch.delenv("CLAUDE_CODE_OAUTH_TOKEN", raising=False)
     agent = ClaudeAgent(id="coder", permission_mode="acceptEdits", allowed_tools=["Read"], max_turns=3, sandbox=sandbox)
     result = await agent.arun("hello", session_id="s1")
     assert result.content == "done"
@@ -133,6 +135,17 @@ async def test_sandbox_env_overrides_the_host_model_key(coordinator, monkeypatch
     await agent.arun("hello", session_id="s1")
     _, execution = coordinator.calls[0]
     assert execution["env"] == {"OPENAI_API_KEY": "scoped", "EXTRA": "1"}
+
+
+@pytest.mark.asyncio
+async def test_claude_on_bedrock_gets_no_host_key(coordinator, monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "host-key")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "oauth-token")
+    bedrock = {"CLAUDE_CODE_USE_BEDROCK": "1", "AWS_REGION": "us-east-1"}
+    agent = ClaudeAgent(id="coder", sandbox=FakeSandbox(env=bedrock))
+    await agent.arun("hello", session_id="s1")
+    _, execution = coordinator.calls[0]
+    assert execution["env"] == bedrock
 
 
 @pytest.mark.asyncio
@@ -216,6 +229,20 @@ def test_docker_sandbox_carries_harness_settings():
     assert type(sandbox.checkpoint_transfer(store)).__name__ == "DockerCheckpointTransfer"
     with pytest.raises(ValueError, match="execution timeout"):
         DockerSandbox("agno-sandbox:claude", execution_timeout=0)
+
+
+def test_agentcore_sandbox_carries_harness_settings():
+    pytest.importorskip("boto3")
+    from agno.sandbox.agentcore import AgentCoreSandbox
+
+    arn = "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/agno_sandbox-abc123"
+    store = MagicMock()
+    sandbox = AgentCoreSandbox(arn, checkpoints=store, env={"A": "1"}, execution_timeout=60)
+    assert (sandbox.checkpoints, sandbox.env, sandbox.execution_timeout) == (store, {"A": "1"}, 60)
+    assert type(sandbox.checkpoint_transfer(store)).__name__ == "AgentCoreCheckpointTransfer"
+    assert ClaudeAgent(id="coder", sandbox=sandbox).sandbox is sandbox
+    with pytest.raises(ValueError, match="shorter than the lifetime"):
+        AgentCoreSandbox(arn, lifetime=600, execution_timeout=600)
 
 
 @pytest.mark.asyncio

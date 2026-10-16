@@ -59,6 +59,7 @@ _HOST_ONLY = frozenset(
 # Model credentials forwarded from the host unless the sandbox's env sets them. Claude Code
 # authenticates with either an API key or a Claude Code OAuth token.
 _HARNESS_ENV_KEYS = {"claude": ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN"), "codex": ("OPENAI_API_KEY",)}
+_CLAUDE_CLOUD_FLAGS = ("CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX")
 _DEFAULT_CHECKPOINTS = Path.home() / ".agno" / "sandbox" / "checkpoints"
 
 _coordinators: "weakref.WeakKeyDictionary[Sandbox, List[Tuple[Any, SandboxCoordinator]]]" = weakref.WeakKeyDictionary()
@@ -159,8 +160,13 @@ def coordinator(agent: "BaseExternalAgent") -> "SandboxCoordinator":
 
 def env(agent: "BaseExternalAgent") -> Dict[str, str]:
     runtime = agent._sandbox_runtime or ""
+    configured = dict(_sandbox(agent).env or {})
+    # Claude Code on Bedrock or Vertex authenticates with cloud credentials, so a host key
+    # would go unused while agent code inside the sandbox could still read it.
+    if runtime == "claude" and any(configured.get(flag) for flag in _CLAUDE_CLOUD_FLAGS):
+        return configured
     values = {key: os.environ[key] for key in _HARNESS_ENV_KEYS.get(runtime, ()) if key in os.environ}
-    values.update(_sandbox(agent).env or {})
+    values.update(configured)
     return values
 
 

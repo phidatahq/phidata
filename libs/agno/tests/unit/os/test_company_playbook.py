@@ -1,5 +1,6 @@
 """Company playbook, bounded tools and framework Product Manager contracts."""
 
+import inspect
 import json
 
 import pytest
@@ -39,6 +40,9 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     tools = pm.tools[0]
     assert not any("schedule" in name or "transition" in name for name in tools.functions)
     assert "log_company_decision" not in tools.functions
+    assert "summarize_company_product" not in tools.functions
+    assert "refresh_company_product" not in tools.functions
+    assert "summarize_company_product" in CompanyTools(db, summary_tools=True).functions
     assert {fn.__name__ for fn in pm.learning.decision_log.get_tools()} == {
         "log_company_decision",
         "search_company_decisions",
@@ -66,7 +70,9 @@ def test_no_model_manual_api_and_disabled_company(tmp_path, caplog):
 @pytest.mark.parametrize("use_async", [False, True])
 async def test_tools_identity_fence_and_learning(tmp_path, use_async):
     db = SqliteDb(db_file=str(tmp_path / "tools.db"))
-    manager = CompanyManager(db)
+    from agno.agent import Agent
+
+    manager = CompanyManager(db, registry=Registry(agents=[Agent(id="writer")]))
     product = manager.create("SDK", user_id="alice")
     tools = CompanyTools(db, user_isolation=True)
     alice = RunContext(run_id="r", session_id="s", user_id="alice")
@@ -99,9 +105,9 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
         properties = function.parameters.get("properties", {})
         if function.name == "log_company_decision":
             assert "agent_id" not in properties
-        assert not {"user_id", "_agno_run_context", "status", "owner", "sources", "executor_id"} & set(properties) - {
-            "status"
-        }
+        assert not {"user_id", "_agno_run_context", "status", "owner", "sources", "auto_accept", "accepted_by"} & set(
+            properties
+        ) - {"status"}
     with pytest.raises(PermissionError):
         await invoke("propose_company_task", product["id"], "anonymous")
 
@@ -137,8 +143,8 @@ async def test_direct_mcp_has_only_bounded_tools(tmp_path):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("use_async", [False, True])
-async def test_product_manager_runs_tools_with_injected_identity(tmp_path, use_async):
+@pytest.mark.parametrize("mode", ["sync", "async", "http"])
+async def test_product_manager_runs_tools_with_injected_identity(tmp_path, mode):
     from agno.models.base import Model
     from agno.models.message import MessageMetrics
     from agno.models.response import ModelResponse
@@ -210,7 +216,26 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, use_a
     with TestClient(os.get_app()) as client:
         response = client.post("/company/decisions", json={"decision": "Human review decision"})
         assert response.status_code == 201 and response.json()["agent_id"] is None
-    if use_async:
+    if mode == "http":
+        with TestClient(os.get_app()) as client:
+            route = "/agents/" + PRODUCT_MANAGER_ID
+            assert client.get(route).status_code == 200
+            response = client.post(
+                route + "/runs",
+                data={"message": "Plan the release", "user_id": "alice", "session_id": "planning", "stream": "false"},
+            )
+            assert response.status_code == 200, response.text
+            assert response.json()["content"] == "Proposal recorded"
+            created = client.post(
+                "/components",
+                json={"component_id": PRODUCT_MANAGER_ID, "component_type": "agent", "name": "Impersonator"},
+            )
+            assert created.status_code == 409, created.text
+            assert client.patch("/components/" + PRODUCT_MANAGER_ID, json={"name": "Changed"}).status_code == 404
+            assert client.delete("/components/" + PRODUCT_MANAGER_ID).status_code == 404
+            assert db.get_component(PRODUCT_MANAGER_ID) is None
+            assert client.get(route).status_code == 200
+    elif mode == "async":
         await os.product_manager.arun("Plan the release", user_id="alice", session_id="planning")
     else:
         os.product_manager.run("Plan the release", user_id="alice", session_id="planning")
@@ -250,3 +275,22 @@ async def test_tools_and_automatic_recall_require_scopes(tmp_path):
         with pytest.raises(PermissionError):
             await CompanyDecisionLogStore(db).arecall(run_context=context)
     assert CompanyManager(db).list_decisions()[1] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("fresh", [False, True])
+async def test_served_product_manager_resolution_and_catalog_fence(tmp_path, fresh):
+    from agno.os.utils import AgnoHTTPException, get_agent_by_id, get_agent_by_id_async
+
+    db = SqliteDb(db_file=str(tmp_path / "resolution.db"))
+    os = AgentOS(db=db, company=CompanyConfig(model=OpenAIResponses(id="offline")), telemetry=False)
+    for resolver in (get_agent_by_id, get_agent_by_id_async):
+        result = resolver(PRODUCT_MANAGER_ID, agents=os._agents, db=db, create_fresh=fresh)
+        result = await result if inspect.isawaitable(result) else result
+        assert result.id == PRODUCT_MANAGER_ID
+        assert (result is not os.product_manager) == fresh
+        with pytest.raises(AgnoHTTPException, match="reserved"):
+            result = resolver(PRODUCT_MANAGER_ID, agents=[], db=db)
+            if inspect.isawaitable(result):
+                await result
+    db.close()

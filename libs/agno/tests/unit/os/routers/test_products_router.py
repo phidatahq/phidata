@@ -44,7 +44,7 @@ def test_lifecycle(client):
     updated = client.patch(path, json={"purpose": None, "metadata": {"b": 2}})
     assert updated.status_code == 200
     assert updated.json()["purpose"] is None
-    assert updated.json()["metadata"] == {"b": 2}
+    assert updated.json()["metadata"] == {"archive_window_days": 14, "b": 2}
     assert updated.json()["updated_at"] is not None
     assert client.patch(path, json={}).json() == updated.json()
     assert client.post(path + "/restore").status_code == 409

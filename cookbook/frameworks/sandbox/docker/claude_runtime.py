@@ -14,7 +14,7 @@ The whole path on this branch, with a live model:
 Build the image first, then export ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN:
 
     .venv/bin/python cookbook/frameworks/sandbox/build_image.py --tag agno-sandbox:local
-    .venv/bin/python cookbook/frameworks/sandbox/claude_runtime.py
+    .venv/bin/python cookbook/frameworks/sandbox/docker/claude_runtime.py
 
 A runtime result is execution output, not durable completion: the coordinator
 layer that checkpoints and commits it to the service database is a later PR.

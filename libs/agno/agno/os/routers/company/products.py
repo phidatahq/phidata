@@ -9,7 +9,8 @@ components.
 import asyncio
 from typing import Any, Dict, Literal, Optional, Union
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse
 
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
@@ -38,7 +39,7 @@ def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -
 
 def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
     """Build Product routes using native async storage or off-thread sync calls."""
-    router = APIRouter(prefix="/company", tags=["Products"])
+    router = APIRouter(prefix="/company", tags=["Products"], dependencies=[Depends(get_scoped_user_id)])
     auth_dependency = get_authentication_dependency(settings)
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db) if db is not None else None
 
@@ -50,12 +51,18 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         try:
             fn = getattr(manager, method)
             if isinstance(manager, AsyncCompanyManager):
-                return await fn(*args, **kwargs)
-            return await asyncio.to_thread(fn, *args, **kwargs)
+                result = await fn(*args, **kwargs)
+            else:
+                result = await asyncio.to_thread(fn, *args, **kwargs)
+            if result is not None and method in {"create", "update", "restore"}:
+                result = await _call("get", result["id"], include_deleted=True)
+            return result
         except NotImplementedError:
             raise HTTPException(status_code=503, detail="Company products not supported by the configured database")
         except ValueError as exc:
-            raise HTTPException(status_code=422, detail=str(exc))
+            raise HTTPException(
+                status_code=409 if method == "delete" else 422, detail=exc.args[0] if exc.args else str(exc)
+            )
 
     async def _writable(product_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
         # Company-wide read first, then the ownership check against the scoped caller.
@@ -70,9 +77,19 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         limit: int = Query(20, ge=1, le=1000),
         page: int = Query(1, ge=1),
         include_deleted: bool = Query(False),
+        sort_by: Literal["created_at", "updated_at"] = Query("created_at"),
+        sort_order: Literal["asc", "desc"] = Query("desc"),
         _: bool = Depends(auth_dependency),
     ) -> PaginatedResponse[ProductResponse]:
-        rows, total = await _call("list", user_id=None, limit=limit, page=page, include_deleted=include_deleted)
+        rows, total = await _call(
+            "list",
+            user_id=None,
+            limit=limit,
+            page=page,
+            include_deleted=include_deleted,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
         return PaginatedResponse(
             data=[ProductResponse(**row) for row in rows],
             meta=PaginationInfo(page=page, limit=limit, total_count=total, total_pages=(total + limit - 1) // limit),
@@ -109,11 +126,19 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         return product
 
     @router.delete("/products/{product_id}", status_code=204)
-    async def delete_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> None:
+    async def delete_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> Response:
         user_id = get_scoped_user_id(request)
         await _writable(product_id, user_id)
-        if not await _call("delete", product_id, user_id=user_id):
+        try:
+            archived = await _call("delete", product_id, user_id=user_id)
+        except HTTPException as exc:
+            if exc.status_code == 409 and isinstance(exc.detail, dict):
+                # Keep the Task list structured through AgentOS's string error handler.
+                return JSONResponse(status_code=409, content={"detail": exc.detail})
+            raise
+        if not archived:
             raise HTTPException(status_code=404, detail="Product not found")
+        return Response(status_code=204)
 
     @router.post("/products/{product_id}/restore", response_model=ProductResponse)
     async def restore_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:

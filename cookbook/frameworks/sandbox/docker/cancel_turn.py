@@ -24,7 +24,7 @@ from agno.run.cancel import acancel_run
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 db = PostgresDb(
     db_url=os.getenv(
@@ -76,6 +76,7 @@ async def main() -> None:
         print(
             f"Turn 3, restored from turn 1's checkpoint: {third.status} - {third.content}"
         )
+        await coordinator.aretire_computer(session_id, agent_id=turn["agent_id"])
 
 
 if __name__ == "__main__":

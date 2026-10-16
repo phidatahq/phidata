@@ -37,6 +37,9 @@ def _defaults(product: Optional[Dict[str, Any]]) -> Dict[str, str]:
 
 
 def _require_owner(record: Dict[str, Any], user_id: Optional[str]) -> None:
+    from agno.company.routines import _require_routine_product
+
+    _require_routine_product(record.get("product_id") or record.get("id"))
     if user_id is not None and record.get("user_id") != user_id:
         raise PermissionError("Cannot modify a record owned by another user")
 

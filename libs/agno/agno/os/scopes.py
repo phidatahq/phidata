@@ -571,6 +571,18 @@ def get_default_scope_mappings(*, company: bool = False) -> Dict[str, List[str]]
                 "GET /company/decisions": ["decisions:read"],
                 "POST /company/decisions": ["decisions:write"],
                 # Company Product endpoints
+                # Company Sources, scheduler-backed Routines and first-Product setup.
+                "GET /company/sources": ["sources:read"],
+                "POST /company/sources": ["sources:write"],
+                "DELETE /company/sources/*": ["sources:delete"],
+                "POST /company/sources/*/restore": ["sources:delete"],
+                "GET /company/routines": ["routines:read"],
+                "GET /company/routines/*/runs": ["routines:read", "schedules:read"],
+                "POST /company/routines": ["routines:write", "schedules:write"],
+                "PATCH /company/routines/*": ["routines:write", "schedules:write"],
+                "POST /company/routines/*/pause": ["routines:write", "schedules:write"],
+                "POST /company/routines/*/resume": ["routines:write", "schedules:write"],
+                "POST /company/setup": ["products:write"],
                 "GET /company/products": ["products:read"],
                 "GET /company/products/*": ["products:read"],
                 "POST /company/products": ["products:write"],
@@ -593,6 +605,11 @@ def get_default_scope_mappings(*, company: bool = False) -> Dict[str, List[str]]
                 "DELETE /company/tasks/*": ["tasks:delete"],
                 "POST /company/tasks/*/restore": ["tasks:delete"],
                 "POST /company/tasks/*/transitions": ["tasks:write"],
+                # Company execution and attention reuse Task access; executor routes check run permission too.
+                "POST /company/tasks/*/runs": ["tasks:write", "wiki:read"],
+                "GET /company/runs/*": ["tasks:read"],
+                "POST /company/runs/*/cancel": ["tasks:write"],
+                "GET /company/attention": ["tasks:read"],
             }
         )
     return mappings

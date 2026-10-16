@@ -19,7 +19,7 @@ those files come back from a checkpoint. This example walks the whole path on on
 Build the image first, then export ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN:
 
     .venv/bin/python cookbook/frameworks/sandbox/build_image.py --tag agno-sandbox:local
-    .venv/bin/python cookbook/frameworks/sandbox/native_recovery.py
+    .venv/bin/python cookbook/frameworks/sandbox/docker/native_recovery.py
 """
 
 import os
@@ -31,7 +31,7 @@ from uuid import uuid4
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.client import SandboxRuntimeClient
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 credentials = {
     key: os.environ[key]

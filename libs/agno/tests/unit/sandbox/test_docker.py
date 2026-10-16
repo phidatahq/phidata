@@ -774,7 +774,7 @@ async def test_requests_carry_the_token_and_a_user_cannot_supply_one():
 async def test_create_fails_when_the_runtime_server_never_answers(monkeypatch):
     import httpx
 
-    from agno.sandbox import docker as docker_module
+    from agno.sandbox.docker import sandbox as docker_module
 
     monkeypatch.setattr(docker_module, "_RUNTIME_READY_SECONDS", 0.3)
     provider = ServedDocker()

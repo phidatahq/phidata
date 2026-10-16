@@ -27,7 +27,7 @@ from agno.db.postgres import PostgresDb
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
 from agno.sandbox.docker import DockerSandbox
-from agno.sandbox.transfer import DockerCheckpointTransfer
+from agno.sandbox.docker import DockerCheckpointTransfer
 
 db = PostgresDb(
     db_url=os.getenv(
@@ -86,6 +86,9 @@ async def main() -> None:
         assert runs == 1, "the turn's work must not run twice"
         print(
             f"The committed workspace records the turn {runs} time: its work ran once, across both coordinators"
+        )
+        await SandboxCoordinator(db, sandbox, transfer).aretire_computer(
+            session_id, agent_id=turn["agent_id"]
         )
 
 

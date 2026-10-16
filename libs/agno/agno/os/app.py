@@ -224,10 +224,24 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if internal_token is None:
         raise ValueError("internal_service_token must be set when scheduler is enabled")
 
-    executor = ScheduleExecutor(
-        base_url=base_url,
-        internal_service_token=internal_token,
-    )
+    from agno.company.routines import _ensure_automation_schedule
+
+    # Reconcile before the poller can claim a stale Company schedule.
+    await _ensure_automation_schedule(agent_os.db, enabled=agent_os.company is not None)
+    executor: ScheduleExecutor
+    if agent_os.company is not None:
+        from agno.company.routines import _CompanyScheduleExecutor
+
+        executor = _CompanyScheduleExecutor(
+            agent_os,
+            app,
+            company_db=agent_os._company_db,
+            schedule_db=agent_os.db,
+            base_url=base_url,
+            internal_service_token=internal_token,
+        )
+    else:
+        executor = ScheduleExecutor(base_url=base_url, internal_service_token=internal_token)
     poller = SchedulePoller(
         db=agent_os.db,
         executor=executor,
@@ -461,6 +475,23 @@ class AgentOS:
         self.version = version
         self.description = description
         self.db = db
+        if (
+            company is not None
+            and company.products
+            and self.config is not None
+            and self.config.company is not None
+            and self.config.company.products
+        ):
+            raise ValueError("Declare Company Products in code or config.yaml, not both")
+        if self.config is not None and self.config.company is not None and (company is None or not company.products):
+            from agno.company.config import CompanyConfig
+
+            if company is None:
+                company = CompanyConfig(products=self.config.company.products)
+            else:
+                from dataclasses import replace
+
+                company = replace(company, products=self.config.company.products)
         self.company = company
         self._company_db = (company.db if company.db is not None else db) if company is not None else None
         self.checkpoint = checkpoint
@@ -629,7 +660,10 @@ class AgentOS:
         self._product_manager: Optional[Agent] = None
         self.product_manager_unavailable_reason: Optional[str] = None
         if self.company is not None:
+            from agno.company.execution import _mount_executors
             from agno.company.product_manager import _build_product_manager
+
+            _mount_executors(self)
 
             company_model = self.company.model
             if company_model is None and self.registry is not None and self.registry.models:
@@ -685,6 +719,7 @@ class AgentOS:
         self._populate_registry_knowledge()
 
         # Collect models, tools, dbs and vector dbs from the agent/team/workflow tree
+        self._bind_company_tools()
         self._populate_registry_components()
 
         # Track MCP tools declared on the registry so they connect in the same
@@ -843,6 +878,7 @@ class AgentOS:
         self._populate_registry_knowledge()
 
         # Collect models, tools, dbs and vector dbs from the agent/team/workflow tree
+        self._bind_company_tools()
         self._populate_registry_components()
 
         # Track MCP tools declared on the registry
@@ -929,15 +965,21 @@ class AgentOS:
             get_filesystem_router(self, settings=self.settings),
         ]
         if self.company is not None:
+            from agno.os.routers.company.heartbeat import get_heartbeat_router
             from agno.os.routers.company.playbook import get_playbook_router
             from agno.os.routers.company.products import get_products_router
             from agno.os.routers.company.projects import get_projects_router
+            from agno.os.routers.company.runs import get_company_runs_router
             from agno.os.routers.company.tasks import get_tasks_router
 
             updated_routers.append(get_products_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_heartbeat_router(self))
             updated_routers.append(get_projects_router(db=self._company_db, settings=self.settings))
-            updated_routers.append(get_tasks_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(
+                get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry)
+            )
             updated_routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_company_runs_router(self))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -951,6 +993,7 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
+                    agent_os=self,
                 )
             )
             updated_routers.append(get_approval_router(os_db=self.db, settings=self.settings))
@@ -1439,6 +1482,36 @@ class AgentOS:
         for workflow in self._workflows:
             yield from visit_steps(getattr(workflow, "steps", None))
 
+    def _bind_company_tools(self) -> None:
+        """Give Company toolkits this OS's configured transports and blocking result checks."""
+        if self.company is None:
+            return
+        from agno.company.routines import _RoutineResultGuardrail
+        from agno.tools.company import CompanyTools
+
+        for component in self._iter_component_carriers():
+            found = False
+            for entry in getattr(component, "tools", None) or []:
+                toolkit = getattr(entry, "source_toolkit", None) or entry
+                if isinstance(toolkit, CompanyTools):
+                    found = True
+                    if not toolkit._interfaces_explicit:
+                        toolkit.interfaces = self.interfaces
+                    toolkit._schedule_db = self.db
+                    toolkit.user_isolation = toolkit.user_isolation or bool(
+                        self.user_isolation
+                        or (
+                            self.authorization
+                            and self.authorization_config is not None
+                            and self.authorization_config.user_isolation
+                        )
+                    )
+            if found and hasattr(component, "post_hooks"):
+                hooks = list(component.post_hooks or [])
+                if not any(isinstance(getattr(hook, "__self__", hook), _RoutineResultGuardrail) for hook in hooks):
+                    hooks.append(_RoutineResultGuardrail())
+                    component.post_hooks = hooks
+
     def _warn_on_foreign_studio_registries(self) -> None:
         """Warn when a served component carries a Studio toolkit bound to a
         different Registry than the one this OS populates.
@@ -1678,6 +1751,11 @@ class AgentOS:
             # The async database lifespan
             lifespans.append(partial(db_lifespan, agent_os=self))
 
+            if self.company is not None and self.company.products:
+                from agno.company.bootstrap import _company_lifespan
+
+                lifespans.append(partial(_company_lifespan, agent_os=self))
+
             # The scheduler lifespan (after db so tables exist)
             if self._scheduler_enabled and self.db is not None:
                 lifespans.append(partial(scheduler_lifespan, agent_os=self))
@@ -1727,6 +1805,11 @@ class AgentOS:
             # Async database initialization lifespan
             lifespans.append(partial(db_lifespan, agent_os=self))  # type: ignore
 
+            if self.company is not None and self.company.products:
+                from agno.company.bootstrap import _company_lifespan
+
+                lifespans.append(partial(_company_lifespan, agent_os=self))
+
             # The scheduler lifespan (after db so tables exist)
             if self._scheduler_enabled and self.db is not None:
                 lifespans.append(partial(scheduler_lifespan, agent_os=self))
@@ -1754,6 +1837,7 @@ class AgentOS:
         self._populate_registry_knowledge()
 
         # Collect models, tools, dbs and vector dbs from the agent/team/workflow tree
+        self._bind_company_tools()
         self._populate_registry_components()
 
         routers = [
@@ -1773,15 +1857,19 @@ class AgentOS:
             get_filesystem_router(self, settings=self.settings),
         ]
         if self.company is not None:
+            from agno.os.routers.company.heartbeat import get_heartbeat_router
             from agno.os.routers.company.playbook import get_playbook_router
             from agno.os.routers.company.products import get_products_router
             from agno.os.routers.company.projects import get_projects_router
+            from agno.os.routers.company.runs import get_company_runs_router
             from agno.os.routers.company.tasks import get_tasks_router
 
             routers.append(get_products_router(db=self._company_db, settings=self.settings))
+            routers.append(get_heartbeat_router(self))
             routers.append(get_projects_router(db=self._company_db, settings=self.settings))
-            routers.append(get_tasks_router(db=self._company_db, settings=self.settings))
+            routers.append(get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry))
             routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
+            routers.append(get_company_runs_router(self))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1795,6 +1883,7 @@ class AgentOS:
                     include_agents=self.agents,
                     include_teams=self.teams,
                     include_workflows=self.workflows,
+                    agent_os=self,
                 )
             )
             routers.append(get_approval_router(os_db=self.db, settings=self.settings))

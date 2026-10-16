@@ -23,6 +23,7 @@ from agno.agents._config import agent_dataclass
 from agno.agents._media import (
     accept_media,
     cleanup_run_media,
+    inline_blocks,
     media_prompt_block,
     remember_uploads_root,
     remove_upload_folder,
@@ -407,8 +408,10 @@ class ClaudeAgent(BaseExternalAgent):
         return self.options_kwargs.get("cwd", cwd)
 
     def _media_kwargs(self, **media: Any) -> Dict[str, Any]:
-        """Images and files are written under cwd/.agno/uploads/<run_id>/ and named in the prompt,
-        so Claude Code opens them with its Read tool. Audio and video are rejected."""
+        """Images and files are written under cwd/.agno/uploads/<run_id>/ and named in the prompt.
+        Images and PDFs also travel inside the message as content blocks, so Claude Code sees them
+        without reading the file back through a tool; other files it opens with its Read tool.
+        Audio and video are rejected."""
         return accept_media(media)
 
     async def _aquery(
@@ -430,6 +433,7 @@ class ClaudeAgent(BaseExternalAgent):
             if staged:
                 remember_uploads_root(kwargs.get("session"), workspace)
             if staged and input is not None:
+                kwargs["inline_media"] = inline_blocks(staged)
                 input = f"{input}{media_prompt_block(staged)}"
             # Restore earlier inputs in this workspace and describe any relocated paths.
             continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
@@ -479,6 +483,7 @@ class ClaudeAgent(BaseExternalAgent):
                 streaming=streaming, resume=resume, session_store=store, output_schema=kwargs.get("output_schema")
             )
             prompt = self._build_prompt(input, history, resumed=resume is not None)
+            request = self._prompt_with_media(prompt, kwargs.get("inline_media"))
             received = False
             assistant_error: Optional[str] = None
             run_id = kwargs.get("run_id") or str(uuid4())
@@ -486,7 +491,7 @@ class ClaudeAgent(BaseExternalAgent):
             try:
                 await client.connect()
                 await araise_if_cancelled(run_id)
-                await client.query(prompt)
+                await client.query(request)
                 self._set_run_handle(run_id, client)
                 async for message in client.receive_response():
                     self._record_message_ref(sdk, message, run_state)
@@ -535,6 +540,19 @@ class ClaudeAgent(BaseExternalAgent):
     # ---------------------------------------------------------------------------
     # Continue from a message boundary
     # ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _prompt_with_media(prompt: str, blocks: Optional[List[Dict[str, Any]]]) -> Any:
+        """The prompt as the SDK takes it: a string, or with attachments one user message whose
+        content is the text followed by the image and document blocks."""
+        if not blocks:
+            return prompt
+
+        async def stream() -> AsyncIterator[Dict[str, Any]]:
+            content: List[Dict[str, Any]] = [{"type": "text", "text": prompt}, *blocks]
+            yield {"type": "user", "message": {"role": "user", "content": content}}
+
+        return stream()
 
     @staticmethod
     def _tool_result_ids(sdk: Any, message: Any) -> List[str]:

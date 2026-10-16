@@ -49,8 +49,8 @@ The HTTP routes use `/company/projects` and `/company/tasks`, with the same
 CRUD, paging, soft delete and restore conventions as Products, plus
 `POST /{id}/transitions`. Task Ready requests include `executor_type` and
 `executor_id`; the API applies the scheduler's caller run-permission check.
-These examples manage records only and do not execute agents. Registry
-validation and run dispatch arrive with execution support.
+Acceptance also validates the executor against the registry. Direct Python callers
+pass `registry=Registry(...)` to their Company manager.
 
 Project and Task HTTP reads are company-wide for callers with the resource's
 read scope, matching Products. Edits and transitions are collaborative: callers with the resource write
@@ -99,12 +99,570 @@ entries that reference the original decision.
 Product Manager uses `CompanyConfig(model=...)`, otherwise the first declared
 registry model. If neither exists, its unavailable reason appears in diagnostics
 and manual APIs still work. With OS Manager enabled it is an internal member;
-otherwise it is a standalone agent. Its id is reserved and its tools stay out of
+otherwise it is a standalone agent, available at `GET /agents/product-manager-internal`
+and `POST /agents/product-manager-internal/runs`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
 updates `status.md` with a version check, and logs decisions through its learning
-machine. It has no acceptance, completion, owner, Sources or scheduler tools.
+machine. It can read Sources and add website Sources with permission and Product
+ownership. Acceptance, completion, ownership changes, local Source additions and
+scheduling remain outside its tools.
 
 CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, following
 the existing MCP toolkit convention. Direct MCP calls have the same write fence.
 The examples make no provider calls; they do not demonstrate live model quality.
-Execution, attention, Routines and Sources are outside this delivery.
+The heartbeat examples below demonstrate Routines and Sources.
+
+Optional Company tool arguments accept `null` for omission. Empty strings are
+normalized to omission as well; omitted pagination uses 20 results on page 1.
+Required identifiers and titles still require valid values.
+
+Async PostgreSQL derives its default database ID from the connection URL and
+schema, like synchronous PostgreSQL. Async SQLite already derives a stable ID
+from its connection details. Reuse those details (or an explicit stable `id`)
+after restart and across replicas so saved run database references resolve.
+This does not rewrite references saved with older randomly generated IDs;
+retaining a known old ID explicitly is necessary for those references.
+
+## Execution and attention
+
+| File | Demonstrates |
+| --- | --- |
+| `06_execute_tasks.py` | Durable execution, duplicate starts, ordinary run history and attention with no model call. |
+
+`06_execute_tasks.py` starts an accepted workflow Task through its ordinary run
+route and the durable queue, waits for In review, reads paged history and checks
+attention. It makes no provider calls. Start PostgreSQL with
+`./cookbook/scripts/run_pgvector.sh`, then run:
+
+```bash
+.venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+```
+
+The default stores Company records and sessions in temporary SQLite, with a
+PostgreSQL queue. `COMPANY_DB=postgres` uses PostgreSQL for both. The example
+creates and removes its own database schema. `COMPANY_QUEUE_DB_URL` overrides
+the local PostgreSQL URL. SQLite follows the queue's existing development
+fallback; use PostgreSQL session storage for production attempt fencing.
+
+POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
+that attempt returns the first run. A full queue returns 429 without changing
+the Task or consuming the attempt; retry the same attempt when capacity is available.
+The durable ticket is accepted before the Task moves to In progress, and the worker
+can recover that update if the submitting process stops. If acceptance changes
+before the Task can reserve a fresh ticket, the request returns 409 and cancels
+the waiting ticket; an already-claimed ticket is rejected by the worker.
+A new attempt increments the number; after
+success, first transition In review to In progress to request revisions. Each
+Task retains one session. GET on the same route returns ordinary session runs
+with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
+POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
+
+Start rechecks the registry, `tasks:write`, `wiki:read` and the executor's run
+permission. Registry-only executors receive their ordinary routes when Company
+is enabled. Each executor needs a run database, and execution requires
+`QueueConfig(durable=True)`. An existing session retains the normal run route's
+ownership checks. Engineering executors cannot be started yet. Framework-reserved executors,
+including Product Manager and OS Manager, cannot be accepted or started as
+Task executors.
+
+Executor input contains only the Task brief, its evidence and the current
+company and Product wiki pages. Queue retries and restart recovery use the
+existing queue policy. Results are saved on the Task; success moves it to
+`in_review`. Retryable failures remain outside failed attention while the queue
+has attempts left. An exhausted, permanent or cancelled run leaves the Task
+In progress with a visible `ERROR` or `CANCELLED` result. It can start another numbered attempt or return to
+Backlog for replanning. Executors cannot acquire scheduler mutation authority.
+
+GET `/company/attention?product_id=...` returns `proposals`, `in_review` and
+`failed` counts using the Task list filters. Omitting Product counts all work.
+Attention and run reads are company-wide with `tasks:read`; Task lists also
+accept `failed=true`. Failed work means an In progress Task whose latest result
+is `ERROR` or `CANCELLED`. Moving the Task to Cancelled, Backlog, Ready or In review
+clears it from failed attention while preserving the result as history. Starting
+a new attempt clears the previous result. `failed=false`
+includes all other Tasks, including those with no result. The Task table is
+created with its execution, evidence and result columns in the initial schema.
+
+## Cascading archive
+
+| File | Demonstrates |
+| --- | --- |
+| `07_cascading_archive.py` | Active-work refusal, moving a Backlog Task, cascading archive, hidden children, and exact restore with sync and async managers. Add `--postgres` for PostgreSQL. |
+
+Archiving a Product archives all its active Projects and Tasks. Archiving a
+Project archives its active Tasks. Every cascaded child's `transitions` history
+records an `action: "archive"` event with `archived_by: {type, id}` naming the
+parent. Lifecycle status stays unchanged. Restore brings back only those
+children; records archived separately or before the parent stay archived.
+Restore the parent before restoring individual children.
+
+A Product or Project with Ready, In progress, or In review Tasks refuses archive,
+even if an active Task was separately archived.
+The API returns 409 with `detail.message` and `detail.tasks`, an array of `{id,
+title}` objects. Managers raise `ValueError` with the same detail dictionary.
+Finish or cancel that work first. Backlog Tasks may move to another active
+Project in the same Product using `PATCH /company/tasks/{id}` with `project_id`;
+Product membership is immutable.
+
+Project and Task lists always hide children of archived parents, including when
+`include_deleted=true`. Totals and pagination follow the same visibility rule.
+Use `include_deleted=true` on the parent's own list to find it, or read an
+individual archived record with that flag. Cascades and restores run in one
+database transaction; refusal leaves the entire hierarchy unchanged.
+
+Standalone Task archive and restore change visibility without adding lifecycle
+transitions, preserving acceptance for an existing queued run. Restore closes an
+archive history event only when one was recorded by a cascade. Returning to
+Backlog or otherwise changing acceptance still invalidates an old queue ticket.
+For records archived by older versions that left live children behind, restore
+the parent before editing or restoring those children; individual reads remain
+available with `include_deleted=true`.
+
+Cascade writes currently update each child inside one transaction. Large archives
+hold the Product lock until all child updates finish; bulk-update optimization is
+a separate follow-up. The list-page query bound is independent of archive size.
+
+Product and Project reads also carry `counts`. A Product has `counts.projects`
+(the number of proposed or active Projects) and `counts.tasks` with integer
+`backlog`, `ready`, `in_progress`, `in_review`, `done`, and `cancelled` fields.
+A Project has the same `counts.tasks` object. Missing statuses are zero.
+Archived children and children of archived parents contribute nothing, even
+when the parent's own read includes archived records. Managers and HTTP use
+`BaseDb.get_product_counts(ids)` or `get_project_counts(ids)` and their async
+twins, issuing one grouped query for the entire returned page. A warmed list
+page uses three SQL statements in total, regardless of the number of cards.
+
+## Heartbeat
+
+| File | Demonstrates |
+| --- | --- |
+| `07_heartbeat.py` | Code-declared Products, a reader Source, an Intake Skill, scheduler rows and duplicate-free scans without a model call. |
+
+Declare `Product`, `Source` and `Routine` from `agno.company`, then pass
+`CompanyConfig(products=[...])`. The same declarations work in OS configuration:
+
+```yaml
+company:
+  products:
+    - id: documentation
+      name: Documentation
+      purpose: Keep docs current
+      sources:
+        - type: markdown
+          reference: /workspace/docs
+          credential_ref: DOCS_ACCESS_TOKEN
+      routines:
+        - name: intake
+          template: intake
+          executor_type: agent
+          executor_id: source-reader
+          cron_expr: "0 9 * * 1-5"
+```
+
+The executor must already be registered; an invalid declared target fails startup
+instead of silently dropping its Routine. Give it `CompanyTools(db)` and
+`load_routine_skills()` for reader, Intake and Summary tools. AgentOS binds its
+interfaces to custom `CompanyTools(db)` executors automatically; an explicit
+`interfaces=` override is preserved, and `summary_tools=False` disables delivery.
+Product Manager has no outbound Summary tool. Enable the existing AgentOS scheduler and queue to run schedules; the
+cookbook only creates and inspects them. Scheduling alone never grants acceptance.
+The OS scheduler database owns Routine definitions/history even with a separate
+Company database. `metadata.routine_ids` links them to Products.
+
+The templates are packaged `SKILL.md` files under `agno/company/skills`, loaded
+through `LocalSkills`. Creation snapshots the selected Skill's instructions into
+the schedule, with the Product id explicitly included in the model message.
+Following scheduler behavior, restarting or editing a Skill never overwrites
+human-edited schedule instructions. Apply revised instructions to an existing
+Routine with an authorized PATCH to `/company/routines/{id}`.
+Source types are `git` (a local checkout), `markdown` (a
+file or directory), and `website` (a single page). Optional `config.paths` limits
+local reads to relative files. Workspace exclusions and path confinement apply;
+credential references name environment variables, whose presence diagnostics
+report without disclosing values. These readers use local files or an unauthenticated
+website GET: `credential_ref` is a diagnostic prerequisite, not an authentication
+adapter, and its value is never passed to an executor or reader.
+Source reads require `sources:read`, not a separate filesystem grant.
+`read_company_source` without `path` returns a content-free index (`data`,
+`total_count`, `next_offset`). Use a filename glob in `pattern` and `offset`/`limit`
+to page through it. Discovery does not open document contents. Pass a returned
+`path` to read one document; the response contains evidence and up to 8,000
+characters by default (`max_chars` can be 1..16,000). `next_content_offset` lets
+you continue a large document using `content_offset`. Every tool response is
+capped at 64 KiB of serialized JSON, including metadata. The full-document
+`content_hash` must stay the same across fragments; reread if it changes.
+Selection can narrow but never expand a human's `config.paths`, and Workspace
+exclusions and root confinement still apply. Website Sources only read their
+configured URL. The programmatic whole-Source `read_source` API still skips
+undecodable/oversized directory entries and reports `skipped_paths`; explicit
+selected-file reads fail on reader errors.
+Source reads produce evidence with the run id,
+a SHA-256 hash of reader content, and a link. Task deduplication is per Product,
+including completed and soft-deleted proposals. Failed reads create no proposals.
+Reader failures fail the executor and Routine run, appear in Routine history,
+and contribute to the Product's failed attention count. Routine authority uses
+the configured Source's confined reader under `sources:read`; the human creating
+the Routine does not need an additional `filesystem:read` grant.
+Reading files creates no Tasks. The reader first decides whether useful work is
+needed, then supplies a title, concise brief, selected `evidence_links`, an
+`evidence_hashes` mapping from each selected link to the `content_hash` observed
+in the preceding read, and a stable Source-local `proposal_key` to Intake.
+Intake rereads only the selected links, verifies their hashes, and rejects
+evidence changed since observation. Read again and reconsider the proposal after
+such a rejection. It stores hashes and links, without copying document content
+into the Task. Reuse the issue key across content and wording edits; a distinct issue
+has a distinct key. Database uniqueness remains scoped to the Product.
+Routines must use evidence-backed Intake: plain `propose_company_task` and
+Company service Task creation reject Routine authority. Human and Product Manager
+proposals retain their normal behavior.
+
+`/company/routines` wraps the scheduler. Writes require both `routines:write`
+and `schedules:write`; histories require `routines:read` and `schedules:read`.
+Routine creation saves the schedule disabled, links its id to the Product, then
+activates it through the scheduler. If linking or activation fails, retrying the
+same request as the same creator resumes the pending creation. Edited requests
+and already-created schedules still return 409; a retry never undoes a deliberate
+pause. Resume also repairs a missing Product link before activation.
+
+Routine reads and histories are company-wide, including under user isolation.
+Writes retain scheduler ownership; under user isolation, another user's mutation
+returns 403.
+Pause/resume use scheduler disable/enable and its filtered state response; saved
+authorization claims are never returned. Routine schedule names follow scheduler
+validation, including the 255-character limit on `product_id + "." + name`.
+Invalid names return 422 before creation, including setup. Sources use `sources:read`,
+`sources:write` and `sources:delete`, with Product ownership on writes.
+`POST /company/setup` uses `products:write` to seed a blank deployment; nested
+Sources and Routines also require their own write permissions. Retries and
+restarts repair interrupted creation and linking, retain existing edits and do not
+restore archived records. Setup returns 201 for creation and 200 for a retry.
+If the deployment already has Products other than this setup identity, setup
+returns 409 instead of returning another owner's Product.
+
+Summary uses Product metadata such as
+`{"summary": {"interface": "slack", "destination": "C012345"}}` and the matching
+interface configured on AgentOS. The executor supplies its narrative to
+`summarize_company_product`; the page includes counts, that narrative, changes
+since the last delivered summary, and failed-Task details. Summary updates the versioned
+`summary.md` Product wiki page before delivery. Delivery receipts and the last
+delivered snapshot persist in a separate Product filesystem namespace, outside
+the wiki and executor input, so report retention cannot resend a delivered run or
+reset the change baseline. Existing report receipts migrate before expiry.
+A repeated run does not resend after intervening successful runs;
+a transport failure remains a failed run with the report retained and the previous
+delivery baseline unchanged. The baseline advances with the receipt only after
+transport succeeds, so the next report still includes undelivered changes. Provider
+retry guarantees still apply if a process dies after sending but before recording
+success. No live messages are sent by this cookbook.
+
+Task evidence identity and deduplication are part of the initial Company schema.
+Task responses expose `origin`, `routine_id` and `dedupe_key`. Human-created Tasks
+have origin `human`, Product Manager proposals have `product_manager`, and Routine
+proposals have `routine` with the trusted Routine id.
+Automatic acceptance is opt-in as described below.
+
+
+## Automation
+
+Enabling Company serves eligible registry executors on their ordinary AgentOS
+routes (for example, `/agents/{id}/runs`), with the usual run permissions.
+Registry-only executors holding `SchedulerTools`, including nested agents in
+teams or workflows, are excluded from mounting. Explicitly served components
+retain their ordinary routes but cannot serve as Company executors if they hold
+`SchedulerTools`.
+
+With Company, `scheduler=True`, and the durable queue configured, the scheduler
+creates one managed `Company automation` schedule. This runtime-owned row cannot
+be edited, disabled, deleted or manually triggered through schedule APIs or
+SchedulerTools; those operations return a refusal. Ordinary Routines remain
+editable and pausable. When the scheduler starts without Company configured, it
+disables any existing managed automation row before polling; a fresh deployment
+without Company creates no such row. Enabling Company again re-enables that row
+and preserves its history. Deployments sharing scheduler storage must use the
+same Company configuration.
+
+Candidate queries select Backlog, Ready and In progress
+Tasks before pagination, leaving completed history out of the pickup scan.
+Automatic transitions compare the observed `updated_at` with the stored value,
+including SQL NULL for a record that has never been updated. The existing status
+and terminal-Task predicates remain in the database UPDATE. `updated_at` uses
+epoch seconds: two writes in the same second share that timestamp, while the
+status predicate still holds in that window. There are no field snapshots or
+child-set comparisons in SQL or Python. A same-second scope edit is therefore
+indistinguishable from the checked record. Project completion still refuses any
+current non-terminal Task, but child evidence changes do not advance the Project's
+timestamp and are not fenced by this comparison.
+
+Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
+release, and run history. No extra loop, table, or route is installed. Skipped
+Tasks and proposals have their reasons in this schedule's run output, readable
+through `/schedules/{id}/runs`.
+
+The tick stops admitting work 240 seconds after its claim, before the scheduler's
+default 300-second stale-lock threshold. It checks again after IO and before
+acceptance or dispatch, without cancelling a database transaction. Releases match
+both the worker ID and the claim timestamp on the built-in scheduler adapters,
+so an expired invocation cannot release a later claim by that same worker.
+
+Run both behaviors without a model call:
+
+```bash
+COMPANY_AUTOMATION=1 .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+COMPANY_AUTOMATION=1 COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+```
+
+The example advances the existing schedule's due time to avoid a one-minute
+wait. The poller still claims the schedule, and Tasks still enter the ordinary
+executor run route and durable queue. A pending submission retains its original
+attempt on restart. The queue owns execution retry limits; new ticks do not
+start additional attempts for running or failed Tasks. A human can request a
+retry using the existing run route. Returning queued work to Backlog prevents
+its executor from starting. Once a Task has been accepted, returning it to
+Backlog requires fresh human acceptance before another pickup; automation does
+not treat it as a new proposal. This also applies to automatic policy withdrawals.
+The distinct-Task policy budget is unchanged. Successful work remains In review.
+
+An authenticated human needs `routines:write`, `schedules:write`, `tasks:write`,
+`wiki:read`, and run permission for both the Routine target and the proposed Task
+executor. Automatic acceptance rechecks wiki access before and after required
+checks, so missing or revoked access leaves the proposal in Backlog without
+spending its acceptance budget or queuing a run.
+POST `/company/routines` accepts `auto_accept` at creation; PATCH
+`/company/routines/{id}` can authorize, edit, or revoke it. For example, replace
+the IDs below with real records and PATCH this body:
+
+```json
+{
+  "auto_accept": {
+    "executor_type": "agent",
+    "executor_id": "writer",
+    "source_ids": ["release-notes"],
+    "work_scope": {
+      "product_ids": ["documentation"],
+      "project_ids": ["release-documentation"]
+    },
+    "required_checks": ["project_active", "has_source_evidence", "executor_registered"],
+    "limits": {"max_acceptances": 5, "expires_at": 1798761600}
+  }
+}
+```
+
+Every authorization names an exact executor type and ID. A proposal with no
+executor receives that authorized executor at acceptance. A proposal that names
+an executor must name the same one. It must belong to the Routine's Product and
+carry the framework's Routine origin. `propose_company_task` and
+`intake_company_source` can name a proposed executor and Project; neither can
+accept work. Source IDs and work scope are optional bounds. Omitted Source/scope
+bounds impose no additional restriction; an empty allowed-ID list permits no matching work.
+`project_ids` can include `null` to allow independent Tasks. Unknown fields and
+check names fail closed. A Source bound requires verified reader evidence.
+Omitting `required_checks` defaults to `["executor_registered"]`; an explicit
+empty check list is rejected. Every policy therefore runs at least one server-side
+check. `limits.expires_at` is required on every policy creation or replacement,
+including PATCH, and must be a UTC epoch-second timestamp in the future.
+Automatic executors must be local and have a database for durable run storage.
+
+| Built-in required check | Server-side fact checked |
+| --- | --- |
+| `project_active` | The proposal's Project exists, belongs to the same Product, and is active. Independent Tasks fail this check. |
+| `has_source_evidence` | Evidence names an existing Source in this Product; a fresh read through its configured reader matches each content hash and link. An asserted hash or `passed` field is insufficient. |
+| `executor_registered` | The proposed executor exists in the current registry and passes the ordinary Company executor checks. Registry validation is also mandatory for every acceptance and dispatch. |
+
+`limits.max_acceptances` defaults to **1**. Each distinct Task counts at most
+once per policy version, including archived Tasks; returning a Task to Backlog
+and re-accepting it under the same policy does not spend another slot. The version
+is a fingerprint of the executor, Source/work scope, checks and limits. Editing
+that content (including raising a limit) starts a new version with its own budget.
+Re-sending the same policy, refreshing a token, changing instructions or restarting
+does not change the version or revoke its in-flight acceptances. The existing
+Product row serializes accounting on SQLite and PostgreSQL so concurrent ticks
+cannot exceed the limit. An early budget check skips exhausted proposals before
+reading Sources or running application checks; the transaction still checks the
+limit again. Changing the policy opens the new version's budget on the next tick.
+Other failed checks are retried because server facts may change. Cheap built-in
+checks and application checks run before Source IO. Source bounds
+and `has_source_evidence` share one fresh evidence read per acceptance.
+
+Applications can add checks with
+`CompanyConfig(acceptance_checks={"custom_check": callable})`. Every built-in
+and custom callable has the same `(task, manager)` signature: a copy of the
+proposal and the sync or async Company manager for the configured database.
+A callable may be sync or async and must return exactly `True` to pass. Errors,
+false results, and missing names keep the proposal in Backlog. Built-in names
+cannot be overridden. Registration is application code, never a Routine payload
+or agent tool operation.
+
+PATCH `{"auto_accept": false}` to revoke. Every tick reloads the schedule,
+checks the saved human's current authority using the scheduler's authorization
+conventions, and repeats the checks before acceptance. Changed or revoked
+policies also block already accepted automatic work at dispatch and in the
+queue. An unchanged Ready Task whose policy was withdrawn returns to Backlog
+with the reason in its transition history, so it is visible for human attention.
+Human acceptance snapshots use the same scheduler convention: stored-role
+changes are re-evaluated; token-scope grants retain their saved scopes. Tasks
+accepted before snapshots were introduced need fresh acceptance before pickup.
+A disabled human cannot authorize automatic work through the user directory.
+The Routine API validates executor registration and check names before saving a
+policy; unknown names return 422. Generic schedule mutations of Company Routines
+return 409: edit them through `/company/routines`. Direct Python ScheduleManager
+payload writes strip acceptance grants; only the human API can issue them after
+checking the caller's authority.
+
+In a local deployment with authentication disabled, API callers are trusted
+operators, as for the existing scheduler. Code/YAML declarations remain
+proposal-only: write an automatic authorization through the human API.
+Executors and Product Manager retain no `schedules:write` or SchedulerTools.
+Private authorization is removed from public payloads and executor input;
+Routine metadata is data, never a source of broader executor authority.
+
+### Refresh, completion and retention
+
+`refresh_company_product` proposes completion for active Projects with at least
+one Task and only terminal Tasks. Each proposal is a versioned page under
+`project-completion/`; unchanged scans do not rewrite it. New open work withdraws
+the proposal. A human accepts it through the existing Project transition route.
+Refresh cannot transition a Project. Moving a Project to Done returns 409 with
+the open Task names and ids until every Task is Done or Cancelled, including
+Tasks that were manually archived while still open.
+
+Products store `metadata.archive_window_days`, default 14. Refresh soft-archives
+Done and Cancelled Projects and Tasks whose last update is strictly older than
+that window, falling back to creation time when no update exists. The delete
+transaction rechecks age and terminal state. Project retention uses the same
+cascading archive as manual archive: it refuses Ready, In progress or In review
+Tasks, and archives remaining children even if their own updates are newer.
+Refresh processes qualifying Projects before standalone Tasks, so a single
+maintenance pass preserves the Project's cascade as one restorable group.
+Restoring the Project restores only children taken by that cascade; Tasks
+independently archived before that pass stay archived. Retention skips terminal
+Projects that still contain Backlog work and refuses active Tasks. New open Tasks
+cannot be added or moved into Done or Cancelled Projects.
+Restore retains the lifecycle and starts a fresh retention window. Archived
+records leave normal lists, grouped counts and execution. Read an individual
+record with `include_deleted=true` for inspection; lists still hide children
+of archived parents, so restore the parent first.
+Refresh removes expired generated `summary.md` and completion-proposal pages
+through version-guarded filesystem deletion; a concurrent replacement is kept.
+Human pages, `brief.md` and `status.md`
+are protected. The Refresh Skill updates status.md to reflect the remaining work.
+
+The maintenance tool requires Routine authority, Product ownership when
+isolation applies, `products:read`, `projects:read`, `projects:delete`,
+`tasks:read`, `tasks:delete`, `wiki:read` and `wiki:write` on the saved caller.
+No scheduler-write grant is added. Product Manager does not receive maintenance
+or outbound Summary tools. Existing schedule instructions retain the scheduler's
+snapshot behavior; apply the revised Refresh Skill through an authorized PATCH.
+
+Products, Projects and Tasks list routes accept `sort_by=updated_at` and
+`sort_order=asc|desc`. Activity ordering uses creation time for records without
+an update and a deterministic id tie-breaker, before pagination. Omitting these
+parameters preserves the existing creation-time descending order.
+
+Optional Company tool arguments accept `null` for omission. Empty strings are
+normalized to omission as well; omitted pagination uses 20 results on page 1.
+Required identifiers and titles still require valid values.
+
+Async PostgreSQL derives its default database ID from the connection URL and
+schema, like synchronous PostgreSQL. Async SQLite already derives a stable ID
+from its connection details. Reuse those details (or an explicit stable `id`)
+after restart and across replicas so saved run database references resolve.
+This does not rewrite references saved with older randomly generated IDs;
+retaining a known old ID explicitly is necessary for those references.
+
+### Bounded Project completion
+
+`auto_accept.complete_projects` defaults to `false`, preserving existing Task-only
+policy fingerprints and budgets. Set it to `true` on a
+Refresh Routine to allow the automation tick to accept its persisted completion
+proposals. The human author must also hold `projects:write`. Refresh itself only
+proposes completion and archives eligible terminal work; it never accepts Tasks
+or transitions a Project to Done.
+
+Completion uses the same executor/run permission, Source and Product/Project
+scope, required checks, expiry and count as Task acceptance. The proposed
+Project must still be active, its Tasks (including archived Tasks) must all be
+terminal, and its stored Refresh proposal must still match those facts. Checks
+receive the Project as the work record, with `project_id` set to its ID and
+`evidence` collected from its Tasks. The policy supplies the executor fields and
+its executor still requires registry validation and the human's run permission.
+`has_source_evidence` re-reads that evidence;
+a Project without evidence fails Source bounds and that check. `project_active`
+and `executor_registered` work without application registration.
+
+Each distinct Project completion spends one slot in the same per-policy budget
+as distinct Task acceptances. Archived records still count. The completion
+permission is part of the policy fingerprint; changing it creates a new policy
+version. Project completion creates no executor run. Existing Task completion
+still requires human review.
+
+### Custom Routines and discovered websites
+
+Website Sources use public HTTP(S) addresses on standard ports. Each read checks
+all DNS answers and pins the connection to an allowed public address; redirects
+must stay on the configured origin. Private, loopback, link-local and reserved
+local hosts are refused. Downloads use a 4 MiB byte limit and a 30-second deadline
+covering resolution, redirects and streaming. Compressed responses are refused
+to keep the byte bound meaningful. These restrictions apply to human-added and
+agent-added website Sources; local files remain human-configured Sources.
+
+Team executors record the team's injected id in `config.metadata.agent_id`.
+Routine authority is bound to its Product even with isolation disabled. Ordinary
+schedule mutation routes refuse Company-managed rows; use `/company/routines`.
+An archived Product cannot dispatch its Routine: the scheduler records the refusal
+and disables the schedule. Owners can still pause it; restore the Product before
+explicitly resuming the Routine.
+
+Repeated Routine Project proposals reuse an identity derived from Product,
+Routine and proposal name, preserving human edits and archives. Intake's Task
+dedupe survives completion and archive; a returned row with `deleted_at` set is
+an archived existing proposal, not newly created work.
+
+Supply Product declarations in code or YAML, not both. An explicit `CompanyConfig`
+with no Products can still provide the database/model while YAML declares them.
+Conflicting declaration lists fail clearly at startup instead of silently losing
+one list.
+
+Summary serializes delivery per Product with a versioned lease. A live overlapping
+delivery is refused; retry after it finishes. A lost worker's lease expires after
+ten minutes. Transport is bounded to one minute. Delivery remains at least once
+across a crash after sending but before recording its receipt; interfaces do not
+provide a common transactional delivery guarantee.
+
+Run `08_custom_routines.py` to create a Routine with instructions and no template
+or initial Sources, then add an attributed website through `CompanyTools`.
+The example is offline; the integration tests execute custom and search-style
+Routines through the scheduler and durable queue on all four SQL adapters.
+
+`template` is optional. Without one, creation requires nonempty `instructions`.
+With a template, creation copies its Skill text unless explicit instructions are
+supplied. Name, instructions, executor type/id, cron expression and timezone can
+be edited with PATCH. Executor edits reuse scheduler authorization and target
+checks. If a policy is present, executor edits also recheck the human's permission
+to run the policy executor and re-stamp the grant. Editing instructions preserves
+the policy fingerprint and its spent acceptance budget. Stored instructions are
+not refreshed when Skill files change.
+A Routine with `template: null` never completes Projects automatically, even
+when its policy sets `complete_projects: true`.
+A custom Routine does maintenance only when it calls the Refresh tool, and
+Summary bookkeeping only when it calls the Summary tool.
+
+Product Manager and executors can call `add_company_source` with `type="website"`
+when granted `sources:write` and permitted to write the Product. Repository and
+path Sources remain human-added. Source storage has a single existing JSON
+field, `config`: server-stamped `config.metadata.agent_id` and
+`config.metadata.run_id` identify the first discovery. These fields are not
+reader options or model-supplied identities. Matching additions reuse the same
+Source; conflicting settings or archived references are refused with the existing
+Source id. Policies may name these website Sources in `source_ids`;
+`has_source_evidence` reads and verifies them like human-added Sources.
+A human can inspect provenance in GET `/company/sources` and archive
+through DELETE `/company/sources/{id}`. AgentOS applies its isolation setting to
+custom Company toolkits. Non-admin scoped tokens missing a subject are rejected
+under isolation on Company reads as well as writes; the existing administrator
+exemption is unchanged.
+
+Summary's unresolved failures match attention: only Tasks still `in_progress`
+with an ERROR or CANCELLED execution result appear under Failed Tasks. Moving
+work on or archiving it removes that unresolved failure without deleting its
+execution history.

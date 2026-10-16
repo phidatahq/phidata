@@ -24,7 +24,7 @@ from agno.os.settings import AgnoAPISettings
 
 def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
     """Mount the existing wiki and learning domains under Company."""
-    router = APIRouter(prefix="/company", tags=["Company playbook"])
+    router = APIRouter(prefix="/company", tags=["Company playbook"], dependencies=[Depends(get_scoped_user_id)])
     auth = get_authentication_dependency(settings)
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db) if db else None
 

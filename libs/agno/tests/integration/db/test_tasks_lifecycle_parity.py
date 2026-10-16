@@ -8,10 +8,13 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import text
 
+from agno.agent import Agent
 from agno.company import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
+from agno.registry import Registry
+from agno.team import Team
 
 
 @pytest_asyncio.fixture(params=["sqlite", "async_sqlite", "postgres", "async_postgres"])
@@ -50,7 +53,10 @@ async def call(fn, *args, **kwargs):
 
 
 def manager(db):
-    return AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+    registry = Registry(
+        agents=[Agent(id="writer"), Agent(id="current"), Agent(id="stale")], teams=[Team(id="writers", members=[])]
+    )
+    return AsyncCompanyManager(db, registry) if isinstance(db, AsyncBaseDb) else CompanyManager(db, registry)
 
 
 @pytest.mark.asyncio
@@ -295,6 +301,7 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
     product = await call(m.create, "Shared", user_id="alice")
     project = await call(m.create_project, product["id"], "Shared project", user_id="alice")
     app = AgentOS(
+        agents=[Agent(id="writer")],
         id=os_id,
         db=db,
         company=CompanyConfig(),

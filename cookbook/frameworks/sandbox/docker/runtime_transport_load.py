@@ -13,7 +13,7 @@ each costs:
   is only used for lifecycle.
 
     .venv/bin/python cookbook/frameworks/sandbox/build_image.py --tag agno-sandbox:local
-    AGNO_SANDBOX_LOAD_SESSIONS=8 .venv/bin/python cookbook/frameworks/sandbox/runtime_transport_load.py
+    AGNO_SANDBOX_LOAD_SESSIONS=8 .venv/bin/python cookbook/frameworks/sandbox/docker/runtime_transport_load.py
 
 Requests per turn and daemon calls per turn are what grow with concurrent users;
 the idle poll latency is the cost of one control request when nothing is pending.

@@ -383,3 +383,22 @@ validation passed, including both mypy checks, and their output was read. No
 provider calls were made. The earlier full unit-suite result remains the baseline.
 
 ---
+
+### Rebase onto merged Playbook — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Rebased PR 4 onto `main` at
+`f801d7c7421e7a7da5d6cee42fd4b0b8bceabe98`, including the final Playbook async
+filesystem transaction fixes. Preserved both branches' test-log entries during
+the sole conflict. Commit and tree comparisons confirmed the execution changes
+were preserved and the inherited filesystem code matches main.
+
+**Result:** **286 targeted tests passed**: Company execution/Task regressions
+plus the 33 filesystem transaction cases from the merged base. All six Company
+cookbooks passed, and execution also passed with PostgreSQL session storage.
+Format and validation passed; both mypy checks and all script output were read.
+No provider calls were made. The full unit-suite figures above remain their
+historical baseline; this rebase used focused regression coverage.
+
+---

@@ -117,6 +117,9 @@ class SqliteDb(BaseDb):
         component_links_table: Optional[str] = None,
         learnings_table: Optional[str] = None,
         schedules_table: Optional[str] = None,
+        products_table: Optional[str] = None,
+        projects_table: Optional[str] = None,
+        tasks_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
         approvals_table: Optional[str] = None,
         auth_tokens_table: Optional[str] = None,
@@ -155,6 +158,9 @@ class SqliteDb(BaseDb):
             component_links_table (Optional[str]): Name of the table to store component links.
             learnings_table (Optional[str]): Name of the table to store learning records.
             schedules_table (Optional[str]): Name of the table to store cron schedules.
+            products_table (Optional[str]): Name of the table to store Company Products.
+            projects_table (Optional[str]): Name of the table to store Company Projects.
+            tasks_table (Optional[str]): Name of the table to store Company Tasks.
             schedule_runs_table (Optional[str]): Name of the table to store schedule run history.
             mcp_oauth_clients_table (Optional[str]): Name of the table to store MCP OAuth client registrations.
             mcp_oauth_transactions_table (Optional[str]): Name of the table to store MCP OAuth transactions.
@@ -190,6 +196,9 @@ class SqliteDb(BaseDb):
             component_links_table=component_links_table,
             learnings_table=learnings_table,
             schedules_table=schedules_table,
+            products_table=products_table,
+            projects_table=projects_table,
+            tasks_table=tasks_table,
             schedule_runs_table=schedule_runs_table,
             approvals_table=approvals_table,
             auth_tokens_table=auth_tokens_table,
@@ -303,6 +312,9 @@ class SqliteDb(BaseDb):
             component_links_table=data.get("component_links_table"),
             learnings_table=data.get("learnings_table"),
             schedules_table=data.get("schedules_table"),
+            products_table=data.get("products_table"),
+            projects_table=data.get("projects_table"),
+            tasks_table=data.get("tasks_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
             approvals_table=data.get("approvals_table"),
             service_accounts_table=data.get("service_accounts_table"),
@@ -730,6 +742,27 @@ class SqliteDb(BaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.learnings_table
+
+        elif table_type == "products":
+            return self._get_or_create_table(
+                table_name=self.products_table_name,
+                table_type="products",
+                create_table_if_not_found=create_table_if_not_found,
+            )
+
+        elif table_type == "projects":
+            return self._get_or_create_table(
+                table_name=self.projects_table_name,
+                table_type="projects",
+                create_table_if_not_found=create_table_if_not_found,
+            )
+
+        elif table_type == "tasks":
+            return self._get_or_create_table(
+                table_name=self.tasks_table_name,
+                table_type="tasks",
+                create_table_if_not_found=create_table_if_not_found,
+            )
 
         elif table_type == "schedules":
             self.schedules_table = self._get_or_create_table(
@@ -7961,3 +7994,343 @@ class SqliteDb(BaseDb):
             stmt = stmt.where(table.c.subpath == subpath)
         with self.Session() as sess, sess.begin():
             sess.execute(stmt)
+
+    # --- Products ---
+
+    def create_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        table = self._get_table(table_type="products", create_table_if_not_found=True)
+        if table is None:
+            raise RuntimeError("Failed to get or create products table")
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(table.insert().values(**product_data).returning(table)).one()
+            return dict(result._mapping)
+
+    def get_product(
+        self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type="products")
+        if table is None:
+            return None
+        stmt = select(table).where(table.c.id == product_id)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        if not include_deleted:
+            stmt = stmt.where(table.c.deleted_at.is_(None))
+        with self.Session() as sess:
+            result = sess.execute(stmt).fetchone()
+            return dict(result._mapping) if result else None
+
+    def get_products(
+        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        if limit < 1 or page < 1:
+            raise ValueError("limit and page must be positive")
+        table = self._get_table(table_type="products")
+        if table is None:
+            return [], 0
+        stmt = select(table)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        if not include_deleted:
+            stmt = stmt.where(table.c.deleted_at.is_(None))
+        with self.Session() as sess:
+            total = sess.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0
+            stmt = stmt.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit).offset((page - 1) * limit)
+            rows = sess.execute(stmt).fetchall()
+            return [dict(row._mapping) for row in rows], total
+
+    def update_product(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.products import validate_product_fields
+
+        validate_product_fields(fields)
+        table = self._get_table(table_type="products")
+        if table is None:
+            return None
+        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    def delete_product(self, product_id: str, user_id: Optional[str] = None) -> bool:
+        table = self._get_table(table_type="products")
+        if table is None:
+            return False
+        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        now = int(time.time())
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
+            return result is not None
+
+    def restore_product(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type="products")
+        if table is None:
+            return None
+        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_not(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    # --- Projects ---
+
+    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        table = self._get_table(table_type="projects", create_table_if_not_found=True)
+        if table is None:
+            raise RuntimeError("Failed to get or create projects table")
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(table.insert().values(**project_data).returning(table)).one()
+            return dict(result._mapping)
+
+    def get_project(
+        self, project_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type="projects")
+        if table is None:
+            return None
+        stmt = select(table).where(table.c.id == project_id)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        if not include_deleted:
+            stmt = stmt.where(table.c.deleted_at.is_(None))
+        with self.Session() as sess:
+            result = sess.execute(stmt).fetchone()
+            return dict(result._mapping) if result else None
+
+    def get_projects(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        if limit < 1 or page < 1:
+            raise ValueError("limit and page must be positive")
+        table = self._get_table(table_type="projects")
+        if table is None:
+            return [], 0
+        stmt = select(table)
+        if product_id is not None:
+            stmt = stmt.where(table.c.product_id == product_id)
+        if status is not None:
+            stmt = stmt.where(table.c.status == status)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        if not include_deleted:
+            stmt = stmt.where(table.c.deleted_at.is_(None))
+        with self.Session() as sess:
+            total = sess.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0
+            stmt = stmt.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit).offset((page - 1) * limit)
+            rows = sess.execute(stmt).fetchall()
+            return [dict(row._mapping) for row in rows], total
+
+    def update_project(
+        self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.projects import validate_project_fields
+
+        validate_project_fields(fields)
+        table = self._get_table(table_type="projects")
+        if table is None:
+            return None
+        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_(None))
+        if expected_status is not None:
+            stmt = stmt.where(table.c.status == expected_status)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+        table = self._get_table(table_type="projects")
+        if table is None:
+            return False
+        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        now = int(time.time())
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
+            return result is not None
+
+    def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type="projects")
+        if table is None:
+            return None
+        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_not(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    def transition_project(
+        self,
+        project_id: str,
+        target: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        accepted_by: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Apply a lifecycle transition only if the observed state still matches."""
+        from agno.db.schemas.projects import project_transition_fields
+
+        table = self._get_table(table_type="projects")
+        if table is None:
+            return None
+        stmt = select(table).where(table.c.id == project_id, table.c.deleted_at.is_(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            row = sess.execute(stmt).fetchone()
+            if row is None:
+                return None
+            existing = dict(row._mapping)
+            fields = project_transition_fields(existing, target, reason, accepted_by)
+            update = table.update().where(
+                table.c.id == project_id,
+                table.c.deleted_at.is_(None),
+                table.c.status == existing["status"],
+                table.c.transitions == existing["transitions"],
+            )
+            if user_id is not None:
+                update = update.where(table.c.user_id == user_id)
+            result = sess.execute(update.values(**fields).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    # --- Tasks ---
+
+    def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        table = self._get_table(table_type="tasks", create_table_if_not_found=True)
+        if table is None:
+            raise RuntimeError("Failed to get or create tasks table")
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(table.insert().values(**task_data).returning(table)).one()
+            return dict(result._mapping)
+
+    def get_task(
+        self, task_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        stmt = select(table).where(table.c.id == task_id)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        if not include_deleted:
+            stmt = stmt.where(table.c.deleted_at.is_(None))
+        with self.Session() as sess:
+            result = sess.execute(stmt).fetchone()
+            return dict(result._mapping) if result else None
+
+    def get_tasks(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+        status: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        if limit < 1 or page < 1:
+            raise ValueError("limit and page must be positive")
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return [], 0
+        stmt = select(table)
+        if product_id is not None:
+            stmt = stmt.where(table.c.product_id == product_id)
+        if status is not None:
+            stmt = stmt.where(table.c.status == status)
+        if project_id is not None:
+            stmt = stmt.where(table.c.project_id == project_id)
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        if not include_deleted:
+            stmt = stmt.where(table.c.deleted_at.is_(None))
+        with self.Session() as sess:
+            total = sess.execute(select(func.count()).select_from(stmt.subquery())).scalar() or 0
+            stmt = stmt.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit).offset((page - 1) * limit)
+            rows = sess.execute(stmt).fetchall()
+            return [dict(row._mapping) for row in rows], total
+
+    def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.tasks import validate_task_fields
+
+        validate_task_fields(fields)
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_(None), table.c.status == "backlog")
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return False
+        stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        now = int(time.time())
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
+            return result is not None
+
+    def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_not(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
+            return dict(result._mapping) if result else None
+
+    def transition_task(
+        self,
+        task_id: str,
+        target: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        accepted_by: Optional[str] = None,
+        executor_type: Optional[str] = None,
+        executor_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Apply a lifecycle transition only if the observed state still matches."""
+        from agno.db.schemas.tasks import task_transition_fields
+
+        table = self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        stmt = select(table).where(table.c.id == task_id, table.c.deleted_at.is_(None))
+        if user_id is not None:
+            stmt = stmt.where(table.c.user_id == user_id)
+        with self.Session() as sess, sess.begin():
+            row = sess.execute(stmt).fetchone()
+            if row is None:
+                return None
+            existing = dict(row._mapping)
+            fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
+            update = table.update().where(
+                table.c.id == task_id,
+                table.c.deleted_at.is_(None),
+                table.c.status == existing["status"],
+                table.c.transitions == existing["transitions"],
+            )
+            if user_id is not None:
+                update = update.where(table.c.user_id == user_id)
+            result = sess.execute(update.values(**fields).returning(table)).fetchone()
+            return dict(result._mapping) if result else None

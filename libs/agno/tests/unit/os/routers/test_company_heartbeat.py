@@ -618,3 +618,125 @@ async def test_refresh_requires_routine_and_saved_delete_authority(tmp_path, asy
     with authorization_scope(lambda: _RoutineAuthorization(authority, "refresh")):
         assert json.loads(await invoke())["completion_proposals"] == []
     db.close()
+
+
+@pytest.mark.parametrize("failure", ["link", "enable"])
+@pytest.mark.parametrize("pause_pending", [False, True])
+def test_routine_create_recovers_disabled_pending_schedule(system, monkeypatch, failure, pause_pending):
+    client, _, db = system
+    product = client.post("/company/products", json={"name": "Docs"}).json()
+    body = dict(
+        product_id=product["id"],
+        name="refresh",
+        template="refresh",
+        executor_type="agent",
+        executor_id="reader",
+        cron_expr="0 * * * *",
+    )
+    method = "add_product_routine" if failure == "link" else "update_schedule"
+    original = getattr(db, method)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Interrupted creation")
+
+    monkeypatch.setattr(db, method, fail)
+    with pytest.raises(RuntimeError, match="Interrupted creation"):
+        client.post("/company/routines", json=body)
+    rows, total = db.get_schedules()
+    assert total == 1
+    pending = rows[0]
+    assert pending["enabled"] is False and pending["next_run_at"] is None
+    assert pending["payload"]["_agno_pending_creation"] is True
+    assert db.get_schedules(enabled=True)[1] == 0
+    monkeypatch.setattr(db, method, original)
+    # A changed request must not repurpose an interrupted creation.
+    assert client.post("/company/routines", json={**body, "cron_expr": "30 * * * *"}).status_code == 409
+    if pause_pending:
+        assert client.post("/company/routines/" + pending["id"] + "/pause").status_code == 200
+        assert client.post("/company/routines", json=body).status_code == 409
+        assert db.get_schedule(pending["id"])["enabled"] is False
+        assert client.post("/company/routines/" + pending["id"] + "/resume").status_code == 200
+        assert db.get_product(product["id"])["metadata"]["routine_ids"] == [pending["id"]]
+        return
+    result = client.post("/company/routines", json=body)
+    assert result.status_code == 201, result.text
+    assert result.json()["id"] == pending["id"] and result.json()["enabled"] is True
+    assert "_agno_pending_creation" not in result.json()["payload"]
+    assert db.get_product(product["id"])["metadata"]["routine_ids"] == [pending["id"]]
+    assert db.get_schedules()[1] == 1
+    # A later duplicate POST must not reactivate a deliberate pause.
+    assert client.post("/company/routines/" + pending["id"] + "/pause").status_code == 200
+    assert client.post("/company/routines", json=body).status_code == 409
+    assert db.get_schedule(pending["id"])["enabled"] is False
+
+
+@pytest.mark.parametrize("isolation", [False, True])
+def test_pending_routine_creation_cannot_be_recovered_by_another_creator(tmp_path, monkeypatch, isolation):
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from agno.os.config import AuthorizationConfig
+
+    secret = "pending-routine-test-secret"
+    db = SqliteDb(db_file=str(tmp_path / "pending.db"))
+    os = AgentOS(
+        id="pending-routines",
+        db=db,
+        agents=[Agent(id="reader", telemetry=False)],
+        company=CompanyConfig(),
+        telemetry=False,
+        authorization=True,
+        authorization_config=AuthorizationConfig(
+            verification_keys=[secret], algorithm="HS256", user_isolation=isolation
+        ),
+    )
+
+    def headers(user):
+        return {
+            "Authorization": "Bearer "
+            + jwt.encode(
+                {
+                    "sub": user,
+                    "aud": "pending-routines",
+                    "scopes": ["products:write", "routines:write", "schedules:write", "agents:reader:run"],
+                    "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+                },
+                secret,
+                algorithm="HS256",
+            )
+        }
+
+    original = db.add_product_routine
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Link interrupted")
+
+    with TestClient(os.get_app()) as client:
+        product = client.post("/company/products", json={"name": "Docs"}, headers=headers("alice")).json()
+        body = dict(
+            product_id=product["id"],
+            name="refresh",
+            template="refresh",
+            executor_type="agent",
+            executor_id="reader",
+            cron_expr="0 * * * *",
+        )
+        monkeypatch.setattr(db, "add_product_routine", fail)
+        with pytest.raises(RuntimeError, match="Link interrupted"):
+            client.post("/company/routines", json=body, headers=headers("alice"))
+        pending = db.get_schedules()[0][0]
+        assert pending["user_id"] == "alice"
+        monkeypatch.setattr(db, "add_product_routine", original)
+        bob = client.post("/company/routines", json=body, headers=headers("bob"))
+        if isolation:
+            assert bob.status_code == 403
+        else:
+            # Scheduler names are per creator: Bob can create his own, but cannot recover Alice's.
+            assert bob.status_code == 201, bob.text
+            assert bob.json()["id"] != pending["id"]
+        assert db.get_schedule(pending["id"])["enabled"] is False
+        alice = client.post("/company/routines", json=body, headers=headers("alice"))
+        assert alice.status_code == 201, alice.text
+        assert alice.json()["id"] == pending["id"] and alice.json()["enabled"] is True
+    db.close()

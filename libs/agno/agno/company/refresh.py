@@ -69,9 +69,14 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
             and current.metadata.updated_at is not None
             and current.metadata.updated_at < cutoff
             and _generated_page(page.path, current.content)
-            and await filesystem.adelete(page.path)
         ):
-            result["deleted_pages"].append(page.path)
+            if page.path == "summary.md":
+                from agno.company.summary import _aload_summary_state
+
+                # Upgrade old reports before retention removes their only delivery receipts.
+                await _aload_summary_state(manager.db, product_id, current.content)
+            if await filesystem.adelete(page.path):
+                result["deleted_pages"].append(page.path)
 
     projects = await _records(manager, "list_projects", product_id=product_id, status="active")
     for project in projects:

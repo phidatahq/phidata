@@ -2,7 +2,50 @@
 
 import asyncio
 import os
-from typing import Any, Dict, Sequence
+from typing import Any, Dict, Sequence, Tuple
+
+from agno.fs import FileSystem
+
+_STATE_PATH = "delivery.md"
+
+
+def _delivery_state(report: str) -> str:
+    """Keep only the delivered baseline and receipts, outside the expiring wiki."""
+    import re
+
+    baseline = re.findall(r"<!-- Company delivered snapshot: [A-Za-z0-9+/=]+ -->", report)
+    receipts = re.findall(r"<!-- Delivered run: [a-f0-9]{64} -->", report)
+    return "\n" + "\n".join([*baseline[-1:], *dict.fromkeys(receipts)]) + "\n"
+
+
+def _summary_state_filesystem(db: Any, product_id: str) -> FileSystem:
+    return FileSystem(db, namespace=f"company/products/{product_id}/summary-state", user_scoped=False)
+
+
+def _load_summary_state(db: Any, product_id: str, legacy_report: str) -> Tuple[FileSystem, str, int]:
+    """Migrate legacy receipts before the report can expire; writes use filesystem versions."""
+    filesystem = _summary_state_filesystem(db, product_id)
+    existing = filesystem.read_with_meta(_STATE_PATH)
+    if existing is not None:
+        assert existing.metadata.version is not None, "Summary delivery state requires a versioned filesystem"
+        return filesystem, existing.content, existing.metadata.version
+    content = _delivery_state(legacy_report)
+    saved = filesystem.write(_STATE_PATH, content, expected_version=0)
+    assert saved.version is not None, "Summary delivery state requires a versioned filesystem"
+    return filesystem, content, saved.version
+
+
+async def _aload_summary_state(db: Any, product_id: str, legacy_report: str) -> Tuple[FileSystem, str, int]:
+    """Asynchronously preserve delivery state independently of report retention."""
+    filesystem = _summary_state_filesystem(db, product_id)
+    existing = await filesystem.aread_with_meta(_STATE_PATH)
+    if existing is not None:
+        assert existing.metadata.version is not None, "Summary delivery state requires a versioned filesystem"
+        return filesystem, existing.content, existing.metadata.version
+    content = _delivery_state(legacy_report)
+    saved = await filesystem.awrite(_STATE_PATH, content, expected_version=0)
+    assert saved.version is not None, "Summary delivery state requires a versioned filesystem"
+    return filesystem, content, saved.version
 
 
 def _summary_report(product: Any, counts: Any, tasks: Any, narrative: str, previous: str) -> str:
@@ -77,7 +120,7 @@ def _summary_report(product: Any, counts: Any, tasks: Any, narrative: str, previ
 
 
 def _summary_page(previous: str, run_id: str, report: str):
-    """Keep delivery receipts on one versioned page, including intervening runs."""
+    """Build the report using durable delivery receipts, including intervening runs."""
     import re
 
     from agno.utils.string import hash_string_sha256
@@ -85,7 +128,7 @@ def _summary_page(previous: str, run_id: str, report: str):
     if not run_id:
         raise ValueError("Summary requires a run id")
     marker = "\n<!-- Delivered run: " + hash_string_sha256(run_id) + " -->\n"
-    receipts = re.findall(r"\n<!-- Delivered run: [a-f0-9]{64} -->\n", previous)
+    receipts = ["\n" + receipt + "\n" for receipt in re.findall(r"<!-- Delivered run: [a-f0-9]{64} -->", previous)]
     baseline = re.findall(r"<!-- Company delivered snapshot: ([A-Za-z0-9+/=]+) -->", previous)
     # Legacy or never-delivered pages have no trusted delivery baseline: report all current Tasks once.
     snapshot = baseline[-1] if baseline else "e30="

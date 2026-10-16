@@ -7,6 +7,7 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from agno.db.base import AsyncBaseDb
+from agno.db.schemas.tasks import task_run_id
 from agno.registry._reserved import RESERVED_MANAGER_IDS
 from agno.run.authorization import RunAuthorization
 
@@ -36,30 +37,79 @@ def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional
     return component
 
 
-async def _call(db: Any, method: str, *args: Any, **kwargs: Any) -> Any:
-    fn = getattr(db, method)
-    if isinstance(db, AsyncBaseDb):
+async def _call(target: Any, method: str, *args: Any, **kwargs: Any) -> Any:
+    from agno.company.manager import AsyncCompanyManager
+
+    fn = getattr(target, method)
+    if isinstance(target, (AsyncBaseDb, AsyncCompanyManager)):
         return await fn(*args, **kwargs)
     return await asyncio.to_thread(fn, *args, **kwargs)
 
 
 def _queued_run_id() -> str:
     submission = _task_submission.get()
-    return submission["task"]["job_id"] if submission else str(uuid4())
+    return task_run_id(submission["task"]["id"], submission["attempt"]) if submission else str(uuid4())
 
 
-async def _stamp_ticket(job: Dict[str, Any]) -> Dict[str, Any]:
+async def _reserve_task(db: Any, job: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Apply a committed ticket to its unchanged acceptance, once across submitter and worker."""
+    payload = job["payload"]
+    task = await _call(db, "get_task", payload["company_task_id"])
+    if task is None:
+        return None
+    history = payload["company_task_transitions"]
+    if task["transitions"] == history:
+        # Queue JSON may reorder keys. Preserve the Task store's representation
+        # for its conditional update after comparing the decoded history.
+        reserved = await _call(
+            db,
+            "start_task_run",
+            task["id"],
+            payload["company_task_attempt"],
+            task["transitions"],
+            user_id=job.get("user_id"),
+            run_db_id=payload["company_run_db_id"],
+        )
+        task = reserved or await _call(db, "get_task", task["id"])
+    if (
+        task is None
+        or task["job_id"] != job["id"]
+        or task["transitions"][:-1] != history
+        or task["transitions"][-1].get("attempt") != payload["company_task_attempt"]
+    ):
+        return None
+    return task
+
+
+async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     submission = _task_submission.get()
     if submission is None:
-        return job
+        return await worker.store.enqueue_job(job, max_depth=worker.config.max_queue_depth)
     task = submission["task"]
-    current = await _call(submission["db"], "get_task", task["id"])
-    if current is None or current["job_id"] != job["id"] or current["transitions"] != task["transitions"]:
-        raise ValueError("Task acceptance changed before submission")
-    return {
+    job = {
         **job,
-        "payload": {**job["payload"], "company_task_id": task["id"], "company_task_transitions": task["transitions"]},
+        "payload": {
+            **job["payload"],
+            "company_task_id": task["id"],
+            "company_task_transitions": task["transitions"],
+            "company_task_attempt": submission["attempt"],
+            "company_run_db_id": submission["run_db_id"],
+        },
     }
+    try:
+        result = await worker.store.enqueue_job(job, max_depth=worker.config.max_queue_depth)
+    except Exception:
+        # Queue keys are user-scoped. Simultaneous collaborators still share the
+        # deterministic Task run id; an INSERT collision returns its committed winner.
+        existing = await worker.store.get_job(job["id"])
+        if existing is None or (existing.get("payload") or {}).get("company_task_id") != task["id"]:
+            raise
+        result = {"accepted": False, "reason": "duplicate", "job": existing}
+    if result["job"] is not None:
+        # Acceptance is the committed queue ticket. A rejected enqueue leaves the
+        # Task untouched; a crash here is recovered by the worker before execution.
+        await _reserve_task(submission["db"], result["job"])
+    return result
 
 
 async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
@@ -69,14 +119,13 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
     db = getattr(worker, "_company_db", None)
     if db is None:
         raise ValueError("Company is unavailable for this queued Task")
-    task = await _call(db, "get_task", task_id)
+    task = await _reserve_task(db, job)
     if (
         task is None
         or task["job_id"] != job["id"]
         or task["status"] != "in_progress"
         or task["executor_id"] != job["component_id"]
         or task["executor_type"] != job["component_type"]
-        or task["transitions"] != job["payload"].get("company_task_transitions")
     ):
         from agno.exceptions import InputCheckError
 
@@ -101,6 +150,9 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
     db = getattr(worker, "_company_db", None)
     if db is None:
         raise ValueError("Company is unavailable for this queued Task")
+    task = await _reserve_task(db, job)
+    if task is None:
+        return
     result: Dict[str, Any] = {"run_id": job["id"], "status": "ERROR", "content": error}
     if status == "completed":
         component = await worker._aresolve_job_component(job)
@@ -117,30 +169,20 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         task_id,
         job["id"],
         result,
-        expected_transitions=job["payload"].get("company_task_transitions"),
+        expected_transitions=task["transitions"],
     )
 
 
 async def _task_input(manager: Any, task: Dict[str, Any]) -> str:
-    async def call(method: str, *args: Any, **kwargs: Any) -> Any:
-        from agno.company.manager import AsyncCompanyManager
-
-        fn = getattr(manager, method)
-        return (
-            await fn(*args, **kwargs)
-            if isinstance(manager, AsyncCompanyManager)
-            else await asyncio.to_thread(fn, *args, **kwargs)
-        )
-
     pages = []
     # Both namespaces have company-wide read visibility. No Source credentials,
     # Product metadata, other Tasks or caller-supplied runtime state are forwarded.
     for product_id in (None, task["product_id"]):
         page = 1
         while True:
-            rows, total = await call("list_wiki", product_id, limit=100, page=page)
+            rows, total = await _call(manager, "list_wiki", product_id, limit=100, page=page)
             for row in rows:
-                value = await call("read_wiki", product_id, row.path)
+                value = await _call(manager, "read_wiki", product_id, row.path)
                 pages.append(
                     {
                         "namespace": "company" if product_id is None else "product",

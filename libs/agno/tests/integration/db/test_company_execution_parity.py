@@ -466,3 +466,114 @@ async def test_all_framework_executor_ids_are_rejected(system, monkeypatch, kind
         assert response.status_code == 409, response.text
         assert (await client.get(path)).json()["job_id"] is None
     resolve.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,id", [("agent", "writer"), ("team", "editors"), ("workflow", "draft")])
+@pytest.mark.parametrize("attempt", [1, 2])
+async def test_full_queue_leaves_task_and_attempt_unchanged(system, kind, id, attempt):
+    from agno.company.execution import _call
+    from agno.db.schemas.tasks import task_run_id
+
+    client, db, worker, os, _ = system
+    value = await accepted(client, kind, id)
+    path = f"/company/tasks/{value['id']}"
+    if attempt == 2:
+        response = await client.post(path + "/runs")
+        job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+        assert job["id"] == response.json()["run_id"]
+        await _call(db, "complete_task_run", value["id"], job["id"], {"status": "ERROR", "content": "Previous failure"})
+        assert await worker.store.complete_job(job["id"], worker.worker_id, job["attempt"], "failed")
+    filler = await accepted(client)
+    filler_run = await client.post(f"/company/tasks/{filler['id']}/runs")
+    worker.config.max_queue_depth = 1
+    before = (await client.get(path)).json()
+    attention = (await client.get("/company/attention")).json()
+    for _ in range(2):
+        response = await client.post(path + "/runs", json={"attempt": attempt})
+        assert response.status_code == 429, response.text
+        assert (await client.get(path)).json() == before
+        assert await worker.store.get_job(task_run_id(value["id"], attempt)) is None
+        assert (await client.get(path + "/runs")).json()["meta"]["total_count"] == attempt - 1
+        assert (await client.get("/company/attention")).json() == attention
+    assert (await client.post(f"/company/runs/{filler_run.json()['run_id']}/cancel")).status_code == 200
+    retried = await client.post(path + "/runs", json={"attempt": attempt})
+    assert retried.status_code == 202, retried.text
+    assert (await execute(worker))["status"] == "completed"
+    assert (await client.get(path)).json()["status"] == "in_review"
+
+
+@pytest.mark.asyncio
+async def test_rejected_duplicate_cannot_undo_accepted_submission(system, monkeypatch):
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    filler = await accepted(client)
+    filler_run = await client.post(f"/company/tasks/{filler['id']}/runs")
+    worker.config.max_queue_depth = 1
+    enqueue = worker.store.enqueue_job
+    rejected = asyncio.Event()
+    release = asyncio.Event()
+
+    async def delayed_rejection(*args, **kwargs):
+        result = await enqueue(*args, **kwargs)
+        if result["reason"] == "queue_full":
+            rejected.set()
+            await release.wait()
+        return result
+
+    monkeypatch.setattr(worker.store, "enqueue_job", delayed_rejection)
+    first = asyncio.create_task(client.post(path + "/runs"))
+    try:
+        await asyncio.wait_for(rejected.wait(), timeout=10)
+        assert (await client.post(f"/company/runs/{filler_run.json()['run_id']}/cancel")).status_code == 200
+        second = await client.post(path + "/runs")
+        assert second.status_code == 202, second.text
+    finally:
+        release.set()
+    assert (await first).status_code == 429
+    saved = (await client.get(path)).json()
+    assert saved["status"] == "in_progress" and saved["job_id"] == second.json()["run_id"]
+    assert (await execute(worker))["status"] == "completed"
+    assert (await client.get(path)).json()["status"] == "in_review"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recovery", ["worker", "duplicate", "cancel", "revoke"])
+async def test_worker_recovers_task_projection_after_committed_enqueue(system, monkeypatch, recovery):
+    import agno.company.execution as execution
+    from agno.db.schemas.tasks import task_run_id
+
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    reserve = execution._reserve_task
+
+    async def lost_submitter(*args, **kwargs):
+        raise RuntimeError("Submitter stopped after enqueue")
+
+    monkeypatch.setattr(execution, "_reserve_task", lost_submitter)
+    with pytest.raises(RuntimeError, match="Submitter stopped after enqueue"):
+        await client.post(path + "/runs")
+    assert (await client.get(path)).json() == value
+    assert await worker.store.get_job(task_run_id(value["id"], 1)) is not None
+    monkeypatch.setattr(execution, "_reserve_task", reserve)
+    if recovery == "duplicate":
+        assert (await client.post(path + "/runs")).status_code == 202
+        assert (await client.get(path)).json()["status"] == "in_progress"
+    elif recovery == "cancel":
+        run_id = task_run_id(value["id"], 1)
+        assert (await client.post(f"/company/runs/{run_id}/cancel")).status_code == 200
+        assert (await client.post(path + "/runs", json={"attempt": 2})).status_code == 202
+    elif recovery == "revoke":
+        assert (
+            await client.post(path + "/transitions", json={"target": "backlog", "reason": "Withdraw"})
+        ).status_code == 200
+    result = await execute(worker)
+    saved = (await client.get(path)).json()
+    assert result["status"] == ("failed" if recovery == "revoke" else "completed")
+    assert saved["status"] == ("backlog" if recovery == "revoke" else "in_review")
+    if recovery == "revoke":
+        assert saved["job_id"] is None and saved["result"] is None
+    else:
+        assert saved["result"]["status"] == "COMPLETED"

@@ -189,3 +189,37 @@ def test_registry_mount_excludes_all_framework_executors(resource, executor_id):
     os = SimpleNamespace(registry=registry, agents=[], teams=[], workflows=[])
     _mount_executors(os)
     assert getattr(os, resource) == [ordinary]
+
+
+def test_simultaneous_collaborators_share_committed_run(system, monkeypatch):
+    from httpx import ASGITransport, AsyncClient
+
+    client, db, os, queue = system
+    path, value = accepted(client)
+    enqueue = queue.store.enqueue_job
+
+    async def concurrent_starts():
+        arrivals = 0
+        both_arrived = asyncio.Event()
+
+        async def simultaneous_enqueue(*args, **kwargs):
+            nonlocal arrivals
+            arrivals += 1
+            if arrivals == 2:
+                both_arrived.set()
+            await asyncio.wait_for(both_arrived.wait(), timeout=10)
+            return await enqueue(*args, **kwargs)
+
+        monkeypatch.setattr(queue.store, "enqueue_job", simultaneous_enqueue)
+        async with AsyncClient(transport=ASGITransport(app=client.app), base_url="http://test") as async_client:
+            return await asyncio.gather(
+                async_client.post(path + "/runs", headers=headers("alice")),
+                async_client.post(path + "/runs", headers=headers("bob")),
+            )
+
+    responses = asyncio.run(concurrent_starts())
+    assert all(response.status_code == 202 for response in responses), [response.text for response in responses]
+    assert responses[0].json()["run_id"] == responses[1].json()["run_id"]
+    saved = db.get_task(value["id"])
+    assert saved["status"] == "in_progress"
+    assert len([entry for entry in saved["transitions"] if entry.get("attempt") == 1]) == 1

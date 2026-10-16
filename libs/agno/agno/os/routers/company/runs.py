@@ -6,10 +6,10 @@ from urllib.parse import quote, urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.responses import JSONResponse, Response
 
-from agno.company.execution import _call, _executor, _task_input, _task_submission
+from agno.company.execution import _call, _executor, _reserve_task, _task_input, _task_submission
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb
-from agno.db.schemas.tasks import task_run_id
+from agno.db.schemas.tasks import task_run_fields, task_run_id
 from agno.os.auth import get_authentication_dependency
 from agno.os.job_queue import ticket_status_to_api, validate_seam_input
 from agno.os.middleware.user_scope import get_scoped_user_id
@@ -124,6 +124,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
         if existing is not None:
             if (existing.get("payload") or {}).get("company_task_id") != task_id:
                 raise HTTPException(409, "Run identifier conflicts with another submission")
+            await _reserve_task(db, existing)
             return JSONResponse(
                 {
                     "run_id": run_id,
@@ -187,31 +188,11 @@ def get_company_runs_router(os: Any) -> APIRouter:
         # Apply the ordinary run route's schema check before mutating the Task.
         # Rejected input must not consume an attempt or leave phantom active work.
         validate_seam_input(component, message)
-        if value.get("job_id") != run_id:
-            try:
-                reserved = await _call(
-                    db,
-                    "start_task_run",
-                    task_id,
-                    body.attempt,
-                    value["transitions"],
-                    user_id=caller,
-                    run_db_id=run_db.id,
-                )
-            except ValueError as exc:
-                raise HTTPException(409, str(exc))
-            except NotImplementedError:
-                raise HTTPException(503, "Company execution is not supported by the configured database")
-            if reserved is None:
-                value = await task(task_id)
-                if value.get("job_id") != run_id:
-                    raise HTTPException(409, "Task changed while starting")
-            else:
-                value = reserved
-        starters = [entry for entry in value["transitions"] if entry.get("attempt") == body.attempt]
-        if not starters or starters[-1].get("user_id") != caller:
-            raise HTTPException(409, "The original starter must retry the pending submission")
-        token = _task_submission.set({"db": db, "task": value})
+        try:
+            task_run_fields(value, body.attempt, caller, run_db.id)
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        token = _task_submission.set({"db": db, "task": value, "attempt": body.attempt, "run_db_id": run_db.id})
         try:
             return await _run_route(
                 request,
@@ -295,6 +276,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
         job, _task = await company_run(run_id, request)
         value = {"executor_type": job["component_type"], "executor_id": job["component_id"]}
         executor(value)
+        if (job.get("payload") or {}).get("company_task_id"):
+            await _reserve_task(db, job)
         return await _run_route(
             request, endpoint(value) + f"/{quote(run_id, safe='')}/cancel", "POST", session_id=job["session_id"]
         )
@@ -305,18 +288,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
         if manager is None:
             raise HTTPException(503, "Company requires a database")
         try:
-            return await _attention(manager, product_id)
+            return await _call(manager, "attention", product_id)
         except NotImplementedError:
             raise HTTPException(503, "Company tasks are not supported by the configured database")
 
     return router
-
-
-async def _attention(manager: Any, product_id: Optional[str]):
-    import asyncio
-
-    return (
-        await manager.attention(product_id)
-        if isinstance(manager, AsyncCompanyManager)
-        else await asyncio.to_thread(manager.attention, product_id)
-    )

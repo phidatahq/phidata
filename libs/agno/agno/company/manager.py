@@ -282,27 +282,6 @@ class CompanyManager:
             executor_id=executor_id,
         )
 
-    def start_task_run(
-        self,
-        task_id: str,
-        attempt: int,
-        expected_transitions: List[Dict[str, Any]],
-        user_id: Optional[str] = None,
-        run_db_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Reserve accepted work; HTTP validates run authority before calling this method."""
-        return self.db.start_task_run(task_id, attempt, expected_transitions, user_id=user_id, run_db_id=run_db_id)
-
-    def complete_task_run(
-        self,
-        task_id: str,
-        job_id: str,
-        result: Dict[str, Any],
-        expected_transitions: Optional[List[Dict[str, Any]]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Project the ordinary run result onto the current Task attempt."""
-        return self.db.complete_task_run(task_id, job_id, result, expected_transitions=expected_transitions)
-
     def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
         """Company-wide counts over the same filters used by the Task list."""
         counts = {}
@@ -675,29 +654,6 @@ class AsyncCompanyManager:
             executor_type=executor_type,
             executor_id=executor_id,
         )
-
-    async def start_task_run(
-        self,
-        task_id: str,
-        attempt: int,
-        expected_transitions: List[Dict[str, Any]],
-        user_id: Optional[str] = None,
-        run_db_id: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Reserve accepted work; HTTP validates run authority before calling this method."""
-        return await self.db.start_task_run(
-            task_id, attempt, expected_transitions, user_id=user_id, run_db_id=run_db_id
-        )
-
-    async def complete_task_run(
-        self,
-        task_id: str,
-        job_id: str,
-        result: Dict[str, Any],
-        expected_transitions: Optional[List[Dict[str, Any]]] = None,
-    ) -> Optional[Dict[str, Any]]:
-        """Project the ordinary run result onto the current Task attempt."""
-        return await self.db.complete_task_run(task_id, job_id, result, expected_transitions=expected_transitions)
 
     async def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
         """Company-wide counts over the same filters used by the Task list."""

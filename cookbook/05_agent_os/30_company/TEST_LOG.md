@@ -420,3 +420,73 @@ files and 21 CLI files), and all output was read. No provider calls were made.
 Earlier migration test entries describe the implementation before this simplification.
 
 ---
+
+## Queue rejection and simplification follow-up — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` with the development environment.
+
+**Result:** Product CRUD, owner filters, deletion and restore.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` with the development environment.
+
+**Result:** Project lifecycle and Product containment.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` with the development environment.
+
+**Result:** Registry-backed acceptance and explicit Task transitions.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` with the development environment.
+
+**Result:** Sync/async wiki and decision-log operations.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` with the development environment.
+
+**Result:** Product Manager construction and tool publication without provider calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` with the development environment.
+
+**Result:** Both default SQLite sessions and COMPANY_DB=postgres passed with a real PostgreSQL durable queue: accepted execution, duplicate run identity, stored results, history and attention. No provider calls.
+
+---
+
+### Queue rejection regression checks
+
+**Status:** PASS
+
+**Description:** Full database/OS unit suites and all Company integrations plus execution authorization tests.
+
+**Result:** 6,104 unit tests passed, 15 skipped; 306 integration/authorization tests passed. Added 46 regression cases covering all three executor types, all four Company adapters, unchanged Task state/results/attempts after rejection, concurrent duplicates, and recovery after enqueue with revocation and cancellation. PostgreSQL queue JSON round-trips recover correctly into SQLite Task storage. Both format and validate scripts passed; validation output was read, including mypy success for 1,146 core and 21 CLI files.

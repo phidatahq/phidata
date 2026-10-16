@@ -146,7 +146,11 @@ the local PostgreSQL URL. SQLite follows the queue's existing development
 fallback; use PostgreSQL session storage for production attempt fencing.
 
 POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
-that attempt returns the first run. A new attempt increments the number; after
+that attempt returns the first run. A full queue returns 429 without changing
+the Task or consuming the attempt; retry the same attempt when capacity is available.
+The durable ticket is accepted before the Task moves to In progress, and the worker
+can recover that update if the submitting process stops.
+A new attempt increments the number; after
 success, first transition In review to In progress to request revisions. Each
 Task retains one session. GET on the same route returns ordinary session runs
 with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and

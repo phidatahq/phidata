@@ -319,7 +319,7 @@ def store_serializes_sessions(store: Any) -> bool:
 
 
 def _new_queued_run_id() -> str:
-    """Allocate an ordinary run id, preserving a trusted Task attempt reservation."""
+    """Allocate an ordinary run id, preserving a trusted Task attempt identity."""
     from agno.company.execution import _queued_run_id
 
     return _queued_run_id()
@@ -333,13 +333,12 @@ async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any
     from agno.run.authorization import stamp_authorization
 
     job = {**job, "payload": stamp_authorization(job.get("payload"), include_trusted=True)}
-    from agno.company.execution import _stamp_ticket
+    from agno.company.execution import _enqueue_ticket
 
-    job = await _stamp_ticket(job)
     config = queue_worker.config
     if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
         job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
-    return await queue_worker.store.enqueue_job(job, max_depth=config.max_queue_depth)
+    return await _enqueue_ticket(queue_worker, job)
 
 
 async def aattach_waiting_on(queue_worker: Any, run_id: str, body: Dict[str, Any]) -> Dict[str, Any]:

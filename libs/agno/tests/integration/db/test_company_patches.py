@@ -207,6 +207,7 @@ async def test_multipart_route_preserves_attachments():
     from agno.os.routers.company.runs import _run_route
 
     app = FastAPI()
+    app.state.internal_service_token = "test-service-token"
 
     @app.post("/agents/test/runs")
     async def receiver(message: str = Form(...), files: list[UploadFile] = File(...)):
@@ -218,7 +219,12 @@ async def test_multipart_route_preserves_attachments():
     @app.post("/company/tasks/t/runs")
     async def dispatch(request: Request):
         return await _run_route(
-            request, "/agents/test/runs", "POST", {"message": "brief"}, files=[("notes.md", b"contents")]
+            request,
+            "/agents/test/runs",
+            "POST",
+            owner=None,
+            form={"message": "brief"},
+            files=[("notes.md", b"contents")],
         )
 
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:

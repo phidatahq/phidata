@@ -908,15 +908,21 @@ class AsyncSqliteDb(AsyncBaseDb):
             raise e
 
     async def cancel_pending_run(
-        self, run_id: str, *, session_id: str, reason: str, user_id: Optional[str] = None
+        self,
+        run_id: str,
+        *,
+        session_id: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        expected_status: str = "PENDING",
     ) -> bool:
-        """Cancel a Pending run with a conditional UPDATE; concurrent status changes win."""
+        """Cancel an observed Pending or Running run; concurrent status changes win."""
         from agno.db.sql.runs import cancel_pending_run_statement
 
         table = await self._get_table(table_type="runs")
         if table is None:
             return False
-        statement = cancel_pending_run_statement(table, "sqlite", run_id, session_id, reason, user_id)
+        statement = cancel_pending_run_statement(table, "sqlite", run_id, session_id, reason, user_id, expected_status)
         async with self.async_session_factory() as sess, sess.begin():
             result = await sess.execute(statement)
             return result.scalar_one_or_none() is not None
@@ -1169,6 +1175,25 @@ class AsyncSqliteDb(AsyncBaseDb):
             raise e
 
     # -- Session methods --
+
+    async def reassign_session_owner(self, session_id: str, *, previous_user_id: str, user_id: Optional[str]) -> bool:
+        """Transfer only an idle session with the observed owner, without rewriting history."""
+        table = await self._get_table(table_type="sessions")
+        runs = await self._get_table(table_type="runs")
+        if table is None or runs is None:
+            return False
+        active = select(runs.c.run_id).where(
+            runs.c.session_id == session_id, runs.c.status.in_(["PENDING", "RUNNING", "PAUSED"])
+        )
+        statement = (
+            table.update()
+            .where(table.c.session_id == session_id, table.c.user_id == previous_user_id, ~active.exists())
+            .values(user_id=user_id)
+            .returning(table.c.session_id)
+        )
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return result.scalar_one_or_none() is not None
 
     async def delete_session(self, session_id: str, user_id: Optional[str] = None) -> bool:
         """
@@ -4781,6 +4806,20 @@ class AsyncSqliteDb(AsyncBaseDb):
             log_debug(f"Error releasing schedule: {e}")
             return False
 
+    async def delete_schedule_runs(self, schedule_id: str, *, before: int) -> int:
+        """Expire only completed history for the selected schedule."""
+        table = await self._get_table(table_type="schedule_runs")
+        if table is None:
+            return 0
+        statement = (
+            table.delete()
+            .where(table.c.schedule_id == schedule_id, table.c.completed_at < before)
+            .returning(table.c.id)
+        )
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return len(result.scalars().all())
+
     async def create_schedule_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         try:
             table = await self._get_table(table_type="schedule_runs", create_table_if_not_found=True)
@@ -6192,6 +6231,7 @@ class AsyncSqliteDb(AsyncBaseDb):
         expected_transitions: List[Dict[str, Any]],
         user_id: Optional[str] = None,
         run_db_id: Optional[str] = None,
+        session_user_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.tasks import task_run_fields
 
@@ -6207,7 +6247,7 @@ class AsyncSqliteDb(AsyncBaseDb):
             existing = dict(row._mapping)
             if existing["transitions"] != expected_transitions:
                 return None
-            fields = task_run_fields(existing, attempt, user_id, run_db_id)
+            fields = task_run_fields(existing, attempt, user_id, run_db_id, session_user_id)
             stmt = (
                 table.update()
                 .where(
@@ -6230,6 +6270,8 @@ class AsyncSqliteDb(AsyncBaseDb):
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
         checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
+        from sqlalchemy import JSON, or_
+
         from agno.db.schemas.tasks import task_transition_fields
 
         table = await self._get_table(table_type="tasks")
@@ -6243,6 +6285,7 @@ class AsyncSqliteDb(AsyncBaseDb):
                         table.c.job_id == job_id,
                         table.c.deleted_at.is_(None),
                         table.c.status == "in_progress",
+                        or_(table.c.result.is_(None), table.c.result == JSON.NULL),
                     )
                 )
             ).fetchone()
@@ -6265,6 +6308,7 @@ class AsyncSqliteDb(AsyncBaseDb):
                     table.c.job_id == job_id,
                     table.c.deleted_at.is_(None),
                     table.c.status == "in_progress",
+                    or_(table.c.result.is_(None), table.c.result == JSON.NULL),
                     table.c.transitions == existing["transitions"],
                 )
                 .values(**fields, result=result)

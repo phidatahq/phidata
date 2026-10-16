@@ -2,7 +2,7 @@
 
 import asyncio
 from typing import Any, Dict, Optional
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.responses import JSONResponse, Response
@@ -12,12 +12,18 @@ from agno.company.execution import (
     _cancel_ticketless_pending_run,
     _executor,
     _pending_task_attempt,
+    _prepare_task_session,
     _reconcile_task_run,
+    _reservation_owner,
     _reserve_task,
     _sandbox_task_input,
     _task_input,
     _task_run_database,
+    _task_session_owner,
     _task_submission,
+    _task_transport,
+    _TaskRunConflict,
+    _TaskRunUnavailable,
 )
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
@@ -34,70 +40,56 @@ async def _run_route(
     request: Request,
     path: str,
     method: str,
+    *,
+    owner: Optional[str],
     form: Optional[Dict[str, str]] = None,
     key: Optional[str] = None,
     session_id: Optional[str] = None,
     checkout: Optional[Dict[str, Any]] = None,
     files: Optional[list[tuple[str, bytes]]] = None,
 ) -> Response:
-    """Enter the real FastAPI route with its dependencies and trusted caller state.
+    """Enter the executor route with authorized actor grants and a separate session owner."""
+    import json
 
-    Only transport authentication headers are retained. Runtime overrides from
-    middleware or a Task request cannot become executor input.
-    """
-    body = urlencode(form or {}).encode()
-    content_type = b"application/x-www-form-urlencoded"
-    if files:
-        from httpx import Request as HTTPRequest
+    import httpx
 
-        encoded = HTTPRequest(
-            "POST",
-            "http://company.internal",
-            data=form or {},
-            files=[("files", (name, content, "text/markdown")) for name, content in files],
-        )
-        body = encoded.read()
-        content_type = encoded.headers["content-type"].encode()
-    headers = [(k, v) for k, v in request.scope["headers"] if k.lower() in {b"authorization", b"cookie", b"x-api-key"}]
-    if getattr(request.state, "is_internal_service", False):
-        from agno.run.authorization import AUTHORIZATION_HEADER
+    from agno.db.schemas.scheduler import SCHEDULE_OWNER_HEADER
+    from agno.os.authz.run_context import request_authorization
+    from agno.run.authorization import AUTHORIZATION_HEADER
 
-        headers += [
-            (k, v)
-            for k, v in request.scope["headers"]
-            if k.lower() in {AUTHORIZATION_HEADER.lower().encode(), b"x-schedule-owner"}
-        ]
-    headers += [(b"content-type", content_type), (b"content-length", str(len(body)).encode())]
+    authority = request_authorization(request)
+    headers = {"Authorization": "Bearer " + request.app.state.internal_service_token}
+    if authority is not None:
+        headers[AUTHORIZATION_HEADER] = json.dumps(authority.snapshot())
+    if owner is not None:
+        headers[SCHEDULE_OWNER_HEADER] = quote(owner, safe="")
     if key:
-        headers.append((b"idempotency-key", key.encode()))
-    state = dict(request.scope.get("state") or {})
-    for name in ("session_id", "session_state", "dependencies", "metadata"):
-        state.pop(name, None)
-    if checkout is not None:
-        state["metadata"] = {"repository": {"commit": checkout["commit"]}}
-    scope = {
-        **request.scope,
-        "method": method,
-        "path": path,
-        "raw_path": path.encode(),
-        "headers": headers,
-        "query_string": urlencode({"session_id": session_id}).encode() if session_id else b"",
-        "state": state,
-    }
-    for name in ("route", "endpoint", "path_params"):
-        scope.pop(name, None)
-    messages = []
+        headers["Idempotency-Key"] = key
 
-    async def receive():
-        return {"type": "http.request", "body": body, "more_body": False}
+    async def executor_app(scope, receive, send):
+        if checkout is not None:
+            scope = {
+                **scope,
+                "state": {**scope.get("state", {}), "metadata": {"repository": {"commit": checkout["commit"]}}},
+            }
+        await request.app(scope, receive, send)
 
-    async def send(message):
-        messages.append(message)
-
-    await request.app.router(scope, receive, send)
-    start = next(message for message in messages if message["type"] == "http.response.start")
-    content = b"".join(message.get("body", b"") for message in messages if message["type"] == "http.response.body")
-    return Response(content, status_code=start["status"], media_type="application/json")
+    token = _task_transport.set((method, unquote(path), owner))
+    try:
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=executor_app), base_url="http://company"
+        ) as client:
+            response = await client.request(
+                method,
+                path,
+                data=form,
+                files=[("files", (name, content, "text/markdown")) for name, content in files] if files else None,
+                headers=headers,
+                params={"session_id": session_id} if session_id else None,
+            )
+        return Response(response.content, status_code=response.status_code, media_type="application/json")
+    finally:
+        _task_transport.reset(token)
 
 
 def get_company_runs_router(os: Any) -> APIRouter:
@@ -141,12 +133,23 @@ def get_company_runs_router(os: Any) -> APIRouter:
 
     def run_database(value: Dict[str, Any]):
         try:
-            return _task_run_database(os, value)
+            store = _task_run_database(os, value)
+            if store is None:
+                raise _TaskRunUnavailable("Task run database is unavailable")
+            return store
         except ValueError as exc:
             raise HTTPException(503, str(exc)) from exc
 
     @router.post("/tasks/{task_id}/runs", status_code=202)
     async def start(task_id: str, request: Request, body: TaskRunCreate = TaskRunCreate(), _: bool = Depends(auth)):
+        try:
+            return await start_task(task_id, request, body)
+        except _TaskRunUnavailable as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except _TaskRunConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    async def start_task(task_id: str, request: Request, body: TaskRunCreate):
         value = await task(task_id)
         from agno.company.execution import _automatic_task
         from agno.company.sandbox import _is_sandboxed
@@ -225,16 +228,15 @@ def get_company_runs_router(os: Any) -> APIRouter:
         if value.get("job_id"):
             original_db = run_database(value)
             prior_run = await _call(original_db, "get_run", run_id, deserialize=False)
-            if prior_run is not None and prior_run["session_id"] == value["session_id"]:
-                from agno.os.middleware.user_scope import caller_is_admin
-
+            if prior_run is not None:
+                if prior_run["session_id"] != value["session_id"]:
+                    raise _TaskRunConflict("Run identifier conflicts with another session")
                 await _reconcile_task_run(
                     db,
                     original_db,
                     value,
                     prior_run,
-                    caller or getattr(component, "user_id", None),
-                    is_admin=caller_is_admin(request),
+                    _reservation_owner(value, prior_run),
                     worker=queue,
                 )
                 return JSONResponse(
@@ -248,17 +250,6 @@ def get_company_runs_router(os: Any) -> APIRouter:
             raise HTTPException(409, "Task executor requires a database for durable runs")
         if value.get("job_id") and run_database(value) is not run_db:
             raise HTTPException(409, "A Task session must stay in its original executor database")
-        # The ordinary run route owns session permissions, including on revisions.
-        from agno.db.base import SessionType
-        from agno.os.middleware.user_scope import assert_session_writable, caller_is_admin
-
-        await assert_session_writable(
-            run_db,
-            value.get("session_id"),
-            caller or getattr(component, "user_id", None),
-            session_type=SessionType(value["executor_type"]),
-            is_admin=caller_is_admin(request),
-        )
         if value.get("job_id") and value["job_id"] != run_id:
             previous = await queue.store.get_job(value["job_id"])
             previous_status = previous["status"] if previous else None
@@ -269,12 +260,15 @@ def get_company_runs_router(os: Any) -> APIRouter:
                         run_db,
                         value,
                         previous_run,
-                        caller or getattr(component, "user_id", None),
+                        _reservation_owner(value, previous_run),
                         queue,
-                        is_admin=caller_is_admin(request),
                     )
                     previous_status = {"ERROR": "failed", "CANCELLED": "cancelled", "COMPLETED": "completed"}.get(
                         previous_run["status"]
+                    )
+                elif (value.get("result") or {}).get("run_id") == value["job_id"]:
+                    previous_status = {"ERROR": "failed", "CANCELLED": "cancelled", "COMPLETED": "completed"}.get(
+                        value["result"].get("status")
                     )
             if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
@@ -286,6 +280,18 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 and value["status"] not in {"in_review", "ready"}
             ):
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
+        if _pending_task_attempt(value) is not None:
+            from agno.company.execution import _recover_task
+
+            recovered = await _recover_task(os, queue, value)
+            if recovered is not None:
+                return JSONResponse(
+                    {"run_id": value["job_id"], "session_id": value["session_id"], "status": recovered["status"]},
+                    status_code=202,
+                )
+            raise HTTPException(409, "Start the next Task attempt after accepting a retry")
+        owner = _task_session_owner(value, component)
+        await _prepare_task_session(run_db, value, owner)
         try:
             from agno.company.sandbox import _is_sandboxed
 
@@ -308,18 +314,21 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 task_run_fields(value, body.attempt, caller, run_db.id)
         except ValueError as exc:
             raise HTTPException(409, str(exc))
-        token = _task_submission.set({"db": db, "task": value, "attempt": body.attempt, "run_db_id": run_db.id})
+        token = _task_submission.set(
+            {"db": db, "task": value, "attempt": body.attempt, "run_db_id": run_db.id, "started_by": caller}
+        )
         try:
             return await _run_route(
                 request,
                 path,
                 "POST",
-                {
+                owner=owner,
+                form={
                     "message": message,
                     "stream": "false",
                     "background": "true",
                     "session_id": value["session_id"],
-                    **({"user_id": caller} if caller is not None else {}),
+                    **({"user_id": owner} if owner is not None else {}),
                 },
                 key=f"company:{task_id}:{body.attempt}",
                 checkout=(value.get("metadata") or {}).get("checkout"),
@@ -398,39 +407,41 @@ def get_company_runs_router(os: Any) -> APIRouter:
 
     @router.post("/runs/{run_id}/cancel")
     async def cancel(run_id: str, request: Request, _: bool = Depends(auth)):
+        try:
+            return await cancel_task_run(run_id, request)
+        except _TaskRunUnavailable as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except _TaskRunConflict as exc:
+            raise HTTPException(409, str(exc)) from exc
+
+    async def cancel_task_run(run_id: str, request: Request):
         get_scoped_user_id(request)
-        job, _task = await company_run(run_id, request)
-        value = {"executor_type": job["component_type"], "executor_id": job["component_id"]}
-        component = executor(value)
+        job, value = await company_run(run_id, request)
+        target = {"executor_type": job["component_type"], "executor_id": job["component_id"]}
+        executor(target)
+        path = endpoint(target)
+        await _require_endpoint_permission(request, path, "POST", action="accept")
         if (job.get("payload") or {}).get("company_task_id"):
-            await _reserve_task(db, job)
+            value = await _reserve_task(db, job) or value
+        original_db = run_database(value)
+        run = await _call(original_db, "get_run", run_id, deserialize=False)
+        if run is not None and run["session_id"] != value["session_id"]:
+            raise _TaskRunConflict("Run identifier conflicts with another session")
+        owner = _reservation_owner(value, run) if run is not None else job.get("user_id")
         response = await _run_route(
-            request, endpoint(value) + f"/{quote(run_id, safe='')}/cancel", "POST", session_id=job["session_id"]
+            request,
+            path + f"/{quote(run_id, safe='')}/cancel",
+            "POST",
+            owner=owner,
+            session_id=job["session_id"],
         )
         if response.status_code < 300:
-            from agno.os.middleware.user_scope import caller_is_admin
-
-            original_db = run_database(_task)
             run = await _call(original_db, "get_run", run_id, deserialize=False)
             if run is not None:
-                caller = (
-                    get_scoped_user_id(request)
-                    or getattr(request.state, "user_id", None)
-                    or getattr(component, "user_id", None)
-                )
+                owner = _reservation_owner(value, run)
                 queue = getattr(request.app.state, "queue_worker", None)
-                await _cancel_ticketless_pending_run(
-                    original_db, _task, run, caller, queue, is_admin=caller_is_admin(request)
-                )
-                await _reconcile_task_run(
-                    db,
-                    original_db,
-                    _task,
-                    run,
-                    caller,
-                    is_admin=caller_is_admin(request),
-                    worker=queue,
-                )
+                await _cancel_ticketless_pending_run(original_db, value, run, owner, queue)
+                await _reconcile_task_run(db, original_db, value, run, owner, worker=queue)
         return response
 
     @router.get("/attention")

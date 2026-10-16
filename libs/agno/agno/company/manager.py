@@ -28,7 +28,10 @@ class CompanyManager:
     that owner. On create it records the accountable owner.
     """
 
-    def __init__(self, db: BaseDb, registry: Any = None, schedule_db: Any = None):
+    def __init__(
+        self, db: BaseDb, registry: Any = None, schedule_db: Any = None, automation_history_retention_days: int = 30
+    ):
+        self.automation_history_retention_days = automation_history_retention_days
         self.db = db
         self.registry = registry
         self.schedule_db = schedule_db if schedule_db is not None else db
@@ -415,9 +418,9 @@ class CompanyManager:
             auto_accept=auto_accept,
         )
 
-    def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
+    def attention(self, product_id: Optional[str] = None) -> Dict[str, Any]:
         """Company-wide counts over the same filters used by the Task list."""
-        counts = {}
+        counts: Dict[str, Any] = {}
         for name, filters in (
             ("proposals", {"status": "backlog"}),
             ("in_review", {"status": "in_review"}),
@@ -440,6 +443,12 @@ class CompanyManager:
                     break
                 page += 1
         counts["failed"] += _failed_routines(self.schedule_db, products)
+        from agno.company.automation_history import automation_failures
+
+        failures = automation_failures(self.schedule_db, self.db, product_id)
+        if failures:
+            counts["automation_failures"] = failures
+            counts["failed"] += len(failures)
         return counts
 
     def get_wiki(self, product_id: Optional[str] = None):
@@ -831,7 +840,14 @@ class AsyncCompanyManager:
     that owner. On create it records the accountable owner.
     """
 
-    def __init__(self, db: AsyncBaseDb, registry: Any = None, schedule_db: Any = None):
+    def __init__(
+        self,
+        db: AsyncBaseDb,
+        registry: Any = None,
+        schedule_db: Any = None,
+        automation_history_retention_days: int = 30,
+    ):
+        self.automation_history_retention_days = automation_history_retention_days
         self.db = db
         self.registry = registry
         self.schedule_db = schedule_db if schedule_db is not None else db
@@ -1222,9 +1238,9 @@ class AsyncCompanyManager:
             auto_accept=auto_accept,
         )
 
-    async def attention(self, product_id: Optional[str] = None) -> Dict[str, int]:
+    async def attention(self, product_id: Optional[str] = None) -> Dict[str, Any]:
         """Company-wide counts over the same filters used by the Task list."""
-        counts = {}
+        counts: Dict[str, Any] = {}
         for name, filters in (
             ("proposals", {"status": "backlog"}),
             ("in_review", {"status": "in_review"}),
@@ -1247,6 +1263,12 @@ class AsyncCompanyManager:
                     break
                 page += 1
         counts["failed"] += await _afailed_routines(self.schedule_db, products)
+        from agno.company.automation_history import aautomation_failures
+
+        failures = await aautomation_failures(self.schedule_db, self.db, product_id)
+        if failures:
+            counts["automation_failures"] = failures
+            counts["failed"] += len(failures)
         return counts
 
     async def get_wiki(self, product_id: Optional[str] = None):

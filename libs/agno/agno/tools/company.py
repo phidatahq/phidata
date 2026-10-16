@@ -93,6 +93,7 @@ class CompanyTools(Toolkit):
     ):
         self._interfaces_explicit = interfaces is not None
         self.interfaces = interfaces if interfaces is not None else []
+        self._automation_history_retention_days = 30
         self._schedule_db = db
         self.db = db
         self.user_isolation = user_isolation
@@ -145,12 +146,26 @@ class CompanyTools(Toolkit):
     def _sync(self):
         if isinstance(self.db, AsyncBaseDb):
             raise TypeError("Use async Company tools with an asynchronous database")
-        return CompanyManager(self.db, schedule_db=self._schedule_db)
+        return CompanyManager(
+            self.db,
+            schedule_db=self._schedule_db,
+            automation_history_retention_days=self._automation_history_retention_days,
+        )
 
     def _async(self):
         if isinstance(self.db, AsyncBaseDb):
-            return AsyncCompanyManager(self.db, schedule_db=self._schedule_db)
-        return _AsyncSyncManager(CompanyManager(self.db, schedule_db=self._schedule_db))
+            return AsyncCompanyManager(
+                self.db,
+                schedule_db=self._schedule_db,
+                automation_history_retention_days=self._automation_history_retention_days,
+            )
+        return _AsyncSyncManager(
+            CompanyManager(
+                self.db,
+                schedule_db=self._schedule_db,
+                automation_history_retention_days=self._automation_history_retention_days,
+            )
+        )
 
     @requires_permission()
     def list_company_products(

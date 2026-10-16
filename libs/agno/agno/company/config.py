@@ -16,8 +16,15 @@ class CompanyConfig:
     model: Optional[Model] = None
     products: List["Product"] = field(default_factory=list)
     acceptance_checks: Dict[str, Callable[[Dict[str, Any], Any], Any]] = field(default_factory=dict)
+    automation_history_retention_days: int = 30
     max_patch_bytes: int = 2 * 1024 * 1024
 
     def __post_init__(self) -> None:
         if type(self.max_patch_bytes) is not int or self.max_patch_bytes < 1:
             raise ValueError("max_patch_bytes must be a positive integer")
+        if (
+            isinstance(self.automation_history_retention_days, bool)
+            or not isinstance(self.automation_history_retention_days, int)
+            or self.automation_history_retention_days < 1
+        ):
+            raise ValueError("automation_history_retention_days must be a positive integer")

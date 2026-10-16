@@ -633,7 +633,7 @@ class AgentOS:
         self._scheduler_enabled = scheduler
         self._scheduler_poll_interval = scheduler_poll_interval
         self._scheduler_base_url = scheduler_base_url
-        if self._scheduler_enabled and not internal_service_token:
+        if (self._scheduler_enabled or company is not None) and not internal_service_token:
             import secrets
 
             internal_service_token = secrets.token_urlsafe(32)
@@ -1501,6 +1501,7 @@ class AgentOS:
                     if not toolkit._interfaces_explicit:
                         toolkit.interfaces = self.interfaces
                     toolkit._schedule_db = self.db
+                    toolkit._automation_history_retention_days = self.company.automation_history_retention_days
                     toolkit.user_isolation = toolkit.user_isolation or bool(
                         self.user_isolation
                         or (

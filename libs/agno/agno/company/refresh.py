@@ -80,6 +80,14 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
             if await _call(manager, "delete_" + kind, record["id"], updated_before=cutoff):
                 result["archived_" + kind + "s"].append(record["id"])
 
+    from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
+
+    result["deleted_automation_runs"] = await _call(
+        manager.schedule_db,
+        "delete_schedule_runs",
+        COMPANY_AUTOMATION_SCHEDULE_ID,
+        before=int(time.time()) - manager.automation_history_retention_days * 86400,
+    )
     wiki = await _call(manager, "get_wiki", product_id)
     filesystem = wiki.backend.filesystem
     for page in await filesystem.alist():

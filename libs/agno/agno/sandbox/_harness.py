@@ -11,7 +11,7 @@ import json
 import os
 import time
 import weakref
-from dataclasses import MISSING, fields
+from dataclasses import MISSING, asdict, fields
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Tuple
 from uuid import uuid4
@@ -160,6 +160,8 @@ def coordinator(agent: "BaseExternalAgent") -> "SandboxCoordinator":
 def env(agent: "BaseExternalAgent") -> Dict[str, str]:
     runtime = agent._sandbox_runtime or ""
     configured = dict(_sandbox(agent).env or {})
+    if "GITHUB_TOKEN" in configured:
+        raise ValueError("Sandbox repository access requires GITHUB_READ_TOKEN; remove GITHUB_TOKEN")
     # Claude Code on Bedrock or Vertex authenticates with cloud credentials, so a host key
     # would go unused while agent code inside the sandbox could still read it.
     if runtime == "claude" and any(configured.get(flag) for flag in _CLAUDE_CLOUD_FLAGS):
@@ -193,6 +195,12 @@ def _config(agent: "BaseExternalAgent", output_schema: Any) -> Dict[str, Any]:
         if _host_paths(item.name, value):
             host_only.append(item.name)
             continue
+        if item.name == "repository":
+            from agno.sandbox.repository import Repository
+
+            if not isinstance(value, Repository):
+                raise TypeError("agent.repository must be a Repository")
+            value = asdict(value)
         try:
             config[item.name] = json.loads(json.dumps(value, allow_nan=False))
         except (TypeError, ValueError) as error:
@@ -212,6 +220,9 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     """Validate one submission and return the run options it carries."""
     from agno.sandbox.protocol import validate_request
 
+    env(agent)
+    if "repository" in kwargs:
+        raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
     if not isinstance(input, str):
         raise ValueError("Sandboxed agent input must be text")
     extra = {key: value for key, value in kwargs.items() if value is not None}

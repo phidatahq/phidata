@@ -528,6 +528,7 @@ log_cli = true
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
+  "live: opt-in tests against public external services",
   "integration: tests that need live services (kernels, databases)",
 ]
 

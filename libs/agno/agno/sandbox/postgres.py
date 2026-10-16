@@ -788,6 +788,7 @@ class _SandboxStore:
                     "resumed": bool(record.get("resumed")),
                     "checkpoint": record["staged_checkpoint"],
                     "execution_id": record["execution_id"],
+                    **({"repository": result["repository"]} if result.get("repository") is not None else {}),
                 },
             }
             session_data = dict(session["session_data"] or {})

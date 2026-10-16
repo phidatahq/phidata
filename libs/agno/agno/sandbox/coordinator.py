@@ -562,7 +562,8 @@ class SandboxCoordinator:
                                     status="ERROR",
                                     reason=str(page.result.get("error", "Runtime outcome is unknown"))[:8192],
                                     # Any other failure may have run tools with side effects; never replay it.
-                                    retryable=page.result.get("reason") == "native_state_missing",
+                                    retryable=page.result.get("reason")
+                                    in ("native_state_missing", "repository_preparation_failed"),
                                 )
                                 yield self._terminal(committed)
                                 yield RunOutput.from_dict(committed)

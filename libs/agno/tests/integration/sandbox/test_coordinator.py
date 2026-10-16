@@ -1,9 +1,9 @@
 """Full Docker + Postgres recovery boundary, using a credential-free runtime."""
 
 import asyncio
-import time
 import json
 import os
+import time
 from dataclasses import dataclass, field, replace
 from typing import Dict
 from uuid import uuid4
@@ -18,9 +18,8 @@ from agno.run.base import RunStatus
 from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
-from agno.sandbox.docker import DockerSandbox
+from agno.sandbox.docker import DockerCheckpointTransfer, DockerSandbox
 from agno.sandbox.postgres import SandboxSessionBusy
-from agno.sandbox.docker import DockerCheckpointTransfer
 
 URL, IMAGE = os.environ.get("AGNO_TEST_SANDBOX_DB_URL"), os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
 pytestmark = [
@@ -1001,3 +1000,54 @@ async def test_cancelling_a_running_attachment_turn_discards_its_files_and_keeps
     assert after["checkpoint"] == before["checkpoint"] and after["phase"] == "idle"
     assert await recovered_effects(coordinator, root) == ["first"]
     assert not list((await restored_workspace(coordinator, root)).glob(".agno/uploads/*"))
+
+
+async def test_repository_preparation_failure_is_retryable(system):
+    coordinator, spec, _ = system
+    # This computer has no network: Git fails before the fixture can run.
+    output = await run(
+        coordinator, spec, config={"repository": {"url": "https://github.com/example/application", "branch": "main"}}
+    )
+    assert output.status == RunStatus.error
+    assert output.metadata["retryable"] is True
+    assert "Repository preparation failed" in output.content
+    record = (await binding(coordinator))["record"]
+    assert not record.get("checkpoint") and not record.get("native")
+
+
+@pytest.mark.live
+@pytest.mark.skipif(os.environ.get("AGNO_TEST_LIVE_REPOSITORY") != "1", reason="Set AGNO_TEST_LIVE_REPOSITORY=1")
+async def test_live_repository_pin_warm_resume_and_replacement(system):
+    coordinator, spec, tmp_path = system
+    coordinator.provider.network = "isolated"
+    coordinator.warm_computer_seconds = 300
+    config = {"repository": {"url": "https://github.com/octocat/Hello-World", "branch": "master"}}
+    first = await run(coordinator, spec, config=config)
+    assert first.status == RunStatus.completed, first.content
+    pin = first.metadata["sandbox"]["repository"]
+    handle = handles_of(coordinator)[-1]
+    await coordinator.provider.aresume(handle)
+    edited = await coordinator.provider.aexec(
+        handle, ["sh", "-c", "printf 'engineer edit' > /workspace/repository/extra.txt"]
+    )
+    assert edited.exit_code == 0
+    second = await run(coordinator, spec, "second", config=config)
+    assert second.status == RunStatus.completed, second.content
+    assert second.metadata["sandbox"]["resumed"] is True
+    assert second.metadata["sandbox"]["repository"] == pin
+    await coordinator.provider.adestroy(handle)
+    third = await run(coordinator, spec, "third", config=config)
+    assert third.status == RunStatus.completed, third.content
+    assert third.metadata["sandbox"]["resumed"] is False
+    assert third.metadata["sandbox"]["repository"] == pin
+    restored = tmp_path / "repository-checkpoint"
+    await coordinator.transfer.store.arestore(CheckpointRef(**third.metadata["sandbox"]["checkpoint"]), restored)
+    assert json.loads((restored / "native/repository.json").read_text()) == pin
+    assert (restored / "workspace/repository/extra.txt").read_text() == "engineer edit"
+    mismatch = await run(
+        coordinator, spec, "mismatch", config={"repository": {**config["repository"], "branch": "other"}}
+    )
+    assert mismatch.status == RunStatus.error and "pinned source" in mismatch.content
+    assert mismatch.metadata["retryable"] is False
+    missing = await run(coordinator, spec, "missing", config={})
+    assert missing.status == RunStatus.error and "agent.repository" in missing.content

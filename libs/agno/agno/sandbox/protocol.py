@@ -37,6 +37,12 @@ def validate_request(request: Dict[str, Any]) -> None:
         "codex_bin",
     } & set(request.get("config", {})):
         raise ValueError("Runtime owns database, workspace, identity, process environment and retry configuration")
+    if "repository" in request or "_repository" in request.get("config", {}):
+        raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
+    if "repository" in request.get("config", {}):
+        from agno.sandbox.repository import validate_repository
+
+        validate_repository(request["config"]["repository"])
     from agno.sandbox.media import validate_media
 
     validate_media(request.get("media", []))

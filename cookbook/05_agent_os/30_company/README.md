@@ -848,3 +848,38 @@ Sandboxed executors receive Product wiki pages as file attachments, smallest
 first, up to 16 files and 512 KiB total. Whole pages that do not fit are omitted
 and named in the message. The brief and Source evidence remain in the message.
 Ordinary executors retain their existing message and result shapes.
+
+
+### Host publication and verified completion
+
+`09_sandboxed_engineers.py` skips publication by default. To publish to a repository
+you control, set `COMPANY_PUBLISH=1`, `COMPANY_REPOSITORY=https://github.com/<owner>/<repo>`,
+`COMPANY_BRANCH=main`, and `COMPANY_PUBLISH_TOKEN` on the host. This mode asks the
+engineer to create `COMPANY_DEMO.md`, then publishes its stored patch. It creates
+one `company/task-<id>` branch and pull request per Task. Later attempts update it.
+The example makes live model calls and writes to the selected repository.
+
+For private reads, set `GITHUB_READ_TOKEN` with repository read permission. Only
+that variable is passed to `Sandbox.env`. The git Source's `credential_ref` names
+`GITHUB_READ_TOKEN`; `config.publish_credential_ref` names `COMPANY_PUBLISH_TOKEN`,
+which needs repository contents and pull-request write permissions and stays on
+the host. Never put the write token in the sandbox configuration.
+
+Authenticated callers of `POST /company/tasks/{id}/publish?attempt=1` need both
+`tasks:write` and `sources:publish`; omission selects the latest attempt. A missing
+or empty patch, missing write credential reference, or unset token returns 409.
+The 202 response contains `number`, `url`, `head_sha`, `base`, and `branch`.
+
+Automatic publication additionally requires `publish: true` in the accepting
+Routine's `auto_accept`, a current policy and accepting identity, and passing
+`required_checks`. Registered server checks run again before publication. Other
+names are GitHub check runs and must already pass on the exact deterministic
+publication head; missing, queued, failed, or different-head checks refuse the
+push. A workflow that only starts CI after a push cannot satisfy this pre-push
+gate on its first publication; use a server check or externally prevalidated head.
+
+The automation tick and Refresh reconcile In review Tasks. A merged PR must still
+name the recorded head, and its merge commit must contain that head, before the
+Task moves to Done with reason `Verified merge`. Squash/rebase merges without that
+ancestry, different heads and closed unmerged PRs remain In review for a human.
+The recorded observation explains the outcome. Revisions invalidate review evidence.

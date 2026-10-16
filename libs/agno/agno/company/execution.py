@@ -323,6 +323,13 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
         )
     component = await worker._aresolve_job_component(job)
     _validate_executor_tools(component)
+    from agno.company.sandbox import _accept_sandbox, _is_sandboxed
+
+    if _is_sandboxed(component):
+        from agno.company.refresh import _records
+
+        sources = await _records(db, "get_sources", product_id=task["product_id"])
+        _accept_sandbox(component, sources)
 
 
 async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None) -> None:

@@ -1,0 +1,11 @@
+{
+  "repository": {"id": 1, "name": "application", "full_name": "example/application", "url": "https://api.github.com/repos/example/application", "html_url": "https://github.com/example/application", "owner": {"login": "example"}},
+  "pull_request": {
+    "number": 12, "title": "Update application", "body": "Change application", "state": "open",
+    "url": "https://api.github.com/repos/example/application/pulls/12", "html_url": "https://github.com/example/application/pull/12",
+    "user": {"login": "publisher"}, "created_at": "2026-10-16T10:00:00Z", "updated_at": "2026-10-16T10:00:00Z",
+    "head": {"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "ref": "company/task-1", "repo": {"full_name": "example/application"}},
+    "base": {"ref": "main", "repo": {"full_name": "example/application"}},
+    "mergeable": true, "mergeable_state": "clean", "merged": false, "merge_commit_sha": null
+  }
+}

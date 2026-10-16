@@ -94,6 +94,7 @@ async def run(
     check: bool = True,
     env: dict[str, str] | None = None,
     timeout: float | None = 120.0,
+    inherit_env: bool = True,
 ) -> GitResult:
     """Run ``git <args>`` asynchronously and capture stdout/stderr.
 
@@ -106,12 +107,13 @@ async def run(
     :param env: Extra environment variables. ``GIT_TERMINAL_PROMPT=0``
         is always added so a bad PAT fails fast instead of hanging on
         stdin.
+    :param inherit_env: Inherit host variables. Set False for isolated host publication commands.
     :param timeout: Wall-clock seconds before the subprocess is killed.
         ``None`` disables the timeout.
     :return: ``GitResult(returncode, stdout, stderr)`` with both streams
         already scrubbed.
     """
-    full_env = os.environ.copy()
+    full_env = os.environ.copy() if inherit_env else {"PATH": os.environ.get("PATH", os.defpath)}
     if env:
         full_env.update(env)
     full_env["GIT_TERMINAL_PROMPT"] = "0"
@@ -126,6 +128,10 @@ async def run(
     )
     try:
         stdout_b, stderr_b = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.CancelledError:
+        proc.kill()
+        await proc.wait()
+        raise
     except asyncio.TimeoutError:
         proc.kill()
         await proc.wait()
@@ -176,3 +182,22 @@ def build_authenticated_url(repo_url: str, token: str) -> str:
     if "@" in rest.split("/", 1)[0]:
         rest = rest.split("@", 1)[1]
     return f"https://x-access-token:{token}@{rest}"
+
+
+def _credential_env(repo_url: str, token: str) -> dict[str, str]:
+    """Supply a credential helper only to the child; never write tokens to config or argv."""
+    helper = (
+        '!f() { if [ "$1" = get ]; then printf \'username=x-access-token\\npassword=%s\\n\' "$AGNO_GIT_TOKEN"; fi; }; f'
+    )
+    values = [
+        ("credential.helper", ""),
+        ("credential.helper", helper),
+        ("credential.useHttpPath", "true"),
+        ("url." + repo_url + ".insteadOf", repo_url),
+        ("url." + repo_url + ".pushInsteadOf", repo_url),
+    ]
+    env = {"GIT_CONFIG_COUNT": str(len(values)), "AGNO_GIT_TOKEN": token}
+    for index, (key, value) in enumerate(values):
+        env["GIT_CONFIG_KEY_" + str(index)] = key
+        env["GIT_CONFIG_VALUE_" + str(index)] = value
+    return env

@@ -3169,3 +3169,25 @@ changes. The cookbook configuration smoke and full format/validation scripts
 passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 
 ---
+
+## PR 9: host publication and verified completion
+
+### test_company_publication.py and test_github.py
+
+**Status:** PASS
+
+**Description:** 120 focused cases passed across SQLite, async SQLite, PostgreSQL and async PostgreSQL, plus JWT/managed-role routes and the existing GitHub toolkit suite. Real bare Git remotes cover first publication, crash recovery before and after PR creation, concurrency, revisions, exact merge ancestry, mismatched and closed PRs, required check runs, optimistic result fencing and sync/async entry points. GitHub calls replay checked-in API response shapes. Token assertions cover Git argv/config, Task records, persisted run rows, sandbox environment, schedule payloads and exception logs.
+
+**Result:** All focused cases passed. Format and clean Python 3.10 validation passed. Wider suites will run after the PR is opened.
+
+---
+
+### 09_sandboxed_engineers.py --config-only
+
+**Status:** PASS
+
+**Description:** Both `--executor codex` and `--executor claude` configurations initialized successfully. Publication is gated behind `COMPANY_PUBLISH=1` and requires an explicitly selected repository and host write token.
+
+**Result:** Configuration checks passed. No live model calls or actual GitHub publication were run.
+
+---

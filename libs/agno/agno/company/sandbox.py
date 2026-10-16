@@ -42,7 +42,19 @@ def _accept_sandbox(component: Any, sources: list) -> Dict[str, Any]:
     ]
     if not usable:
         raise ValueError("Sandboxed executor requires GITHUB_READ_TOKEN in Sandbox.env for this git Source")
-    return sorted(usable, key=lambda source: source["id"])[0]
+    source = sorted(usable, key=lambda source: source["id"])[0]
+    _validate_publish_environment(component, source)
+    return source
+
+
+def _validate_publish_environment(component: Any, source: Dict[str, Any]) -> None:
+    import os
+
+    ref = (source.get("config") or {}).get("publish_credential_ref")
+    env = component.sandbox.env or {}
+    token = os.environ.get(ref, "") if ref else ""
+    if ref and (ref in env or (token and token in env.values())):
+        raise ValueError("Publication credentials must remain on the host")
 
 
 def _accept_checkout(component: Any, task: Dict[str, Any]) -> None:

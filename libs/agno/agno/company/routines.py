@@ -195,10 +195,17 @@ async def _authorize_auto_accept(request, policy, agent_os=None):
                 raise ValueError("Automatic acceptance expiry must be in the future")
             if agent_os is not None:
                 _automatic_executor(agent_os.registry, parsed.executor_type, parsed.executor_id)
-                if any(name not in _acceptance_checks(agent_os) for name in parsed.required_checks):
+                if not parsed.publish and any(
+                    name not in _acceptance_checks(agent_os) for name in parsed.required_checks
+                ):
                     raise ValueError("Unknown automatic acceptance check")
         except ValueError as exc:
             raise HTTPException(422, str(exc))
+        if parsed.publish and authority is not None:
+            try:
+                await authority.arequire("sources", "publish")
+            except PermissionError as exc:
+                raise HTTPException(403, str(exc))
         if parsed.complete_projects and authority is not None:
             try:
                 await authority.arequire("projects", "write")
@@ -241,6 +248,8 @@ def _policy_fingerprint(schedule):
     # existing Task-only policies or reset their budgets on upgrade.
     if isinstance(content, dict) and not content["complete_projects"]:
         content.pop("complete_projects")
+    if isinstance(content, dict) and not content["publish"]:
+        content.pop("publish")
     return hashlib.sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -443,7 +452,8 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 result = {"status": "failed", "error": str(exc)}
             outcomes = (result.get("output") or {}).get("tasks", [])
             active = any(
-                item.get("status") in {"accepted", "done"} or item.get("action") in {"submitted", "reconciled"}
+                item.get("status") in {"accepted", "done"}
+                or item.get("action") in {"submitted", "reconciled", "published"}
                 for item in outcomes
             )
             if result["status"] == "failed" or active:
@@ -527,7 +537,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         # Snapshot the candidate ids before mutation so paging cannot skip work.
         tasks: List[Dict[str, Any]] = []
         seen = set()
-        for status in ("backlog", "ready", "in_progress"):
+        for status in ("backlog", "ready", "in_progress", "in_review"):
             page = 1
             while True:
                 _check_automation_deadline()
@@ -547,6 +557,11 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 task = await _call(db, "get_task", candidate["id"])
                 if task is None:
                     raise _AutomationSkip("Task was deleted")
+                if task["status"] == "in_review":
+                    outcome = await self._review(task)
+                    if outcome:
+                        outcomes.append(outcome)
+                    continue
                 if task["status"] == "backlog":
                     if task.get("origin") != "routine" or not task.get("routine_id"):
                         continue
@@ -593,6 +608,60 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 )
         outcomes.extend(await self._complete_projects())
         return outcomes
+
+    async def _review(self, task):
+        from agno.company.manager import AsyncCompanyManager, CompanyManager
+        from agno.company.publish import _policy, apublish_task, areconcile_task
+        from agno.db.base import AsyncBaseDb
+        from agno.os.authz.run_context import restore_authorization
+        from agno.run.authorization import AUTHORIZATION_KEY, authorization_scope
+
+        os = self.agent_os
+        result = task.get("result") or {}
+        acceptances = [entry for entry in task["transitions"] if entry.get("target") == "ready"]
+        if not acceptances:
+            return None
+        accepted = acceptances[-1]
+        if not result.get("pr") and not accepted.get("auto_accept"):
+            return None
+        authority = restore_authorization(self.app, accepted.get(AUTHORIZATION_KEY))
+        if (authority is None and os.authorization) or isinstance(authority, _ExecutorAuthorization):
+            raise _AutomationSkip("Publication requires saved human authority")
+        if authority is not None and authority.service_account:
+            raise _AutomationSkip("Automatic publication requires human authority")
+        user_store = getattr(self.app.state, "user_store", None)
+        if user_store is not None and task.get("accepted_by"):
+            if await user_store.ais_disabled(task["accepted_by"]):
+                raise _AutomationSkip("Accepting user is disabled")
+        with authorization_scope(lambda: authority):
+            if result.get("pr"):
+                reconciled = await areconcile_task(os._company_db, task["id"])
+                if reconciled is None or reconciled["status"] != "in_review":
+                    return {
+                        "task_id": task["id"],
+                        "action": "reconciled",
+                        "status": "done" if reconciled else "changed",
+                    }
+            policy = await _policy(os._company_db, task, os.db)
+            if not policy or not policy.get("publish"):
+                return None
+            latest = max((entry["attempt"] for entry in task["transitions"] if "attempt" in entry), default=0)
+            if result.get("published_attempt") == latest:
+                return None
+            if authority is not None:
+                await authority.arequire("schedules", "write")
+            manager = (AsyncCompanyManager if isinstance(os._company_db, AsyncBaseDb) else CompanyManager)(
+                os._company_db, os.registry
+            )
+            pr = await apublish_task(
+                os._company_db,
+                task["id"],
+                manager=manager,
+                schedule_db=os.db,
+                checks=_acceptance_checks(os),
+                task_url=self.base_url.rstrip("/") + "/company/tasks/" + task["id"],
+            )
+            return {"task_id": task["id"], "action": "published", "pr": pr}
 
     async def _complete_projects(self):
         from agno.company.manager import AsyncCompanyManager, CompanyManager
@@ -753,6 +822,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         with authorization_scope(lambda: authority):
             # Reject unknown checks and cheap local failures before any Source IO.
             names = list(dict.fromkeys(policy.required_checks))
+            if policy.publish:
+                # GitHub checks are evaluated against the exact publication commit.
+                names = [name for name in names if name in checks]
             if any(name not in checks for name in names):
                 raise _AutomationSkip("Unknown automatic acceptance check")
             names.sort(key=lambda name: 0 if name in {"executor_registered", "project_active"} else 1)

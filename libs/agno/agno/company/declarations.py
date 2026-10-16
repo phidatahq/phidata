@@ -44,6 +44,7 @@ class AutoAccept(BaseModel):
     required_checks: List[str] = Field(default_factory=lambda: ["executor_registered"], min_length=1)
     limits: AcceptanceLimits
     complete_projects: bool = False
+    publish: bool = False
 
 
 class Routine(BaseModel):

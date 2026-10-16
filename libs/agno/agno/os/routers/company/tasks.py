@@ -22,7 +22,7 @@ def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -
 
 
 def get_tasks_router(
-    db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings, registry: Any = None
+    db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings, registry: Any = None, agent_os: Any = None
 ) -> APIRouter:
     """Build Task routes using native async storage or off-thread sync calls."""
     router = APIRouter(prefix="/company", tags=["Tasks"], dependencies=[Depends(get_scoped_user_id)])
@@ -143,6 +143,32 @@ def get_tasks_router(
         if patch is None:
             raise HTTPException(404, "Task patch not found for this attempt")
         return Response(patch.encode("utf-8"), media_type="text/x-patch")
+
+    @router.post("/tasks/{task_id}/publish", status_code=202)
+    async def publish(
+        task_id: str, request: Request, attempt: Optional[int] = Query(None, ge=1), _: bool = Depends(auth_dependency)
+    ):
+        from agno.company.publish import apublish_task
+        from agno.company.routines import _acceptance_checks
+
+        if db is None:
+            raise HTTPException(503, "Company requires a database")
+        try:
+            return await apublish_task(
+                db,
+                task_id,
+                attempt,
+                manager=manager,
+                schedule_db=agent_os.db if agent_os else db,
+                checks=_acceptance_checks(agent_os) if agent_os else None,
+                task_url=str(request.base_url).rstrip("/") + "/company/tasks/" + task_id,
+            )
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from None
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from None
+        except (ValueError, RuntimeError) as exc:
+            raise HTTPException(409, str(exc)) from None
 
     @router.patch("/tasks/{task_id}", response_model=TaskResponse)
     async def update_task(task_id: str, body: TaskUpdate, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:

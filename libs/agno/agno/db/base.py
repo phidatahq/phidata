@@ -2003,6 +2003,12 @@ class BaseDb(ABC):
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
 
+    def update_task_publication(
+        self, task: Dict[str, Any], result: Dict[str, Any], verified_merge: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Atomically save publication evidence against the observed Task result and transitions."""
+        raise NotImplementedError
+
     def count_company_acceptances(
         self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None
     ) -> int:
@@ -3967,6 +3973,12 @@ class AsyncBaseDb(ABC):
     ) -> Optional[Dict[str, Any]]:
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
+
+    async def update_task_publication(
+        self, task: Dict[str, Any], result: Dict[str, Any], verified_merge: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Atomically save publication evidence against the observed Task result and transitions."""
+        raise NotImplementedError
 
     async def count_company_acceptances(
         self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None

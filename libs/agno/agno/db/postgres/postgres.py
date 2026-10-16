@@ -9767,6 +9767,36 @@ class PostgresDb(BaseDb):
             row = (sess.execute(stmt)).fetchone()
             return dict(row._mapping) if row else None
 
+    def update_task_publication(
+        self, task: Dict[str, Any], result: Dict[str, Any], verified_merge: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Save publication evidence only while the observed result and attempt are unchanged."""
+        from agno.db.schemas.tasks import task_transition_fields
+
+        table = self._get_table(table_type="tasks")
+        if table is None or task["status"] != "in_review":
+            return None
+        fields = (
+            task_transition_fields(task, "done", "Verified merge")
+            if verified_merge
+            else {"updated_at": int(time.time())}
+        )
+        stmt = (
+            table.update()
+            .where(
+                table.c.id == task["id"],
+                table.c.deleted_at.is_(None),
+                table.c.status == "in_review",
+                table.c.transitions == task["transitions"],
+                table.c.result == task["result"],
+            )
+            .values(**fields, result=result)
+            .returning(table)
+        )
+        with self.Session() as sess, sess.begin():
+            row = sess.execute(stmt).fetchone()
+            return dict(row._mapping) if row else None
+
     def count_company_acceptances(
         self, routine_id: str, policy: str, exclude_task_id: str, user_id: Optional[str] = None
     ) -> int:

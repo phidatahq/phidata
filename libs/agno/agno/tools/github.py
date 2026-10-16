@@ -1,3 +1,4 @@
+import asyncio
 import json
 from os import getenv
 from typing import Any, List, Optional
@@ -54,6 +55,11 @@ class GithubTools(Toolkit):
             self.list_issue_comments,
             self.edit_issue,
             self.create_pull_request,
+            self.update_pull_request,
+            self.get_pull_request_state,
+            self.list_commit_check_runs,
+            self.get_pull_request_merge_commit,
+            self.find_pull_request,
             self.create_file,
             self.get_file_content,
             self.update_file,
@@ -1771,3 +1777,95 @@ class GithubTools(Toolkit):
         except GithubException as e:
             logger.exception("Error searching issues and PRs")
             return json.dumps({"error": str(e)})
+
+    def update_pull_request(
+        self,
+        repo_name: str,
+        pr_number: int,
+        title: Optional[str] = None,
+        body: Optional[str] = None,
+        base: Optional[str] = None,
+    ) -> str:
+        """Update a pull request's supplied title, body and base branch."""
+        pr = self.g.get_repo(repo_name).get_pull(pr_number)
+        fields = {
+            key: value for key, value in {"title": title, "body": body, "base": base}.items() if value is not None
+        }
+        if fields:
+            pr.edit(**fields)
+        return json.dumps({"number": pr.number, "url": pr.html_url})
+
+    async def aupdate_pull_request(
+        self,
+        repo_name: str,
+        pr_number: int,
+        title: Optional[str] = None,
+        body: Optional[str] = None,
+        base: Optional[str] = None,
+    ) -> str:
+        """Async twin of update_pull_request."""
+        return await asyncio.to_thread(self.update_pull_request, repo_name, pr_number, title, body, base)
+
+    def get_pull_request_state(self, repo_name: str, pr_number: int) -> str:
+        """Read the exact head, base, mergeability and merged commit of a pull request."""
+        pr = self.g.get_repo(repo_name).get_pull(pr_number)
+        return json.dumps(
+            {
+                "number": pr.number,
+                "url": pr.html_url,
+                "state": pr.state,
+                "head_sha": pr.head.sha,
+                "branch": pr.head.ref,
+                "head_repo": pr.head.repo.full_name if pr.head.repo else None,
+                "base": pr.base.ref,
+                "mergeable": pr.mergeable,
+                "mergeable_state": pr.mergeable_state,
+                "merged": pr.merged,
+                "merge_commit": pr.merge_commit_sha if pr.merged else None,
+            }
+        )
+
+    async def aget_pull_request_state(self, repo_name: str, pr_number: int) -> str:
+        """Async twin of get_pull_request_state."""
+        return await asyncio.to_thread(self.get_pull_request_state, repo_name, pr_number)
+
+    def list_commit_check_runs(self, repo_name: str, commit_sha: str) -> str:
+        """List all latest check runs for an exact commit, including pending and failed checks."""
+        checks = self.g.get_repo(repo_name).get_commit(commit_sha).get_check_runs(filter="latest")
+        return json.dumps(
+            [
+                {
+                    "id": check.id,
+                    "name": check.name,
+                    "head_sha": check.head_sha,
+                    "status": check.status,
+                    "conclusion": check.conclusion,
+                }
+                for check in checks
+            ]
+        )
+
+    async def alist_commit_check_runs(self, repo_name: str, commit_sha: str) -> str:
+        """Async twin of list_commit_check_runs."""
+        return await asyncio.to_thread(self.list_commit_check_runs, repo_name, commit_sha)
+
+    def get_pull_request_merge_commit(self, repo_name: str, pr_number: int) -> str:
+        """Get the merge commit only after the pull request is actually merged."""
+        pr = self.g.get_repo(repo_name).get_pull(pr_number)
+        return json.dumps({"merged": pr.merged, "merge_commit": pr.merge_commit_sha if pr.merged else None})
+
+    async def aget_pull_request_merge_commit(self, repo_name: str, pr_number: int) -> str:
+        """Async twin of get_pull_request_merge_commit."""
+        return await asyncio.to_thread(self.get_pull_request_merge_commit, repo_name, pr_number)
+
+    def find_pull_request(self, repo_name: str, head: str, state: str = "open") -> str:
+        """Find a same-repository pull request by its exact head branch, without a page limit."""
+        owner = repo_name.split("/", 1)[0]
+        for pr in self.g.get_repo(repo_name).get_pulls(state=state, head=owner + ":" + head):
+            if pr.head.ref == head and pr.head.repo and pr.head.repo.full_name == repo_name:
+                return json.dumps({"number": pr.number, "url": pr.html_url, "state": pr.state})
+        return "null"
+
+    async def afind_pull_request(self, repo_name: str, head: str, state: str = "open") -> str:
+        """Async twin of find_pull_request."""
+        return await asyncio.to_thread(self.find_pull_request, repo_name, head, state)

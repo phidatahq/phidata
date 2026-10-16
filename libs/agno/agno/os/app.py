@@ -978,7 +978,7 @@ class AgentOS:
             updated_routers.append(get_heartbeat_router(self))
             updated_routers.append(get_projects_router(db=self._company_db, settings=self.settings))
             updated_routers.append(
-                get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry)
+                get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry, agent_os=self)
             )
             updated_routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
             updated_routers.append(get_company_runs_router(self))
@@ -1870,7 +1870,9 @@ class AgentOS:
             routers.append(get_products_router(db=self._company_db, settings=self.settings))
             routers.append(get_heartbeat_router(self))
             routers.append(get_projects_router(db=self._company_db, settings=self.settings))
-            routers.append(get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry))
+            routers.append(
+                get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry, agent_os=self)
+            )
             routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
             routers.append(get_company_runs_router(self))
         # Routes that require a database

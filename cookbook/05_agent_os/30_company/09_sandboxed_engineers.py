@@ -23,7 +23,22 @@ from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.docker import DockerSandbox
 from fastapi.testclient import TestClient
 
-repository = Repository("https://github.com/octocat/Hello-World", branch="master")
+publish_enabled = os.getenv("COMPANY_PUBLISH") == "1"
+repository = Repository(
+    os.getenv("COMPANY_REPOSITORY", "https://github.com/octocat/Hello-World"),
+    branch=os.getenv("COMPANY_BRANCH", "master"),
+)
+if publish_enabled and (
+    not os.getenv("COMPANY_REPOSITORY") or not os.getenv("COMPANY_PUBLISH_TOKEN")
+):
+    raise ValueError(
+        "Publication requires COMPANY_REPOSITORY you control and COMPANY_PUBLISH_TOKEN"
+    )
+read_env = (
+    {"GITHUB_READ_TOKEN": os.environ["GITHUB_READ_TOKEN"]}
+    if os.getenv("GITHUB_READ_TOKEN")
+    else {}
+)
 db = PostgresDb(
     db_url=os.getenv("DATABASE_URL", "postgresql+psycopg://ai:ai@localhost:5532/ai"),
     db_schema="company_engineering",
@@ -32,7 +47,11 @@ image = os.getenv("SANDBOX_IMAGE", "agno-sandbox:local")
 checkpoints = FileCheckpointStore(
     Path(os.getenv("SANDBOX_CHECKPOINTS", "tmp/company-checkpoints"))
 )
-instructions = "Inspect the checked-out repository, name a file you read and report its contents. Leave changes uncommitted; do not commit, change HEAD, push or publish."
+instructions = (
+    "Create a short COMPANY_DEMO.md describing a file you read. "
+    if publish_enabled
+    else "Inspect the checked-out repository, name a file you read and report its contents. "
+) + "Leave changes uncommitted; do not commit, change HEAD, push or publish."
 claude = ClaudeAgent(
     id="claude-engineer",
     db=db,
@@ -44,6 +63,7 @@ claude = ClaudeAgent(
         workspace_mb=2048,
         execution_timeout=1800,
         checkpoints=checkpoints,
+        env=read_env,
     ),
     system_prompt=instructions,
 )
@@ -58,6 +78,7 @@ codex = CodexAgent(
         workspace_mb=2048,
         execution_timeout=1800,
         checkpoints=checkpoints,
+        env=read_env,
     ),
     sandbox_mode="workspace-write",
     instructions=instructions,
@@ -87,7 +108,15 @@ def run(executor: str) -> None:
                 "product_id": product["id"],
                 "type": "git",
                 "reference": repository.url,
-                "config": {"branch": repository.branch},
+                "credential_ref": "GITHUB_READ_TOKEN" if read_env else None,
+                "config": {
+                    "branch": repository.branch,
+                    **(
+                        {"publish_credential_ref": "COMPANY_PUBLISH_TOKEN"}
+                        if publish_enabled
+                        else {}
+                    ),
+                },
             },
         )
         source_response.raise_for_status()
@@ -102,7 +131,9 @@ def run(executor: str) -> None:
                 "product_id": product["id"],
                 "project_id": project_response.json()["id"],
                 "title": "Inspect README",
-                "brief": "Read README and summarize its contents.",
+                "brief": "Create COMPANY_DEMO.md describing README."
+                if publish_enabled
+                else "Read README and summarize its contents.",
             },
         )
         task_response.raise_for_status()
@@ -139,7 +170,15 @@ def run(executor: str) -> None:
         print(json.dumps(task["result"]["changed_files"], indent=2))
         print("Patch bytes:", len(patch.content))
         print(json.dumps(task["metadata"]["checkout"], indent=2))
-        print("Task awaits human review")
+        if publish_enabled:
+            publication = client.post(path + "/publish")
+            publication.raise_for_status()
+            print(json.dumps(publication.json(), indent=2))
+        else:
+            print(
+                "Publication skipped; set COMPANY_PUBLISH=1 with a repository you control"
+            )
+        print("Task awaits human review; a verified merge completes it")
 
 
 if __name__ == "__main__":

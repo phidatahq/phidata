@@ -66,6 +66,11 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
         "archived_tasks": [],
         "deleted_pages": [],
     }
+    from agno.company.publish import areconcile_task
+
+    for task in await _records(manager, "list_tasks", product_id=product_id, status="in_review"):
+        if (task.get("result") or {}).get("pr"):
+            await areconcile_task(manager.db, task["id"])
     # Snapshot paging before deleting prevents offset pagination from skipping work.
     for kind in ("project", "task"):
         records = await _records(manager, "list_" + kind + "s", product_id=product_id)

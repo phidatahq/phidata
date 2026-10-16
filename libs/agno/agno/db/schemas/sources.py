@@ -32,9 +32,15 @@ def validate_source_fields(fields: Dict[str, Any]) -> None:
     config = fields.get("config")
     if config is not None:
         if not isinstance(config, dict) or set(config) - (
-            {"paths", "branch"} if fields.get("type") == "git" else {"paths"}
+            {"paths", "branch", "publish_credential_ref"} if fields.get("type") == "git" else {"paths"}
         ):
             raise ValueError("Source config supports paths and a git branch; credentials belong in the environment")
+        publish_ref = config.get("publish_credential_ref")
+        if publish_ref is not None:
+            if not isinstance(publish_ref, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", publish_ref):
+                raise ValueError("publish_credential_ref must name an environment variable")
+            if publish_ref in {credential, "GITHUB_READ_TOKEN"}:
+                raise ValueError("Read and publication credentials must use different environment variables")
         paths = config.get("paths", [])
         if not isinstance(paths, list) or not all(isinstance(path, str) and path.strip() for path in paths):
             raise ValueError("paths must be a list of non-empty relative file paths")

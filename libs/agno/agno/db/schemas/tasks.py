@@ -132,6 +132,7 @@ def task_run_fields(
                 "created_at": now,
                 "attempt": attempt,
                 "run_db_id": run_db_id,
+                **({"previous_result": existing["result"]} if existing.get("result") is not None else {}),
             },
         ],
     }

@@ -6603,7 +6603,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                     or tasks is None
                 ):
                     raise ValueError("Automatic completion requires an observed Project and its Tasks")
-                task_histories = (
+                task_histories: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
                             select(tasks.c.transitions).where(tasks.c.routine_id == auto_accept["routine_id"])
@@ -6612,7 +6612,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                     .scalars()
                     .all()
                 )
-                project_histories = (
+                project_histories: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (await sess.execute(select(table.c.transitions).where(table.c.id != project_id))).scalars().all()
                 )
                 if (
@@ -6972,7 +6972,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
         async with self.async_session_factory() as sess:
-            histories = (await sess.execute(stmt)).scalars().all()
+            histories: Sequence[Optional[List[Dict[str, Any]]]] = (await sess.execute(stmt)).scalars().all()
             if projects is not None:
                 project_stmt = select(projects.c.transitions)
                 if user_id is not None:

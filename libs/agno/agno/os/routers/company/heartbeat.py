@@ -57,6 +57,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         managed_by="company",
         company_reads=True,
         agent_os=agent_os,
+        defer_activation=True,
     )
     handlers = {route.name: route.endpoint for route in scheduler.routes if isinstance(route, APIRoute)}
 
@@ -172,7 +173,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         schedule = await call(ScheduleCreate, **fields)
         row = await call(handlers["create_schedule"], schedule, request)
         await call(db.add_product_routine, body.product_id, row["id"])
-        return row
+        return await call(handlers["enable_schedule"], row["id"], request)
 
     @router.patch("/routines/{routine_id}", response_model=ScheduleResponse)
     async def update_routine(routine_id: str, body: RoutineUpdate, request: Request, _: bool = Depends(auth)):
@@ -204,7 +205,9 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
     @router.post("/routines/{routine_id}/resume", response_model=ScheduleStateResponse)
     async def resume_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request)
-        await product(row["payload"]["metadata"]["product_id"], request)
+        product_id = row["payload"]["metadata"]["product_id"]
+        await product(product_id, request)
+        await call(db.add_product_routine, product_id, routine_id)
         return await call(handlers["enable_schedule"], routine_id, request)
 
     @router.get("/routines/{routine_id}/runs")

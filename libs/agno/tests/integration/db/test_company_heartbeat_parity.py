@@ -530,3 +530,99 @@ async def test_intake_preserves_proposed_executor_and_project(heartbeat, tmp_pat
     outside = await call("create_project", other["id"], "Outside")
     with pytest.raises(ValueError, match="same Product"):
         await call("intake", source["id"], "outside", proposal, project_id=outside["id"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("window", [0, 14])
+@pytest.mark.parametrize("legacy", [False, True])
+async def test_summary_retention_preserves_delivery_state(heartbeat, monkeypatch, window, legacy):
+    import time
+
+    from agno.company.summary import _summary_state_filesystem
+
+    db, _, call = heartbeat
+    delivery = AsyncMock()
+    monkeypatch.setattr("agno.company.summary.adeliver_summary", delivery)
+    product = await call(
+        "create",
+        "Durable reports",
+        metadata={"archive_window_days": window, "summary": {"interface": "slack", "destination": "reports"}},
+    )
+    await call("create_task", product["id"], "Task A")
+    await call("summarize", product["id"], "first", [], narrative="Initial report")
+    # Multiple receipts must all survive migration and adjacent-marker parsing.
+    await call("summarize", product["id"], "second", [], narrative="Second report")
+    if legacy:
+        await _summary_state_filesystem(db, product["id"]).adelete("delivery.md")
+    now = int(time.time())
+    monkeypatch.setattr(time, "time", lambda: now + (window + 1) * 86400)
+    refreshed = await call("refresh", product["id"])
+    assert "summary.md" in refreshed["deleted_pages"]
+    for run_id in ("first", "second"):
+        assert (await call("summarize", product["id"], run_id, [], narrative="Retry"))["quiet"]
+    assert delivery.await_count == 2
+    with pytest.raises(LookupError):
+        await call("read_wiki", product["id"], "summary.md")
+    await call("create_task", product["id"], "Task B")
+    delivery.side_effect = RuntimeError("Transport unavailable")
+    with pytest.raises(RuntimeError, match="Transport unavailable"):
+        await call("summarize", product["id"], "failed", [], narrative="Not delivered")
+    monkeypatch.setattr(time, "time", lambda: now + (window + 1) * 2 * 86400)
+    assert "summary.md" in (await call("refresh", product["id"]))["deleted_pages"]
+    delivery.side_effect = None
+    await call("summarize", product["id"], "recovered", [], narrative="Recovered")
+    report = delivery.await_args.args[-1]
+    assert "Added Task B" in report and "Added Task A" not in report
+    wiki = await call("get_wiki", product["id"])
+    assert {page.path for page in await wiki.backend.filesystem.alist()} == {"brief.md", "status.md", "summary.md"}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["link", "enable"])
+@pytest.mark.parametrize("auto_accept", [False, True])
+async def test_routine_creation_recovers_after_storage_failure(heartbeat, monkeypatch, failure, auto_accept):
+    import time
+
+    from httpx import ASGITransport, AsyncClient
+
+    from agno.company.execution import _call
+    from agno.os import AgentOS, CompanyConfig
+
+    db, _, call = heartbeat
+    product = await call("create", "Recovered routines")
+    app = AgentOS(
+        db=db, agents=[Agent(id="reader", telemetry=False)], company=CompanyConfig(), telemetry=False
+    ).get_app()
+    body = dict(
+        product_id=product["id"],
+        name="refresh",
+        template="refresh",
+        executor_type="agent",
+        executor_id="reader",
+        cron_expr="0 * * * *",
+    )
+    if auto_accept:
+        body["auto_accept"] = {
+            "executor_type": "agent",
+            "executor_id": "reader",
+            "limits": {"expires_at": int(time.time()) + 3600},
+        }
+    method = "add_product_routine" if failure == "link" else "update_schedule"
+    original = getattr(db, method)
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("Interrupted creation")
+
+    monkeypatch.setattr(db, method, fail)
+    async with AsyncClient(transport=ASGITransport(app, raise_app_exceptions=False), base_url="http://test") as client:
+        assert (await client.post("/company/routines", json=body)).status_code == 500
+        pending, total = await _call(db, "get_schedules")
+        assert total == 1 and not pending[0]["enabled"]
+        assert pending[0]["next_run_at"] is None
+        assert (await _call(db, "get_schedules", enabled=True))[1] == 0
+        monkeypatch.setattr(db, method, original)
+        response = await client.post("/company/routines", json=body)
+        assert response.status_code == 201, response.text
+        assert response.json()["id"] == pending[0]["id"] and response.json()["enabled"] is True
+        assert (await call("get", product["id"]))["metadata"]["routine_ids"] == [pending[0]["id"]]
+        assert (await _call(db, "get_schedules"))[1] == 1

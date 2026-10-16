@@ -665,3 +665,52 @@ async def test_completion_rechecks_managed_human_permission(managed_system, duri
     with pytest.raises(PermissionError, match="projects:write"):
         await executor._accept(proposal, completing=True)
     assert db.get_project(project["id"])["status"] == "active"
+
+
+def test_pending_routine_retry_rechecks_and_refreshes_human_grant(system, monkeypatch):
+    from agno.company.routines import _policy_fingerprint
+    from agno.run.authorization import AUTHORIZATION_KEY
+
+    client, db, os, queue = system
+    scopes = SCOPES + ["routines:write", "schedules:write"]
+    product = client.post("/company/products", json={"name": "Recovery"}, headers=headers()).json()
+    body = dict(
+        product_id=product["id"],
+        name="intake",
+        template="intake",
+        executor_type="agent",
+        executor_id="writer",
+        cron_expr="0 * * * *",
+        auto_accept={"executor_type": "agent", "executor_id": "writer", "limits": {"expires_at": 4102444800}},
+    )
+    original = db.add_product_routine
+
+    def interrupted(*args, **kwargs):
+        raise RuntimeError("Interrupted linking")
+
+    monkeypatch.setattr(db, "add_product_routine", interrupted)
+    failing = TestClient(os.get_app(), raise_server_exceptions=False)
+    response = failing.post("/company/routines", json=body, headers=headers(scopes=scopes))
+    assert response.status_code == 500
+    pending = db.get_schedules()[0][0]
+    assert pending["enabled"] is False
+    before = _policy_fingerprint(pending)
+    monkeypatch.setattr(db, "add_product_routine", original)
+    revoked = [scope for scope in scopes if scope != "tasks:write"]
+    assert client.post("/company/routines", json=body, headers=headers(scopes=revoked)).status_code == 403
+    assert db.get_schedule(pending["id"])["enabled"] is False
+    fresh = {
+        "Authorization": "Bearer "
+        + jwt.encode(
+            {"sub": "alice", "aud": "company-execution", "scopes": scopes, "exp": 4102444800}, SECRET, algorithm="HS256"
+        )
+    }
+    response = client.post("/company/routines", json=body, headers=fresh)
+    assert response.status_code == 201, response.text
+    current = db.get_schedule(pending["id"])
+    assert current["enabled"] is True and db.get_schedules()[1] == 1
+    assert _policy_fingerprint(current) == before
+    grant = current["payload"]["_agno_company_acceptance"]
+    assert grant["user_id"] == "alice"
+    assert grant != pending["payload"]["_agno_company_acceptance"]
+    assert grant[AUTHORIZATION_KEY] == current["payload"][AUTHORIZATION_KEY]

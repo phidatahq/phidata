@@ -43,6 +43,7 @@ def get_schedule_router(
     managed_by: Optional[str] = None,
     company_reads: bool = False,
     agent_os: Any = None,
+    defer_activation: bool = False,
 ) -> APIRouter:
     """Factory that creates and returns the schedule router.
 
@@ -58,6 +59,8 @@ def get_schedule_router(
         include_teams: Same as ``include_agents`` but for teams.
         include_workflows: Same as ``include_agents`` but for workflows.
         agent_os: Optional Company registry and acceptance-check context for policy validation.
+        defer_activation: Save new managed schedules disabled until their owner integration
+            explicitly enables them. Matching retries by the creator recover pending creates.
 
     Returns:
         An APIRouter with all schedule endpoints attached.
@@ -68,6 +71,9 @@ def get_schedule_router(
     router = APIRouter(tags=["Schedules"])
     auth_dependency = get_authentication_dependency(settings)
     is_code_defined = code_defined_probe(include_agents, include_teams, include_workflows)
+    pending_key = "_agno_pending_creation"
+    if defer_activation and managed_by is None:
+        raise ValueError("Deferred activation requires a managed schedule integration")
 
     # ------------------------------------------------------------------
     # Helpers
@@ -177,16 +183,49 @@ def get_schedule_router(
         if creator_user_id == INTERNAL_SCHEDULER_USER_ID:
             raise HTTPException(status_code=403, detail="The scheduler executor may not own a schedule")
 
-        # Check name uniqueness within the caller's scope
-        existing = await _db_call("get_schedule_by_name", body.name, user_id=scoped_user_id)
-        if existing is not None:
-            raise HTTPException(status_code=409, detail=f"Schedule with name '{body.name}' already exists")
-
         payload = body.payload
         if managed_by == "company":
             from agno.company.routines import _stamp_auto_accept
 
             payload = await _stamp_auto_accept(request, payload, agent_os)
+
+        # Deferred retries address the creator's name bucket even when reads are unscoped.
+        existing = await _db_call(
+            "get_schedule_by_name", body.name, user_id=creator_user_id if defer_activation else scoped_user_id
+        )
+        if existing is not None:
+            from agno.run.authorization import AUTHORIZATION_KEY
+
+            # Recover only the identical unfinished request, never a paused or edited schedule.
+            stored_payload = existing.get("payload") or {}
+            expected = body.model_dump()
+            observed = {key: existing.get(key) for key in expected}
+            generated_keys = {pending_key, AUTHORIZATION_KEY}
+            if managed_by == "company":
+                generated_keys.add("_agno_company_acceptance")
+            observed["payload"] = {key: value for key, value in stored_payload.items() if key not in generated_keys}
+            expected["payload"] = {key: value for key, value in (payload or {}).items() if key not in generated_keys}
+            if (
+                defer_activation
+                and stored_payload.get(pending_key) is True
+                and not existing["enabled"]
+                and existing.get("managed_by") == managed_by
+                and existing.get("user_id") == creator_user_id
+                and observed == expected
+            ):
+                # The retry reauthorizes the same request; retain current human grants,
+                # not the credentials saved by an interrupted creation.
+                result = await _db_call(
+                    "update_schedule",
+                    existing["id"],
+                    user_id=creator_user_id,
+                    payload={**(stamp_authorization(payload) or {}), pending_key: True},
+                )
+                if result is None:
+                    raise HTTPException(status_code=500, detail="Failed to recover schedule")
+                return result
+            raise HTTPException(status_code=409, detail=f"Schedule with name '{body.name}' already exists")
+
         next_run_at = compute_next_run(body.cron_expr, body.timezone)
         now = int(time.time())
 
@@ -202,8 +241,8 @@ def get_schedule_router(
             "timeout_seconds": body.timeout_seconds,
             "max_retries": body.max_retries,
             "retry_delay_seconds": body.retry_delay_seconds,
-            "enabled": True,
-            "next_run_at": next_run_at,
+            "enabled": not defer_activation,
+            "next_run_at": None if defer_activation else next_run_at,
             "locked_by": None,
             "locked_at": None,
             "user_id": creator_user_id,
@@ -211,6 +250,8 @@ def get_schedule_router(
             "updated_at": None,
         }
 
+        if defer_activation:
+            schedule_dict["payload"] = {**(schedule_dict["payload"] or {}), pending_key: True}
         if managed_by is not None:
             from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
 
@@ -428,9 +469,11 @@ def get_schedule_router(
         from agno.scheduler.cron import compute_next_run
 
         next_run_at = compute_next_run(existing["cron_expr"], existing.get("timezone", "UTC"))
-        result = await _db_call(
-            "update_schedule", schedule_id, user_id=scoped_user_id, enabled=True, next_run_at=next_run_at
-        )
+        updates: Dict[str, Any] = {"enabled": True, "next_run_at": next_run_at}
+        if defer_activation and pending_key in (existing.get("payload") or {}):
+            # Activation and completion of creation are one scheduler storage update.
+            updates["payload"] = {key: value for key, value in existing["payload"].items() if key != pending_key}
+        result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to enable schedule")
         log_info(f"Schedule '{existing.get('name', schedule_id)}' enabled (next_run_at={next_run_at})")
@@ -454,7 +497,11 @@ def get_schedule_router(
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
 
-        result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, enabled=False)
+        updates: Dict[str, Any] = {"enabled": False}
+        if defer_activation and pending_key in (existing.get("payload") or {}):
+            # An explicit pause overrides automatic recovery of an interrupted creation.
+            updates["payload"] = {key: value for key, value in existing["payload"].items() if key != pending_key}
+        result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to disable schedule")
         log_info(f"Schedule '{existing.get('name', schedule_id)}' disabled")

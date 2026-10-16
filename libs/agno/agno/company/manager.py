@@ -642,7 +642,15 @@ class CompanyManager:
     def summarize(self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
-        from agno.company.summary import _summary_delivered, _summary_page, _summary_report, deliver_summary
+        from agno.company.summary import (
+            _STATE_PATH,
+            _delivery_state,
+            _load_summary_state,
+            _summary_delivered,
+            _summary_page,
+            _summary_report,
+            deliver_summary,
+        )
 
         product = self.get(product_id)
         if product is None:
@@ -665,8 +673,11 @@ class CompanyManager:
             existing = self.read_wiki(product_id, path)
         except LookupError:
             existing = None
-        content = _summary_report(product, counts, rows, narrative, existing.content if existing else "")
-        report, delivered, marker = _summary_page(existing.content if existing else "", run_id, content)
+        state_fs, previous, state_version = _load_summary_state(
+            self.db, product_id, existing.content if existing else ""
+        )
+        content = _summary_report(product, counts, rows, narrative, previous)
+        report, delivered, marker = _summary_page(previous, run_id, content)
         if delivered:
             return {"path": path, "delivered": True, "quiet": True}
         saved = self.write_wiki(product_id, path, report, existing.metadata.version if existing else 0, user_id=user_id)
@@ -676,7 +687,9 @@ class CompanyManager:
             delivery["destination"],
             content.partition("\n\n<!-- Company summary snapshot:")[0],
         )
-        self.write_wiki(product_id, path, _summary_delivered(report, marker), saved.version, user_id=user_id)
+        completed = _summary_delivered(report, marker)
+        state_fs.write(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
+        self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
         return {"path": path, "delivered": True, "quiet": not rows}
 
 
@@ -1320,7 +1333,15 @@ class AsyncCompanyManager:
     ):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
-        from agno.company.summary import _summary_delivered, _summary_page, _summary_report, adeliver_summary
+        from agno.company.summary import (
+            _STATE_PATH,
+            _aload_summary_state,
+            _delivery_state,
+            _summary_delivered,
+            _summary_page,
+            _summary_report,
+            adeliver_summary,
+        )
 
         product = await self.get(product_id)
         if product is None:
@@ -1343,8 +1364,11 @@ class AsyncCompanyManager:
             existing = await self.read_wiki(product_id, path)
         except LookupError:
             existing = None
-        content = _summary_report(product, counts, rows, narrative, existing.content if existing else "")
-        report, delivered, marker = _summary_page(existing.content if existing else "", run_id, content)
+        state_fs, previous, state_version = await _aload_summary_state(
+            self.db, product_id, existing.content if existing else ""
+        )
+        content = _summary_report(product, counts, rows, narrative, previous)
+        report, delivered, marker = _summary_page(previous, run_id, content)
         if delivered:
             return {"path": path, "delivered": True, "quiet": True}
         saved = await self.write_wiki(
@@ -1356,7 +1380,9 @@ class AsyncCompanyManager:
             delivery["destination"],
             content.partition("\n\n<!-- Company summary snapshot:")[0],
         )
-        await self.write_wiki(product_id, path, _summary_delivered(report, marker), saved.version, user_id=user_id)
+        completed = _summary_delivered(report, marker)
+        await state_fs.awrite(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
+        await self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
         return {"path": path, "delivered": True, "quiet": not rows}
 
 

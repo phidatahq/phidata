@@ -317,6 +317,12 @@ proposals retain their normal behavior.
 
 `/company/routines` wraps the scheduler. Writes require both `routines:write`
 and `schedules:write`; histories require `routines:read` and `schedules:read`.
+Routine creation saves the schedule disabled, links its id to the Product, then
+activates it through the scheduler. If linking or activation fails, retrying the
+same request as the same creator resumes the pending creation. Edited requests
+and already-created schedules still return 409; a retry never undoes a deliberate
+pause. Resume also repairs a missing Product link before activation.
+
 Routine reads and histories are company-wide, including under user isolation.
 Writes retain scheduler ownership; under user isolation, another user's mutation
 returns 403.
@@ -337,8 +343,11 @@ Summary uses Product metadata such as
 interface configured on AgentOS. The executor supplies its narrative to
 `summarize_company_product`; the page includes counts, that narrative, changes
 since the last delivered summary, and failed-Task details. Summary updates the versioned
-`summary.md` Product wiki page before delivery, retaining delivery receipts so a
-repeated run does not resend after intervening successful runs;
+`summary.md` Product wiki page before delivery. Delivery receipts and the last
+delivered snapshot persist in a separate Product filesystem namespace, outside
+the wiki and executor input, so report retention cannot resend a delivered run or
+reset the change baseline. Existing report receipts migrate before expiry.
+A repeated run does not resend after intervening successful runs;
 a transport failure remains a failed run with the report retained and the previous
 delivery baseline unchanged. The baseline advances with the receipt only after
 transport succeeds, so the next report still includes undelivered changes. Provider

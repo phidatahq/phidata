@@ -2117,3 +2117,122 @@ Performance seeded 50 Products, 500 Projects, 5,000 Tasks and 200 wiki pages. Al
 read checks completed; ten workflow Tasks were independently confirmed In review.
 Live-model Intake failed because OPENAI_API_KEY was absent. The temporary server
 and unique schema were cleaned up. These results do not claim a live-model pass.
+
+
+## Main rebase and Heartbeat recovery — October 16, 2026
+
+Rebased only the Heartbeat commits onto main at 17cf2e8b59, preserving the merged cascade/restore implementation. Published e9d5a76274 after 172 SQLite checks passed so the stacked automation branch could proceed. Later fixes use normal commits.
+
+Summary delivery bookkeeping now lives in a separate versioned Product filesystem namespace; retention migrates legacy receipts before deleting reports. Routine creation remains disabled until linked and recovers the identical pending request in the scheduler creator name bucket. Explicit pauses prevent automatic retry activation.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` on the main rebase with the recovery fixes.
+
+**Result:** Product lifecycle and archive window defaults. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` on the main rebase with the recovery fixes.
+
+**Result:** Project lifecycle and terminal-Task completion guard. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` on the main rebase with the recovery fixes.
+
+**Result:** Task lifecycle and registered executor acceptance. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` on the main rebase with the recovery fixes.
+
+**Result:** Versioned wiki and decision APIs. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` on the main rebase with the recovery fixes.
+
+**Result:** Product Manager construction and bounded tools. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` on the main rebase with the recovery fixes.
+
+**Result:** SQLite and PostgreSQL durable execution, duplicate runs and attention. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py` on the main rebase with the recovery fixes.
+
+**Result:** SQLite and PostgreSQL cascades, grouped counts, exact restore and ordinary acceptance history. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` on the main rebase with the recovery fixes.
+
+**Result:** Bounded Source reads, deduplicated Intake, completion proposals and retention. All assertions passed. No live model or outbound messaging calls.
+
+---
+
+## Automation integration with current Heartbeat — October 16, 2026
+
+Rebased onto Heartbeat `e9d5a76274` and published `3137d4fde1` after **282 SQLite
+integration tests and 52 focused unit tests passed**. Full format and clean
+validation passed with their output read. The five Automation commits replayed
+unchanged; the new parent differed from the previously integrated parent only
+in its validation log.
+
+Heartbeat then published `ae9d9b933c`. Integrated it with a normal merge,
+retaining deferred Routine activation, recovery of interrupted creation,
+Summary delivery state outside retained reports, and all parent regression
+tests. No history rewrite followed the initial rebase push.
+
+### Authorized Routine creation recovery
+
+**Status:** PASS
+
+**Description:** Extended the parent's link/enable failure tests with an
+`auto_accept` policy across SQLite and PostgreSQL, sync and async. The initial
+SQLite run reproduced four policy-enabled retry failures (409), while four
+ordinary Routine cases passed. Recovery now compares the human request without
+server-generated grant fields and saves newly checked human authority.
+
+**Result:** **211 focused integration/router tests passed**, followed by **two
+additional authenticated retry tests** covering isolation on and off. A retry
+without `tasks:write` stays blocked and disabled; a fresh valid token recovers
+the same Routine with current authority and an unchanged policy fingerprint.
+The development typing comparison also exposed six history-query bindings that
+needed annotations under SQLAlchemy 2.1; all six now use the same explicit
+sequence type as the existing `prior` annotations. Full-suite results follow
+below when complete.

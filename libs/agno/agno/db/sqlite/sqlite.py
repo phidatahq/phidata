@@ -8347,8 +8347,8 @@ class SqliteDb(BaseDb):
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.projects import project_transition_fields
-        from agno.db.sql.company import lock_child
         from agno.db.schemas.tasks import _acceptance_count
+        from agno.db.sql.company import lock_child
 
         table = self._get_table(table_type="projects")
         if table is None:

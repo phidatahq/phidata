@@ -423,6 +423,8 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
     async def _completion_candidate(self, manager, project, routine_id):
         from agno.company.refresh import _completion_proposal, _records
 
+        # Grouped counts are a read projection, not part of the stored lifecycle snapshot.
+        project = {key: value for key, value in project.items() if key != "counts"}
         tasks = await _records(manager, "list_tasks", project_id=project["id"], include_deleted=True)
         if not tasks or any(task["status"] not in {"done", "cancelled"} for task in tasks):
             return None

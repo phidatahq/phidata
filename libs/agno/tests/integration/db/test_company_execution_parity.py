@@ -1147,6 +1147,7 @@ async def test_builtin_checks_on_fresh_deployment_and_policy_limit(system, tmp_p
     assert await executor._dispatch(ready)
     assert (await execute(worker))["status"] == "completed"
     # Soft deletion and a restart do not replenish the accepted-work budget.
+    await _call(db, "transition_task", ready["id"], "cancelled", "Archive reviewed work")
     assert await _call(db, "delete_task", ready["id"])
     loser = other if ready["id"] == task["id"] else task
     with pytest.raises(ValueError, match="limit"):
@@ -1495,6 +1496,7 @@ async def test_exhausted_policy_skips_source_reads_on_every_tick(system, tmp_pat
             evidence=task["evidence"],
         )
     # Deleted accepted Tasks still spend the budget, including after a restart.
+    await _call(db, "transition_task", task["id"], "cancelled", "Archive accepted work")
     await _call(db, "delete_task", task["id"])
     executor, schedule = await automation(system)
     for _ in range(3):
@@ -1721,6 +1723,8 @@ async def test_project_completion_and_task_acceptance_share_atomic_budget(system
     current = await _call(db, "get_schedule", routine["id"])
     assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(current), "") == 1
     winner = next(result for result in results if isinstance(result, dict))
+    if winner["status"] == "ready":
+        await _call(db, "transition_task", winner["id"], "cancelled", "Archive accepted work")
     await _call(db, "delete_project" if winner["status"] == "done" else "delete_task", winner["id"])
     assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(current), "") == 1
 

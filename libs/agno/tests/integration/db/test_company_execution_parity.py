@@ -20,6 +20,7 @@ from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
 from agno.os import AgentOS, CompanyConfig
 from agno.os.job_queue import QueueWorker, resolve_queue_store
+from agno.run.base import RunStatus
 from agno.team import Team
 from agno.workflow import Step, StepOutput, Workflow
 
@@ -460,7 +461,7 @@ async def test_routine_intake_through_scheduler_and_durable_queue(system, tmp_pa
         assert history["data"][0]["status"] == "failed"
         assert (await client.get("/company/attention", params={"product_id": product["id"]})).json()["failed"] == 1
         run = await components["writer"].aget_run_output(first["run_id"], first["session_id"])
-        assert str(run.status).upper() == "ERROR"
+        assert run.status == RunStatus.error
         return
     assert first["status"] == "success", first
     rows, total = await _call(db, "get_tasks", product_id=product["id"])

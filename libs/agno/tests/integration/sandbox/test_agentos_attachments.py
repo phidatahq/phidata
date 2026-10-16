@@ -148,11 +148,21 @@ async def test_background_and_streamed_uploads_run_the_same_path(service, tmp_pa
     assert streamed.status_code == 200 and "RunCompleted" in streamed.text
 
 
-async def test_two_turns_keep_each_turns_bytes_under_the_same_filename_across_replacement_compute(service, tmp_path):
+@pytest.mark.parametrize("replace_computer", [True, False], ids=["replacement_compute", "resumed_warm_compute"])
+async def test_two_turns_keep_each_turns_bytes_under_the_same_filename(service, tmp_path, replace_computer):
+    # The harness keeps a turn's computer warm (paused) for the next turn. Removing it between turns forces the
+    # next turn to restore from the checkpoint onto a new computer, as the coordinator tests do for a lost one.
     client, agent, _, handles = service
-    first = await post(client, files=[("files", ("same.txt", b"turn one", "text/plain"))])
-    second = await post(client, files=[("files", ("same.txt", b"turn two, different bytes", "text/plain"))])
-    third = await post(client, message="no attachment")
+
+    async def turn(**kwargs):
+        response = await post(client, **kwargs)
+        if replace_computer:
+            await _harness.coordinator(agent).provider.adestroy(handles[-1])
+        return response
+
+    first = await turn(files=[("files", ("same.txt", b"turn one", "text/plain"))])
+    second = await turn(files=[("files", ("same.txt", b"turn two, different bytes", "text/plain"))])
+    third = await turn(message="no attachment")
     for response in (first, second, third):
         assert response.status_code == 200 and response.json()["status"] == "COMPLETED", response.text
     uploads = (await workspace_after(agent, tmp_path)) / ".agno/uploads"
@@ -160,7 +170,7 @@ async def test_two_turns_keep_each_turns_bytes_under_the_same_filename_across_re
     assert (uploads / one / "same.txt").read_bytes() == b"turn one"
     assert (uploads / two / "same.txt").read_bytes() == b"turn two, different bytes"
     assert not (uploads / third.json()["run_id"]).exists()
-    assert len({handle.provider_ref for handle in handles}) == 3
+    assert len({handle.provider_ref for handle in handles}) == (3 if replace_computer else 1)
 
 
 # --- idempotency with attachments ----------------------------------------------------------------------

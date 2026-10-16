@@ -618,3 +618,99 @@ Company integrations and execution/Task routes on all four adapters. The two
 separate-process restart tests pass through both ordinary session history and
 Company history/individual-run routes. Format and validation passed with output
 read; mypy checked 1,146 framework and 21 CLI files without errors.
+
+## Cascading archive and counts — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Both SQLite and `--postgres` modes passed, each exercising sync and async managers: active-work refusal, Backlog move, cascade provenance, hidden children, counts, and exact restore.
+
+---
+
+## Cascading archive rebase verification — October 16, 2026
+
+### 01_manage_products.py through 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Reran all six existing examples after rebasing onto the merged Task execution implementation. The execution example passed with SQLite and `COMPANY_DB=postgres`.
+
+**Result:** All assertions passed without model calls. Duplicate execution retained its original run and attention reported one Task awaiting review.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS (initial rebase run failed; corrected and rerun)
+
+**Description:** Main now validates registered executors when accepting a Task. The first rebase run failed with `Task executor is missing from the registry`; the example now supplies a registered writer without invoking it.
+
+**Result:** SQLite and `--postgres` both passed, exercising both manager variants, active-work refusal, same-Product moves, cascade provenance, hidden children, grouped counts and exact restore.
+
+---
+
+## Archive review corrections — October 16, 2026
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Added a standalone Task archive/restore round trip after acceptance and asserted that its lifecycle history is unchanged.
+
+**Result:** SQLite and `--postgres` passed with both sync and async managers, including the existing active-work refusal, cascade, counts and exact-restore checks. No model calls.
+
+---

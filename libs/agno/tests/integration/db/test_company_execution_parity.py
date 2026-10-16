@@ -2949,11 +2949,13 @@ async def test_automatic_acceptance_requires_wiki_read(system, tmp_path, isolati
             manager = (
                 AsyncCompanyManager(db, os.registry) if isinstance(db, AsyncBaseDb) else CompanyManager(db, os.registry)
             )
+            project = await _manager_call(manager, "create_project", product["id"], "Routine work")
             task = await _manager_call(
                 manager,
                 "create_task",
                 product["id"],
                 "Routine proposal",
+                project_id=project["id"],
                 user_id="alice",
                 origin="routine",
                 routine_id=routine["id"],

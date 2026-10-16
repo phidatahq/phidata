@@ -2828,3 +2828,36 @@ with clean Python 3.10 mypy checking 1,178 framework and 21 CLI files. Runtime t
 used development Python 3.12. Unrelated formatter-only changes were excluded and
 `git diff --check` passed. No live-model, hosted or outbound-delivery validation
 is claimed; GitHub CI and automated review are separate from these local results.
+
+
+### PR 6.5 Routine controls and Project hierarchy — October 16, 2026
+
+**Status:** Targeted checks PASS; complete regression suites continue after the review push.
+
+**Description:** Items 8–10 add single-Routine reads, owned trigger, batched
+`last_run`, on-demand creation and cron changes, and required Projects for Task
+creation and Intake. Live run IDs support the existing cancel endpoint. Clearing
+a cron during an active claim cannot rearm the on-demand Routine. Rebased onto
+PR 6 `071f0ae1c24c5e614eb5aff4f351e548f98da297`, retaining its wiki authorization
+checks and per-claim release guard. The inherited withdrawal test now respects
+the approved rule that Ready starts attempt 1 only; revisions start In review.
+
+**Result:** All 24 new SQL-adapter cases passed on sync/async SQLite and
+PostgreSQL, including a fresh database instance for restart and constant
+schedule-run query counts. The targeted execution selection passed 92 cases;
+the execution authorization unit file passed 44 cases. Older fixtures were
+updated to create Projects explicitly; legacy nullable rows still have storage
+coverage. Final full-suite totals will be recorded after the review push.
+
+**Cookbooks:** PASS for all nine numbered examples: `01_manage_products.py`,
+`02_manage_projects.py`, `03_manage_tasks.py`, `04_manage_playbook.py`,
+`05_product_manager.py`, `06_execute_tasks.py`, `07_cascading_archive.py`,
+`07_heartbeat.py`, and `08_custom_routines.py`. The Task, Product Manager and
+Intake examples create Projects first; the custom Routine example verifies
+on-demand controls and cron changes. Also PASS: `06_execute_tasks.py` with
+PostgreSQL, automatic pickup with SQLite and PostgreSQL, and
+`07_cascading_archive.py --postgres`: 13 offline invocations, no model calls.
+
+Full format and clean Python 3.10 validation passed on the rebased tree
+(1,178 framework and 21 CLI files). Runtime tests use the development Python
+3.12 environment.

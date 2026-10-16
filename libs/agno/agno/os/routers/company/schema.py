@@ -158,6 +158,9 @@ class TaskResponse(BaseModel):
     brief: Optional[str] = None
     project_id: Optional[str] = None
     evidence: Optional[List[Dict[str, Any]]] = None
+    origin: Optional[str] = None
+    routine_id: Optional[str] = None
+    dedupe_key: Optional[str] = None
     id: str
     status: TaskStatus
     user_id: Optional[str] = None

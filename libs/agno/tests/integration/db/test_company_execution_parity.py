@@ -276,7 +276,9 @@ async def test_custom_task_table_is_created_with_execution_fields(system):
     else:
         with db.db_engine.connect() as conn:
             columns, indexes = inspect_table(conn)
-    assert {"session_id", "job_id", "evidence", "result"} <= {column["name"] for column in columns}
+    assert {"session_id", "job_id", "evidence", "result", "origin", "routine_id", "dedupe_key"} <= {
+        column["name"] for column in columns
+    }
     assert {f"idx_{name}_session_id", f"idx_{name}_job_id"} <= {index["name"] for index in indexes}
 
     response = await client.post(f"/company/tasks/{value['id']}/runs")
@@ -333,6 +335,151 @@ async def test_run_history_and_duplicate_survive_ticket_retention(system):
     assert revision.json()["run_id"] != run_id
     os.registry.agents.clear()
     assert (await client.get(path + "/runs")).json()["meta"]["total_count"] == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", [None, "missing", "markdown", "website", "git", "plain_proposal"])
+async def test_routine_intake_through_scheduler_and_durable_queue(system, tmp_path, monkeypatch, failure):
+    from agno.company.execution import _call
+    from agno.scheduler.executor import ScheduleExecutor
+    from agno.tools.company import CompanyTools
+
+    client, db, worker, os, components = system
+    path = tmp_path / "release.md"
+    path.write_text("A released capability")
+    product = (await client.post("/company/products", json={"name": "Docs"})).json()
+    source = (
+        await client.post(
+            "/company/sources", json={"product_id": product["id"], "type": "markdown", "reference": str(path)}
+        )
+    ).json()
+
+    if failure == "missing":
+        path.unlink()
+    elif failure == "markdown":
+
+        def broken_reader(*args, **kwargs):
+            raise OSError("Reader backend failed")
+
+        monkeypatch.setattr("agno.knowledge.reader.markdown_reader.MarkdownReader.read", broken_reader)
+    elif failure == "git":
+        (tmp_path / ".env").write_text("Excluded from the Source")
+        await _call(db, "update_source", source["id"], type="git", reference=str(tmp_path), config={"paths": [".env"]})
+    elif failure == "website":
+        await _call(db, "update_source", source["id"], type="website", reference="https://docs.example.test")
+        monkeypatch.setattr("agno.knowledge.reader.website_reader.WebsiteReader.read", lambda *args, **kwargs: [])
+    tool_name = "read_company_source" if failure in {"markdown", "website"} else "intake_company_source"
+    arguments = {"source_id": source["id"]}
+    if failure == "plain_proposal":
+        tool_name = "propose_company_task"
+        arguments = {"product_id": product["id"], "title": "Undeduplicated proposal"}
+    if tool_name == "read_company_source":
+        arguments["path"] = "https://docs.example.test" if failure == "website" else path.name
+    if tool_name == "intake_company_source":
+        arguments.update(
+            title="Document release",
+            brief="Explain the capability",
+            proposal_key="release-docs",
+            evidence_links=[path.as_uri()],
+            evidence_hashes={path.as_uri(): "unavailable"},
+        )
+
+    if failure is None:
+        from agno.company.sources import read_source
+
+        evidence = read_source(source, "observed")
+        arguments["evidence_hashes"] = {item["link"]: item["content_hash"] for item in evidence}
+
+    class IntakeModel(OfflineModel):
+        def invoke(self, messages, *args, **kwargs):
+            assert any(product["id"] in str(message.content) for message in messages if message.role == "user")
+            if not any(message.role == "tool" for message in messages):
+                return ModelResponse(
+                    role="assistant",
+                    tool_calls=[
+                        {
+                            "id": "intake",
+                            "type": "function",
+                            "function": {
+                                "name": tool_name,
+                                "arguments": json.dumps(arguments),
+                            },
+                        }
+                    ],
+                    response_usage=MessageMetrics(),
+                )
+            return ModelResponse(
+                role="assistant",
+                content="Source checked; proposals remain in Backlog.",
+                response_usage=MessageMetrics(),
+            )
+
+    components["writer"].model = IntakeModel()
+    components["writer"].tools = [CompanyTools(db)]
+    os.resync(worker.authorization_app)
+    response = await client.post(
+        "/company/routines",
+        json={
+            "product_id": product["id"],
+            "name": "intake",
+            "template": "intake",
+            "executor_type": "agent",
+            "executor_id": "writer",
+            "cron_expr": "0 * * * *",
+        },
+    )
+    assert response.status_code == 201, response.text
+    routine = response.json()
+    app = worker.authorization_app
+    app.state.internal_service_token = "heartbeat-internal"
+    executor = ScheduleExecutor(base_url="http://test", internal_service_token="heartbeat-internal", poll_interval=0)
+    original_request = client.request
+
+    async def request_and_work(method, url, **kwargs):
+        result = await original_request(method, url, **kwargs)
+        if method == "POST" and result.status_code == 202:
+            completed = await execute(worker)
+            if failure and completed["status"] == "queued":
+                completed = await execute(worker)
+            assert completed["status"] == ("failed" if failure else "completed"), completed
+        return result
+
+    from unittest.mock import AsyncMock
+
+    executor._get_client = AsyncMock(return_value=SimpleClient(request_and_work))
+    schedule = await _call(db, "get_schedule", routine["id"])
+    first = await executor.execute(schedule, db, release_schedule=False)
+    if failure:
+        assert first["status"] == "failed", first
+        assert tool_name in first["error"]
+        assert (await _call(db, "get_tasks", product_id=product["id"]))[1] == 0
+        history = (await client.get("/company/routines/" + routine["id"] + "/runs")).json()
+        assert history["data"][0]["status"] == "failed"
+        assert (await client.get("/company/attention", params={"product_id": product["id"]})).json()["failed"] == 1
+        run = await components["writer"].aget_run_output(first["run_id"], first["session_id"])
+        assert str(run.status).upper() == "ERROR"
+        return
+    assert first["status"] == "success", first
+    rows, total = await _call(db, "get_tasks", product_id=product["id"])
+    assert total == 1, first
+    assert rows[0]["routine_id"] == routine["id"]
+    task_response = (await client.get("/company/tasks/" + rows[0]["id"])).json()
+    assert task_response["origin"] == "routine"
+    assert task_response["routine_id"] == routine["id"]
+    assert task_response["dedupe_key"] == rows[0]["dedupe_key"]
+    assert rows[0]["evidence"][0]["run_id"] == first["run_id"]
+    assert rows[0]["status"] == "backlog"
+    second = await executor.execute(schedule, db, release_schedule=False)
+    assert second["status"] == "success", second
+    assert (await _call(db, "get_tasks", product_id=product["id"]))[1] == 1
+    history = (await client.get("/company/routines/" + routine["id"] + "/runs")).json()
+    assert history["meta"]["total_count"] == 2
+    assert all(run["status"] == "success" for run in history["data"])
+
+
+class SimpleClient:
+    def __init__(self, request):
+        self.request = request
 
 
 @pytest.mark.asyncio

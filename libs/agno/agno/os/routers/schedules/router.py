@@ -40,6 +40,8 @@ def get_schedule_router(
     include_agents: Optional[Sequence[Any]] = None,
     include_teams: Optional[Sequence[Any]] = None,
     include_workflows: Optional[Sequence[Any]] = None,
+    managed_by: Optional[str] = None,
+    company_reads: bool = False,
 ) -> APIRouter:
     """Factory that creates and returns the schedule router.
 
@@ -202,6 +204,15 @@ def get_schedule_router(
             "updated_at": None,
         }
 
+        if managed_by is not None:
+            from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
+
+            target = RUN_ENDPOINT_RE.fullmatch(body.endpoint)
+            if target is None:
+                raise HTTPException(status_code=422, detail="Managed routines require a run target")
+            schedule_dict.update(
+                managed_by=managed_by, target_type=target.group(1).rstrip("s"), target_id=target.group(2)
+            )
         try:
             result = await _db_call("create_schedule", schedule_dict)
         except Exception as e:
@@ -221,8 +232,9 @@ def get_schedule_router(
         request: Request,
         _: bool = Depends(auth_dependency),
     ) -> Dict[str, Any]:
-        schedule = await _db_call("get_schedule", schedule_id, user_id=get_scoped_user_id(request))
-        if schedule is None:
+        owner = get_scoped_user_id(request)
+        schedule = await _db_call("get_schedule", schedule_id, user_id=None if company_reads else owner)
+        if schedule is None or (company_reads and schedule.get("managed_by") != "company"):
             raise HTTPException(status_code=404, detail="Schedule not found")
         return schedule
 
@@ -440,8 +452,10 @@ def get_schedule_router(
         _: bool = Depends(auth_dependency),
     ) -> PaginatedResponse[ScheduleRunResponse]:
         scoped_user_id = get_scoped_user_id(request)
+        if company_reads:
+            scoped_user_id = None
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
-        if existing is None:
+        if existing is None or (company_reads and existing.get("managed_by") != "company"):
             raise HTTPException(status_code=404, detail="Schedule not found")
         runs, total_count = await _db_call(
             "get_schedule_runs", schedule_id, limit=limit, page=page, user_id=scoped_user_id

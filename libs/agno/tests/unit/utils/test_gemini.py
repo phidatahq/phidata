@@ -831,7 +831,11 @@ def test_processed_company_tools_preserve_gemini_nullability(tmp_path, use_async
                 assert schema.nullable is True, (name, argument)
                 assert not schema.any_of, (name, argument)
                 assert not schema.enum, (name, argument)
-                expected_type = "INTEGER" if argument in ("limit", "page", "days") else "STRING"
+                expected_type = (
+                    "INTEGER"
+                    if argument in ("limit", "page", "days", "offset", "content_offset", "max_chars")
+                    else "STRING"
+                )
                 assert schema.type == expected_type, (name, argument)
     finally:
         db.close()

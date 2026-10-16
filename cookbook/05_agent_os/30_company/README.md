@@ -230,3 +230,134 @@ when the parent's own read includes archived records. Managers and HTTP use
 `BaseDb.get_product_counts(ids)` or `get_project_counts(ids)` and their async
 twins, issuing one grouped query for the entire returned page. A warmed list
 page uses three SQL statements in total, regardless of the number of cards.
+
+## Heartbeat
+
+| File | Demonstrates |
+| --- | --- |
+| `07_heartbeat.py` | Code-declared Products, a reader Source, an Intake Skill, scheduler rows and duplicate-free scans without a model call. |
+
+Declare `Product`, `Source` and `Routine` from `agno.company`, then pass
+`CompanyConfig(products=[...])`. The same declarations work in OS configuration:
+
+```yaml
+company:
+  products:
+    - id: documentation
+      name: Documentation
+      purpose: Keep docs current
+      sources:
+        - type: markdown
+          reference: /workspace/docs
+          credential_ref: DOCS_ACCESS_TOKEN
+      routines:
+        - name: intake
+          template: intake
+          executor_type: agent
+          executor_id: source-reader
+          cron_expr: "0 9 * * 1-5"
+```
+
+The executor must already be registered; an invalid declared target fails startup
+instead of silently dropping its Routine. Give it `CompanyTools(db)` and
+`load_routine_skills()` for reader, Intake and Summary tools. AgentOS binds its
+interfaces to custom `CompanyTools(db)` executors automatically; an explicit
+`interfaces=` override is preserved, and `summary_tools=False` disables delivery.
+Product Manager has no outbound Summary tool. Enable the existing AgentOS scheduler and queue to run schedules; the
+cookbook only creates and inspects them. Scheduling never grants acceptance.
+The OS scheduler database owns Routine definitions/history even with a separate
+Company database. `metadata.routine_ids` links them to Products.
+
+The templates are packaged `SKILL.md` files under `agno/company/skills`, loaded
+through `LocalSkills`. Creation snapshots the selected Skill's instructions into
+the schedule, with the Product id explicitly included in the model message.
+Following scheduler behavior, restarting or editing a Skill never overwrites
+human-edited schedule instructions. Apply revised instructions to an existing
+Routine with an authorized PATCH to `/company/routines/{id}`.
+Source types are `git` (a local checkout), `markdown` (a
+file or directory), and `website` (a single page). Optional `config.paths` limits
+local reads to relative files. Workspace exclusions and path confinement apply;
+credential references name environment variables, whose presence diagnostics
+report without disclosing values. These readers use local files or an unauthenticated
+website GET: `credential_ref` is a diagnostic prerequisite, not an authentication
+adapter, and its value is never passed to an executor or reader.
+Source reads require `sources:read`, not a separate filesystem grant.
+`read_company_source` without `path` returns a content-free index (`data`,
+`total_count`, `next_offset`). Use a filename glob in `pattern` and `offset`/`limit`
+to page through it. Discovery does not open document contents. Pass a returned
+`path` to read one document; the response contains evidence and up to 8,000
+characters by default (`max_chars` can be 1..16,000). `next_content_offset` lets
+you continue a large document using `content_offset`. Every tool response is
+capped at 64 KiB of serialized JSON, including metadata. The full-document
+`content_hash` must stay the same across fragments; reread if it changes.
+Selection can narrow but never expand a human's `config.paths`, and Workspace
+exclusions and root confinement still apply. Website Sources only read their
+configured URL. The programmatic whole-Source `read_source` API still skips
+undecodable/oversized directory entries and reports `skipped_paths`; explicit
+selected-file reads fail on reader errors.
+Source reads produce evidence with the run id,
+a SHA-256 hash of reader content, and a link. Task deduplication is per Product,
+including completed and soft-deleted proposals. Failed reads create no proposals.
+Reader failures fail the executor and Routine run, appear in Routine history,
+and contribute to the Product's failed attention count. Routine authority uses
+the configured Source's confined reader under `sources:read`; the human creating
+the Routine does not need an additional `filesystem:read` grant.
+Reading files creates no Tasks. The reader first decides whether useful work is
+needed, then supplies a title, concise brief, selected `evidence_links`, an
+`evidence_hashes` mapping from each selected link to the `content_hash` observed
+in the preceding read, and a stable Source-local `proposal_key` to Intake.
+Intake rereads only the selected links, verifies their hashes, and rejects
+evidence changed since observation. Read again and reconsider the proposal after
+such a rejection. It stores hashes and links, without copying document content
+into the Task. Reuse the issue key across content and wording edits; a distinct issue
+has a distinct key. Database uniqueness remains scoped to the Product.
+Routines must use evidence-backed Intake: plain `propose_company_task` and
+Company service Task creation reject Routine authority. Human and Product Manager
+proposals retain their normal behavior.
+
+`/company/routines` wraps the scheduler. Writes require both `routines:write`
+and `schedules:write`; histories require `routines:read` and `schedules:read`.
+Routine reads and histories are company-wide, including under user isolation.
+Writes retain scheduler ownership; under user isolation, another user's mutation
+returns 403.
+Pause/resume use scheduler disable/enable and its filtered state response; saved
+authorization claims are never returned. Routine schedule names follow scheduler
+validation, including the 255-character limit on `product_id + "." + name`.
+Invalid names return 422 before creation, including setup. Sources use `sources:read`,
+`sources:write` and `sources:delete`, with Product ownership on writes.
+`POST /company/setup` uses `products:write` to seed a blank deployment; nested
+Sources and Routines also require their own write permissions. Retries and
+restarts repair interrupted creation and linking, retain existing edits and do not
+restore archived records. Setup returns 201 for creation and 200 for a retry.
+If the deployment already has Products other than this setup identity, setup
+returns 409 instead of returning another owner's Product.
+
+Summary uses Product metadata such as
+`{"summary": {"interface": "slack", "destination": "C012345"}}` and the matching
+interface configured on AgentOS. The executor supplies its narrative to
+`summarize_company_product`; the page includes counts, that narrative, changes
+since the last delivered summary, and failed-Task details. Summary updates the versioned
+`summary.md` Product wiki page before delivery, retaining delivery receipts so a
+repeated run does not resend after intervening successful runs;
+a transport failure remains a failed run with the report retained and the previous
+delivery baseline unchanged. The baseline advances with the receipt only after
+transport succeeds, so the next report still includes undelivered changes. Provider
+retry guarantees still apply if a process dies after sending but before recording
+success. No live messages are sent by this cookbook.
+
+Task evidence identity and deduplication are part of the initial Company schema.
+Task responses expose `origin`, `routine_id` and `dedupe_key`. Human-created Tasks
+have origin `human`, Product Manager proposals have `product_manager`, and Routine
+proposals have `routine` with the trusted Routine id.
+Automatic acceptance and automatic Task pickup are not enabled by this change.
+
+Optional Company tool arguments accept `null` for omission. Empty strings are
+normalized to omission as well; omitted pagination uses 20 results on page 1.
+Required identifiers and titles still require valid values.
+
+Async PostgreSQL derives its default database ID from the connection URL and
+schema, like synchronous PostgreSQL. Async SQLite already derives a stable ID
+from its connection details. Reuse those details (or an explicit stable `id`)
+after restart and across replicas so saved run database references resolve.
+This does not rewrite references saved with older randomly generated IDs;
+retaining a known old ID explicitly is necessary for those references.

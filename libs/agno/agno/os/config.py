@@ -5,6 +5,8 @@ from typing import Any, Callable, Dict, Generic, List, Literal, Optional, Set, T
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from agno.company.declarations import CompanyDeclarations
+
 # Tags carried by the built-in MCP tools, exposed here so callers (and the IDE) can see
 # the valid values for ``MCPConfig.include_tags`` / ``exclude_tags`` without reading
 # ``agno/os/mcp.py``. Keep in sync with the ``tags={...}`` argument on each
@@ -631,6 +633,8 @@ class Manifest(BaseModel):
 
 class AgentOSConfig(BaseModel):
     """General configuration for an AgentOS instance"""
+
+    company: Optional[CompanyDeclarations] = None
 
     available_models: Optional[List[str]] = None
     chat: Optional[ChatConfig] = None

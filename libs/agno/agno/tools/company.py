@@ -7,7 +7,7 @@ reassign ownership, edit a Product brief, change Sources, or schedule work.
 import asyncio
 import json
 from dataclasses import asdict
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any, Dict, List, Optional
 
 from pydantic import BeforeValidator
 
@@ -49,6 +49,15 @@ async def _apermission(resource, action, run_context):
         await authority.arequire(resource, action)
 
 
+def _require_plain_proposal(run_context):
+    from agno.company.routines import _RoutineAuthorization
+
+    if isinstance(_authority(run_context), _RoutineAuthorization):
+        raise PermissionError(
+            "Routines must propose Tasks through intake_company_source with evidence and a dedupe key"
+        )
+
+
 def _page(result, limit, page):
     rows, total = result
     return json.dumps(
@@ -68,13 +77,26 @@ class CompanyTools(Toolkit):
     """
 
     def __init__(
-        self, db: Any, *, user_isolation: bool = False, decision_tools: bool = True, agent_id: Optional[str] = None
+        self,
+        db: Any,
+        *,
+        user_isolation: bool = False,
+        decision_tools: bool = True,
+        summary_tools: bool = True,
+        agent_id: Optional[str] = None,
+        interfaces: Any = None,
     ):
+        self._interfaces_explicit = interfaces is not None
+        self.interfaces = interfaces if interfaces is not None else []
+        self._schedule_db = db
         self.db = db
         self.user_isolation = user_isolation
         # Supplied by the learning machine, never by the model or an MCP argument.
         self._agent_id = agent_id
         names = [
+            "list_company_sources",
+            "read_company_source",
+            "intake_company_source",
             "list_company_products",
             "get_company_product",
             "list_company_projects",
@@ -89,6 +111,8 @@ class CompanyTools(Toolkit):
         ]
         if decision_tools:
             names += ["log_company_decision", "search_company_decisions"]
+        if summary_tools:
+            names += ["summarize_company_product"]
         super().__init__(
             name="company",
             tools=[getattr(self, name) for name in names],
@@ -113,12 +137,12 @@ class CompanyTools(Toolkit):
     def _sync(self):
         if isinstance(self.db, AsyncBaseDb):
             raise TypeError("Use async Company tools with an asynchronous database")
-        return CompanyManager(self.db)
+        return CompanyManager(self.db, schedule_db=self._schedule_db)
 
     def _async(self):
         if isinstance(self.db, AsyncBaseDb):
-            return AsyncCompanyManager(self.db)
-        return _AsyncSyncManager(CompanyManager(self.db))
+            return AsyncCompanyManager(self.db, schedule_db=self._schedule_db)
+        return _AsyncSyncManager(CompanyManager(self.db, schedule_db=self._schedule_db))
 
     @requires_permission()
     def list_company_products(
@@ -228,11 +252,18 @@ class CompanyTools(Toolkit):
         """
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
+        _require_plain_proposal(_agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
             self._sync().create_task(
-                product_id, title, brief=brief, project_id=project_id, user_id=_identity(_agno_run_context)
+                product_id,
+                title,
+                brief=brief,
+                project_id=project_id,
+                user_id=_identity(_agno_run_context),
+                origin="routine" if getattr(_authority(_agno_run_context), "routine_id", None) else "product_manager",
+                routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
             )
         )
 
@@ -495,11 +526,18 @@ class CompanyTools(Toolkit):
         """
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
+        _require_plain_proposal(_agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
             await self._async().create_task(
-                product_id, title, brief=brief, project_id=project_id, user_id=_identity(_agno_run_context)
+                product_id,
+                title,
+                brief=brief,
+                project_id=project_id,
+                user_id=_identity(_agno_run_context),
+                origin="routine" if getattr(_authority(_agno_run_context), "routine_id", None) else "product_manager",
+                routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
             )
         )
 
@@ -655,6 +693,253 @@ class CompanyTools(Toolkit):
         await _apermission("decisions", "read", _agno_run_context)
         rows, total = await self._async().list_decisions(query, agent_id, session_id, days, limit, page)
         return _page(([asdict(row) for row in rows], total), limit, page)
+
+    def _source_context(self, source_id, run_context):
+        if run_context is None or not getattr(run_context, "run_id", None):
+            raise ValueError("Source tools require the injected run context")
+        return run_context.run_id
+
+    @requires_permission()
+    def list_company_sources(
+        self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
+    ) -> str:
+        """List the readers configured by humans for a Product.
+
+        Args:
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
+        _permission("sources", "read", _agno_run_context)
+        rows, total = self._sync().list_sources(product_id=product_id, limit=limit, page=page)
+        return _page(
+            ([{key: value for key, value in row.items() if key != "credential_ref"} for row in rows], total),
+            limit,
+            page,
+        )
+
+    @requires_permission()
+    def read_company_source(
+        self,
+        source_id: str,
+        path: _OptionalString = None,
+        pattern: _OptionalString = None,
+        offset: _OptionalInt = 0,
+        limit: _OptionalInt = 20,
+        content_offset: _OptionalInt = 0,
+        max_chars: _OptionalInt = 8000,
+        _agno_run_context: Optional[Any] = None,
+    ) -> str:
+        """Discover Source files, then read selected content within a bounded response.
+
+        Omit path for a content-free index; pattern filters filenames with a glob.
+        Page with offset/limit (1..100) and next_offset. Pass a returned path to
+        read one document: max_chars (1..16000) caps content, next_content_offset
+        continues it. content_hash identifies the full reader document; compare
+        hashes across fragments and reread if changed. Every response is at most
+        64 KiB. Intake accepts only observed links and their full content hashes.
+
+        Args:
+            path: Selected document path; null returns the file index.
+            pattern: Filename glob for discovery; null includes all configured files.
+            offset: Zero-based index offset; null uses 0.
+            limit: Index page size from 1 to 100; null uses 20.
+            content_offset: Zero-based content character offset; null uses 0.
+            max_chars: Content character cap from 1 to 16000; null uses 8000.
+        """
+        path = _empty_to_none(path)
+        pattern = _empty_to_none(pattern)
+        offset = _empty_to_none(offset)
+        offset = 0 if offset is None else offset
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        content_offset = _empty_to_none(content_offset)
+        content_offset = 0 if content_offset is None else content_offset
+        max_chars = _empty_to_none(max_chars)
+        max_chars = 8000 if max_chars is None else max_chars
+        _permission("sources", "read", _agno_run_context)
+        run_id = self._source_context(source_id, _agno_run_context)
+        return json.dumps(
+            self._sync().browse_source(source_id, run_id, path, pattern, offset, limit, content_offset, max_chars)
+        )
+
+    @requires_permission()
+    def intake_company_source(
+        self,
+        source_id: str,
+        title: str,
+        brief: str,
+        proposal_key: str,
+        evidence_links: List[str],
+        evidence_hashes: Dict[str, str],
+        _agno_run_context: Optional[Any] = None,
+    ) -> str:
+        """Propose actionable work backed by selected Source links.
+
+        Read the Source first. Use a stable proposal_key for the same issue across
+        scans and edits, and a concise outcome and brief, not copied file content.
+        Pass evidence_hashes mapping each selected link to its observed content_hash.
+        Changed evidence is rejected: read again and reconsider the proposal.
+        """
+        _permission("sources", "read", _agno_run_context)
+        _permission("tasks", "write", _agno_run_context)
+        self._scoped_user(_agno_run_context)
+        run_id = self._source_context(source_id, _agno_run_context)
+        return json.dumps(
+            self._sync().intake(
+                source_id,
+                run_id,
+                {
+                    "title": title,
+                    "brief": brief,
+                    "proposal_key": proposal_key,
+                    "evidence_links": evidence_links,
+                    "evidence_hashes": evidence_hashes,
+                },
+                user_id=_identity(_agno_run_context),
+                routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
+            )
+        )
+
+    @requires_permission()
+    def summarize_company_product(
+        self, product_id: str, narrative: str, _agno_run_context: Optional[Any] = None
+    ) -> str:
+        """Deliver current work and attention counts to the configured interface and Product wiki."""
+        _permission("products", "read", _agno_run_context)
+        _permission("tasks", "read", _agno_run_context)
+        _permission("wiki", "write", _agno_run_context)
+        run_id = self._source_context(product_id, _agno_run_context)
+        return json.dumps(
+            self._sync().summarize(
+                product_id, run_id, self.interfaces, narrative=narrative, user_id=self._scoped_user(_agno_run_context)
+            )
+        )
+
+    @requires_permission()
+    async def alist_company_sources(
+        self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
+    ) -> str:
+        """List the readers configured by humans for a Product.
+
+        Args:
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
+        await _apermission("sources", "read", _agno_run_context)
+        rows, total = await self._async().list_sources(product_id=product_id, limit=limit, page=page)
+        return _page(
+            ([{key: value for key, value in row.items() if key != "credential_ref"} for row in rows], total),
+            limit,
+            page,
+        )
+
+    @requires_permission()
+    async def aread_company_source(
+        self,
+        source_id: str,
+        path: _OptionalString = None,
+        pattern: _OptionalString = None,
+        offset: _OptionalInt = 0,
+        limit: _OptionalInt = 20,
+        content_offset: _OptionalInt = 0,
+        max_chars: _OptionalInt = 8000,
+        _agno_run_context: Optional[Any] = None,
+    ) -> str:
+        """Discover Source files, then read selected content within a bounded response.
+
+        Omit path for a content-free index; pattern filters filenames with a glob.
+        Page with offset/limit (1..100) and next_offset. Pass a returned path to
+        read one document: max_chars (1..16000) caps content, next_content_offset
+        continues it. content_hash identifies the full reader document; compare
+        hashes across fragments and reread if changed. Every response is at most
+        64 KiB. Intake accepts only observed links and their full content hashes.
+
+        Args:
+            path: Selected document path; null returns the file index.
+            pattern: Filename glob for discovery; null includes all configured files.
+            offset: Zero-based index offset; null uses 0.
+            limit: Index page size from 1 to 100; null uses 20.
+            content_offset: Zero-based content character offset; null uses 0.
+            max_chars: Content character cap from 1 to 16000; null uses 8000.
+        """
+        path = _empty_to_none(path)
+        pattern = _empty_to_none(pattern)
+        offset = _empty_to_none(offset)
+        offset = 0 if offset is None else offset
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        content_offset = _empty_to_none(content_offset)
+        content_offset = 0 if content_offset is None else content_offset
+        max_chars = _empty_to_none(max_chars)
+        max_chars = 8000 if max_chars is None else max_chars
+        await _apermission("sources", "read", _agno_run_context)
+        run_id = self._source_context(source_id, _agno_run_context)
+        return json.dumps(
+            await self._async().browse_source(
+                source_id, run_id, path, pattern, offset, limit, content_offset, max_chars
+            )
+        )
+
+    @requires_permission()
+    async def aintake_company_source(
+        self,
+        source_id: str,
+        title: str,
+        brief: str,
+        proposal_key: str,
+        evidence_links: List[str],
+        evidence_hashes: Dict[str, str],
+        _agno_run_context: Optional[Any] = None,
+    ) -> str:
+        """Propose actionable work backed by selected Source links.
+
+        Read the Source first. Use a stable proposal_key for the same issue across
+        scans and edits, and a concise outcome and brief, not copied file content.
+        Pass evidence_hashes mapping each selected link to its observed content_hash.
+        Changed evidence is rejected: read again and reconsider the proposal.
+        """
+        await _apermission("sources", "read", _agno_run_context)
+        await _apermission("tasks", "write", _agno_run_context)
+        self._scoped_user(_agno_run_context)
+        run_id = self._source_context(source_id, _agno_run_context)
+        return json.dumps(
+            await self._async().intake(
+                source_id,
+                run_id,
+                {
+                    "title": title,
+                    "brief": brief,
+                    "proposal_key": proposal_key,
+                    "evidence_links": evidence_links,
+                    "evidence_hashes": evidence_hashes,
+                },
+                user_id=_identity(_agno_run_context),
+                routine_id=getattr(_authority(_agno_run_context), "routine_id", None),
+            )
+        )
+
+    @requires_permission()
+    async def asummarize_company_product(
+        self, product_id: str, narrative: str, _agno_run_context: Optional[Any] = None
+    ) -> str:
+        """Deliver current work and attention counts to the configured interface and Product wiki."""
+        await _apermission("products", "read", _agno_run_context)
+        await _apermission("tasks", "read", _agno_run_context)
+        await _apermission("wiki", "write", _agno_run_context)
+        run_id = self._source_context(product_id, _agno_run_context)
+        return json.dumps(
+            await self._async().summarize(
+                product_id, run_id, self.interfaces, narrative=narrative, user_id=self._scoped_user(_agno_run_context)
+            )
+        )
 
 
 class _AsyncSyncManager:

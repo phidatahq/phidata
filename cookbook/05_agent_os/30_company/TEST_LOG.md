@@ -714,3 +714,322 @@ read; mypy checked 1,146 framework and 21 CLI files without errors.
 **Result:** SQLite and `--postgres` passed with both sync and async managers, including the existing active-work refusal, cascade, counts and exact-restore checks. No model calls.
 
 ---
+## Heartbeat overnight release fixes — October 16, 2026
+
+Validated with PR 4 through `1f05cdacb0`, merged without rewriting published history.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` using the development Python environment.
+
+**Result:** Product CRUD, ownership, soft deletion and restore.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` using the development Python environment.
+
+**Result:** Project lifecycle and Product containment.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` using the development Python environment.
+
+**Result:** Registry-backed acceptance and Task transitions with human provenance.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` using the development Python environment.
+
+**Result:** Sync/async wiki and decision-log operations.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` using the development Python environment.
+
+**Result:** Product Manager construction and bounded tool publication; no provider call.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` using the development Python environment.
+
+**Result:** SQLite and PostgreSQL modes with the real PostgreSQL durable queue; execution, duplicate starts, persisted results, run history and attention.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` using the development Python environment.
+
+**Result:** Declarations/restart, Sources, explicit evidence-backed Intake, stable deduplication, scheduler-backed Routines and history; no provider or outbound messaging call.
+
+---
+
+### Heartbeat release regressions
+
+**Status:** PASS
+
+**Description:** Reader errors from missing roots, Markdown, websites and Git run through the actual scheduler and durable queue, with stored executor ERROR results, failed Routine history and failed attention. Tests cover all template Product messages, Source permission confinement, company-wide Routine reads, owner-only writes, setup conflict/recovery, automatic custom-executor interfaces, Task origins, Summary narrative, changes and failed-Task detail.
+
+**Result:** 454 Company/scheduler integrations passed without skips on sync/async SQLite and PostgreSQL, plus the existing MongoDB scheduler and filesystem transaction cases. All eight cookbook invocations passed. Formatting and validation passed; full output read, including zero mypy errors in 1,153 framework files and 21 CLI files. No live provider or outbound messaging calls.
+
+Full `tests/unit/db`, `tests/unit/os` and `tests/unit/scheduler`: **6,285 passed, 47 skipped**. Redis availability was evaluated before its test container started; rerunning the complete generation-fence file with Redis available passed **19 tests, no skips**, resolving all eight Redis skips. The remaining 39 skips are optional drivers/mocks, root-only behavior and absent live-model credentials.
+
+The separate main fix for tool arguments, async database identity and the Product Manager route was still unpublished and unmerged at validation time; integration remains pending. No published history was rewritten.
+
+## Additional Heartbeat review fixes — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` using the development Python environment.
+
+**Result:** Product CRUD, ownership, soft deletion and restore.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` using the development Python environment.
+
+**Result:** Project lifecycle and Product containment.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` using the development Python environment.
+
+**Result:** Registry-backed acceptance and Task transitions.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` using the development Python environment.
+
+**Result:** Sync/async wiki and decision-log operations.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` using the development Python environment.
+
+**Result:** Product Manager construction and bounded tool publication without provider calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` using the development Python environment.
+
+**Result:** Both SQLite and PostgreSQL modes passed with the real durable queue, including history and attention.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` using the development Python environment.
+
+**Result:** Observed evidence hashes are supplied on Intake; rereading changed evidence still returns the original deduplicated Task. Declarations, schedules and restart checks passed.
+
+---
+
+### Authorization filtering, observed evidence and Routine validation
+
+**Status:** PASS
+
+**Description:** Reproduced all three reported defects on published head b6f9e74e0c. The same probes now show pause/resume omitting saved claims, invalid composed Routine names returning 422, and stale evidence rejected with zero Tasks created. Regression coverage retains saved claims in storage, checks owner writes and cross-user non-isolated responses, validates the 255-character boundary and setup before writes, and checks stale/missing/mismatched evidence hashes across all four SQL adapters.
+
+**Result:** 466 focused Company/scheduler tests and 458 full Company/scheduler integrations passed, including SQLite/PostgreSQL sync and async adapters. All eight cookbook invocations passed. Format and validate passed; complete output read, including zero mypy errors in 1,153 framework files and 21 CLI files. No live model or outbound messaging calls.
+
+Full database/OS/scheduler unit suites: **6,297 passed, 39 skipped**. Skips require optional drivers/mocks, root-only behavior or live-model credentials. No test failed.
+
+## Bounded reader, delivery baseline and Routine proposals — October 16, 2026
+
+### Focused regressions
+
+**Status:** PASS
+
+**Description:** Confined index paging without document reads, bounded Unicode fragments, selected-only Intake verification, failed-delivery recovery against the last delivered baseline, and denial of plain Routine proposals at tool/service/actual scheduler execution boundaries.
+
+**Result:** 290 focused Company tests plus 16 targeted cases passed on all four SQL adapters. Compilation passed. An actual 1,149-file repository index returned 20 entries in 2,666 bytes; a selected os/app.py read returned 8,620 bytes with 8,000 content characters and continuation. Broader checks follow the implementation push.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` in the development Python environment.
+
+**Result:** Product CRUD, ownership, deletion and restore.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` in the development Python environment.
+
+**Result:** Project lifecycle and Product containment.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` in the development Python environment.
+
+**Result:** Human-created Task transitions and acceptance.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` in the development Python environment.
+
+**Result:** Sync/async wiki and decision-log operations.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` in the development Python environment.
+
+**Result:** Product Manager construction and bounded tools, without provider calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` in the development Python environment.
+
+**Result:** SQLite and PostgreSQL modes passed with the real durable queue, results, history and attention.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` in the development Python environment.
+
+**Result:** Paged discovery, selected document reads and observed hashes, repeat-scan deduplication, declarations and scheduler-backed Routines.
+
+---
+
+### Post-push checks
+
+**Status:** PASS
+
+**Description:** Ran formatting and validation after the implementation push. Corrected one mypy narrowing error in configured-path selection, then reran both scripts and read their complete output.
+
+**Result:** Zero mypy errors in 1,153 framework and 21 CLI files; lint and cookbook pattern checks passed. All 478 Company/scheduler integrations passed on SQLite/PostgreSQL sync and async plus existing scheduler/filesystem cases, without skips. The final reader/authority/delivery regression selection passed 32 tests. All eight cookbook invocations passed. No provider or outbound messaging calls.
+
+Full database/OS/scheduler unit suites: **6,303 passed, 39 skipped**. Skips require optional drivers/mocks, root-only behavior or live-model credentials. No test failed.
+
+
+## Inherited main release-fix validation
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/01_manage_products.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/02_manage_projects.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/05_product_manager.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+
+## Final merged-main validation — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Integrated merged main PR #11112 (c0731293a8) with a normal merge, preserving the published PR 6 ancestry. Retained Routine proposal denial and applied main's nullable/empty-argument contract to Source discovery, selectors and content pagination. Updated Gemini's expected integer parameter list for the new offsets.
+
+**Result:** Full database/OS/scheduler units: **6,315 passed, 39 skipped** (optional drivers/mocks, credentials and root-only behavior). Company/scheduler integrations: **447 passed**, including SQLite/PostgreSQL sync and async plus restart coverage; filesystem transaction regressions: **33 passed**; no integration skips. Tool/schema/Gemini regressions: **290 passed**. All eight cookbook invocations passed again, covering each file listed above and PostgreSQL execution. Final format and validate passed with complete output read: no mypy errors in 1,153 framework and 21 CLI files. No provider or outbound messaging calls.

@@ -515,7 +515,7 @@ build-backend = "setuptools.build_meta"
 include = ["agno*"]
 
 [tool.setuptools.package-data]
-agno = ["py.typed"]
+agno = ["py.typed", "company/skills/*/SKILL.md"]
 include = ["LICENSE"]
 
 [tool.pytest.ini_options]

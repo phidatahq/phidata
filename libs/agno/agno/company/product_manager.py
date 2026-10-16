@@ -36,13 +36,20 @@ def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
         )
     )
     db = agent_os._company_db
+    from agno.company.routines import load_routine_skills
+
     return Agent(
         id=PRODUCT_MANAGER_ID,
         name="Product Manager",
         model=model,
         db=db,
         metadata={"_agno": {"internal": True, "id": PRODUCT_MANAGER_ID}},
-        tools=[CompanyTools(db, user_isolation=isolation, decision_tools=False)],
+        tools=[
+            CompanyTools(
+                db, user_isolation=isolation, decision_tools=False, summary_tools=False, interfaces=agent_os.interfaces
+            )
+        ],
+        skills=load_routine_skills(),
         learning=LearningMachine(
             db=db, model=model, decision_log=CompanyDecisionLogStore(db, user_isolation=isolation)
         ),

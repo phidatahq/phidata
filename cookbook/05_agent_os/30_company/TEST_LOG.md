@@ -2325,3 +2325,27 @@ cleaned up; no live-model success is claimed.
 Integrations: **676 passed, no skips**, including SQLite/PostgreSQL sync/async and MongoDB scheduler parity. Focused recovery/authorization: **159 passed**. All **10 cookbook invocations passed**. Format and exact-tree validate passed with full output read (mypy: 1,155 framework and 21 CLI files); diff whitespace checks passed. An earlier test-token scope omission and the creator-name-bucket recovery lookup were corrected before the final combined run. Optional dependencies changed in the shared environment, enabling the Firestore checks; this explains the changed totals and skips. No live model or outbound messaging calls.
 
 ---
+
+
+### Final complete unit rerun after parent fixture corrections
+
+**Status:** PASS
+
+**Description:** Ran the complete `libs/agno/tests/unit/db`,
+`libs/agno/tests/unit/os` and `libs/agno/tests/unit/scheduler` suites, plus Company
+and SchedulerTools unit tests, on the final merged head. The replacement
+Python 3.12 development environment was completed with missing adapter and
+interface dependencies, including telebot.
+
+**Result:** **6,537 passed, 5 conditional skips**, no failures. The
+preceding full run had 6,532 passes and five Mongo/Firestore migration-fixture
+failures; all five reproduced on unchanged Heartbeat. Heartbeat then published
+fixture corrections in `2d4acd89a9`, integrated with normal merge `f468e3db62`.
+All 14 affected cases passed independently before this complete successful
+rerun. The correction changes test setup only, so the 771 passing integrations,
+12 passing cookbook executions and recorded probes cover the same final runtime.
+Skips are the root-only filesystem case, three live-provider cases without
+OPENAI_API_KEY and the optional asyncpg configuration case. No history rewrite
+followed the early rebase publication. Final format and clean validation passed;
+all output was read and the exact source tree was checked after excluding
+unrelated baseline formatter changes.

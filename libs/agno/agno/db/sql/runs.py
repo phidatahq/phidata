@@ -14,8 +14,11 @@ def cancel_pending_run_statement(
     session_id: str,
     reason: str,
     user_id: Optional[str],
+    expected_status: str = "PENDING",
 ) -> Update:
     """Keep the status predicate and JSON patch inside one database write."""
+    if expected_status not in {"PENDING", "RUNNING"}:
+        raise ValueError("Only Pending or Running runs can be cancelled by recovery")
     data = table.c.run_data
     content = data["content"].as_string()
     if dialect == "postgresql":
@@ -26,7 +29,7 @@ def cancel_pending_run_statement(
         explained = func.json_set(cancelled, "$.content", reason)
     return (
         update(table)
-        .where(table.c.run_id == run_id, table.c.session_id == session_id, table.c.status == "PENDING")
+        .where(table.c.run_id == run_id, table.c.session_id == session_id, table.c.status == expected_status)
         .where((table.c.user_id == user_id) | table.c.user_id.is_(None))
         .values(
             status="CANCELLED",

@@ -360,7 +360,10 @@ async def test_automatic_publication_and_tick_reconcile(db, remote, api, enabled
     )
     task = await complete(db, remote, task, 2)
     os = SimpleNamespace(_company_db=db, db=db, registry=None, authorization=None, company=CompanyConfig())
-    executor = _CompanyScheduleExecutor(os, FastAPI(), base_url="http://company", internal_service_token="test")
+    app = FastAPI()
+    # Completed review work must not depend on executor or queue-ticket recovery.
+    app.state.queue_worker = SimpleNamespace()
+    executor = _CompanyScheduleExecutor(os, app, base_url="http://company", internal_service_token="test")
     outcomes = await executor._tick()
     assert api.creates == int(enabled), outcomes
     if enabled:

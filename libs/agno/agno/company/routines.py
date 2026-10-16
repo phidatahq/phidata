@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agno.company.declarations import Routine
-from agno.company.execution import _call, _ExecutorAuthorization, _pending_task_attempt, _validate_executor_tools
+from agno.company.execution import _call, _ExecutorAuthorization, _validate_executor_tools
 from agno.company.scheduler import CompanyScheduleExecutor
 from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID, RUN_ENDPOINT_RE
 from agno.guardrails.base import BaseGuardrail
@@ -449,24 +449,39 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             except Exception as exc:
                 result = {"status": "failed", "error": str(exc)}
             outcomes = (result.get("output") or {}).get("tasks", [])
+            from agno.company.automation_history import _record_task_failures
+
+            await _record_task_failures(db, self.agent_os._company_db, outcomes)
             active = any(
                 item.get("status") in {"accepted", "done"}
                 or item.get("action") in {"submitted", "reconciled", "published"}
                 for item in outcomes
             )
-            if result["status"] == "failed" or active:
+            other_failure = result["status"] == "failed" and (
+                not outcomes or any(item.get("status") == "failed" and not item.get("task_id") for item in outcomes)
+            )
+            task_failures = any(item.get("status") == "failed" and item.get("task_id") for item in outcomes)
+            if other_failure or active:
+                history_outcomes = [
+                    item for item in outcomes if not (item.get("status") == "failed" and item.get("task_id"))
+                ]
+                history_error = (
+                    "; ".join(item["reason"] for item in history_outcomes if item.get("status") == "failed")
+                    if outcomes
+                    else result.get("error")
+                )
                 run = ScheduleRun(
                     id=new_schedule_run_id(),
                     schedule_id=schedule_id,
                     triggered_at=started_at,
                     completed_at=int(time.time()),
-                    status=result["status"],
-                    error=result.get("error"),
-                    output=result.get("output"),
+                    status="failed" if other_failure else "success",
+                    error=history_error if other_failure else None,
+                    output={"tasks": history_outcomes} if outcomes else result.get("output"),
                     user_id=sched.user_id,
                 ).to_dict()
                 await _call(db, "create_schedule_run", run)
-                return run
+                return result if task_failures else run
             return result
         finally:
             # Always release the schedule lock so it doesn't stay stuck
@@ -560,26 +575,21 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     if outcome:
                         outcomes.append(outcome)
                     continue
+                from agno.company.execution import _recover_task
+
+                queue = getattr(self.app.state, "queue_worker", None)
+                if task.get("job_id") and queue is not None:
+                    recovered = await _recover_task(self.agent_os, queue, task)
+                    if recovered is not None:
+                        outcomes.append({"task_id": task["id"], **recovered})
+                        continue
                 if task["status"] == "backlog":
                     if task.get("origin") != "routine" or not task.get("routine_id"):
                         continue
                     task = await self._accept(task)
                     outcomes.append({"task_id": task["id"], "status": "accepted"})
-                if task["status"] == "in_progress":
-                    # Only an unfinished reservation with no queue job may resume.
-                    # Persisted results survive queue retention and require human retry.
-                    if _pending_task_attempt(task) is None:
-                        continue
-                    queue = getattr(self.app.state, "queue_worker", None)
-                    if queue is None:
-                        raise ValueError("Company execution requires the durable queue")
-                    if task.get("job_id") and await queue.store.get_job(task["job_id"]) is not None:
-                        outcomes.append(
-                            {"task_id": task["id"], "status": "already_submitted", "run_id": task["job_id"]}
-                        )
-                        continue
-                if task["status"] not in {"ready", "in_progress"}:
-                    raise _AutomationSkip("Task is no longer Ready")
+                if task["status"] != "ready":
+                    continue
                 result = await self._dispatch(task)
                 outcomes.append({"task_id": task["id"], **result})
             except Exception as exc:
@@ -905,6 +915,15 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         from agno.run.authorization import AUTHORIZATION_HEADER, AUTHORIZATION_KEY
 
         os = self.agent_os
+        from agno.company.execution import _recover_task
+
+        queue = getattr(self.app.state, "queue_worker", None)
+        if task.get("job_id") and queue is not None:
+            recovered = await _recover_task(os, queue, task)
+            if recovered is not None:
+                return recovered
+        if task["status"] != "ready":
+            raise _AutomationSkip("Only Ready Tasks can be dispatched")
         acceptances = [entry for entry in task["transitions"] if entry.get("target") == "ready"]
         if not acceptances or AUTHORIZATION_KEY not in acceptances[-1]:
             raise ValueError("Task needs a fresh acceptance before automatic pickup")
@@ -914,7 +933,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             raise PermissionError("Task acceptance has no saved caller authority")
         if task.get("executor_type") == "engineering":
             raise _AutomationSkip("Engineering executors cannot be started yet")
-        component = _executor(os.registry, task.get("executor_type"), task.get("executor_id"))
+        _executor(os.registry, task.get("executor_type"), task.get("executor_id"))
         if authority is not None:
             await authority.arequire(task["executor_type"] + "s", "run", task["executor_id"])
             await authority.arequire("tasks", "write")
@@ -943,32 +962,6 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         attempt = max(attempts, default=0) + (1 if task["status"] == "ready" else 0)
         if attempt < 1:
             raise ValueError("Only Ready Tasks or pending submissions can be picked up")
-        if task["status"] == "in_progress":
-            queue = getattr(self.app.state, "queue_worker", None)
-            if queue is not None and await queue.store.get_job(task["job_id"]) is not None:
-                return {"status": "already_submitted", "run_id": task["job_id"]}
-            from agno.company.execution import _reconcile_task_run, _task_run_database
-
-            run_db = _task_run_database(os, task)
-            if run_db is None:
-                raise ValueError("Task run database is unavailable")
-            prior_run = await _call(run_db, "get_run", task["job_id"], deserialize=False)
-            if prior_run is not None:
-                if prior_run["session_id"] != task["session_id"]:
-                    raise ValueError("Run identifier conflicts with another session")
-                repaired = await _reconcile_task_run(
-                    os._company_db,
-                    run_db,
-                    task,
-                    prior_run,
-                    task.get("accepted_by") or getattr(component, "user_id", None),
-                    worker=queue,
-                )
-                return {
-                    "status": prior_run["status"],
-                    "run_id": task["job_id"],
-                    "action": "reconciled" if repaired else "observed",
-                }
         # This is the ordinary manual Task route, which reserves the attempt,
         # checks the registry and run scope, and enters the executor's run route.
         headers = {"Authorization": "Bearer " + self.internal_service_token, AUTHORIZATION_HEADER: json.dumps(snapshot)}

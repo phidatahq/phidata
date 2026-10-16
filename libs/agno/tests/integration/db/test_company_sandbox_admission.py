@@ -18,7 +18,15 @@ PIN = {"url": URL, "branch": "master", "commit": "a" * 40}
 
 
 @pytest_asyncio.fixture
-async def sandbox_system(system):  # noqa: F811
+async def sandbox_system(system, monkeypatch):  # noqa: F811
+    import agno.os.event_streams as streams
+    import agno.run.cancel as cancel
+
+    # Queue configuration can replace process defaults; restore them after each case.
+    monkeypatch.setattr(streams, "_event_stream", streams._event_stream)
+    monkeypatch.setattr(streams, "_event_stream_explicitly_set", streams._event_stream_explicitly_set)
+    monkeypatch.setattr(cancel, "_cancellation_manager", cancel._cancellation_manager)
+    monkeypatch.setattr(cancel, "_cancellation_manager_explicitly_set", cancel._cancellation_manager_explicitly_set)
     client, db, worker, os, components = system
     agent = FixtureAgent(
         id="engineer",
@@ -387,3 +395,109 @@ async def test_checkout_projection_error_can_retry_after_source_repair(sandbox_s
     assert refused.status_code == 409 and "already pinned" in refused.text, refused.text
     assert (await _call(db, "get_task", task["id"]))["metadata"] == completed["metadata"]
     agent.repository = original
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("first_deployment", [None, "named-deployment"])
+async def test_overlapping_deployments_serialize_concurrent_starts(sandbox_system, monkeypatch, first_deployment):
+    import asyncio
+
+    from httpx import ASGITransport, AsyncClient
+
+    from agno.os import AgentOS, CompanyConfig
+    from agno.os.job_queue import QueueWorker, resolve_queue_store
+
+    client, db, worker, _, agent = sandbox_system
+    first = await engineering_task(client, db)
+    second = await engineering_task(client, db)
+    worker.config.deployment_id = first_deployment
+    config = QueueConfig(
+        durable=True,
+        db=worker.config.db,
+        redis="redis://localhost:6379/0",
+        max_attempts=1,
+        deployment_id=None if first_deployment else "named-deployment",
+    )
+    replica = AgentOS(db=db, agents=[agent], company=CompanyConfig(), queue=config, telemetry=False)
+    app = replica.get_app()
+    replica_worker = QueueWorker(
+        resolve_queue_store(config, db),
+        lambda kind, id, scope=None: agent if id == agent.id else None,
+        config,
+        authorization_app=app,
+    )
+    replica_worker._company_db = db
+    app.state.queue_worker = replica_worker
+    scanned = asyncio.Event()
+    release = asyncio.Event()
+    original = worker.store.list_jobs
+
+    async def hold_snapshot(*args, **kwargs):
+        result = await original(*args, **kwargs)
+        scanned.set()
+        await release.wait()
+        return result
+
+    monkeypatch.setattr(worker.store, "list_jobs", hold_snapshot)
+    pending = asyncio.create_task(client.post("/company/tasks/" + first["id"] + "/runs"))
+    try:
+        await asyncio.wait_for(scanned.wait(), 10)
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://replica") as other:
+            response = await asyncio.wait_for(other.post("/company/tasks/" + second["id"] + "/runs"), 10)
+    finally:
+        release.set()
+        started = await pending
+    assert started.status_code == 202, started.text
+    assert response.status_code == 409, response.text
+    job = await worker.store.claim_job(worker.worker_id, deployment_id="named-deployment")
+    assert job["id"] == started.json()["run_id"] and job["status"] == "running"
+    assert await worker.store.claim_job(worker.worker_id, deployment_id="named-deployment") is None
+    assert (await _call(db, "get_task", second["id"]))["status"] == "ready"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recovery", ["route", "automatic"])
+async def test_recovered_completion_keeps_checkpoint_patch(sandbox_system, checkpoint, recovery):  # noqa: F811
+    from agno.company.execution import _recover_task
+
+    client, db, worker, os, agent = sandbox_system
+    fixture_agent, checkout, commit, capture, _ = checkpoint
+    agent.sandbox = fixture_agent.sandbox
+    (checkout / "app.py").write_text("version = 2\n")
+    task = await engineering_task(client, db)
+    path = "/company/tasks/" + task["id"]
+    first = await client.post(path + "/runs")
+    assert first.status_code == 202, first.text
+    job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    run = agent.db.get_run(job["id"], deserialize=False)
+    agent.db.upsert_run(
+        {
+            **run["run_data"],
+            "status": "COMPLETED",
+            "content": "Recovered repository changes",
+            "metadata": {"sandbox": {"repository": {**PIN, "commit": commit}, "checkpoint": capture()}},
+        },
+        session_id=run["session_id"],
+    )
+    assert await worker.store.complete_job(job["id"], worker.worker_id, job["attempt"], "completed")
+    pending = await _call(db, "get_task", task["id"])
+    assert pending["result"] is None
+    if recovery == "route":
+        # The run route repairs retained output after queue retention removes its ticket.
+        table = worker.config.db._get_table("jobs")
+        with worker.config.db.Session() as session, session.begin():
+            session.execute(table.delete().where(table.c.id == job["id"]))
+        response = await client.post(path + "/runs")
+        assert response.status_code == 202, response.text
+        assert response.json()["run_id"] == job["id"]
+    else:
+        result = await _recover_task(os, worker, pending)
+        assert result["action"] == "reconciled"
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_review", saved["result"]
+    assert saved["result"]["summary"] == "Recovered repository changes"
+    assert saved["result"]["changed_files"] == [{"path": "app.py", "status": "M", "added": 1, "removed": 1}]
+    assert saved["metadata"]["checkout"]["commit"] == commit
+    patch = await client.get(path + "/patch")
+    assert patch.status_code == 200 and b"+version = 2" in patch.content
+    assert (await worker.store.list_jobs())[1] == (0 if recovery == "route" else 1)

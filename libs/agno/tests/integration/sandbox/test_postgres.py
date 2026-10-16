@@ -943,6 +943,32 @@ async def test_bindings_table_from_an_earlier_build_names_its_remedy(store):
         store.db._invalidate_table_cache(b)
 
 
+async def test_bindings_table_missing_a_column_names_the_same_remedy(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    runs = await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # Right keys, but no queue_attempt column: the adapter's own schema check refuses it.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                f'user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar REFERENCES "{home}"."{runs.name}" '
+                "(run_id), expires_at timestamptz, record jsonb NOT NULL, PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError, match="does not have the columns") as refused:
+            await store._ensure_tables()
+        assert "pass PostgresDb(sandbox_table=...)" in str(refused.value)
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)
+
+
 async def test_cancelled_duplicate_claim_keeps_the_live_lease(store, monkeypatch):
     if isinstance(store.db, AsyncPostgresDb):
         pytest.skip("AsyncPostgresDb runs the claim on the event loop; a cancel cannot land mid-transaction")

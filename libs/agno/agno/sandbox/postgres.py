@@ -16,7 +16,7 @@ from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, TypeVar, Uni
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
-from agno.exceptions import SessionBusyError
+from agno.exceptions import SchemaMismatchError, SessionBusyError
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import CheckpointRef
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
@@ -168,6 +168,14 @@ class _SandboxStore:
                 table = await db._get_table(table_type, create_table_if_not_found=create)
             else:
                 table = await _settled(asyncio.to_thread(db._get_table, table_type, create_table_if_not_found=create))
+        except SchemaMismatchError as exc:
+            if table_type != "sandbox_bindings":
+                raise
+            # A bindings table missing columns is as unusable as one with the wrong keys: same remedy.
+            raise SandboxError(
+                f"Sandbox table {self.db.db_schema}.{table_name} does not have the columns this version expects; "
+                "drop or rename that table, or pass PostgresDb(sandbox_table=...) to create a new one"
+            ) from exc
         except Exception as exc:
             # Another process may have won the first CREATE TABLE.
             cause = getattr(exc, "orig", exc)

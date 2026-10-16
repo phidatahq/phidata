@@ -8,11 +8,13 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
+from agno.agent import Agent
 from agno.company import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.os import AgentOS, CompanyConfig
+from agno.registry import Registry
 
 
 async def call(fn, *args, **kwargs):
@@ -47,7 +49,12 @@ async def db(request, tmp_path):
 
 
 def manager(db):
-    return AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+    registry = Registry(agents=[Agent(id="writer", telemetry=False)])
+    return (
+        AsyncCompanyManager(db, registry=registry)
+        if isinstance(db, AsyncBaseDb)
+        else CompanyManager(db, registry=registry)
+    )
 
 
 @pytest.mark.asyncio

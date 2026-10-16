@@ -12,10 +12,12 @@ import inspect
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
+from agno.agent import Agent
 from agno.company import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
+from agno.registry import Registry
 from sqlalchemy import text
 
 
@@ -23,8 +25,11 @@ from sqlalchemy import text
 # Archive, restore, and move work with both manager variants
 # ---------------------------------------------------------------------------
 async def exercise(db):
+    registry = Registry(agents=[Agent(id="writer", telemetry=False)])
     manager = (
-        AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+        AsyncCompanyManager(db, registry=registry)
+        if isinstance(db, AsyncBaseDb)
+        else CompanyManager(db, registry=registry)
     )
 
     async def call(method, *args, **kwargs):

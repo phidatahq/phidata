@@ -680,3 +680,25 @@ read; mypy checked 1,146 framework and 21 CLI files without errors.
 **Result:** All assertions passed without model calls. Both SQLite and `--postgres` modes passed, each exercising sync and async managers: active-work refusal, Backlog move, cascade provenance, hidden children, counts, and exact restore.
 
 ---
+
+## Cascading archive rebase verification — October 16, 2026
+
+### 01_manage_products.py through 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Reran all six existing examples after rebasing onto the merged Task execution implementation. The execution example passed with SQLite and `COMPANY_DB=postgres`.
+
+**Result:** All assertions passed without model calls. Duplicate execution retained its original run and attention reported one Task awaiting review.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS (initial rebase run failed; corrected and rerun)
+
+**Description:** Main now validates registered executors when accepting a Task. The first rebase run failed with `Task executor is missing from the registry`; the example now supplies a registered writer without invoking it.
+
+**Result:** SQLite and `--postgres` both passed, exercising both manager variants, active-work refusal, same-Product moves, cascade provenance, hidden children, grouped counts and exact restore.
+
+---

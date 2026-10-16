@@ -23,10 +23,23 @@ def main() -> None:
             shutil.copyfile(root / "libs/agno" / filename, context / filename)
         shutil.copyfile(root / "README.md", context / "README.md")
         shutil.copyfile(Path(__file__).with_name("Dockerfile"), context / "Dockerfile")
+        # --load puts the result in the daemon's image store: a docker-container builder
+        # otherwise keeps it in the build cache and exits 0 with no image to run.
         subprocess.run(
-            ["docker", "build", "--progress=plain", "--tag", args.tag, str(context)],
+            ["docker", "build", "--progress=plain", "--load", "--tag", args.tag, str(context)],
             check=True,
         )
+    inspected = subprocess.run(
+        ["docker", "image", "inspect", "--format", "{{.Id}}", args.tag],
+        capture_output=True,
+        text=True,
+    )
+    if inspected.returncode != 0:
+        raise SystemExit(
+            f"docker build exited 0 but {args.tag} is not in the image store; "
+            "use a builder that can load images (docker buildx use default) and rebuild"
+        )
+    print(f"Built {args.tag} ({inspected.stdout.strip()})")
 
 
 if __name__ == "__main__":

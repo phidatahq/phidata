@@ -297,20 +297,28 @@ def test_auto_accept_human_scope_and_executor_fence(system):
         client.patch(f"/schedules/{routine['id']}", json={"payload": raw}, headers=headers(scopes=scopes)).status_code
         == 409
     )
-    assert client.patch(
-        f"/company/routines/{routine['id']}", json={"auto_accept": raw["metadata"]["auto_accept"]},
-        headers=headers(scopes=scopes),
-    ).status_code == 422
+    assert (
+        client.patch(
+            f"/company/routines/{routine['id']}",
+            json={"auto_accept": raw["metadata"]["auto_accept"]},
+            headers=headers(scopes=scopes),
+        ).status_code
+        == 422
+    )
     # Once registered, the target still requires the editor's own run grant.
     os.registry.agents.append(Agent(id="another-agent", db=db))
     assert (
         client.patch(f"/schedules/{routine['id']}", json={"payload": raw}, headers=headers(scopes=scopes)).status_code
         == 409
     )
-    assert client.patch(
-        f"/company/routines/{routine['id']}", json={"auto_accept": raw["metadata"]["auto_accept"]},
-        headers=headers(scopes=scopes),
-    ).status_code == 403
+    assert (
+        client.patch(
+            f"/company/routines/{routine['id']}",
+            json={"auto_accept": raw["metadata"]["auto_accept"]},
+            headers=headers(scopes=scopes),
+        ).status_code
+        == 403
+    )
 
 
 @pytest.mark.asyncio

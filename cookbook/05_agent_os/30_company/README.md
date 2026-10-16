@@ -387,13 +387,22 @@ Tasks before pagination, leaving completed history out of the pickup scan.
 Automatic transitions compare the observed `updated_at` with the stored value,
 including SQL NULL for a record that has never been updated. The existing status
 and terminal-Task predicates remain in the database UPDATE. `updated_at` uses
-epoch seconds: two writes in the same second are indistinguishable, while the
-status predicate still holds in that window. No full-row snapshots are compared.
+epoch seconds: two writes in the same second share that timestamp, while the
+status predicate still holds in that window. Automatic acceptance also compares
+the checked editable Task fields in the atomic UPDATE. Completion compares the
+checked Project fields and its child Tasks' IDs, status, evidence, archive markers
+and timestamps, including archived Tasks. This refuses same-second scope edits
+and child additions or changes. No full-row snapshots are compared in Python.
 
 Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
 release, and run history. No extra loop, table, or route is installed. Skipped
 Tasks and proposals have their reasons in this schedule's run output, readable
 through `/schedules/{id}/runs`.
+
+The tick stops admitting work 240 seconds after its claim, before the scheduler's
+default 300-second stale-lock threshold. It checks again after IO and before
+acceptance or dispatch, without cancelling a database transaction. A stale worker
+cannot release a newer worker's claim on the built-in scheduler adapters.
 
 Run both behaviors without a model call:
 
@@ -444,7 +453,8 @@ check names fail closed. A Source bound requires verified reader evidence.
 Omitting `required_checks` defaults to `["executor_registered"]`; an explicit
 empty check list is rejected. Every policy therefore runs at least one server-side
 check. `limits.expires_at` is required on every policy creation or replacement,
-including PATCH, and must be a UTC epoch-second timestamp.
+including PATCH, and must be a UTC epoch-second timestamp in the future.
+Automatic executors must be local and have a database for durable run storage.
 
 | Built-in required check | Server-side fact checked |
 | --- | --- |
@@ -463,7 +473,8 @@ Product row serializes accounting on SQLite and PostgreSQL so concurrent ticks
 cannot exceed the limit. An early budget check skips exhausted proposals before
 reading Sources or running application checks; the transaction still checks the
 limit again. Changing the policy opens the new version's budget on the next tick.
-Other failed checks are retried because server facts may change. Source bounds
+Other failed checks are retried because server facts may change. Cheap built-in
+checks and application checks run before Source IO. Source bounds
 and `has_source_evidence` share one fresh evidence read per acceptance.
 
 Applications can add checks with
@@ -479,12 +490,17 @@ PATCH `{"auto_accept": false}` to revoke. Every tick reloads the schedule,
 checks the saved human's current authority using the scheduler's authorization
 conventions, and repeats the checks before acceptance. Changed or revoked
 policies also block already accepted automatic work at dispatch and in the
-queue. Human acceptance snapshots use the same scheduler convention: stored-role
+queue. An unchanged Ready Task whose policy was withdrawn returns to Backlog
+with the reason in its transition history, so it is visible for human attention.
+Human acceptance snapshots use the same scheduler convention: stored-role
 changes are re-evaluated; token-scope grants retain their saved scopes. Tasks
 accepted before snapshots were introduced need fresh acceptance before pickup.
 A disabled human cannot authorize automatic work through the user directory.
-Both the Routine API and generic schedule payload updates validate executor
-registration and check names before saving a policy; unknown names return 422.
+The Routine API validates executor registration and check names before saving a
+policy; unknown names return 422. Generic schedule mutations of Company Routines
+return 409: edit them through `/company/routines`. Direct Python ScheduleManager
+payload writes strip acceptance grants; only the human API can issue them after
+checking the caller's authority.
 
 In a local deployment with authentication disabled, API callers are trusted
 operators, as for the existing scheduler. Code/YAML declarations remain

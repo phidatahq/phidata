@@ -35,6 +35,13 @@ def _accept_sandbox(component: Any, sources: list) -> Dict[str, Any]:
     usable = [source for source in matches if source.get("credential_ref") in {None, "GITHUB_READ_TOKEN"}]
     if not usable:
         raise ValueError("Sandboxed executor git Source credential_ref must be GITHUB_READ_TOKEN")
+    usable = [
+        source
+        for source in usable
+        if not source.get("credential_ref") or (component.sandbox.env or {}).get("GITHUB_READ_TOKEN")
+    ]
+    if not usable:
+        raise ValueError("Sandboxed executor requires GITHUB_READ_TOKEN in Sandbox.env for this git Source")
     return sorted(usable, key=lambda source: source["id"])[0]
 
 
@@ -57,9 +64,6 @@ async def _project_checkout(
             if pin != {key: checkout[key] for key in ("url", "branch", "commit")}:
                 raise ValueError("Sandboxed run repository pin does not match the Task checkout")
             return checkout, result
-        attempts = [entry["attempt"] for entry in task["transitions"] if "attempt" in entry]
-        if not attempts or max(attempts) != 1:
-            raise ValueError("Task checkout is missing from attempt 1")
         sources = []
         page = 1
         while True:

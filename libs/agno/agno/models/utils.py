@@ -45,6 +45,7 @@ _PROVIDERS: Dict[str, Tuple[str, str, str, str]] = {
     "inception": ("agno.models.inception", "Inception", "Inception", "inceptionlabs"),
     "internlm": ("agno.models.internlm", "InternLM", "InternLM", "internlm"),
     "langdb": ("agno.models.langdb", "LangDB", "LangDB", "langdb"),
+    "linkrra": ("agno.models.linkrra", "Linkrra", "Linkrra", "linkrra"),
     "litellm": ("agno.models.litellm", "LiteLLM", "LiteLLM", "litellm"),
     "litellm-openai": ("agno.models.litellm", "LiteLLMOpenAI", "LiteLLMOpenAI", "litellm"),
     "llama-cpp": ("agno.models.llama_cpp", "LlamaCpp", "LlamaCpp", "llamacpp"),

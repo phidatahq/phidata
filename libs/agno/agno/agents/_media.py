@@ -116,15 +116,16 @@ def _mime_from_bytes(data: bytes) -> Optional[str]:
     return f"image/{detected}" if detected else None
 
 
-def _name_for(item: Any, kind: str, index: int, detected_mime: Optional[str] = None) -> str:
+def _name_for(item: Any, kind: str, index: int) -> str:
+    # Names depend only on what the caller set: earlier runs are re-staged under the same names
+    # their transcripts already mention, so nothing learned from the bytes may change them.
     explicit = getattr(item, "filename", None) or getattr(item, "name", None)
     if explicit:
         return _safe_name(str(explicit))
     filepath = getattr(item, "filepath", None)
     if filepath:
         return _safe_name(Path(str(filepath)).name)
-    mime = getattr(item, "mime_type", None) or detected_mime or ""
-    extension = getattr(item, "format", None) or _EXTENSIONS.get(mime, "bin")
+    extension = getattr(item, "format", None) or _EXTENSIONS.get(getattr(item, "mime_type", None) or "", "bin")
     return f"{kind}-{index}.{extension}"
 
 
@@ -173,6 +174,7 @@ def stage_media(
     try:
         for kind, key in (("image", "images"), ("file", "files")):
             for index, item in enumerate(media.get(key) or [], start=1):
+                name = _safe_name(_name_for(item, kind, index))
                 data: Optional[bytes] = None
                 getter = getattr(item, "get_content_bytes", None)
                 if callable(getter):
@@ -184,7 +186,6 @@ def stage_media(
                     data = item.content
                 url = getattr(item, "url", None)
                 detected = _mime_from_bytes(data) if data and not _mime_for(item) else None
-                name = _safe_name(_name_for(item, kind, index, detected))
                 if data is None:
                     if url:
                         staged.append(StagedMedia(kind, name, None, _mime_for(item), 0, str(url)))
@@ -265,18 +266,20 @@ def inline_blocks(staged: Sequence[StagedMedia], limit: int = INLINE_MAX_BYTES) 
     """
     blocks: List[Dict[str, Any]] = []
     for item in staged:
-        mime = item.mime_type
-        if not item.path or not mime or item.size > limit:
+        if not item.path or item.size > limit:
             continue
+        try:
+            data = Path(item.path).read_bytes()
+        except OSError:
+            continue
+        # The bytes decide, not the declared type: the API rejects a block whose data is not what
+        # its media type says, and a mislabelled file is better left on disk for the file tools.
+        mime = _mime_from_bytes(data)
         if mime in INLINE_IMAGE_TYPES:
             block_type = "image"
         elif mime in INLINE_DOCUMENT_TYPES:
             block_type = "document"
         else:
-            continue
-        try:
-            data = Path(item.path).read_bytes()
-        except OSError:
             continue
         blocks.append(
             {"type": block_type, "source": {"type": "base64", "media_type": mime, "data": b64encode(data).decode()}}
@@ -289,16 +292,15 @@ def media_prompt_block(staged: Sequence[StagedMedia]) -> str:
     """The lines appended to the prompt so the harness knows what was attached and where."""
     if not staged:
         return ""
-    if all(item.inline for item in staged):
-        header = "Attached files. They are included in this message; the copies on disk are for programs:"
-    else:
-        header = "Attached files. Read them before answering; images and PDFs can be opened with the file tools:"
-    lines = ["", header]
+    lines = ["", "Attached files:"]
     for item in staged:
         label = item.mime_type or item.kind
         if item.path:
             size = f", {item.size // 1024} KB" if item.size >= 1024 else f", {item.size} bytes"
-            note = ", included in this message" if item.inline else ""
+            if item.inline:
+                note = "; already included in this message, do not read it, the file is on disk for programs"
+            else:
+                note = "; read it with the file tools before answering"
             lines.append(f"- {item.path} ({label}{size}{note})")
         else:
             lines.append(f"- {item.url} ({label}, remote URL, not downloaded)")

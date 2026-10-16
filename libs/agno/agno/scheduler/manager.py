@@ -350,6 +350,7 @@ class ScheduleManager:
             kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
         if current_authorization() is not None or {"payload", "method", "endpoint"}.intersection(kwargs):
             require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
             # Caller payloads cannot mint acceptance grants. Metadata-only changes
             # retain the trusted stored grant while refreshing ordinary run authority.
             kwargs["payload"] = (
@@ -601,6 +602,7 @@ class ScheduleManager:
             await arequire_schedule_target(
                 kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method)
             )
+        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
             # Caller payloads cannot mint acceptance grants. Metadata-only changes
             # retain the trusted stored grant while refreshing ordinary run authority.
             kwargs["payload"] = (

@@ -2995,3 +2995,13 @@ behavior changed for this test correction.
 `06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes.
 All used the offline workflow and made no model calls. The complete final-source
 Company integration run is still in progress.
+
+
+**Endpoint-update follow-up:** Restoring the Python target check initially also
+restamped an existing payload on an unauthenticated endpoint-only update. The
+full integration run caught the resulting loss of saved authorization. The check
+and payload rewrite are now separate; all 298 scheduler and targeted retargeting
+checks passed, including the four SQL adapters. The complete 1,369-case integration
+set is rerunning on the corrected source in four independent shards. Collection
+manifests verify that every case runs exactly once, including all 1,216 Company
+cases and all 92 retention cases; this is not a targeted selection.

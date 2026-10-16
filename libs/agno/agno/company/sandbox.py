@@ -50,8 +50,10 @@ def _accept_sandbox(component: Any, sources: list) -> Dict[str, Any]:
 def _validate_publish_environment(component: Any, source: Dict[str, Any]) -> None:
     import os
 
+    from agno.sandbox._harness import env as sandbox_env
+
     ref = (source.get("config") or {}).get("publish_credential_ref")
-    env = component.sandbox.env or {}
+    env = sandbox_env(component)
     token = os.environ.get(ref, "") if ref else ""
     if ref and (ref in env or (token and token in env.values())):
         raise ValueError("Publication credentials must remain on the host")

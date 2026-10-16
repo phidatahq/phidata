@@ -112,10 +112,15 @@ class _SecretFilter(logging.Filter):
 
 async def _api(github: Any, method: str, scrubber: git_ops.Scrubber, *args: Any, **kwargs: Any):
     def invoke():
+        from agno.tools.github import logger as github_logger
         from agno.utils.log import logger
 
         guard = _SecretFilter(scrubber)
-        logger.addFilter(guard)
+        # Toolkit modules retain the logger imported at construction time, while
+        # Team/Workflow execution may switch the current default logger later.
+        loggers = {logger, github_logger, logging.getLogger("github.Requester")}
+        for target in loggers:
+            target.addFilter(guard)
         try:
             value = getattr(github, method)(*args, **kwargs)
             result = json.loads(scrubber.scrub(value))
@@ -125,7 +130,8 @@ async def _api(github: Any, method: str, scrubber: git_ops.Scrubber, *args: Any,
         except Exception as exc:
             raise ValueError(scrubber.scrub(str(exc))) from None
         finally:
-            logger.removeFilter(guard)
+            for target in loggers:
+                target.removeFilter(guard)
 
     pending = asyncio.create_task(asyncio.to_thread(invoke))
     try:

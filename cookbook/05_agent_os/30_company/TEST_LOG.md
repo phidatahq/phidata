@@ -3178,7 +3178,7 @@ passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 
 **Description:** 120 focused cases passed across SQLite, async SQLite, PostgreSQL and async PostgreSQL, plus JWT/managed-role routes and the existing GitHub toolkit suite. Real bare Git remotes cover first publication, crash recovery before and after PR creation, concurrency, revisions, exact merge ancestry, mismatched and closed PRs, required check runs, optimistic result fencing and sync/async entry points. GitHub calls replay checked-in API response shapes. Token assertions cover Git argv/config, Task records, persisted run rows, sandbox environment, schedule payloads and exception logs.
 
-**Result:** All focused cases passed. Format and clean Python 3.10 validation passed. Wider suites will run after the PR is opened.
+**Result:** All focused cases passed. Format and clean Python 3.10 validation passed. The wider suites ran after PR creation; see final validation below.
 
 ---
 
@@ -3198,7 +3198,7 @@ passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 
 **Description:** All 11 publication route/authorization tests pass, including four added cases for current managed accepting identity and permission to enable automatic publication. The wider sweep identified two legacy policy-fingerprint expectations and four candidate-paging expectations that needed the new false-by-default permission and In review reconciliation state reflected. All six corrected cases pass across their selected adapters/isolation modes.
 
-**Result:** Follow-up assertions pass; production code is unchanged from the first PR publication. The wider sweeps remain in progress.
+**Result:** Follow-up assertions pass; production code is unchanged from the first PR publication. The wider sweeps are complete; see final validation below.
 
 ---
 
@@ -3209,5 +3209,20 @@ passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 **Description:** Four SQLite/PostgreSQL sync/async cases verify that registered publication checks inspect the explicitly requested attempt's stored result. A check that approves attempt 1 refuses latest attempt 2 and permits an explicit publication of attempt 1.
 
 **Result:** All four cases passed. This corrects the check input for older-attempt publication; GitHub check runs continue to target the exact generated head.
+
+---
+
+
+### PR 9 final validation
+
+**Status:** PASS
+
+**Description:** The final publication, sandbox-acceptance, authorization and GitHub suite passed all 151 cases. This includes the selected-attempt check correction, captured/default/SDK logger redaction, and checks against the actual sandbox environment including inherited SDK credentials. Both cookbook configuration modes passed without model calls.
+
+**Result:** The broader unit sweep initially reported 12,322 passed, three failed and 55 conditional skips. Two legacy fingerprint assertions were updated for the false-by-default publication permission; an unrelated AgentCore constructor test needed the unavailable host AWS profile unset. All three affected files passed 103 cases on rerun with dummy AWS credentials. Including the four additional authorization cases and one captured-logger regression, 12,330 distinct unit cases passed across the sweep and follow-ups; 55 conditional skips remain.
+
+The broader Company/lifecycle integration sweep initially reported 1,592 passed, four failed and 16 skips. All four paging expectations were updated to include In review and passed on rerun. The four new selected-attempt cases and four initially skipped PostgreSQL scheduler cases also passed. Final distinct integration coverage is 1,604 passes, with only 12 optional MongoDB cases skipped; no selected SQLite/PostgreSQL case remains failing or skipped.
+
+Full format and clean Python 3.10 validation passed (1,187 framework and 21 CLI source files). GitHub lint/triage checks passed on the earlier published head; final hosted status remains separate from local validation. No paid-model calls or actual GitHub repository publication were performed. The PR was opened before the wider sweeps, and subsequent changes preserve its history with normal commits.
 
 ---

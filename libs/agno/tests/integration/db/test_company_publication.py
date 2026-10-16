@@ -388,7 +388,7 @@ async def test_automatic_publication_and_tick_reconcile(db, remote, api, enabled
 
 
 @pytest.mark.asyncio
-async def test_host_token_does_not_enter_run_or_sandbox(db, remote, api):
+async def test_host_token_does_not_enter_run_or_sandbox(db, remote, api, monkeypatch):
     from agno.company.sandbox import _validate_publish_environment
     from agno.run.agent import RunOutput
     from agno.run.base import RunStatus
@@ -397,7 +397,7 @@ async def test_host_token_does_not_enter_run_or_sandbox(db, remote, api):
     _, task = await prepare(db, remote)
     source = await _call(db, "get_source", task["metadata"]["checkout"]["source_id"])
     sandbox = SimpleNamespace(env={"GITHUB_READ_TOKEN": "read-only"})
-    component = SimpleNamespace(sandbox=sandbox)
+    component = SimpleNamespace(sandbox=sandbox, _sandbox_runtime="codex", repository=None)
     _validate_publish_environment(component, source)
     output = RunOutput(
         run_id=task["job_id"],
@@ -427,6 +427,10 @@ async def test_host_token_does_not_enter_run_or_sandbox(db, remote, api):
         component.sandbox.env = env
         with pytest.raises(ValueError, match="remain on the host"):
             _validate_publish_environment(component, source)
+    component.sandbox.env = {}
+    monkeypatch.setenv("OPENAI_API_KEY", TOKEN)
+    with pytest.raises(ValueError, match="remain on the host"):
+        _validate_publish_environment(component, source)
 
 
 @pytest.mark.asyncio

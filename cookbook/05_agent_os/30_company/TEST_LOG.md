@@ -337,3 +337,13 @@ Full format and clean Python 3.10 validation passed (1,187 framework and 21 CLI 
 **Result:** All 179 focused publication, authorization, sandbox and GitHub cases passed across SQLite/PostgreSQL sync/async adapters. Both sandbox cookbook configuration modes, full format and clean validation passed (1,188 framework and 21 CLI source files). Broader ownership/recovery, authorization and lifecycle suites run after the push.
 
 ---
+
+### PR 9 parent synchronization — wider validation
+
+**Status:** PASS
+
+**Description:** The normal merge of PR 8 `d444dc13a58016e99df67f4a74e7b2d34fee56d4` was pushed at `e0f4f820f4` before broader suites ran. The relevant database, Company routes/tools, scheduler and authorization unit selection passed **2,154 tests**, with 35 conditional skips. Execution, task identity recovery, actor/owner parity, replica offboarding, sandbox admission, patches, retention and task/schedule lifecycle integration suites passed **1,369 tests**, with 12 optional MongoDB skips.
+
+**Result:** No failures or further code changes were needed after the merge push. The 179 focused tests, both sandbox cookbook configuration modes and full format/clean validation also passed. PR 8 remains open, so PR 9 retains its stacked base.
+
+---

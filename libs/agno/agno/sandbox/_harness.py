@@ -221,8 +221,6 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     from agno.sandbox.protocol import validate_request
 
     env(agent)
-    if "repository" in kwargs:
-        raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
     if not isinstance(input, str):
         raise ValueError("Sandboxed agent input must be text")
     extra = {key: value for key, value in kwargs.items() if value is not None}

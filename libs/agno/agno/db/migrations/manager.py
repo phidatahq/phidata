@@ -17,7 +17,6 @@ class MigrationManager:
         ("v2_5_0", packaging_version.parse("2.5.0")),
         ("v2_5_6", packaging_version.parse("2.5.6")),
         ("v3_0_0", packaging_version.parse("3.0.0")),
-        ("v3_1_4", packaging_version.parse("3.1.4")),
     ]
 
     def __init__(self, db: Union[AsyncBaseDb, BaseDb]):

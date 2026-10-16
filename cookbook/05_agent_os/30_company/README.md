@@ -172,5 +172,5 @@ Attention and run reads are company-wide with `tasks:read`; Task lists also
 accept `failed=true`. Failed work means an In progress Task whose latest result
 is an error. Cancelling, replanning, reaccepting or reviewing the Task clears it
 from failed attention while preserving the result as history. `failed=false`
-includes all other Tasks, including those with no result. Existing databases add the Task execution columns with
-`MigrationManager(db).up(table_type="tasks")` (await this migration coroutine).
+includes all other Tasks, including those with no result. The Task table is
+created with its execution, evidence and result columns in the initial schema.

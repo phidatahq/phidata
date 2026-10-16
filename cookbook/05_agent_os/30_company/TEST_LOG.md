@@ -402,3 +402,21 @@ No provider calls were made. The full unit-suite figures above remain their
 historical baseline; this rebase used focused regression coverage.
 
 ---
+
+### Initial Task schema — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Removed the Company execution migration and its version
+registration because Company tables have not been released. Execution references,
+evidence and results remain part of the initial Task schema. Replaced the upgrade
+test with fresh custom-table creation and execution checks on sync/async SQLite
+and PostgreSQL. Restored the unrelated migration unit tests to their main versions.
+
+**Result:** **186 targeted tests passed**, covering execution, authorization,
+fresh Task schema/index creation and the restored migration suites. Both
+execution cookbook modes passed. Format and validation passed (mypy: 1,146 core
+files and 21 CLI files), and all output was read. No provider calls were made.
+Earlier migration test entries describe the implementation before this simplification.
+
+---

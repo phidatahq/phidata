@@ -103,7 +103,7 @@ def test_up_adds_user_id_column_and_index():
 
     assert "user_id" in _columns(db_file)
     assert EVAL_INDEX in _indexes(db_file)
-    assert db.get_latest_schema_version(EVAL_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert db.get_latest_schema_version(EVAL_TABLE) == "3.0.0"
 
 
 def test_migrated_column_type_matches_fresh_schema():
@@ -387,8 +387,8 @@ def test_schedules_migration_restores_column_and_composite_index():
     assert SCHEDULES_COMPOSITE_INDEX in _table_indexes(db_file, SCHEDULES_TABLE)
     assert "user_id" in _table_columns(db_file, SCHEDULE_RUNS_TABLE)
     assert f"idx_{SCHEDULE_RUNS_TABLE}_user_id" in _table_indexes(db_file, SCHEDULE_RUNS_TABLE)
-    assert db.get_latest_schema_version(SCHEDULES_TABLE) == MigrationManager(db).latest_schema_version.public
-    assert db.get_latest_schema_version(SCHEDULE_RUNS_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert db.get_latest_schema_version(SCHEDULES_TABLE) == "3.0.0"
+    assert db.get_latest_schema_version(SCHEDULE_RUNS_TABLE) == "3.0.0"
 
 
 def test_schedules_revert_drops_composite_before_column():
@@ -426,7 +426,7 @@ def test_knowledge_migration_adds_user_id():
     assert f"idx_{KNOWLEDGE_TABLE}_user_id" in _table_indexes(db_file, KNOWLEDGE_TABLE)
     # linked_to still exists on this table, so the (user_id, linked_to) composite comes back too
     assert knowledge_composite in _table_indexes(db_file, KNOWLEDGE_TABLE)
-    assert db.get_latest_schema_version(KNOWLEDGE_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert db.get_latest_schema_version(KNOWLEDGE_TABLE) == "3.0.0"
 
 
 def test_schedules_migration_is_idempotent():
@@ -508,7 +508,7 @@ def test_schedules_migration_adds_provenance_columns_to_stripped_table():
     idx = _table_indexes(db_file, SCHEDULES_TABLE)
     assert f"idx_{SCHEDULES_TABLE}_managed_by" in idx
     assert f"idx_{SCHEDULES_TABLE}_target_id" in idx
-    assert db.get_latest_schema_version(SCHEDULES_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert db.get_latest_schema_version(SCHEDULES_TABLE) == "3.0.0"
 
 
 @pytest.mark.asyncio
@@ -532,7 +532,7 @@ async def test_async_schedules_migration_adds_provenance_columns():
     idx = _table_indexes(db_file, SCHEDULES_TABLE)
     assert f"idx_{SCHEDULES_TABLE}_managed_by" in idx
     assert f"idx_{SCHEDULES_TABLE}_target_id" in idx
-    assert await db.get_latest_schema_version(SCHEDULES_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert await db.get_latest_schema_version(SCHEDULES_TABLE) == "3.0.0"
 
     created = await db.create_schedule(_schedule_row("after-migration"))
     assert created["id"] == "sched-after-migration"
@@ -778,7 +778,7 @@ def test_metrics_migration_swaps_the_unique_key():
     assert METRICS_USER_INDEX in _table_indexes(db_file, METRICS_TABLE)
     assert METRICS_UNIQUE in _table_ddl(db_file, METRICS_TABLE)
     assert METRICS_LEGACY_UNIQUE not in _table_ddl(db_file, METRICS_TABLE)
-    assert db.get_latest_schema_version(METRICS_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert db.get_latest_schema_version(METRICS_TABLE) == "3.0.0"
 
 
 def test_metrics_migration_keeps_rows_and_other_indexes():
@@ -932,7 +932,7 @@ def test_metrics_revert_refuses_while_rows_are_owned():
 
     assert "user_id" in _table_columns(db_file, METRICS_TABLE)
     assert METRICS_UNIQUE in _table_ddl(db_file, METRICS_TABLE)
-    assert db.get_latest_schema_version(METRICS_TABLE) == MigrationManager(db).latest_schema_version.public
+    assert db.get_latest_schema_version(METRICS_TABLE) == "3.0.0"
 
 
 def test_metrics_revert_refuses_when_an_owner_is_null():

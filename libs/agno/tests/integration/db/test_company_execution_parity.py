@@ -247,65 +247,38 @@ async def test_queue_reconciliation_projects_completion_after_restart(system, mo
 
 
 @pytest.mark.asyncio
-async def test_existing_task_table_migrates_idempotently(system):
-    from sqlalchemy import Column, MetaData, Table, inspect
+async def test_custom_task_table_is_created_with_execution_fields(system):
+    from sqlalchemy import inspect
 
     from agno.company.execution import _call
-    from agno.db.migrations.manager import MigrationManager
-    from agno.db.sqlite.schemas import TASKS_TABLE_SCHEMA
 
-    client, db, worker, os, components = system
+    client, db, worker, os, _ = system
     name = "custom_company_tasks"
-    new_columns = {"session_id", "job_id", "evidence", "result"}
-    schema = getattr(db, "db_schema", None)
-    table = Table(name, MetaData(), schema=schema)
-    # A real populated table from before execution, using portable JSON for legacy columns.
-    for key, definition in TASKS_TABLE_SCHEMA.items():
-        if key not in new_columns:
-            table.append_column(
-                Column(
-                    key,
-                    definition["type"],
-                    primary_key=definition.get("primary_key", False),
-                    nullable=definition.get("nullable", True),
-                )
-            )
-
-    def create(conn):
-        if schema:
-            conn.execute(text('CREATE SCHEMA IF NOT EXISTS "' + schema + '"'))
-        table.create(conn)
-        conn.execute(
-            table.insert().values(
-                id="existing", title="Keep this", product_id="product", status="backlog", created_at=1, transitions=[]
-            )
-        )
-
-    if isinstance(db, AsyncBaseDb):
-        async with db.db_engine.begin() as conn:
-            await conn.run_sync(create)
-    else:
-        with db.db_engine.begin() as conn:
-            create(conn)
     db.tasks_table_name = name
-    await _call(db, "upsert_schema_version", name, "3.0.0")
-    await MigrationManager(db).up(table_type="tasks")
-    await MigrationManager(db).up(table_type="tasks")
-    value = await _call(db, "get_task", "existing")
-    assert value["title"] == "Keep this" and new_columns <= set(value)
-    assert all(value[key] is None for key in new_columns)
-    assert await _call(db, "get_latest_schema_version", name) == "3.1.4"
+    value = await accepted(client)
+    saved = await _call(db, "get_task", value["id"])
+    assert saved["session_id"]
+    assert saved["job_id"] is None and saved["result"] is None
+    assert saved["evidence"] == [{"url": "https://example.com/evidence", "hash": "abc"}]
 
     def inspect_table(conn):
-        return inspect(conn).get_indexes(name, schema=schema)
+        inspector = inspect(conn)
+        schema = getattr(db, "db_schema", None)
+        return inspector.get_columns(name, schema=schema), inspector.get_indexes(name, schema=schema)
 
     if isinstance(db, AsyncBaseDb):
         async with db.db_engine.connect() as conn:
-            indexes = await conn.run_sync(inspect_table)
+            columns, indexes = await conn.run_sync(inspect_table)
     else:
         with db.db_engine.connect() as conn:
-            indexes = inspect_table(conn)
+            columns, indexes = inspect_table(conn)
+    assert {"session_id", "job_id", "evidence", "result"} <= {column["name"] for column in columns}
     assert {f"idx_{name}_session_id", f"idx_{name}_job_id"} <= {index["name"] for index in indexes}
+
+    response = await client.post(f"/company/tasks/{value['id']}/runs")
+    assert response.status_code == 202, response.text
+    assert (await execute(worker))["status"] == "completed"
+    assert (await client.get(f"/company/tasks/{value['id']}")).json()["status"] == "in_review"
 
 
 @pytest.mark.asyncio

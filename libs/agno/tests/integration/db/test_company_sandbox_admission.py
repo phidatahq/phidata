@@ -17,7 +17,15 @@ PIN = {"url": URL, "branch": "master", "commit": "a" * 40}
 
 
 @pytest_asyncio.fixture
-async def sandbox_system(system):  # noqa: F811
+async def sandbox_system(system, monkeypatch):  # noqa: F811
+    import agno.os.event_streams as streams
+    import agno.run.cancel as cancel
+
+    # Queue configuration can replace process defaults; restore them after each case.
+    monkeypatch.setattr(streams, "_event_stream", streams._event_stream)
+    monkeypatch.setattr(streams, "_event_stream_explicitly_set", streams._event_stream_explicitly_set)
+    monkeypatch.setattr(cancel, "_cancellation_manager", cancel._cancellation_manager)
+    monkeypatch.setattr(cancel, "_cancellation_manager_explicitly_set", cancel._cancellation_manager_explicitly_set)
     client, db, worker, os, components = system
     agent = FixtureAgent(
         id="engineer",

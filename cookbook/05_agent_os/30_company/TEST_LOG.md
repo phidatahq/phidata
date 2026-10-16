@@ -2576,3 +2576,13 @@ All 13 offline cookbook invocations passed: `01_manage_products.py`, `02_manage_
 The retained four-adapter tests prove null-template completion denial, instruction-only edits preserving fingerprint and spent budget, agent-discovered website Source evidence, executor-less Intake through the real queue, concurrent pickup/restart, policy revocation, exhausted budgets, refused completion and all Task/Project write timestamps. Supplied release probes were not rerun in this merge; their earlier results above remain historical evidence, not proof that the removed scope/child-set guards remain effective.
 
 ---
+
+### PR 6 round-5 scheduler and withdrawal fixes — October 16, 2026
+
+**Status:** PASS for focused regressions; wider suites pending at publication.
+
+**Description:** Protect the runtime automation schedule from sync/async create-or-update, including SchedulerTools creation. Omitted-payload schedule updates preserve the stored human acceptance grant while checking target permission and refreshing ordinary run authority; caller-supplied payloads still strip forged grants. Releases match worker ID plus claim timestamp across the SQL and Mongo scheduler adapters, so expired invocations cannot release a successor claimed by the same poller. Previously accepted Tasks returned to Backlog require fresh human acceptance; automatic policy withdrawals follow the same conservative rule. Distinct-Task budgets remain unchanged. Quiet history remains exclusively in PR #11118.
+
+**Result:** 52 focused integration regressions passed across SQLite, async SQLite, PostgreSQL and async PostgreSQL, including real durable queues, valid sync/async SchedulerTools upserts, authorized/unauthorized-context metadata changes, human withdrawal before and after queue admission, fresh human reacceptance, same-worker/different-worker successor claims, forged grants and per-version distinct budgets. The initial upsert test omitted a required message payload and was corrected to reach the intended runtime-row guard. Format and clean validation passed with output read. Pushing these fixes now for review; full unit and Company/scheduler integration suites will follow in a normal commit.
+
+---

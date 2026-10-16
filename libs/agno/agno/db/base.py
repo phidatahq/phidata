@@ -2105,9 +2105,14 @@ class BaseDb(ABC):
         raise NotImplementedError
 
     def release_schedule(
-        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
     ) -> bool:
-        """Release a schedule, optionally only if worker_id still owns its claim."""
+        """Release a schedule, optionally matching its worker and individual claim timestamp."""
         raise NotImplementedError
 
     # --- Schedule Runs (Optional) ---
@@ -4036,9 +4041,14 @@ class AsyncBaseDb(ABC):
         raise NotImplementedError
 
     async def release_schedule(
-        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
     ) -> bool:
-        """Release a schedule, optionally only if worker_id still owns its claim."""
+        """Release a schedule, optionally matching its worker and individual claim timestamp."""
         raise NotImplementedError
 
     # --- Schedule Runs (Optional) ---

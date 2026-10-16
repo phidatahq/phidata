@@ -194,6 +194,7 @@ class ScheduleManager:
                 log_debug(f"Schedule '{name}' already exists, skipping")
                 return existing
             if if_exists == "update":
+                _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
                 next_run_at = compute_next_run(cron, timezone)
                 updated = self._to_schedule(
@@ -316,7 +317,11 @@ class ScheduleManager:
         if existing is None:
             return None
         require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        kwargs["payload"] = _schedule_payload(kwargs.get("payload", existing.payload))
+        # Caller payloads cannot mint acceptance grants. Metadata-only changes
+        # retain the trusted stored grant while refreshing ordinary run authority.
+        kwargs["payload"] = (
+            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+        )
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     def delete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
@@ -426,6 +431,7 @@ class ScheduleManager:
                 log_debug(f"Schedule '{name}' already exists, skipping")
                 return existing
             if if_exists == "update":
+                _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
                 next_run_at = compute_next_run(cron, timezone)
                 updated = self._to_schedule(
@@ -548,7 +554,11 @@ class ScheduleManager:
         if existing is None:
             return None
         await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        kwargs["payload"] = _schedule_payload(kwargs.get("payload", existing.payload))
+        # Caller payloads cannot mint acceptance grants. Metadata-only changes
+        # retain the trusted stored grant while refreshing ordinary run authority.
+        kwargs["payload"] = (
+            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+        )
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     async def adelete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:

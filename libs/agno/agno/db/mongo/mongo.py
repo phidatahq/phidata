@@ -3199,7 +3199,12 @@ class MongoDb(BaseDb):
             return None
 
     def release_schedule(
-        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
     ) -> bool:
         try:
             collection = self._get_collection(table_type="schedules")
@@ -3210,9 +3215,11 @@ class MongoDb(BaseDb):
             if next_run_at is not None:
                 updates["next_run_at"] = next_run_at
 
-            query = {"id": schedule_id}
+            query: Dict[str, Any] = {"id": schedule_id}
             if worker_id is not None:
                 query["locked_by"] = worker_id
+            if locked_at is not None:
+                query["locked_at"] = locked_at
             result = collection.update_one(query, {"$set": updates})
             return result.matched_count > 0
         except Exception as e:

@@ -1282,7 +1282,22 @@ async def test_acceptance_budget_is_per_policy_and_distinct_task(system, tmp_pat
     executor, _ = await automation(system)
     first = await executor._accept(task)
     await _call(db, "transition_task", task["id"], "backlog", "Return proposal")
-    repeated = await executor._accept(await _call(db, "get_task", task["id"]))
+    returned = await _call(db, "get_task", task["id"])
+    with pytest.raises(ValueError, match="fresh human acceptance"):
+        await executor._accept(returned)
+    # Storage counts distinct records even if a trusted caller repeats a receipt;
+    # the automation boundary itself refuses to override a human withdrawal.
+    repeated = await _call(
+        db,
+        "transition_task",
+        task["id"],
+        "ready",
+        "Repeat receipt for budget accounting",
+        executor_type="agent",
+        executor_id="writer",
+        expected_updated_at=returned["updated_at"],
+        auto_accept=first["transitions"][-1]["auto_accept"],
+    )
     assert repeated["status"] == "ready"
     assert sum(bool(entry.get("auto_accept")) for entry in repeated["transitions"]) == 2
     with authorization_scope(lambda: _RoutineAuthorization(None, routine["id"])):
@@ -2543,7 +2558,8 @@ async def test_automatic_policy_refuses_unrunnable_executor(system, tmp_path, mo
 
 
 @pytest.mark.asyncio
-async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path, monkeypatch):
+@pytest.mark.parametrize("successor_worker", ["first", "second"])
+async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path, monkeypatch, successor_worker):
     from unittest.mock import Mock
 
     from agno.company.execution import _call
@@ -2557,8 +2573,9 @@ async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path,
     async def slow_check(observed, manager):
         # Model process suspension or slow IO beyond the default lock grace.
         monkeypatch.setattr(time, "time", lambda: claimed["locked_at"] + 301)
-        second = await _call(db, "claim_due_schedule", "second")
+        second = await _call(db, "claim_due_schedule", successor_worker)
         assert second["id"] == claimed["id"]
+        assert second["locked_at"] != claimed["locked_at"]
         return True
 
     os.company.acceptance_checks["slow_check"] = slow_check
@@ -2571,5 +2588,141 @@ async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path,
     assert "claim budget" in str(result)
     read.assert_not_called()
     assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
-    assert (await _call(db, "get_schedule", schedule["id"]))["locked_by"] == "second"
+    successor = await _call(db, "get_schedule", schedule["id"])
+    assert successor["locked_by"] == successor_worker
+    assert successor["locked_at"] == claimed["locked_at"] + 301
+    assert successor["next_run_at"] == claimed["next_run_at"]
+    assert await _call(
+        db, "release_schedule", schedule["id"], worker_id=successor_worker, locked_at=successor["locked_at"]
+    )
+    assert (await _call(db, "get_schedule", schedule["id"]))["locked_by"] is None
     assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+
+
+@pytest.mark.asyncio
+async def test_runtime_automation_schedule_rejects_upsert_and_tool_creation(system):
+    from agno.company.execution import _call
+    from agno.scheduler import ScheduleManager
+    from agno.tools.scheduler import SchedulerTools
+
+    _, db, _, _, _ = system
+    _, schedule = await automation(system)
+    manager = ScheduleManager(db)
+    tools = SchedulerTools(db=db)
+    arguments = dict(name=schedule["name"], cron="* * * * *", endpoint="/agents/writer/runs")
+    before = await _call(db, "get_schedule", schedule["id"])
+    try:
+        for asynchronous in (False, True):
+            with pytest.raises(ValueError, match="runtime-managed"):
+                if asynchronous:
+                    await manager.acreate(**arguments, if_exists="update")
+                else:
+                    manager.create(**arguments, if_exists="update")
+            tool_arguments = {**arguments, "payload": json.dumps({"message": "Scheduled work"})}
+            result = (
+                await tools.acreate_schedule(**tool_arguments)
+                if asynchronous
+                else tools.create_schedule(**tool_arguments)
+            )
+            assert "runtime-managed" in json.loads(result)["error"]
+            assert await _call(db, "get_schedule", schedule["id"]) == before
+        # Read-only create-or-skip remains idempotent; reconciliation still works.
+        assert (await manager.acreate(**arguments, if_exists="skip")).id == schedule["id"]
+        _, reconciled = await automation(system)
+        assert reconciled["endpoint"] == "/company/attention"
+        assert reconciled["enabled"] is True
+    finally:
+        manager.close()
+        tools.manager.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("authorized", [False, True])
+@pytest.mark.parametrize("operation", ["trigger", "metadata"])
+async def test_schedule_metadata_changes_preserve_human_acceptance_grant(system, tmp_path, authorized, operation):
+    from agno.company.execution import _call
+    from agno.os.auth import _default_authorization_provider
+    from agno.os.authz.provider import AuthorizationContext
+    from agno.run.authorization import RunAuthorization, authorization_scope
+    from agno.tools.scheduler import SchedulerTools
+
+    _, db, _, _, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    before = await _call(db, "get_schedule", routine["id"])
+    tools = SchedulerTools(db=db)
+    caller = RunAuthorization(
+        _default_authorization_provider(),
+        AuthorizationContext(principal_id="editor", scopes=["schedules:write", "agents:run"]),
+    )
+    try:
+        with authorization_scope(lambda: caller if authorized else None):
+            if operation == "trigger":
+                result = (
+                    await tools.atrigger_schedule(routine["id"])
+                    if isinstance(db, AsyncBaseDb)
+                    else tools.trigger_schedule(routine["id"])
+                )
+                assert json.loads(result)["status"] == "triggered"
+                assert "_agno_company_acceptance" not in result
+            elif isinstance(db, AsyncBaseDb):
+                await tools.manager.aupdate(routine["id"], description="Scheduling metadata only")
+            else:
+                tools.manager.update(routine["id"], description="Scheduling metadata only")
+        after = await _call(db, "get_schedule", routine["id"])
+        assert after["payload"]["_agno_company_acceptance"] == before["payload"]["_agno_company_acceptance"]
+        assert after["payload"]["metadata"]["auto_accept"] == before["payload"]["metadata"]["auto_accept"]
+        executor, _ = await automation(system)
+        assert (await executor._accept(task))["status"] == "ready"
+    finally:
+        tools.manager.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("queued", [False, True])
+async def test_human_backlog_withdrawal_requires_fresh_human_acceptance(system, tmp_path, queued):
+    from agno.company.execution import _call
+    from agno.company.routines import _policy_fingerprint
+
+    client, db, worker, _, _ = system
+    task, routine, _ = await routine_proposal(system, tmp_path)
+    executor, schedule = await automation(system)
+    if queued:
+        await tick(executor, db)
+    else:
+        await executor._accept(task)
+    response = await client.post(
+        "/company/tasks/" + task["id"] + "/transitions", json={"target": "backlog", "reason": "Human withdrew scope"}
+    )
+    assert response.status_code == 200, response.text
+    withdrawn = await _call(db, "get_task", task["id"])
+    assert withdrawn["status"] == "backlog"
+    if queued:
+        assert (await execute(worker))["status"] == "failed"
+    for _ in range(2):
+        await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+        result = await tick(executor, db)
+        assert "fresh human acceptance" in result["output"]["tasks"][0]["reason"]
+        saved = await _call(db, "get_task", task["id"])
+        assert saved["status"] == "backlog"
+        assert saved["transitions"] == withdrawn["transitions"]
+        assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
+    # A fresh human acceptance explicitly permits pickup again, without spending
+    # another automatic budget slot for the same Task.
+    response = await client.post(
+        "/company/tasks/" + task["id"] + "/transitions",
+        json={
+            "target": "ready",
+            "reason": "Human accepted revised scope",
+            "executor_type": "agent",
+            "executor_id": "writer",
+        },
+    )
+    assert response.status_code == 200, response.text
+    await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+    await tick(executor, db)
+    assert (await execute(worker))["status"] == "completed"
+    current = await _call(db, "get_task", task["id"])
+    attempts = [entry["attempt"] for entry in current["transitions"] if entry.get("attempt")]
+    assert attempts == ([1, 2] if queued else [1])
+    stored = await _call(db, "get_schedule", routine["id"])
+    assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(stored), "") == 1

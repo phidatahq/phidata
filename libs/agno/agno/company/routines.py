@@ -518,6 +518,8 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         from agno.os.authz.run_context import restore_authorization
         from agno.run.authorization import AUTHORIZATION_KEY, authorization_scope
 
+        if not completing and any(entry.get("target") == "ready" for entry in task.get("transitions", [])):
+            raise ValueError("Previously accepted Task requires fresh human acceptance after return to Backlog")
         os = self.agent_os
         schedule = await _call(os.db, "get_schedule", task["routine_id"])
         if not schedule or not schedule["enabled"] or schedule.get("managed_by") != "company":

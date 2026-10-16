@@ -307,10 +307,14 @@ class ScheduleExecutor:
                     from inspect import signature
 
                     release_kwargs: Dict[str, Any] = {"next_run_at": next_run_at}
-                    # An expired worker must not release a newer worker's claim.
+                    # A poller can reclaim with the same worker ID. Match the
+                    # individual claim so an expired invocation cannot release it.
                     # Older custom adapters retain their existing release API.
-                    if sched.locked_by is not None and "worker_id" in signature(db.release_schedule).parameters:
+                    parameters = signature(db.release_schedule).parameters
+                    if sched.locked_by is not None and "worker_id" in parameters:
                         release_kwargs["worker_id"] = sched.locked_by
+                    if sched.locked_at is not None and "locked_at" in parameters:
+                        release_kwargs["locked_at"] = sched.locked_at
                     if asyncio.iscoroutinefunction(getattr(db, "release_schedule", None)):
                         await db.release_schedule(schedule_id, **release_kwargs)
                     else:

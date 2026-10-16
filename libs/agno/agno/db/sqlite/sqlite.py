@@ -7189,7 +7189,12 @@ class SqliteDb(BaseDb):
             return None
 
     def release_schedule(
-        self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
+        self,
+        schedule_id: str,
+        next_run_at: Optional[int] = None,
+        *,
+        worker_id: Optional[str] = None,
+        locked_at: Optional[int] = None,
     ) -> bool:
         try:
             table = self._get_table(table_type="schedules")
@@ -7201,6 +7206,8 @@ class SqliteDb(BaseDb):
             statement = table.update().where(table.c.id == schedule_id)
             if worker_id is not None:
                 statement = statement.where(table.c.locked_by == worker_id)
+            if locked_at is not None:
+                statement = statement.where(table.c.locked_at == locked_at)
             with self.Session() as sess, sess.begin():
                 result = sess.execute(statement.values(**updates))
                 return result.rowcount > 0

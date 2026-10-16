@@ -401,8 +401,9 @@ through `/schedules/{id}/runs`.
 
 The tick stops admitting work 240 seconds after its claim, before the scheduler's
 default 300-second stale-lock threshold. It checks again after IO and before
-acceptance or dispatch, without cancelling a database transaction. A stale worker
-cannot release a newer worker's claim on the built-in scheduler adapters.
+acceptance or dispatch, without cancelling a database transaction. Releases match
+both the worker ID and the claim timestamp on the built-in scheduler adapters,
+so an expired invocation cannot release a later claim by that same worker.
 
 Run both behaviors without a model call:
 
@@ -417,7 +418,10 @@ executor run route and durable queue. A pending submission retains its original
 attempt on restart. The queue owns execution retry limits; new ticks do not
 start additional attempts for running or failed Tasks. A human can request a
 retry using the existing run route. Returning queued work to Backlog prevents
-its executor from starting. Successful work remains In review.
+its executor from starting. Once a Task has been accepted, returning it to
+Backlog requires fresh human acceptance before another pickup; automation does
+not treat it as a new proposal. This also applies to automatic policy withdrawals.
+The distinct-Task policy budget is unchanged. Successful work remains In review.
 
 An authenticated human needs `routines:write`, `schedules:write`, `tasks:write`,
 and run permission for both the Routine target and the proposed Task executor.

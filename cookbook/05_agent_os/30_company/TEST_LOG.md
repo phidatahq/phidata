@@ -201,52 +201,57 @@ No paid model calls or real outbound notification deliveries were exercised.
 
 ---
 
+### PR 7.2 recovery checkout integration
+
+**Status:** PASS
+
+**Description:** Merged main after PR 6.6 landed, using normal merge commit `4554646f1e`. Recovered completed runs now use the same checkout projection as worker completion. The first successful recovery stores the pin, later attempts verify it, missing or changed pins fail the attempt, and an unavailable sandbox executor leaves recovery retryable. The checkout and result use the existing guarded atomic completion write; a stale recovery cannot replace a settled winner.
+
+**Result:** All 20 recovery regressions passed across sync/async SQLite and PostgreSQL. The complete Company/lifecycle matrix passed 1,864 cases with PostgreSQL and MongoDB enabled and no skips. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. No paid model calls. These are local results; CI and independent review remain separate.
+
+---
+
+### PR 7.2 pinned Task acceptance consistency
+
+**Status:** PASS
+
+**Description:** Sync and async acceptance now reject a pinned Task's reassignment to a non-sandboxed agent, team or workflow with HTTP 409. Unpinned Tasks retain their existing behavior. The four-adapter regression covers refusal without mutation and successful session/pin reuse and recovery after selecting a compatible sandboxed executor. All 12 pinned cases failed before the fix; all 24 pinned/unpinned cases pass afterward.
+
+**Result:** All 148 focused sandbox/checkout tests, 1,751 affected unit tests (35 conditional skips), and 12 Docker cases passed. The broad Company/lifecycle run passed 1,886 cases and exposed two async concurrency fixtures pausing at the new preliminary validation read rather than the intended SQL transition read. The fixture now pauses within the transition transaction; the complete 40-case Task lifecycle suite passed on rerun, yielding 1,888 distinct passing integration cases. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. No paid model calls. Recovery and queue admission production code are unchanged.
+
+---
 
 ### PR 8 — checkpoint outputs and bounded attachments (2026-10-16)
 
 **Status:** PASS
 
-**Description:** Validated `09_sandboxed_engineers.py` configuration for Claude
-and Codex without model calls. Completed sandbox runs produce durable patches
-before review, including empty and binary patches, untracked files and patches
+**Description:** Completed sandbox runs produce durable checkpoint patches before
+review, including empty and lossless binary patches, untracked files and patches
 larger than the ordinary filesystem's 1 MB default. Verified pin and size
-failures, missing-attempt 404s, tasks:read authorization, interrupted-projection
-recovery, attachment count/byte limits and unchanged ordinary-executor results.
+failures, missing-attempt 404s, tasks:read authorization, failed-projection retries,
+non-UTF-8 patch application/download, nested repository/gitlink refusal,
+interrupted-projection recovery, attachment count/byte limits and unchanged
+ordinary-executor results. Sandbox instructions require uncommitted changes.
 
-**Result:** 39 patch integration tests passed across SQLite, AsyncSqlite,
-Postgres and AsyncPostgres; 270 combined affected tests passed; 56 recovery
-regressions passed after correcting the non-sandbox compatibility case. The
-broader Company sweep covered 1,365 cases (1,361 passed initially; its four
-stale-recovery failures were corrected and are included in the passing recovery
-rerun), with eight conditional skips. All 12 Docker/Redis/Postgres Company
-fixture cases passed, including byte-identical empty patch downloads after
-container replacement; the local repository fixture separately verifies
-nonempty replacement patches. The full database/AgentOS unit rerun passed 6,260 tests with 39 conditional skips. Its initial 17 queue
-compatibility failures were corrected. Full format and clean Python 3.10 validation passed. Python tests
-used the existing Python 3.12 development environment. No paid model turns or
-hosted-provider deployment were run.
+**Stack:** Integrated PR 7.2 head `be1fc9ac3ce7a174215a956b492ea81f3f052c2d`
+with a normal merge. Recovery resolves the recorded run's executor and retains
+its checkout pin, then uses the shared patch projection before review. Missing
+sandbox executors defer recovery. Pinned Tasks refuse non-sandboxed reassignment.
+Parent recovery tests use real local-repository checkpoints for completed runs.
+Multipart wiki attachments retain the ownership-aware internal run transport.
 
-Review follow-up: all **286 affected unit and integration tests passed**, with
-no skips, after publishing the fixes for parallel review. Coverage includes
-failed-projection retries with durable and missing tickets, active-job refusal,
-lossless non-UTF-8 additions/modifications/deletions and downloads, identical
-replacement-checkpoint patches, and nested repository/gitlink refusal across
-sync/async SQLite and PostgreSQL. Sandbox instructions require uncommitted
-changes. The cookbook configuration smoke and full format/validation scripts
-passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
+**Result:** All **386 focused unit/integration tests**, **84 execution-recovery
+tests**, and **12 Docker/Redis/PostgreSQL Company fixture cases passed**, with no
+failures or skips. SQL coverage includes synchronous and asynchronous SQLite
+and PostgreSQL; Docker coverage includes identical patch downloads after
+container replacement. The local repository fixture separately verifies
+nonempty replacement patches. Full format and clean Python 3.10 validation,
+whitespace checks and the Claude/Codex cookbook configuration smoke passed.
+Tests used the Python 3.12 development environment.
 
-Stack integration: merged PR 7.2 head `f8613a3fb4` with a normal merge, retaining
-its ownership-aware internal run transport and admission coordination. Multipart
-wiki attachments use that transport; normal completion and both ticketless-route
-and automatic recovery still project checkpoint patches before review.
-Validated **552 distinct affected unit/integration cases** across the initial run
-and rerun, with eight conditional Mongo-history skips. The initial run had
-548 passes and four failures in the new route-recovery test: its ticket was still
-present, so the route correctly returned existing-ticket status. After removing
-the ticket to exercise retained-run recovery, all eight new route/automatic
-recovery cases passed across sync/async SQLite and PostgreSQL. All **12 Docker,
-Redis and PostgreSQL Company fixture cases passed**, including replacement
-container patch downloads. Cookbook configuration smoke, full format and clean
-Python 3.10 validation passed. No product-code failures remain unresolved.
+The earlier full database/AgentOS unit rerun passed 6,260 tests with 39 conditional
+skips; that full suite was not repeated for this focused parent integration.
+Earlier review fixes were published before their unit tests as requested. No
+paid model turns, hosted-provider deployment or CI success is claimed here.
 
 ---

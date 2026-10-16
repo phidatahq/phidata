@@ -818,9 +818,12 @@ branch. The agent's Repository config selects the checkout branch. Acceptance
 checks the URL; the sandbox resolves and publishes the commit on its first turn.
 The first successful completion records the pin, including a successful retry
 after an earlier failed or cancelled attempt. The Task retains
-`{source_id, url, branch, commit}` in `metadata.checkout` and later attempts reuse its session and verify that pin at completion. A checkout
-validation error can be retried after repairing its cause. Reacceptance cannot
-change an established checkout to another repository or branch; use a new Task.
+`{source_id, url, branch, commit}` in `metadata.checkout` and later attempts
+reuse its session and verify that pin at completion. Recovery of a completed run
+uses the same pin validation and saves the checkout atomically with its result.
+A checkout validation error can be retried after repairing its cause. Reacceptance
+requires a sandboxed executor with the same repository and branch once a checkout
+is pinned. Use a new Task for a non-sandboxed executor or a different repository.
 A second sandboxed Task start receives 409 while another has a live job, including after that Task is
 returned to Backlog, reassigned or archived. Ordinary agents remain eligible
 and report `sandboxed: false`. This marker is derived from the component and

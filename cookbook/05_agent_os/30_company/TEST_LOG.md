@@ -170,3 +170,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** Full format and validation scripts passed; validation used the clean Python 3.10 environment. These are local checks, not CI or independent review. PR 6.6 integration remains pending: its recovery completion must share the checkout projection before recovered sandbox completions can be claimed as covered.
 
 ---
+
+### PR 7.2 review fixes — retry pins and live execution admission
+
+**Status:** PASS
+
+**Description:** Failed or cancelled first attempts no longer prevent a later successful attempt from storing the checkout pin. Admission reads live queue tickets using their recorded executor, including after Backlog return, reassignment, archival, or a newer Task reservation; a retained run still blocks when its ticket is missing. Added four-adapter regressions for both blockers and for authorization before admission. External agents are refused as team members, Windows/UNC local git paths remain valid, legacy Source references can be edited without replacement, and an explicit read-token Source requires `GITHUB_READ_TOKEN` in the sandbox environment.
+
+**Result:** 1,751 affected unit tests passed (35 conditional skips), all 12 Company Docker cases passed, and the focused review suite passed 170 tests. The broad Company integration run passed 1,368 cases with eight conditional Mongo skips; its 16 failures exposed executor validation occurring after endpoint construction in the permission cleanup. That order was corrected, and all 16 failed cases passed on rerun, giving 1,384 distinct passing Company cases. A further final-source focused route run passed all 88 cases. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 recovery integration remains deferred until it merges.
+
+---

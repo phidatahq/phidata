@@ -140,14 +140,15 @@ def get_company_runs_router(os: Any) -> APIRouter:
 
     async def start_task(task_id: str, request: Request, body: TaskRunCreate):
         value = await task(task_id)
+        from agno.company.execution import _automatic_task
         from agno.company.sandbox import _is_sandboxed
         from agno.os.routers.company.sandbox import _sandbox_start_gate
 
-        if _is_sandboxed(executor(value)):
-            from agno.company.execution import _automatic_task
+        component = executor(value)
+        if _automatic_task.get() is None:
+            await _require_endpoint_permission(request, endpoint(value), "POST", action="accept")
 
-            if _automatic_task.get() is None:
-                await _require_endpoint_permission(request, endpoint(value), "POST", action="accept")
+        if _is_sandboxed(component):
 
             async def admit():
                 async with _sandbox_start_gate(os, value, worker(request)):
@@ -173,9 +174,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
             raise HTTPException(409, "Task acceptance changed before automatic dispatch")
         component = executor(value)
         path = endpoint(value)
-        if observed is None:
-            await _require_endpoint_permission(request, path, "POST", action="accept")
-        else:
+        if observed is not None:
             from agno.os.authz.run_context import request_authorization
 
             # Recheck the saved accepting authority at the Task route boundary.

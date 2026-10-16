@@ -45,7 +45,8 @@ def validate_source_fields(fields: Dict[str, Any]) -> None:
         reference = fields.get("reference", "")
         branch = (config or {}).get("branch", "main")
         # A URL must satisfy Repository's exact GitHub HTTPS rule. Local paths remain read-only.
-        if urlsplit(reference).scheme or reference.startswith(("//", "git@")):
+        local_absolute = reference.startswith(("/", "\\")) or re.match(r"^[A-Za-z]:[\\/]", reference)
+        if not local_absolute and (urlsplit(reference).scheme or reference.startswith("git@")):
             Repository(reference, branch)
         elif config is not None and "branch" in config:
             Repository("https://github.com/validation/repository", branch)

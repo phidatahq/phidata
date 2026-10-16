@@ -5663,6 +5663,9 @@ class AsyncSqliteDb(AsyncBaseDb):
             candidate = {**{key: existing[key] for key in ("type", "reference", "credential_ref", "config")}, **fields}
             if "config" not in fields and isinstance(candidate.get("config"), dict):
                 candidate["config"] = {key: value for key, value in candidate["config"].items() if key != "metadata"}
+            # Unchanged legacy references need not satisfy a newly introduced URL rule.
+            if "reference" not in fields and candidate["type"] == existing["type"]:
+                candidate.pop("reference", None)
             validate_source_fields(candidate)
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))

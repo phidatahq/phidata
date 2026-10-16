@@ -1268,6 +1268,12 @@ class QueueWorker:
                 f"{prior.get('component_type')}/{prior.get('component_id')} is not resolvable; "
                 "its run row (if any) cannot be terminalized by any path"
             )
+        if self._company_db is not None:
+            from agno.company.execution import _project_run
+
+            # Save the Task result before the ticket becomes terminal; a crash
+            # before this point leaves a live ticket for ordinary recovery.
+            await _project_run(self, prior, "cancelled", reason)
         cancelled = False
         with contextlib.suppress(Exception):
             cancelled = bool(await self.store.cancel_job(run_id))
@@ -1924,7 +1930,7 @@ class QueueWorker:
         refreshing the lock the moment we return, so the ticket is collected
         once the lease expires - but it must be LOUD, never silent."""
         try:
-            if self._company_db is not None and status in {"completed", "failed"}:
+            if self._company_db is not None and status in {"completed", "failed", "cancelled"}:
                 from agno.company.execution import _project_run
 
                 job = await self.store.get_job(job_id)
@@ -2179,12 +2185,14 @@ class QueueWorker:
                         f"attempt={attempt}): {e}"
                     )
                 persist_fallback = component_hook(component, "_apersist_run_fallback")
-                if stamp_outcome in (_RPO.MISSING, _RPO.UNAVAILABLE) and persist_fallback is not None:
+                if stamp_outcome in (_RPO.MISSING, _RPO.UNAVAILABLE) and (
+                    persist_fallback is not None or payload.get("company_task_id")
+                ):
                     # The read fails closed: an unreadable row may be a CANCELLED one this ticket must not run.
                     hook_run = await component.aget_run_output(job_id, job["session_id"], user_id=job.get("user_id"))
                     if hook_run is not None and hook_run.status in (_RS.completed, _RS.cancelled):
                         stamp_outcome = _RPO.TERMINAL_REFUSED
-                    elif hook_run is not None:
+                    elif hook_run is not None and persist_fallback is not None:
                         hook_run.status = _RS.running
                         try:
                             await persist_fallback(job["session_id"], hook_run, job.get("user_id"))

@@ -125,6 +125,8 @@ def test_unsupported_database(db):
     )
     for method, path, body in [
         ("get", "/company/tasks", None),
+        ("get", "/company/runs/missing", None),
+        ("post", "/company/runs/missing/cancel", None),
         ("get", "/company/tasks/missing", None),
         ("post", "/company/tasks", {"product_id": "p", "title": "Work"}),
         ("patch", "/company/tasks/missing", {"title": "Work"}),
@@ -132,7 +134,11 @@ def test_unsupported_database(db):
         ("post", "/company/tasks/missing/restore", None),
         ("post", "/company/tasks/missing/transitions", {"target": "cancelled", "reason": "Stop"}),
     ]:
-        assert c.request(method, path, json=body).status_code == 503
+        response = c.request(method, path, json=body)
+        assert response.status_code == 503
+        assert response.json()["detail"] == (
+            "Company requires a database" if db is None else "Company tasks not supported by the configured database"
+        )
 
 
 def test_acceptance_freezes_scope_and_backlog_clears_it(client):

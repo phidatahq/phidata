@@ -145,7 +145,7 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
 
 async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None) -> None:
     task_id = (job.get("payload") or {}).get("company_task_id")
-    if not task_id or status not in {"completed", "failed"}:
+    if not task_id or status not in {"completed", "failed", "cancelled"}:
         return
     db = getattr(worker, "_company_db", None)
     if db is None:
@@ -153,7 +153,11 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
     task = await _reserve_task(db, job)
     if task is None:
         return
-    result: Dict[str, Any] = {"run_id": job["id"], "status": "ERROR", "content": error}
+    result: Dict[str, Any] = {
+        "run_id": job["id"],
+        "status": "CANCELLED" if status == "cancelled" else "ERROR",
+        "content": error or ("Run cancelled" if status == "cancelled" else None),
+    }
     if status == "completed":
         component = await worker._aresolve_job_component(job)
         if component is None:

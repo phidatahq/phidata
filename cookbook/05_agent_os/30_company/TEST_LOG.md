@@ -490,3 +490,61 @@ Earlier migration test entries describe the implementation before this simplific
 **Description:** Full database/OS unit suites and all Company integrations plus execution authorization tests.
 
 **Result:** 6,104 unit tests passed, 15 skipped; 306 integration/authorization tests passed. Added 46 regression cases covering all three executor types, all four Company adapters, unchanged Task state/results/attempts after rejection, concurrent duplicates, and recovery after enqueue with revocation and cancellation. PostgreSQL queue JSON round-trips recover correctly into SQLite Task storage. Both format and validate scripts passed; validation output was read, including mypy success for 1,146 core and 21 CLI files.
+
+## Release-test cancellation and adapter follow-up — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` with the development environment.
+
+**Result:** Product CRUD, ownership, soft deletion and restore passed.
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` with the development environment.
+
+**Result:** Project lifecycle and Product containment passed.
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` with the development environment.
+
+**Result:** Registry-backed acceptance and explicit Task lifecycle passed.
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` with the development environment.
+
+**Result:** Sync/async wiki and decision-log operations passed.
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` with the development environment.
+
+**Result:** Product Manager construction and bounded tool publication passed without provider calls.
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` with the development environment.
+
+**Result:** Default SQLite sessions and COMPANY_DB=postgres both passed with a real PostgreSQL durable queue. Execution, duplicate starts, paged history and attention passed without provider calls.
+
+### Release-test regression checks
+
+**Status:** PASS
+
+**Description:** Cancellation visibility/retry, attention lifecycle, unsupported database responses, and the full database/OS unit suites.
+
+**Result:** 247 execution/route tests passed on sync/async SQLite and PostgreSQL; 6,104 full unit tests passed, 15 skipped. Format passed. Validation passed on this branch and unchanged main at `7f5dcdf53d` with the same clean Python 3.10 environment and separate mypy caches: zero errors on either. Output was read, including mypy success for 1,146 PR core files, 1,144 main core files and 21 CLI files on each. The release reports' unannotated `prior` variables belong to later automatic-acceptance code and are absent from PR 4.

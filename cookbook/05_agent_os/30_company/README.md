@@ -167,14 +167,16 @@ Task executors.
 Executor input contains only the Task brief, its evidence and the current
 company and Product wiki pages. Queue retries and restart recovery use the
 existing queue policy. Results are saved on the Task; success moves it to
-`in_review`. Failure leaves the Task visible with an error result. Executors
-cannot acquire scheduler mutation authority.
+`in_review`. A failed or cancelled run leaves the Task In progress with a visible
+`ERROR` or `CANCELLED` result. It can start another numbered attempt or return to
+Backlog for replanning. Executors cannot acquire scheduler mutation authority.
 
 GET `/company/attention?product_id=...` returns `proposals`, `in_review` and
 `failed` counts using the Task list filters. Omitting Product counts all work.
 Attention and run reads are company-wide with `tasks:read`; Task lists also
 accept `failed=true`. Failed work means an In progress Task whose latest result
-is an error. Cancelling, replanning, reaccepting or reviewing the Task clears it
-from failed attention while preserving the result as history. `failed=false`
+is `ERROR` or `CANCELLED`. Moving the Task to Cancelled, Backlog, Ready or In review
+clears it from failed attention while preserving the result as history. Starting
+a new attempt clears the previous result. `failed=false`
 includes all other Tasks, including those with no result. The Task table is
 created with its execution, evidence and result columns in the initial schema.

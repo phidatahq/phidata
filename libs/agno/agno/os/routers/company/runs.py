@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse, Response
 
 from agno.company.execution import _call, _executor, _reserve_task, _task_input, _task_submission
 from agno.company.manager import AsyncCompanyManager, CompanyManager
-from agno.db.base import AsyncBaseDb
+from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.schemas.tasks import task_run_fields, task_run_id
 from agno.os.auth import get_authentication_dependency
 from agno.os.job_queue import ticket_status_to_api, validate_seam_input
@@ -231,6 +231,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
     async def company_run(run_id: str, request: Request):
         if db is None:
             raise HTTPException(503, "Company requires a database")
+        if type(db).get_tasks in (BaseDb.get_tasks, AsyncBaseDb.get_tasks):
+            raise HTTPException(503, "Company tasks not supported by the configured database")
         queue = getattr(request.app.state, "queue_worker", None)
         job = await queue.store.get_job(run_id) if queue is not None else None
         task_id = (job.get("payload") or {}).get("company_task_id") if job else None

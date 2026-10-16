@@ -390,7 +390,8 @@ async def test_nonfailed_filter_includes_sql_and_json_null_results(system):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target", ["cancelled", "backlog", "ready", "in_review", "done"])
-async def test_attention_clears_acted_on_failures_and_preserves_results(system, target):
+@pytest.mark.parametrize("result_status", ["ERROR", "CANCELLED"])
+async def test_attention_clears_acted_on_failures_and_preserves_results(system, target, result_status):
     from agno.company.execution import _call
 
     client, db, worker, os, _ = system
@@ -398,7 +399,9 @@ async def test_attention_clears_acted_on_failures_and_preserves_results(system, 
     other = await accepted(client)
     for task in (value, other):
         reserved = await _call(db, "start_task_run", task["id"], 1, task["transitions"])
-        await _call(db, "complete_task_run", task["id"], reserved["job_id"], {"status": "ERROR", "content": "Failure"})
+        await _call(
+            db, "complete_task_run", task["id"], reserved["job_id"], {"status": result_status, "content": "Failure"}
+        )
     path = f"/company/tasks/{value['id']}"
     product_filter = {"product_id": value["product_id"]}
     assert (await client.get("/company/attention", params=product_filter)).json()["failed"] == 1
@@ -412,7 +415,7 @@ async def test_attention_clears_acted_on_failures_and_preserves_results(system, 
         assert response.status_code == 200, response.text
         attention = (await client.get("/company/attention", params=product_filter)).json()
         assert attention == {"proposals": int(step == "backlog"), "in_review": int(step == "in_review"), "failed": 0}
-    assert (await client.get(path)).json()["result"] == {"status": "ERROR", "content": "Failure"}
+    assert (await client.get(path)).json()["result"] == {"status": result_status, "content": "Failure"}
     assert (await client.get("/company/attention")).json()["failed"] == 1
     failed = (await client.get("/company/tasks", params={"failed": "true", "limit": 1})).json()
     nonfailed = (await client.get("/company/tasks", params={"failed": "false", "limit": 1})).json()
@@ -577,3 +580,93 @@ async def test_worker_recovers_task_projection_after_committed_enqueue(system, m
         assert saved["job_id"] is None and saved["result"] is None
     else:
         assert saved["result"]["status"] == "COMPLETED"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,id", [("agent", "writer"), ("team", "editors"), ("workflow", "draft")])
+async def test_cancelled_task_is_visible_and_can_start_another_attempt(system, kind, id):
+    from agno.company.execution import _project_run
+
+    client, db, worker, os, _ = system
+    value = await accepted(client, kind, id)
+    path = f"/company/tasks/{value['id']}"
+    response = await client.post(path + "/runs")
+    run_id = response.json()["run_id"]
+    job = await worker.store.get_job(run_id)
+    assert (await client.post(f"/company/runs/{run_id}/cancel")).status_code == 200
+    assert (await worker.store.get_job(run_id))["status"] == "cancelled"
+    saved = (await client.get(path)).json()
+    assert saved["status"] == "in_progress"
+    assert saved["result"]["status"] == "CANCELLED" and saved["result"]["run_id"] == run_id
+    assert saved["result"]["content"]
+    assert (await client.get("/company/attention", params={"product_id": value["product_id"]})).json()["failed"] == 1
+    assert (await client.get("/company/tasks", params={"failed": True})).json()["meta"]["total_count"] == 1
+    assert (await client.get("/company/tasks", params={"failed": False})).json()["meta"]["total_count"] == 0
+    assert (await client.get(path + "/runs")).json()["data"][0]["status"] == "CANCELLED"
+
+    response = await client.post(path + "/runs", json={"attempt": 2})
+    assert response.status_code == 202, response.text
+    pending = (await client.get(path)).json()
+    assert pending["session_id"] == value["session_id"] and pending["result"] is None
+    await _project_run(worker, job, "cancelled")
+    assert (await client.get(path)).json() == pending
+    assert (await client.get("/company/attention")).json()["failed"] == 0
+    assert (await execute(worker))["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_cancellation_during_execution_projects_task_result(system, monkeypatch):
+    from agno.exceptions import RunCancelledException
+
+    client, db, worker, os, components = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    response = await client.post(path + "/runs")
+    run_id = response.json()["run_id"]
+    started = asyncio.Event()
+    release = asyncio.Event()
+
+    async def cancelled_run(*args, **kwargs):
+        started.set()
+        await release.wait()
+        raise RunCancelledException("User cancelled execution")
+
+    monkeypatch.setattr(components["writer"], "arun", cancelled_run)
+    running = asyncio.create_task(execute(worker))
+    try:
+        await asyncio.wait_for(started.wait(), timeout=10)
+        assert (await client.post(f"/company/runs/{run_id}/cancel")).status_code == 200
+    finally:
+        release.set()
+    assert (await running)["status"] == "cancelled"
+    saved = (await client.get(path)).json()
+    assert saved["status"] == "in_progress" and saved["result"]["status"] == "CANCELLED"
+    assert (await client.get("/company/attention")).json()["failed"] == 1
+    assert (await client.post(path + "/transitions", json={"target": "backlog", "reason": "Replan"})).status_code == 200
+    assert (await client.get("/company/attention")).json() == {"proposals": 1, "in_review": 0, "failed": 0}
+    assert (await client.get(path)).json()["result"]["status"] == "CANCELLED"
+
+
+@pytest.mark.asyncio
+async def test_cancel_projection_failure_is_recovered_by_queue(system, monkeypatch):
+    import agno.company.execution as execution
+
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    response = await client.post(path + "/runs")
+    run_id = response.json()["run_id"]
+    project = execution._project_run
+
+    async def interrupted(*args, **kwargs):
+        raise RuntimeError("Task projection interrupted")
+
+    monkeypatch.setattr(execution, "_project_run", interrupted)
+    with pytest.raises(RuntimeError, match="Task projection interrupted"):
+        await client.post(f"/company/runs/{run_id}/cancel")
+    assert (await worker.store.get_job(run_id))["status"] == "queued"
+    assert (await client.get(path)).json()["result"] is None
+    monkeypatch.setattr(execution, "_project_run", project)
+    assert (await execute(worker))["status"] == "cancelled"
+    assert (await client.get(path)).json()["result"]["status"] == "CANCELLED"
+    assert (await client.get("/company/attention")).json()["failed"] == 1

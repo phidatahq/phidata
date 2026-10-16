@@ -2869,7 +2869,7 @@ Full format and clean Python 3.10 validation passed on the rebased tree
 
 ### PR 6.5 main merge and generic on-demand scheduling — October 16, 2026
 
-**Status:** Format, validation, unit suites and cookbooks PASS; integration suite running at the requested review push.
+**Status:** PASS. Implementation pushed at `3f1370f5827011ee0b1b28899348794255927588`; all regression suites completed successfully.
 
 **Description:** Merged main's PR 6 squash
 `ab0e2d233af36bda475f03fb12f75f1d5a9e2f66` with normal merge commit
@@ -2892,7 +2892,13 @@ No paid-model or hosted verification was performed.
 
 **Unit results:** 6,604 passed and 39 skipped across scheduler, AgentOS/Manager,
 database and Company/scheduler tools; 414 additional Studio tests passed. The
-scheduler owner-recheck integration file passed six tests. Full SQLite/PostgreSQL
-Company and scheduler integration totals will follow when the active run finishes.
+scheduler owner-recheck integration file passed six tests. The full SQLite/PostgreSQL
+Company and scheduler integration selection passed 1,293 tests with four optional
+MongoDB lifecycle skips. Including the six scheduler owner-recheck cases, final
+coverage is **7,018 unit + 1,299 integration = 8,317 passed**, with 43 skips.
+All 12 new plain-schedule cases ran across sync/async SQLite and PostgreSQL; the
+24 existing Company Routine cases passed unchanged. The initial focused run
+found a naming collision in the new test helper; it was corrected before the
+passing full run. No runtime failures remain.
 Full format and clean Python 3.10 validation passed (1,178 framework and 21 CLI
 files); runtime tests use development Python 3.12. `git diff --check` passed.

@@ -3159,9 +3159,13 @@ compatibility failures were corrected. Full format and clean Python 3.10 validat
 used the existing Python 3.12 development environment. No paid model turns or
 hosted-provider deployment were run.
 
-Review follow-up: added regressions for retries after failed patch projection,
-lossless non-UTF-8 patch application and nested repository refusal. Sandbox
-instructions now require uncommitted changes. Publishing these fixes before
-running their tests, as requested; follow-up test results are pending.
+Review follow-up: all **286 affected unit and integration tests passed**, with
+no skips, after publishing the fixes for parallel review. Coverage includes
+failed-projection retries with durable and missing tickets, active-job refusal,
+lossless non-UTF-8 additions/modifications/deletions and downloads, identical
+replacement-checkpoint patches, and nested repository/gitlink refusal across
+sync/async SQLite and PostgreSQL. Sandbox instructions require uncommitted
+changes. The cookbook configuration smoke and full format/validation scripts
+passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 
 ---

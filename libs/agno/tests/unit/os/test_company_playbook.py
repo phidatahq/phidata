@@ -40,6 +40,9 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     tools = pm.tools[0]
     assert not any("schedule" in name or "transition" in name for name in tools.functions)
     assert "log_company_decision" not in tools.functions
+    assert "summarize_company_product" not in tools.functions
+    assert "refresh_company_product" not in tools.functions
+    assert "summarize_company_product" in CompanyTools(db, summary_tools=True).functions
     assert {fn.__name__ for fn in pm.learning.decision_log.get_tools()} == {
         "log_company_decision",
         "search_company_decisions",

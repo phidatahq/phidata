@@ -65,13 +65,13 @@ async def _run_route(
 
 
 def get_company_runs_router(os: Any) -> APIRouter:
-    router = APIRouter(prefix="/company", tags=["Company execution"])
+    router = APIRouter(prefix="/company", tags=["Company execution"], dependencies=[Depends(get_scoped_user_id)])
     auth = get_authentication_dependency(os.settings)
     db = os._company_db
     manager = (
-        AsyncCompanyManager(db, os.registry)
+        AsyncCompanyManager(db, os.registry, schedule_db=os.db)
         if isinstance(db, AsyncBaseDb)
-        else CompanyManager(db, os.registry)
+        else CompanyManager(db, os.registry, schedule_db=os.db)
         if db
         else None
     )

@@ -316,6 +316,7 @@ class BaseDb(ABC):
         learnings_table: Optional[str] = None,
         schedules_table: Optional[str] = None,
         products_table: Optional[str] = None,
+        sources_table: Optional[str] = None,
         projects_table: Optional[str] = None,
         tasks_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
@@ -357,6 +358,7 @@ class BaseDb(ABC):
         self.learnings_table_name = learnings_table or "agno_learnings"
         self.schedules_table_name = schedules_table or "agno_schedules"
         self.products_table_name = products_table or "agno_company_products"
+        self.sources_table_name = sources_table or "agno_company_sources"
         self.projects_table_name = projects_table or "agno_company_projects"
         self.tasks_table_name = tasks_table or "agno_company_tasks"
         self.schedule_runs_table_name = schedule_runs_table or "agno_schedule_runs"
@@ -455,6 +457,7 @@ class BaseDb(ABC):
             "learnings_table": self.learnings_table_name,
             "schedules_table": self.schedules_table_name,
             "products_table": self.products_table_name,
+            "sources_table": self.sources_table_name,
             "projects_table": self.projects_table_name,
             "tasks_table": self.tasks_table_name,
             "schedule_runs_table": self.schedule_runs_table_name,
@@ -489,6 +492,7 @@ class BaseDb(ABC):
             learnings_table=data.get("learnings_table"),
             schedules_table=data.get("schedules_table"),
             products_table=data.get("products_table"),
+            sources_table=data.get("sources_table"),
             projects_table=data.get("projects_table"),
             tasks_table=data.get("tasks_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
@@ -1781,6 +1785,45 @@ class BaseDb(ABC):
         """
         raise NotImplementedError
 
+    # --- Sources (Optional) ---
+
+    def add_product_routine(self, product_id: str, schedule_id: str) -> Dict[str, Any]:
+        """Atomically append a Routine id without overwriting Product metadata."""
+        raise NotImplementedError("Company products not supported by the configured database")
+
+    def create_source(self, source_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
+        """Create a Source; reuse atomically returns an identical reference or refuses conflicting settings."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    def get_source(
+        self, source_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Read a Source. None user_id is unscoped; a string filters by owner."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    def get_sources(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List Sources and their total, filtering by owner before pagination."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    def update_source(self, source_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+        """Update descriptive fields on an active Source within the owner scope."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    def delete_source(self, source_id: str, user_id: Optional[str] = None) -> bool:
+        """Soft-delete an active Source within the owner scope."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    def restore_source(self, source_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restore a deleted Source within the owner scope; otherwise return None."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
     # --- Products (Optional) ---
 
     def create_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -1794,7 +1837,13 @@ class BaseDb(ABC):
         raise NotImplementedError("Company products not supported by the configured database")
 
     def get_products(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Products and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company products not supported by the configured database")
@@ -1817,7 +1866,7 @@ class BaseDb(ABC):
 
     # --- Projects (Optional) ---
 
-    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         """Create a Project; project_data carries its owner and timestamps."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -1835,6 +1884,8 @@ class BaseDb(ABC):
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Projects and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company projects not supported by the configured database")
@@ -1849,8 +1900,10 @@ class BaseDb(ABC):
         """Count visible children for a page in one grouped query, including zero statuses."""
         raise NotImplementedError("Company project counts not supported by the configured database")
 
-    def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Archive a Project and its Tasks atomically; raise ValueError with active Task ids and titles."""
+    def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
+        """Archive a Project and its Tasks atomically; refuse active Tasks. Cutoff requires old terminal work."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -1891,6 +1944,8 @@ class BaseDb(ABC):
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -1899,7 +1954,7 @@ class BaseDb(ABC):
         """Update descriptive fields on an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 
-    def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    def delete_task(self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None) -> bool:
         """Soft-delete an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 
@@ -2541,6 +2596,7 @@ class AsyncBaseDb(ABC):
         learnings_table: Optional[str] = None,
         schedules_table: Optional[str] = None,
         products_table: Optional[str] = None,
+        sources_table: Optional[str] = None,
         projects_table: Optional[str] = None,
         tasks_table: Optional[str] = None,
         schedule_runs_table: Optional[str] = None,
@@ -2575,6 +2631,7 @@ class AsyncBaseDb(ABC):
         self.learnings_table_name = learnings_table or "agno_learnings"
         self.schedules_table_name = schedules_table or "agno_schedules"
         self.products_table_name = products_table or "agno_company_products"
+        self.sources_table_name = sources_table or "agno_company_sources"
         self.projects_table_name = projects_table or "agno_company_projects"
         self.tasks_table_name = tasks_table or "agno_company_tasks"
         self.schedule_runs_table_name = schedule_runs_table or "agno_schedule_runs"
@@ -2623,6 +2680,7 @@ class AsyncBaseDb(ABC):
             "learnings_table": self.learnings_table_name,
             "schedules_table": self.schedules_table_name,
             "products_table": self.products_table_name,
+            "sources_table": self.sources_table_name,
             "projects_table": self.projects_table_name,
             "tasks_table": self.tasks_table_name,
             "schedule_runs_table": self.schedule_runs_table_name,
@@ -2650,6 +2708,7 @@ class AsyncBaseDb(ABC):
             learnings_table=data.get("learnings_table"),
             schedules_table=data.get("schedules_table"),
             products_table=data.get("products_table"),
+            sources_table=data.get("sources_table"),
             projects_table=data.get("projects_table"),
             tasks_table=data.get("tasks_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
@@ -3642,6 +3701,47 @@ class AsyncBaseDb(ABC):
         """
         raise NotImplementedError
 
+    # --- Sources (Optional) ---
+
+    async def add_product_routine(self, product_id: str, schedule_id: str) -> Dict[str, Any]:
+        """Atomically append a Routine id without overwriting Product metadata."""
+        raise NotImplementedError("Company products not supported by the configured database")
+
+    async def create_source(self, source_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
+        """Create a Source; reuse atomically returns an identical reference or refuses conflicting settings."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    async def get_source(
+        self, source_id: str, user_id: Optional[str] = None, include_deleted: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Read a Source. None user_id is unscoped; a string filters by owner."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    async def get_sources(
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        product_id: Optional[str] = None,
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """List Sources and their total, filtering by owner before pagination."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    async def update_source(
+        self, source_id: str, user_id: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
+        """Update descriptive fields on an active Source within the owner scope."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    async def delete_source(self, source_id: str, user_id: Optional[str] = None) -> bool:
+        """Soft-delete an active Source within the owner scope."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
+    async def restore_source(self, source_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Restore a deleted Source within the owner scope; otherwise return None."""
+        raise NotImplementedError("Company sources not supported by the configured database")
+
     # --- Products (Optional) ---
 
     async def create_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -3655,7 +3755,13 @@ class AsyncBaseDb(ABC):
         raise NotImplementedError("Company products not supported by the configured database")
 
     async def get_products(
-        self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
+        self,
+        user_id: Optional[str] = None,
+        limit: int = 20,
+        page: int = 1,
+        include_deleted: bool = False,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Products and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company products not supported by the configured database")
@@ -3680,7 +3786,7 @@ class AsyncBaseDb(ABC):
 
     # --- Projects (Optional) ---
 
-    async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         """Create a Project; project_data carries its owner and timestamps."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -3698,6 +3804,8 @@ class AsyncBaseDb(ABC):
         include_deleted: bool = False,
         product_id: Optional[str] = None,
         status: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Projects and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company projects not supported by the configured database")
@@ -3712,8 +3820,10 @@ class AsyncBaseDb(ABC):
         """Count visible children for a page in one grouped query, including zero statuses."""
         raise NotImplementedError("Company project counts not supported by the configured database")
 
-    async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Archive a Project and its Tasks atomically; raise ValueError with active Task ids and titles."""
+    async def delete_project(
+        self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
+        """Archive a Project and its Tasks atomically; refuse active Tasks. Cutoff requires old terminal work."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -3754,6 +3864,8 @@ class AsyncBaseDb(ABC):
         project_id: Optional[str] = None,
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
+        sort_by: Optional[str] = None,
+        sort_order: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """List Tasks and their total, filtering by owner before pagination."""
         raise NotImplementedError("Company tasks not supported by the configured database")
@@ -3762,7 +3874,9 @@ class AsyncBaseDb(ABC):
         """Update descriptive fields on an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 
-    async def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+    async def delete_task(
+        self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
+    ) -> bool:
         """Soft-delete an active Task within the owner scope."""
         raise NotImplementedError("Company tasks not supported by the configured database")
 

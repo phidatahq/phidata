@@ -321,6 +321,17 @@ class ScheduleExecutor:
         payload = dict(schedule.payload or {})
         has_authority = AUTHORIZATION_KEY in payload
         snapshot = payload.pop(AUTHORIZATION_KEY, None)
+        if schedule.managed_by == "company":
+            unscoped = snapshot is None
+            snapshot = dict(
+                snapshot
+                or {"context": {"principal_id": schedule.user_id}, "service_account": True, "enforce_tools": True}
+            )
+            snapshot["company_routine_unscoped"] = unscoped
+            snapshot["company_routine_id"] = schedule.id
+            snapshot["company_product_id"] = (payload.get("metadata") or {}).get("product_id")
+            snapshot["company_routine"] = True
+            has_authority = True
         timeout_seconds = schedule.timeout_seconds or self.timeout
         url = f"{self.base_url}{endpoint}"
 
@@ -558,9 +569,17 @@ class ScheduleExecutor:
             run_status = data.get("status")
 
             if run_status in _TERMINAL_STATUSES:
+                from agno.run.authorization import AUTHORIZATION_HEADER
+
+                authority = json.loads(headers.get(AUTHORIZATION_HEADER, "{}"))
+                company_error = None
+                if authority.get("company_routine"):
+                    from agno.company.routines import _routine_failure
+
+                    company_error = _routine_failure(data)
                 if run_status == "COMPLETED":
-                    status = "success"
-                    error = None
+                    status = "failed" if company_error else "success"
+                    error = company_error
                 elif run_status == "PAUSED":
                     status = "paused"
                     error = None
@@ -569,7 +588,7 @@ class ScheduleExecutor:
                     error = data.get("error") or "Run was cancelled"
                 else:
                     status = "failed"
-                    error = data.get("error") or f"Run failed with status {run_status}"
+                    error = company_error or data.get("error") or f"Run failed with status {run_status}"
 
                 # Extract input, output, and requirements from RunOutput
                 run_input = data.get("input") if isinstance(data.get("input"), dict) else None

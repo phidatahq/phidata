@@ -21,9 +21,9 @@ def test_optional_schema_describes_null_and_hides_identity(tmp_path, use_async, 
         signature = inspect.signature(getattr(tools, ("a" if use_async else "") + name))
         function.process_entrypoint(strict=strict)
         properties = function.parameters["properties"]
-        assert "_agno_run_context" not in properties
+        assert not any(name.startswith("_agno_") for name in properties)
         for argument, parameter in signature.parameters.items():
-            if parameter.default is inspect.Parameter.empty or argument == "_agno_run_context":
+            if parameter.default is inspect.Parameter.empty or argument.startswith("_agno_"):
                 continue
             schema = properties[argument]
             assert schema["description"], (name, argument)
@@ -95,3 +95,43 @@ async def test_empty_optionals_do_not_weaken_required_validation(tmp_path, use_a
         if inspect.isawaitable(result):
             await result
     tools.db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True])
+@pytest.mark.parametrize("processed", [False, True])
+@pytest.mark.parametrize("name", ["list_company_sources", "read_company_source"])
+async def test_source_optionals_equal_omission(tmp_path, use_async, processed, name):
+    db = SqliteDb(db_file=str(tmp_path / "sources.db"))
+    manager = CompanyManager(db)
+    product = manager.create("SDK")
+    path = tmp_path / "source.md"
+    path.write_text("Observed content")
+    source = manager.create_source(product["id"], "markdown", str(path))
+    tools = CompanyTools(db)
+    context = RunContext(run_id="scan", session_id="session", user_id="alice")
+    raw = getattr(tools, ("a" if use_async else "") + name)
+    optional = [
+        key
+        for key, param in inspect.signature(raw).parameters.items()
+        if param.default is not inspect.Parameter.empty and key != "_agno_run_context"
+    ]
+    fn = raw
+    if processed:
+        function = (tools.get_async_functions() if use_async else tools.functions)[name]
+        function.process_entrypoint()
+        fn = function.entrypoint
+    required = {"product_id": product["id"]} if name == "list_company_sources" else {"source_id": source["id"]}
+
+    async def invoke(options):
+        result = fn(**required, **options, _agno_run_context=context)
+        return json.loads(await result if inspect.isawaitable(result) else result)
+
+    expected = await invoke({})
+    for argument in optional:
+        assert await invoke({argument: ""}) == expected, argument
+        assert await invoke({argument: None}) == expected, argument
+    if name == "read_company_source":
+        selected = await invoke({"path": path.name, "max_chars": None, "content_offset": ""})
+        assert selected["content"] == "Observed content"
+    db.close()

@@ -822,16 +822,20 @@ def test_processed_company_tools_preserve_gemini_nullability(tmp_path, use_async
             function.process_entrypoint(strict=strict)
             converted = format_function_definitions([{"type": "function", "function": function.to_dict()}])
             properties = converted.function_declarations[0].parameters.properties
-            assert "_agno_run_context" not in properties
+            assert not any(key.startswith("_agno_") for key in properties)
             signature = inspect.signature(getattr(toolkit, ("a" if use_async else "") + name))
             for argument, parameter in signature.parameters.items():
-                if parameter.default is inspect.Parameter.empty or argument == "_agno_run_context":
+                if parameter.default is inspect.Parameter.empty or argument.startswith("_agno_"):
                     continue
                 schema = properties[argument]
                 assert schema.nullable is True, (name, argument)
                 assert not schema.any_of, (name, argument)
                 assert not schema.enum, (name, argument)
-                expected_type = "INTEGER" if argument in ("limit", "page", "days") else "STRING"
-                assert schema.type == expected_type, (name, argument)
+                expected_type = (
+                    "INTEGER"
+                    if argument in ("limit", "page", "days", "offset", "content_offset", "max_chars")
+                    else "STRING"
+                )
+                assert schema.type == ("OBJECT" if argument == "config" else expected_type), (name, argument)
     finally:
         db.close()

@@ -103,12 +103,14 @@ otherwise it is a standalone agent, available at `GET /agents/product-manager-in
 and `POST /agents/product-manager-internal/runs`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
 updates `status.md` with a version check, and logs decisions through its learning
-machine. It has no acceptance, completion, owner, Sources or scheduler tools.
+machine. It can read Sources and add website Sources with permission and Product
+ownership. Acceptance, completion, ownership changes, local Source additions and
+scheduling remain outside its tools.
 
 CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, following
 the existing MCP toolkit convention. Direct MCP calls have the same write fence.
 The examples make no provider calls; they do not demonstrate live model quality.
-Routines and Sources are outside this delivery.
+The heartbeat examples below demonstrate Routines and Sources.
 
 Optional Company tool arguments accept `null` for omission. Empty strings are
 normalized to omission as well; omitted pagination uses 20 results on page 1.
@@ -230,3 +232,251 @@ when the parent's own read includes archived records. Managers and HTTP use
 `BaseDb.get_product_counts(ids)` or `get_project_counts(ids)` and their async
 twins, issuing one grouped query for the entire returned page. A warmed list
 page uses three SQL statements in total, regardless of the number of cards.
+
+## Heartbeat
+
+| File | Demonstrates |
+| --- | --- |
+| `07_heartbeat.py` | Code-declared Products, a reader Source, an Intake Skill, scheduler rows and duplicate-free scans without a model call. |
+
+Declare `Product`, `Source` and `Routine` from `agno.company`, then pass
+`CompanyConfig(products=[...])`. The same declarations work in OS configuration:
+
+```yaml
+company:
+  products:
+    - id: documentation
+      name: Documentation
+      purpose: Keep docs current
+      sources:
+        - type: markdown
+          reference: /workspace/docs
+          credential_ref: DOCS_ACCESS_TOKEN
+      routines:
+        - name: intake
+          template: intake
+          executor_type: agent
+          executor_id: source-reader
+          cron_expr: "0 9 * * 1-5"
+```
+
+The executor must already be registered; an invalid declared target fails startup
+instead of silently dropping its Routine. Give it `CompanyTools(db)` and
+`load_routine_skills()` for reader, Intake and Summary tools. AgentOS binds its
+interfaces to custom `CompanyTools(db)` executors automatically; an explicit
+`interfaces=` override is preserved, and `summary_tools=False` disables delivery.
+Product Manager has no outbound Summary tool. Enable the existing AgentOS scheduler and queue to run schedules; the
+cookbook only creates and inspects them. Scheduling never grants acceptance.
+The OS scheduler database owns Routine definitions/history even with a separate
+Company database. `metadata.routine_ids` links them to Products.
+
+The templates are packaged `SKILL.md` files under `agno/company/skills`, loaded
+through `LocalSkills`. Creation snapshots the selected Skill's instructions into
+the schedule, with the Product id explicitly included in the model message.
+Following scheduler behavior, restarting or editing a Skill never overwrites
+human-edited schedule instructions. Apply revised instructions to an existing
+Routine with an authorized PATCH to `/company/routines/{id}`.
+Source types are `git` (a local checkout), `markdown` (a
+file or directory), and `website` (a single page). Optional `config.paths` limits
+local reads to relative files. Workspace exclusions and path confinement apply;
+credential references name environment variables, whose presence diagnostics
+report without disclosing values. These readers use local files or an unauthenticated
+website GET: `credential_ref` is a diagnostic prerequisite, not an authentication
+adapter, and its value is never passed to an executor or reader.
+Source reads require `sources:read`, not a separate filesystem grant.
+`read_company_source` without `path` returns a content-free index (`data`,
+`total_count`, `next_offset`). Use a filename glob in `pattern` and `offset`/`limit`
+to page through it. Discovery does not open document contents. Pass a returned
+`path` to read one document; the response contains evidence and up to 8,000
+characters by default (`max_chars` can be 1..16,000). `next_content_offset` lets
+you continue a large document using `content_offset`. Every tool response is
+capped at 64 KiB of serialized JSON, including metadata. The full-document
+`content_hash` must stay the same across fragments; reread if it changes.
+Selection can narrow but never expand a human's `config.paths`, and Workspace
+exclusions and root confinement still apply. Website Sources only read their
+configured URL. The programmatic whole-Source `read_source` API still skips
+undecodable/oversized directory entries and reports `skipped_paths`; explicit
+selected-file reads fail on reader errors.
+Source reads produce evidence with the run id,
+a SHA-256 hash of reader content, and a link. Task deduplication is per Product,
+including completed and soft-deleted proposals. Failed reads create no proposals.
+Reader failures fail the executor and Routine run, appear in Routine history,
+and contribute to the Product's failed attention count. Routine authority uses
+the configured Source's confined reader under `sources:read`; the human creating
+the Routine does not need an additional `filesystem:read` grant.
+Reading files creates no Tasks. The reader first decides whether useful work is
+needed, then supplies a title, concise brief, selected `evidence_links`, an
+`evidence_hashes` mapping from each selected link to the `content_hash` observed
+in the preceding read, and a stable Source-local `proposal_key` to Intake.
+Intake rereads only the selected links, verifies their hashes, and rejects
+evidence changed since observation. Read again and reconsider the proposal after
+such a rejection. It stores hashes and links, without copying document content
+into the Task. Reuse the issue key across content and wording edits; a distinct issue
+has a distinct key. Database uniqueness remains scoped to the Product.
+Routines must use evidence-backed Intake: plain `propose_company_task` and
+Company service Task creation reject Routine authority. Human and Product Manager
+proposals retain their normal behavior.
+
+`/company/routines` wraps the scheduler. Writes require both `routines:write`
+and `schedules:write`; histories require `routines:read` and `schedules:read`.
+Routine creation saves the schedule disabled, links its id to the Product, then
+activates it through the scheduler. If linking or activation fails, retrying the
+same request as the same creator resumes the pending creation. Edited requests
+and already-created schedules still return 409; a retry never undoes a deliberate
+pause. Resume also repairs a missing Product link before activation.
+
+Routine reads and histories are company-wide, including under user isolation.
+Writes retain scheduler ownership; under user isolation, another user's mutation
+returns 403.
+Pause/resume use scheduler disable/enable and its filtered state response; saved
+authorization claims are never returned. Routine schedule names follow scheduler
+validation, including the 255-character limit on `product_id + "." + name`.
+Invalid names return 422 before creation, including setup. Sources use `sources:read`,
+`sources:write` and `sources:delete`, with Product ownership on writes.
+`POST /company/setup` uses `products:write` to seed a blank deployment; nested
+Sources and Routines also require their own write permissions. Retries and
+restarts repair interrupted creation and linking, retain existing edits and do not
+restore archived records. Setup returns 201 for creation and 200 for a retry.
+If the deployment already has Products other than this setup identity, setup
+returns 409 instead of returning another owner's Product.
+
+Summary uses Product metadata such as
+`{"summary": {"interface": "slack", "destination": "C012345"}}` and the matching
+interface configured on AgentOS. The executor supplies its narrative to
+`summarize_company_product`; the page includes counts, that narrative, changes
+since the last delivered summary, and failed-Task details. Summary updates the versioned
+`summary.md` Product wiki page before delivery. Delivery receipts and the last
+delivered snapshot persist in a separate Product filesystem namespace, outside
+the wiki and executor input, so report retention cannot resend a delivered run or
+reset the change baseline. Existing report receipts migrate before expiry.
+A repeated run does not resend after intervening successful runs;
+a transport failure remains a failed run with the report retained and the previous
+delivery baseline unchanged. The baseline advances with the receipt only after
+transport succeeds, so the next report still includes undelivered changes. Provider
+retry guarantees still apply if a process dies after sending but before recording
+success. No live messages are sent by this cookbook.
+
+Task evidence identity and deduplication are part of the initial Company schema.
+Task responses expose `origin`, `routine_id` and `dedupe_key`. Human-created Tasks
+have origin `human`, Product Manager proposals have `product_manager`, and Routine
+proposals have `routine` with the trusted Routine id.
+Automatic acceptance and automatic Task pickup are not enabled by this change.
+
+### Refresh, completion and retention
+
+`refresh_company_product` proposes completion for active Projects with at least
+one Task and only terminal Tasks. Each proposal is a versioned page under
+`project-completion/`; unchanged scans do not rewrite it. New open work withdraws
+the proposal. A human accepts it through the existing Project transition route.
+Refresh cannot transition a Project. Moving a Project to Done returns 409 with
+the open Task names and ids until every Task is Done or Cancelled, including
+Tasks that were manually archived while still open.
+
+Products store `metadata.archive_window_days`, default 14. Refresh soft-archives
+Done and Cancelled Projects and Tasks whose last update is strictly older than
+that window, falling back to creation time when no update exists. The delete
+transaction rechecks age and terminal state. Project retention uses the same
+cascading archive as manual archive: it refuses Ready, In progress or In review
+Tasks, and archives remaining children even if their own updates are newer.
+Refresh processes qualifying Projects before standalone Tasks, so a single
+maintenance pass preserves the Project's cascade as one restorable group.
+Restoring the Project restores only children taken by that cascade; Tasks
+independently archived before that pass stay archived. Retention skips terminal
+Projects that still contain Backlog work and refuses active Tasks. New open Tasks
+cannot be added or moved into Done or Cancelled Projects.
+Restore retains the lifecycle and starts a fresh retention window. Archived
+records leave normal lists, grouped counts and execution. Read an individual
+record with `include_deleted=true` for inspection; lists still hide children
+of archived parents, so restore the parent first.
+Refresh removes expired generated `summary.md` and completion-proposal pages
+through version-guarded filesystem deletion; a concurrent replacement is kept.
+Human pages, `brief.md` and `status.md`
+are protected. The Refresh Skill updates status.md to reflect the remaining work.
+
+The maintenance tool requires Routine authority, Product ownership when
+isolation applies, `products:read`, `projects:read`, `projects:delete`,
+`tasks:read`, `tasks:delete`, `wiki:read` and `wiki:write` on the saved caller.
+No scheduler-write grant is added. Product Manager does not receive maintenance
+or outbound Summary tools. Existing schedule instructions retain the scheduler's
+snapshot behavior; apply the revised Refresh Skill through an authorized PATCH.
+
+Products, Projects and Tasks list routes accept `sort_by=updated_at` and
+`sort_order=asc|desc`. Activity ordering uses creation time for records without
+an update and a deterministic id tie-breaker, before pagination. Omitting these
+parameters preserves the existing creation-time descending order.
+
+Optional Company tool arguments accept `null` for omission. Empty strings are
+normalized to omission as well; omitted pagination uses 20 results on page 1.
+Required identifiers and titles still require valid values.
+
+Async PostgreSQL derives its default database ID from the connection URL and
+schema, like synchronous PostgreSQL. Async SQLite already derives a stable ID
+from its connection details. Reuse those details (or an explicit stable `id`)
+after restart and across replicas so saved run database references resolve.
+This does not rewrite references saved with older randomly generated IDs;
+retaining a known old ID explicitly is necessary for those references.
+
+
+### Custom Routines and discovered websites
+
+Website Sources use public HTTP(S) addresses on standard ports. Each read checks
+all DNS answers and pins the connection to an allowed public address; redirects
+must stay on the configured origin. Private, loopback, link-local and reserved
+local hosts are refused. Downloads use a 4 MiB byte limit and a 30-second deadline
+covering resolution, redirects and streaming. Compressed responses are refused
+to keep the byte bound meaningful. These restrictions apply to human-added and
+agent-added website Sources; local files remain human-configured Sources.
+
+Team executors record the team's injected id in `config.metadata.agent_id`.
+Routine authority is bound to its Product even with isolation disabled. Ordinary
+schedule mutation routes refuse Company-managed rows; use `/company/routines`.
+An archived Product cannot dispatch its Routine: the scheduler records the refusal
+and disables the schedule. Owners can still pause it; restore the Product before
+explicitly resuming the Routine.
+
+Repeated Routine Project proposals reuse an identity derived from Product,
+Routine and proposal name, preserving human edits and archives. Intake's Task
+dedupe survives completion and archive; a returned row with `deleted_at` set is
+an archived existing proposal, not newly created work.
+
+Supply Product declarations in code or YAML, not both. An explicit `CompanyConfig`
+with no Products can still provide the database/model while YAML declares them.
+Conflicting declaration lists fail clearly at startup instead of silently losing
+one list.
+
+Summary serializes delivery per Product with a versioned lease. A live overlapping
+delivery is refused; retry after it finishes. A lost worker's lease expires after
+ten minutes. Transport is bounded to one minute. Delivery remains at least once
+across a crash after sending but before recording its receipt; interfaces do not
+provide a common transactional delivery guarantee.
+
+Run `08_custom_routines.py` to create a Routine with instructions and no template
+or initial Sources, then add an attributed website through `CompanyTools`.
+The example is offline; the integration tests execute custom and search-style
+Routines through the scheduler and durable queue on all four SQL adapters.
+
+`template` is optional. Without one, creation requires nonempty `instructions`.
+With a template, creation copies its Skill text unless explicit instructions are
+supplied. Name, instructions, executor type/id, cron expression and timezone can
+be edited with PATCH. Executor edits reuse scheduler authorization and target
+checks. Stored instructions are not refreshed when Skill files change.
+A custom Routine does maintenance only when it calls the Refresh tool, and
+Summary bookkeeping only when it calls the Summary tool.
+
+Product Manager and executors can call `add_company_source` with `type="website"`
+when granted `sources:write` and permitted to write the Product. Repository and
+path Sources remain human-added. Source storage has a single existing JSON
+field, `config`: server-stamped `config.metadata.agent_id` and
+`config.metadata.run_id` identify the first discovery. These fields are not
+reader options or model-supplied identities. Matching additions reuse the same
+Source; conflicting settings or archived references are refused with the existing
+Source id. A human can inspect provenance in GET `/company/sources` and archive
+through DELETE `/company/sources/{id}`. AgentOS applies its isolation setting to
+custom Company toolkits. Non-admin scoped tokens missing a subject are rejected
+under isolation on Company reads as well as writes; the existing administrator
+exemption is unchanged.
+
+Summary's unresolved failures match attention: only Tasks still `in_progress`
+with an ERROR or CANCELLED execution result appear under Failed Tasks. Moving
+work on or archiving it removes that unresolved failure without deleting its
+execution history.

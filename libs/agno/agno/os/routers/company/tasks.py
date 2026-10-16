@@ -25,7 +25,7 @@ def get_tasks_router(
     db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings, registry: Any = None
 ) -> APIRouter:
     """Build Task routes using native async storage or off-thread sync calls."""
-    router = APIRouter(prefix="/company", tags=["Tasks"])
+    router = APIRouter(prefix="/company", tags=["Tasks"], dependencies=[Depends(get_scoped_user_id)])
     auth_dependency = get_authentication_dependency(settings)
     manager = (
         AsyncCompanyManager(db, registry=registry)
@@ -51,6 +51,8 @@ def get_tasks_router(
             return await asyncio.to_thread(fn, *args, **kwargs)
         except NotImplementedError:
             raise HTTPException(status_code=503, detail="Company tasks not supported by the configured database")
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc))
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
         except ValueError as exc:
@@ -72,6 +74,8 @@ def get_tasks_router(
         limit: int = Query(20, ge=1, le=1000),
         page: int = Query(1, ge=1),
         include_deleted: bool = Query(False),
+        sort_by: Literal["created_at", "updated_at"] = Query("created_at"),
+        sort_order: Literal["asc", "desc"] = Query("desc"),
         product_id: Optional[str] = Query(None),
         status: Optional[TaskStatus] = Query(None),
         project_id: Optional[str] = Query(None),
@@ -84,6 +88,8 @@ def get_tasks_router(
             limit=limit,
             page=page,
             include_deleted=include_deleted,
+            sort_by=sort_by,
+            sort_order=sort_order,
             product_id=product_id,
             status=status,
             project_id=project_id,

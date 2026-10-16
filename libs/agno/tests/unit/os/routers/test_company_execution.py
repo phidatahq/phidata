@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from agno.agent import Agent
@@ -497,8 +498,9 @@ async def test_automatic_pickup_rechecks_managed_grant_at_task_route(managed_sys
         return authority
 
     monkeypatch.setattr(run_context, "request_authorization", revoke_after_transport_checks)
-    with pytest.raises(ValueError, match="Permission required: agents:writer:run"):
+    with pytest.raises(HTTPException, match="Permission required: agents:writer:run") as denied:
         await executor._dispatch(db.get_task(task["id"]))
+    assert denied.value.status_code == 403
     assert revoked
     assert db.get_task(task["id"])["status"] == "ready"
     assert db.get_task(task["id"])["job_id"] is None

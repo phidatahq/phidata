@@ -2954,7 +2954,7 @@ separate from these local results.
 
 ### PR 6.5 automation diagnostics and scheduler follow-up — October 16, 2026
 
-**Status:** Targeted checks and format/validation PASS; full suites running.
+**Status:** Targeted checks, unit suites and format/validation PASS; full integration run in progress.
 
 **Description:** Unexpected Task-read failures persist in automation history;
 expected engineering/active-ticket refusals remain quiet. A Ready Task whose
@@ -2983,3 +2983,15 @@ parameters positional-only. The complete Company integration tree, scheduler
 and lifecycle suites are being rerun from the final source, with all four SQL
 adapters and the configured Mongo service. Final totals will replace this
 pending status when those runs finish.
+
+
+**Unit completion:** 6,975 distinct cases passed with 39 skips. The broad run
+reported 6,973 passes and two assertions expecting the old generic ValueError.
+Those assertions now require HTTP 403 explicitly; their entire Company execution
+router file passed all 44 cases. Repeated cases are not counted twice. No runtime
+behavior changed for this test correction.
+
+**Cookbook recheck:** `03_manage_tasks.py` passed with Projects, and
+`06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes.
+All used the offline workflow and made no model calls. The complete final-source
+Company integration run is still in progress.

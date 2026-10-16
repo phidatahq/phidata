@@ -8761,8 +8761,8 @@ class SqliteDb(BaseDb):
         products = self._get_table(table_type="products", create_table_if_not_found=True)
         projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            lock_child(sess, products, projects, table, task_id)
             if auto_accept is not None:
+                lock_child(sess, products, projects, table, task_id)
                 if expected_task is None or products is None:
                     raise ValueError("Automatic acceptance requires an observed Task and Product")
                 prior = (
@@ -8790,6 +8790,8 @@ class SqliteDb(BaseDb):
             fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
             if auto_accept is not None:
                 fields["transitions"][-1]["auto_accept"] = auto_accept
+            else:
+                lock_child(sess, products, projects, table, task_id)
             update = table.update().where(
                 *_task_scope_predicates(table, existing),
                 table.c.id == task_id,

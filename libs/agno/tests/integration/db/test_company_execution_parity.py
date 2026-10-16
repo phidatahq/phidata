@@ -1529,6 +1529,10 @@ async def test_automatic_checks_retry_when_server_fact_changes(system, tmp_path)
     with pytest.raises(ValueError, match="project_active"):
         await executor._accept(task)
     await _call(db, "restore_project", task["project_id"])
+    # Cascading restore adds history: a stale proposal must still fail the snapshot check.
+    with pytest.raises(ValueError, match="Proposal changed"):
+        await executor._accept(task)
+    task = await _call(db, "get_task", task["id"])
     assert (await executor._accept(task))["status"] == "ready"
 
 

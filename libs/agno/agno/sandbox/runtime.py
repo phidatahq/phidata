@@ -270,22 +270,26 @@ async def _login_codex(agent: Any, api_key: str) -> None:
 
 
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
-    from agno.sandbox.repository import _aprepare, _check_env, _read_pin, _repository_override
+    from agno.sandbox.repository import RepositoryPreparationError, _aprepare, _read_pin, validate_repository_override
 
-    _check_env()
     native = directory.parent.parent / "native"
     repository = request.get("config", {}).get("repository")
-    override = _repository_override(request.get("metadata"), repository)
+    override = validate_repository_override(request.get("metadata"), repository)
     if (native / "repository.json").exists() and repository is None:
         raise ValueError("Continue this session with its pinned repository; set agent.repository")
     if repository is not None:
-        await _aprepare(
-            repository,
-            Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace")),
-            native,
-            resume=request.get("native_session_id") is not None,
-            override=override,
-        )
+        try:
+            await _aprepare(
+                repository,
+                Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace")),
+                native,
+                resume=request.get("native_session_id") is not None,
+                override=override,
+            )
+        except asyncio.CancelledError:
+            # Preparation drains its filesystem work before cancellation propagates. No
+            # harness has started, so the worker's execution deadline is safe to retry.
+            raise RepositoryPreparationError("Repository preparation interrupted before model execution") from None
     result = await _execute_harness(directory, request)
     if repository is not None:
         result["repository"] = _read_pin(native, repository)

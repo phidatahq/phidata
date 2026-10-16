@@ -6,6 +6,7 @@ import json
 import subprocess
 import tarfile
 import threading
+import time
 
 import pytest
 
@@ -82,7 +83,7 @@ def test_prepare_resume_and_replacement_keep_commits_and_edits(tmp_path, local_r
         with pytest.raises(ValueError, match="pinned source"):
             repository._prepare(changed, workspace, native, resume=True)
     (native / "repository.json").unlink()
-    with pytest.raises(ValueError, match="source identity"):
+    with pytest.raises(repository.RepositoryPreparationError, match="source identity"):
         repository._prepare(SPEC, workspace, native, resume=True)
 
 
@@ -180,7 +181,9 @@ def test_agent_configuration_and_run_rejection(sdk, monkeypatch):
     with pytest.raises(ValueError, match="agent.repository"):
         submission(agent, "inspect", {"repository": SPEC})
     with pytest.raises(ValueError, match="GITHUB_READ_TOKEN"):
-        cls(sandbox=DockerSandbox(image="fixture", env={"GITHUB_TOKEN": "publishing-secret"}))
+        cls(sandbox=DockerSandbox(image="fixture", env={"GITHUB_TOKEN": "publishing-secret"}), repository=configured)
+    unrestricted = cls(sandbox=DockerSandbox(image="fixture", env={"GITHUB_TOKEN": "publishing-secret"}))
+    assert env(unrestricted)["GITHUB_TOKEN"] == "publishing-secret"
 
 
 def test_token_only_in_child_environment(tmp_path, monkeypatch, local_repository):
@@ -499,3 +502,156 @@ def test_runtime_client_preserves_metadata(sync):
     else:
         asyncio.run(client.astart(handle, **kwargs))
     assert captured[0]["metadata"] == metadata
+
+
+@pytest.mark.parametrize("phase", ["preparation", "harness"])
+def test_worker_timeout_retryability_matches_execution_boundary(tmp_path, monkeypatch, local_repository, phase):
+    from agno.sandbox import runtime
+
+    _, sha, _, _ = local_repository
+    directory = tmp_path / "runtime/jobs/timeout"
+    directory.mkdir(parents=True)
+    workspace, native = tmp_path / "workspace", tmp_path / "runtime/native"
+    monkeypatch.setenv("AGNO_SANDBOX_TEST_RUNTIME", "1")
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(workspace))
+    local_run = subprocess.run
+    fetched = []
+    model_calls = []
+
+    def delayed_fetch(args, **kwargs):
+        if "fetch" in args:
+            fetched.append(True)
+            time.sleep(1.1)
+        return local_run(args, **kwargs)
+
+    async def harness(*args):
+        model_calls.append(True)
+        await asyncio.sleep(10)
+
+    if phase == "preparation":
+        monkeypatch.setattr(subprocess, "run", delayed_fetch)
+    else:
+        repository._prepare(SPEC, workspace, native, resume=False)
+    monkeypatch.setattr(runtime, "_execute_harness", harness)
+    request = dict(
+        version=1,
+        execution_id="timeout",
+        sdk="fixture",
+        input="inspect",
+        agent_id="a",
+        session_id="s",
+        run_id="r",
+        config={"repository": SPEC},
+        execution_timeout=1,
+    )
+    (directory / "request.json").write_text(json.dumps(request))
+    runtime._worker(directory)
+    result = json.loads((directory / "result.json").read_text())
+    assert result["type"] == "execution_error"
+    assert repository._read_pin(native, SPEC)["commit"] == sha
+    assert not (workspace / ".repository-prepare").exists()
+    if phase == "preparation":
+        assert fetched and not model_calls
+        assert result.get("reason") == "repository_preparation_failed"
+    else:
+        assert model_calls
+        assert result["error"] == "TimeoutError"
+        assert "reason" not in result
+
+
+@pytest.mark.parametrize("lost", ["native", "marker", "checkout"])
+def test_worker_missing_repository_state_is_retryable_before_model(tmp_path, monkeypatch, local_repository, lost):
+    import shutil
+
+    from agno.sandbox import runtime
+
+    directory = tmp_path / "runtime/jobs/resume"
+    directory.mkdir(parents=True)
+    workspace, native = tmp_path / "workspace", tmp_path / "runtime/native"
+    repository._prepare(SPEC, workspace, native, resume=False)
+    if lost == "native":
+        shutil.rmtree(native)
+    elif lost == "marker":
+        (native / "repository.json").unlink()
+    else:
+        shutil.rmtree(workspace / "repository")
+    monkeypatch.setenv("AGNO_SANDBOX_TEST_RUNTIME", "1")
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(workspace))
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("restore attempted network access"))
+    monkeypatch.setattr(runtime, "_execute_harness", lambda *a: pytest.fail("model started"))
+    request = dict(
+        version=1,
+        execution_id="resume",
+        sdk="fixture",
+        input="inspect",
+        agent_id="a",
+        session_id="s",
+        run_id="r",
+        config={"repository": SPEC},
+        native_session_id="previous",
+    )
+    (directory / "request.json").write_text(json.dumps(request))
+    runtime._worker(directory)
+    result = json.loads((directory / "result.json").read_text())
+    assert result["type"] == "execution_error"
+    assert result.get("reason") == "repository_preparation_failed"
+
+
+@pytest.mark.asyncio
+async def test_non_repository_runtime_keeps_github_token_support(tmp_path, monkeypatch):
+    from agno.sandbox import runtime
+
+    directory = tmp_path / "jobs/first"
+    directory.mkdir(parents=True)
+    monkeypatch.setenv("GITHUB_TOKEN", "publishing-token")
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(tmp_path / "workspace"))
+    request = dict(sdk="fixture", input="inspect", agent_id="a", session_id="s", run_id="r", config={})
+    result = await runtime._execute(directory, request)
+    assert result["type"] == "execution_finished"
+
+
+@pytest.mark.parametrize("failure", ["publishing_token", "marker_deleted_by_harness"])
+def test_runtime_repository_failure_boundaries(tmp_path, monkeypatch, local_repository, failure):
+    from agno.sandbox import runtime
+
+    directory = tmp_path / "runtime/jobs/boundary"
+    directory.mkdir(parents=True)
+    workspace, native = tmp_path / "workspace", tmp_path / "runtime/native"
+    monkeypatch.setenv("AGNO_SANDBOX_TEST_RUNTIME", "1")
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(workspace))
+    model_calls = []
+
+    async def harness(directory, request):
+        model_calls.append(True)
+        result = await runtime._fixture(directory, request)
+        (native / "repository.json").unlink()
+        return result
+
+    monkeypatch.setattr(runtime, "_execute_harness", harness)
+    if failure == "publishing_token":
+        monkeypatch.setenv("GITHUB_TOKEN", "publishing-secret")
+        monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("Git started"))
+    request = dict(
+        version=1,
+        execution_id="boundary",
+        sdk="fixture",
+        input="inspect",
+        agent_id="a",
+        session_id="s",
+        run_id="r",
+        config={"repository": SPEC},
+    )
+    (directory / "request.json").write_text(json.dumps(request))
+    runtime._worker(directory)
+    result = json.loads((directory / "result.json").read_text())
+    assert result["type"] == "execution_error"
+    assert "reason" not in result
+    if failure == "publishing_token":
+        assert not model_calls
+        assert "GITHUB_READ_TOKEN" in result["error"]
+        assert "publishing-secret" not in result["error"]
+    else:
+        # Once tools have run, losing the marker must not authorize replaying them.
+        assert model_calls
+        assert (workspace / "fixture-effects.txt").read_text() == "r\n"
+        assert "pinned source" in result["error"]

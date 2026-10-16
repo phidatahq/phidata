@@ -160,7 +160,7 @@ def coordinator(agent: "BaseExternalAgent") -> "SandboxCoordinator":
 def env(agent: "BaseExternalAgent") -> Dict[str, str]:
     runtime = agent._sandbox_runtime or ""
     configured = dict(_sandbox(agent).env or {})
-    if "GITHUB_TOKEN" in configured:
+    if agent.repository is not None and "GITHUB_TOKEN" in configured:
         raise ValueError("Sandbox repository access requires GITHUB_READ_TOKEN; remove GITHUB_TOKEN")
     # Claude Code on Bedrock or Vertex authenticates with cloud credentials, so a host key
     # would go unused while agent code inside the sandbox could still read it.

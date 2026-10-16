@@ -535,9 +535,11 @@ class CheckpointArchive:
         """Restore into a new directory; failure never exposes a partial destination.
 
         ``destination`` then holds the archive's two roots: ``workspace/``, the agent's
-        working directory as the turn left it, and ``native/``, the harness home with its
-        conversation transcript and local history database, less the credential files
-        excluded at capture. The manifest is not written out; its state is the return value.
+        working directory as the turn left it, with the pinned checkout under
+        ``workspace/repository`` when the agent has a repository configured, and
+        ``native/``, the harness home with its conversation transcript and local history
+        database, less the credential files excluded at capture. The manifest is not
+        written out; its state is the return value.
 
         The parent directory is trusted coordinator-owned storage. It must not be
         writable by sandbox processes or concurrent callers targeting this path.

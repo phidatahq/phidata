@@ -1,6 +1,7 @@
 """A run's committed checkpoint opened on the host through the agent: real Docker and Postgres, fixture harness."""
 
 import asyncio
+import json
 import os
 from uuid import uuid4
 
@@ -11,12 +12,13 @@ from sqlalchemy import select
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.exceptions import RunCancelledException
 from agno.run.base import RunStatus
-from agno.sandbox import _harness
+from agno.sandbox import Repository, _harness
 from agno.sandbox.checkpoint import CheckpointArchive, FileCheckpointStore
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.fixture import FixtureAgent
 
 URL, IMAGE = os.environ.get("AGNO_TEST_SANDBOX_DB_URL"), os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
+SUBNET = {"subnet": os.environ["AGNO_TEST_SANDBOX_SUBNET"]} if os.environ.get("AGNO_TEST_SANDBOX_SUBNET") else {}
 pytestmark = [
     pytest.mark.asyncio,
     pytest.mark.skipif(not URL or not IMAGE, reason="Enable real Postgres and runtime image"),
@@ -39,6 +41,7 @@ async def system(request, tmp_path):
         workspace_mb=32,
         env={"AGNO_SANDBOX_TEST_RUNTIME": "1"},
         checkpoints=FileCheckpointStore(tmp_path / "objects"),
+        **SUBNET,
     )
     handles = []
     original = provider.acreate
@@ -126,6 +129,28 @@ async def test_another_agents_run_and_an_unknown_run_are_refused(system):
             pass
     async with other.aopen_run_checkpoint("theirs") as archive:
         assert archive.is_file()
+
+
+@pytest.mark.live
+@pytest.mark.skipif(os.environ.get("AGNO_TEST_LIVE_REPOSITORY") != "1", reason="Set AGNO_TEST_LIVE_REPOSITORY=1")
+async def test_repository_checkout_restores_under_workspace_repository(system):
+    agent, root = system
+    # The checkout is fetched inside the computer, so this computer needs GitHub egress.
+    agent.sandbox.network = "isolated"
+    engineer = FixtureAgent(
+        id="engineer",
+        db=agent.db,
+        sandbox=agent.sandbox,
+        repository=Repository("https://github.com/octocat/Hello-World", branch="master"),
+    )
+    pinned = await engineer.arun("pinned", session_id="session-" + uuid4().hex[:8], run_id="pinned")
+    assert pinned.status == RunStatus.completed, pinned.content
+    pin = pinned.metadata["sandbox"]["repository"]
+    async with engineer.aopen_run_checkpoint("pinned") as archive:
+        await CheckpointArchive().arestore(archive, root / "pinned")
+    assert (root / "pinned" / "workspace" / "repository" / ".git").is_dir()
+    assert json.loads((root / "pinned" / "native" / "repository.json").read_text()) == pin
+    assert effects(root / "pinned") == ["pinned"]
 
 
 async def test_running_and_cancelled_runs_are_refused(system):

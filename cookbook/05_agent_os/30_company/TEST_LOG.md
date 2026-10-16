@@ -3043,3 +3043,21 @@ results are separate from GitHub CI; no paid-model or hosted checks are claimed.
 **Result:** All 84 failure-state cases passed across the four SQL adapters and both Mongo variants, including 16 additional Backlog/Ready cases. Full format and validation passed again. The complete integration suite is being rerun on this correction; previous-head totals are not claimed for this change.
 
 ---
+
+### Final validation of Project diagnostics, Mongo history, and ticket recovery
+
+**Status:** PASS
+
+**Description:** Complete local validation of production head `0de5985186a83e35bd9851d38c0ad13eccb1bf94`. The final follow-up updates documentation only.
+
+**Result:**
+
+- **1,445 integration tests passed, zero failures/errors, zero skips**. This includes the entire **1,292-case Company integration tree**, all **92 retention cases**, scheduler/lifecycle/owner-recheck coverage, all four SQL adapters, and real sync/async Mongo. Four disjoint shards selected every collected case exactly once (362 + 361 + 361 + 361).
+- **6,975 distinct unit tests passed, 39 skipped, zero failures/errors** across scheduler, AgentOS/Manager, database, Company/scheduler/Studio tools, and agent session storage. All were rerun on final source in four disjoint shards. Two module-level skips appeared in each shard and are counted once, not four times; the 39 skips require optional drivers, API credentials, or root access.
+- The **84 new failure-state cases** and **181 affected Company unit cases** also passed separately; these are included in the complete totals, not additional tests. The earlier 1,429-case integration pass and interrupted pre-correction unit run are not counted in the final totals.
+- `03_manage_tasks.py` passed with required Projects. `06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes. No paid model calls were made.
+- Full `./scripts/format.sh`, `./scripts/validate.sh` (1,179 framework and 21 CLI files), and `git diff --check` passed. Runtime tests used development Python 3.12; validation used the clean Python 3.10 environment.
+
+These are local results. GitHub CI and independent review remain separate.
+
+---

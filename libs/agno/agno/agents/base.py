@@ -58,6 +58,7 @@ from agno.utils.string import parse_response_dict_str, parse_response_model_str
 
 if TYPE_CHECKING:
     from agno.sandbox import Sandbox
+    from agno.sandbox.repository import Repository
     from agno.tools.component import ComponentTool
 
 # Limits for the history replayed into a fresh harness session when the framework's own
@@ -238,6 +239,7 @@ class BaseExternalAgent:
     strict_persistence: bool = False
     # Run the whole harness process in a computer from this sandbox each turn, e.g. DockerSandbox(image).
     sandbox: Optional["Sandbox"] = field(default=None, repr=False)
+    repository: Optional["Repository"] = None
 
     _sdk_name: ClassVar[str] = "external"
     # Runtime name the sandbox uses to rebuild this adapter; None means it cannot be sandboxed.
@@ -275,6 +277,13 @@ class BaseExternalAgent:
         if self.events_to_skip is None:
             self.events_to_skip = [RunEvent.run_content]
         self._check_output_schema(self.output_schema)
+        if self.repository is not None:
+            from agno.sandbox.repository import Repository
+
+            if not isinstance(self.repository, Repository):
+                raise TypeError("agent.repository must be a Repository")
+            if self.sandbox is None:
+                raise ValueError("agent.repository requires sandbox=")
         if self.sandbox is not None:
             _sandbox_harness().validate(self)
 
@@ -479,6 +488,8 @@ class BaseExternalAgent:
         streams yield SSE strings rather than event objects. Separate media
         arguments require adapter support; unsupported media fails before work starts.
         """
+        if "repository" in kwargs:
+            raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
         kwargs.update(self._media_kwargs(images=images, audio=audio, videos=videos, files=files))
         run_id = run_id or str(uuid4())
         session_id = session_id or str(uuid4())
@@ -612,6 +623,8 @@ class BaseExternalAgent:
         """
         if background:
             raise ValueError("Use arun(background=True) on a persistent event loop")
+        if "repository" in kwargs:
+            raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
         kwargs.update(self._media_kwargs(images=images, audio=audio, videos=videos, files=files))
         if run_id is not None:
             kwargs["run_id"] = run_id

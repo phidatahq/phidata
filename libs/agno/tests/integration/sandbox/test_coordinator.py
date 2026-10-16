@@ -1,9 +1,9 @@
 """Full Docker + Postgres recovery boundary, using a credential-free runtime."""
 
 import asyncio
-import time
 import json
 import os
+import time
 from dataclasses import dataclass, field, replace
 from typing import Dict
 from uuid import uuid4
@@ -18,9 +18,8 @@ from agno.run.base import RunStatus
 from agno.sandbox import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 from agno.sandbox.coordinator import SandboxCoordinator
-from agno.sandbox.docker import DockerSandbox
+from agno.sandbox.docker import DockerCheckpointTransfer, DockerSandbox
 from agno.sandbox.postgres import SandboxSessionBusy
-from agno.sandbox.docker import DockerCheckpointTransfer
 
 URL, IMAGE = os.environ.get("AGNO_TEST_SANDBOX_DB_URL"), os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
 pytestmark = [
@@ -1001,3 +1000,107 @@ async def test_cancelling_a_running_attachment_turn_discards_its_files_and_keeps
     assert after["checkpoint"] == before["checkpoint"] and after["phase"] == "idle"
     assert await recovered_effects(coordinator, root) == ["first"]
     assert not list((await restored_workspace(coordinator, root)).glob(".agno/uploads/*"))
+
+
+async def test_repository_preparation_failure_is_retryable(system):
+    coordinator, spec, _ = system
+    # This computer has no network: Git fails before the fixture can run.
+    output = await run(
+        coordinator, spec, config={"repository": {"url": "https://github.com/example/application", "branch": "main"}}
+    )
+    assert output.status == RunStatus.error
+    assert output.metadata["retryable"] is True
+    assert "Repository preparation failed" in output.content
+    record = (await binding(coordinator))["record"]
+    assert not record.get("checkpoint") and not record.get("native")
+
+
+@pytest.mark.live
+@pytest.mark.skipif(os.environ.get("AGNO_TEST_LIVE_REPOSITORY") != "1", reason="Set AGNO_TEST_LIVE_REPOSITORY=1")
+async def test_live_repository_pin_warm_resume_and_replacement(system):
+    coordinator, spec, tmp_path = system
+    coordinator.provider.network = "isolated"
+    coordinator.warm_computer_seconds = 300
+    config = {"repository": {"url": "https://github.com/octocat/Hello-World", "branch": "master"}}
+    first = await run(coordinator, spec, config=config)
+    assert first.status == RunStatus.completed, first.content
+    pin = first.metadata["sandbox"]["repository"]
+    handle = handles_of(coordinator)[-1]
+    await coordinator.provider.aresume(handle)
+    edited = await coordinator.provider.aexec(
+        handle, ["sh", "-c", "printf 'engineer edit' > /workspace/repository/extra.txt"]
+    )
+    assert edited.exit_code == 0
+    second = await run(coordinator, spec, "second", config=config)
+    assert second.status == RunStatus.completed, second.content
+    assert second.metadata["sandbox"]["resumed"] is True
+    assert second.metadata["sandbox"]["repository"] == pin
+    await coordinator.provider.adestroy(handle)
+    third = await run(coordinator, spec, "third", config=config)
+    assert third.status == RunStatus.completed, third.content
+    assert third.metadata["sandbox"]["resumed"] is False
+    assert third.metadata["sandbox"]["repository"] == pin
+    restored = tmp_path / "repository-checkpoint"
+    await coordinator.transfer.store.arestore(CheckpointRef(**third.metadata["sandbox"]["checkpoint"]), restored)
+    assert json.loads((restored / "native/repository.json").read_text()) == pin
+    assert (restored / "workspace/repository/extra.txt").read_text() == "engineer edit"
+    mismatch = await run(
+        coordinator, spec, "mismatch", config={"repository": {**config["repository"], "branch": "other"}}
+    )
+    assert mismatch.status == RunStatus.error and "pinned source" in mismatch.content
+    assert mismatch.metadata["retryable"] is False
+    missing = await run(coordinator, spec, "missing", config={})
+    assert missing.status == RunStatus.error and "agent.repository" in missing.content
+
+
+async def test_inbound_metadata_persists_without_overriding_runtime_status(system):
+    coordinator, spec, _ = system
+    spec = replace(spec, env={**spec.env, "GITHUB_TOKEN": "non-repository-token"})
+    metadata = {"trace_id": "request-trace", "sandbox": {"repository": "forged"}, "retryable": True}
+    first = await run(coordinator, spec, metadata=metadata)
+    assert first.status == RunStatus.completed, first.content
+    assert first.metadata["trace_id"] == "request-trace"
+    assert "repository" not in first.metadata["sandbox"]
+    assert "retryable" not in first.metadata
+    again = await run(coordinator, spec, metadata=metadata)
+    assert again.to_dict() == first.to_dict()
+    later = await run(coordinator, spec, "later")
+    assert later.status == RunStatus.completed, later.content
+    assert "trace_id" not in later.metadata
+    failed = await run(coordinator, spec, "timeout", metadata=metadata, config={"delay": 10}, execution_timeout=0.2)
+    assert failed.status == RunStatus.error
+    assert failed.metadata["trace_id"] == "request-trace"
+    assert failed.metadata["retryable"] is False
+    assert "repository" not in failed.metadata["sandbox"]
+
+
+@pytest.mark.live
+@pytest.mark.skipif(os.environ.get("AGNO_TEST_LIVE_REPOSITORY") != "1", reason="Set AGNO_TEST_LIVE_REPOSITORY=1")
+@pytest.mark.parametrize("lost", ["native", "marker", "checkout"])
+async def test_repository_state_loss_retries_from_committed_checkpoint(system, lost):
+    coordinator, spec, root = system
+    coordinator.provider.network = "isolated"
+    coordinator.warm_computer_seconds = 300
+    config = {"repository": {"url": "https://github.com/octocat/Hello-World", "branch": "master"}}
+    first = await run(coordinator, spec, config=config)
+    assert first.status == RunStatus.completed, first.content
+    pin = first.metadata["sandbox"]["repository"]
+    checkpoint = first.metadata["sandbox"]["checkpoint"]
+    handle = handles_of(coordinator)[-1]
+    await coordinator.provider.aresume(handle)
+    path = {
+        "native": "/runtime/native",
+        "marker": "/runtime/native/repository.json",
+        "checkout": "/workspace/repository",
+    }[lost]
+    removed = await coordinator.provider.aexec(handle, ["rm", "-rf", path])
+    assert removed.exit_code == 0
+    failed = await run(coordinator, spec, "lost-state", config=config)
+    assert failed.status == RunStatus.error, failed.content
+    assert failed.metadata["retryable"] is True
+    assert "Repository checkpoint is missing" in failed.content
+    assert (await binding(coordinator))["record"]["checkpoint"] == checkpoint
+    recovered = await run(coordinator, spec, "retry", config=config)
+    assert recovered.status == RunStatus.completed, recovered.content
+    assert recovered.metadata["sandbox"]["repository"] == pin
+    assert await recovered_effects(coordinator, root) == ["first", "retry"]

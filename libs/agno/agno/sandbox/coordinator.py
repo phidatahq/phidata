@@ -87,6 +87,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -103,6 +104,7 @@ class SandboxCoordinator:
             user_id=user_id,
             agent_name=agent_name,
             config=config,
+            **({"metadata": metadata} if metadata is not None else {}),
             env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
@@ -126,6 +128,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -142,6 +145,7 @@ class SandboxCoordinator:
             user_id=user_id,
             agent_name=agent_name,
             config=config,
+            **({"metadata": metadata} if metadata is not None else {}),
             env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
@@ -256,6 +260,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -280,6 +285,7 @@ class SandboxCoordinator:
                     user_id=user_id,
                     agent_name=agent_name,
                     config=config,
+                    **({"metadata": metadata} if metadata is not None else {}),
                     env=env,
                     queue_attempt=queue_attempt,
                     execution_timeout=execution_timeout,
@@ -316,6 +322,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -345,6 +352,8 @@ class SandboxCoordinator:
             config=dict(config or {}),
             execution_timeout=execution_timeout,
         )
+        if metadata is not None:
+            request["metadata"] = metadata
         media = encode_media(images=images, files=files)
         if media:
             request["media"] = media
@@ -357,6 +366,7 @@ class SandboxCoordinator:
         _validate({**probe, "sdk": "claude" if sdk == "fixture" else sdk})
         request = json.loads(json.dumps(request, allow_nan=False))
         config = request["config"]
+        metadata = request.get("metadata")
         # The client's own measurement of the start request.
         if len(json.dumps(probe, allow_nan=False).encode()) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
@@ -449,6 +459,13 @@ class SandboxCoordinator:
                 if record["phase"] != "executing":
                     return record
                 record["request_hash"] = fingerprint
+                # Keep caller metadata on the service side. Runtime output cannot replace it,
+                # and caller values cannot control execution status or recovery decisions.
+                record["run_metadata"] = {
+                    key: value
+                    for key, value in (metadata or {}).items()
+                    if key not in ("sandbox", "warnings", "attempts", "retryable", "error_type")
+                }
                 native = record.get("native") or {}
                 if native and NATIVE_SESSION_KEYS[sdk] not in native:
                     # Starting the other SDK fresh would fork the conversation.
@@ -528,6 +545,7 @@ class SandboxCoordinator:
                             config=config,
                             execution_timeout=execution_timeout,
                             media=media,
+                            **({"metadata": metadata} if metadata is not None else {}),
                             # The conversation the restored checkpoint must hold; None on a session's first turn.
                             native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
                         )
@@ -562,7 +580,8 @@ class SandboxCoordinator:
                                     status="ERROR",
                                     reason=str(page.result.get("error", "Runtime outcome is unknown"))[:8192],
                                     # Any other failure may have run tools with side effects; never replay it.
-                                    retryable=page.result.get("reason") == "native_state_missing",
+                                    retryable=page.result.get("reason")
+                                    in ("native_state_missing", "repository_preparation_failed"),
                                 )
                                 yield self._terminal(committed)
                                 yield RunOutput.from_dict(committed)

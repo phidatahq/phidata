@@ -94,6 +94,16 @@ def _read_pin(native: Path, repository: Dict[str, str]) -> Dict[str, str]:
     return {key: pin[key] for key in ("url", "branch", "commit")}
 
 
+def _exclude_uploads(checkout: Path) -> None:
+    """Keep attachments staged under the checkout's .agno/ out of git status and git add."""
+    exclude = checkout / ".git" / "info" / "exclude"
+    exclude.parent.mkdir(exist_ok=True)
+    existing = exclude.read_text() if exclude.is_file() else ""
+    if "/.agno/" not in existing.splitlines():
+        with exclude.open("a") as handle:
+            handle.write(("" if not existing or existing.endswith("\n") else "\n") + "/.agno/\n")
+
+
 def _check_env() -> None:
     if "GITHUB_TOKEN" in os.environ:
         raise ValueError("Sandbox repository access requires GITHUB_READ_TOKEN; remove GITHUB_TOKEN")
@@ -123,6 +133,7 @@ def _prepare(
             if not (target / ".git").is_dir():
                 raise RepositoryPreparationError("Repository checkpoint is missing its checkout")
             # Preserve the engineer's commits and uncommitted files on later turns.
+            _exclude_uploads(target)
             return target
         if resume:
             raise RepositoryPreparationError("Repository checkpoint is missing its source identity")
@@ -170,6 +181,7 @@ def _prepare(
         git("checkout", "--detach", commit)
         if git("rev-parse", "HEAD") != commit:
             raise RepositoryPreparationError("Repository preparation failed; checkout does not match the pinned commit")
+        _exclude_uploads(staging)
         staging.rename(target)
         moved = True
         native.mkdir(parents=True, exist_ok=True)

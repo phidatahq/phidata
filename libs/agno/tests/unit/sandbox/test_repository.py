@@ -178,7 +178,7 @@ def test_agent_configuration_and_run_rejection(sdk, monkeypatch):
         for stream in (False, True):
             with pytest.raises(ValueError, match="agent.repository"):
                 method("inspect", repository=None, stream=stream)
-    with pytest.raises(ValueError, match="agent.repository"):
+    with pytest.raises(ValueError, match="Unsupported sandbox run options: repository"):
         submission(agent, "inspect", {"repository": SPEC})
     with pytest.raises(ValueError, match="GITHUB_READ_TOKEN"):
         cls(sandbox=DockerSandbox(image="fixture", env={"GITHUB_TOKEN": "publishing-secret"}), repository=configured)
@@ -284,6 +284,23 @@ async def test_runtime_guards_before_model(tmp_path, monkeypatch):
         await runtime._execute(directory, {"sdk": "fixture", "config": {}})
     with pytest.raises(ValueError, match="pinned source"):
         await runtime._execute(directory, {"sdk": "fixture", "config": {"repository": {**SPEC, "branch": "other"}}})
+
+
+def test_uploads_stay_out_of_the_checkout_index(tmp_path, local_repository):
+    _, _, _, git = local_repository
+    target = repository._prepare(SPEC, tmp_path / "workspace", tmp_path / "runtime/native", resume=False)
+    upload = target / ".agno/uploads/run-1/brief.pdf"
+    upload.parent.mkdir(parents=True)
+    upload.write_bytes(b"%PDF")
+    (target / "notes.txt").write_text("tracked")
+    git("add", ".", cwd=target)
+    assert git("status", "--porcelain", "--untracked-files=all", cwd=target).splitlines() == ["A  notes.txt"]
+    # A checkout restored from a checkpoint taken before the exclusion existed gets it on resume, once.
+    (target / ".git/info/exclude").unlink()
+    for _ in range(2):
+        assert repository._prepare(SPEC, tmp_path / "workspace", tmp_path / "runtime/native", resume=True) == target
+    assert (target / ".git/info/exclude").read_text() == "/.agno/\n"
+    assert git("status", "--porcelain", "--untracked-files=all", cwd=target).splitlines() == ["A  notes.txt"]
 
 
 @pytest.mark.parametrize("sdk", ["claude", "codex"])

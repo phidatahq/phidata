@@ -3191,3 +3191,13 @@ passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 **Result:** Configuration checks passed. No live model calls or actual GitHub publication were run.
 
 ---
+
+### Publication authorization and parent compatibility follow-up
+
+**Status:** PASS
+
+**Description:** All 11 publication route/authorization tests pass, including four added cases for current managed accepting identity and permission to enable automatic publication. The wider sweep identified two legacy policy-fingerprint expectations and four candidate-paging expectations that needed the new false-by-default permission and In review reconciliation state reflected. All six corrected cases pass across their selected adapters/isolation modes.
+
+**Result:** Follow-up assertions pass; production code is unchanged from the first PR publication. The wider sweeps remain in progress.
+
+---

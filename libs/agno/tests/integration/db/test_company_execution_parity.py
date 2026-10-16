@@ -1779,7 +1779,7 @@ async def test_automation_filters_candidates_before_paging(system, monkeypatch):
 
     monkeypatch.setattr(db, "get_tasks", aobserved if inspect.iscoroutinefunction(original) else observed)
     outcomes = await executor._tick()
-    assert {query["status"] for query in queries} == {"backlog", "ready", "in_progress"}
+    assert {query["status"] for query in queries} == {"backlog", "ready", "in_progress", "in_review"}
     assert set(returned) == {ready["id"], backlog["id"], running["id"]}
     assert {outcome["task_id"] for outcome in outcomes} == {ready["id"], running["id"]}
     assert any(outcome["status"] == "already_submitted" for outcome in outcomes)

@@ -537,7 +537,8 @@ async def test_policy_defaults_expiry_and_content_fingerprint(system):
     import hashlib
     import json
 
-    legacy_content = {key: value for key, value in stored.items() if key != "complete_projects"}
+    assert stored["publish"] is False
+    legacy_content = {key: value for key, value in stored.items() if key not in {"complete_projects", "publish"}}
     assert (
         before == hashlib.sha256(json.dumps(legacy_content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     )

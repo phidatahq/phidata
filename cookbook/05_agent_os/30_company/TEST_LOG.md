@@ -1476,3 +1476,18 @@ formatter-only changes. Mypy checked 1,155 framework and 21 CLI files. Tests and
 cookbooks used development Python 3.12; validation used clean Python 3.10.
 `git diff --check` passed. Source provenance uses the existing `config.metadata`
 JSON object, with no table or column changes.
+
+
+### Complete database, AgentOS, scheduler and Company tool unit suites
+
+**Status:** PASS
+
+**Description:** Reran the complete `libs/agno/tests/unit/db`,
+`libs/agno/tests/unit/os`, `libs/agno/tests/unit/scheduler`, and
+`libs/agno/tests/unit/tools/test_company.py` suites on the final implementation.
+
+**Result:** 6,436 passed, five conditional skips, no failures. Skips were one
+root-only check, three live-model credential checks and one optional asyncpg
+check. The earlier four new Source-schema failures are resolved. Implementation
+commit `dfaf0a59d7` was pushed for review while this final run completed; this
+record follows as a normal commit without rewriting history.

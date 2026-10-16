@@ -185,17 +185,31 @@ if __name__ == "__main__":
                     )
                     # A human reviews the Task. Refresh can only propose Project
                     # completion; a separate human policy grants the tick permission.
-                    manager.transition_task(proposal["id"], "done", "Human reviewed the guide")
+                    manager.transition_task(
+                        proposal["id"], "done", "Human reviewed the guide"
+                    )
                     refresh = client.post(
                         "/company/routines",
                         json={
-                            "product_id": product["id"], "name": "refresh", "template": "refresh",
-                            "executor_type": "workflow", "executor_id": "draft", "cron_expr": "0 0 1 1 *",
+                            "product_id": product["id"],
+                            "name": "refresh",
+                            "template": "refresh",
+                            "executor_type": "workflow",
+                            "executor_id": "draft",
+                            "cron_expr": "0 0 1 1 *",
                             "auto_accept": {
-                                "executor_type": "workflow", "executor_id": "draft", "complete_projects": True,
+                                "executor_type": "workflow",
+                                "executor_id": "draft",
+                                "complete_projects": True,
                                 "work_scope": {"project_ids": [project["id"]]},
-                                "required_checks": ["project_active", "executor_registered"],
-                                "limits": {"max_acceptances": 1, "expires_at": int(time.time()) + 3600},
+                                "required_checks": [
+                                    "project_active",
+                                    "executor_registered",
+                                ],
+                                "limits": {
+                                    "max_acceptances": 1,
+                                    "expires_at": int(time.time()) + 3600,
+                                },
                             },
                         },
                     )
@@ -209,7 +223,9 @@ if __name__ == "__main__":
                             break
                         time.sleep(0.1)
                     assert manager.get_project(project["id"])["status"] == "done"
-                    print("The authorized tick accepted Refresh's Project completion proposal.")
+                    print(
+                        "The authorized tick accepted Refresh's Project completion proposal."
+                    )
                     print("Intake authorization was revoked; no model call was made.")
                 else:
                     print(

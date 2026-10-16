@@ -5923,10 +5923,12 @@ class AsyncSqliteDb(AsyncBaseDb):
             if tasks_table is not None:
                 update = update.where(~open_query.exists())
             if expected_project is not None:
-                update = update.where(*[
-                    table.c[field] == expected_project.get(field)
-                    for field in ("product_id", "name", "outcome", "target_date", "updated_at")
-                ])
+                update = update.where(
+                    *[
+                        table.c[field] == expected_project.get(field)
+                        for field in ("product_id", "name", "outcome", "target_date", "updated_at")
+                    ]
+                )
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()

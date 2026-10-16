@@ -218,6 +218,10 @@ def _policy_fingerprint(schedule):
 
     policy = ((schedule.get("payload") or {}).get("metadata") or {}).get("auto_accept")
     content = AutoAccept.model_validate(policy).model_dump() if policy else False
+    # An omitted permission grants nothing; adding its default must not revoke
+    # existing Task-only policies or reset their budgets on upgrade.
+    if isinstance(content, dict) and not content["complete_projects"]:
+        content.pop("complete_projects")
     return hashlib.sha256(json.dumps(content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 

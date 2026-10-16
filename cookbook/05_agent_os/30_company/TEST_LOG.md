@@ -1754,3 +1754,183 @@ Publication checks: 103 SQLite/focused tests passed, with PostgreSQL deferred to
 **Result:** Final full unit rerun: **6,317 passed, 39 dependency/environment skips**. Integrations: **652 passed, no skips**. All ten cookbook invocations passed. The first unit run had one failure in the unchanged Redis real-clock TTL test (`test_true_ttl_expiry_reseeds`: keys had not expired after 1.2 seconds); its isolated module rerun passed all 48 tests, then the complete unit rerun passed without code changes. Format and exact-tree validation passed with full output read (mypy: 1,155 framework and 21 CLI files). `git diff --check` passed. No live model or outbound messaging calls.
 
 ---
+
+
+
+
+
+## Automation completion and current Heartbeat rebase — October 16, 2026
+
+Rebased Automation onto Heartbeat `b919bc8581`, which contains Execution
+`ad213020cf` and merged main PR #11112. Retained the parent's bounded Source
+reader, Routine Intake fence, nullable tool schemas, run-recovery assertions,
+terminal-Task lifecycle gate, archive behavior and sorting. Automation adds the
+explicit `complete_projects` permission through the existing policy boundary.
+Refresh remains proposal-only; accepted Project completions share the policy's
+checks, expiry and distinct-work budget with Task acceptance.
+
+### Required suites and validation
+
+**Status:** PASS.
+
+**Description:** Tested permission admission and managed-role revocation before
+and during checks in both isolation modes; Refresh proposal matching; all-terminal
+Tasks including archived records; Source/scope/check/expiry/revocation failures;
+Task/Project budget races; and executor-less authenticated Intake through the real
+queue under concurrent scheduler ticks on all four SQL adapters.
+
+**Result:** The complete DB/OS/scheduler unit suites plus Company/SchedulerTools
+passed **6,515 tests, seven conditional skips** (optional mockfirestore,
+mongomock and aiomysql dependencies, a root-only test and three live-provider
+tests). An initial full run had one unrelated fakeredis TTL timing failure;
+its entire module then passed 48 tests, and the complete full-suite rerun passed.
+No Company case failed. The 64 focused tests passed, followed by 46 policy and
+completion cases after preserving legacy Task-only fingerprints when the new
+permission is omitted/false. The fingerprint release probe passed again.
+The complete Company/scheduler integration
+selection passed 627 tests; four PostgreSQL scheduler parity cases initially
+skipped because their URL variable was unset. Rerunning that parity file with
+`AGNO_TEST_POSTGRES_URL` passed eight tests (four SQLite repeats plus all four
+PostgreSQL cases), giving **631 distinct passing integration cases**. Four optional
+MongoDB cases remain skipped because `AGNO_TEST_MONGO_URL` was unset. No requested
+SQLite/PostgreSQL case remained skipped. The selection includes lifecycle CRUD,
+archive, real-queue execution, stable database restart and scheduler owner checks.
+
+Both full format and validate scripts passed; complete output was read. Validation
+reported no errors in 1,154 framework files and 21 CLI files. Unrelated formatter
+edits were excluded and validation passed again on the exact feature tree. Tests
+and cookbooks used Python 3.12; validation used the clean Python 3.10 environment.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py`. Product lifecycle, ownership and restore.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py`. Project lifecycle and Product containment.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py`. Task acceptance, frozen scope and lifecycle.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py`. Sync/async wiki and decision operations with version checks.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py`. Product Manager tools without provider calls.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — SQLite manual
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. Real durable-queue execution, duplicate submission, results and history.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — PostgreSQL manual
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. The same manual execution contract with PostgreSQL Company records.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — SQLite automation
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. Ready pickup and evidence-backed automatic acceptance through the real queue; human Task review followed by Refresh proposing and the authorized tick completing the Project.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 06_execute_tasks.py — PostgreSQL automation
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py`. The same pickup, acceptance, revocation and explicitly authorized Project completion with PostgreSQL records and queue.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py`. Bounded Source reads, deduplicated Intake, completion proposals, archival and restore; Refresh itself never accepts or completes work.
+
+**Result:** All assertions passed without model calls or outbound messaging.
+
+---
+
+### Claude release probes on the rebased branch
+
+**Status:** MIXED — exact outcomes retained, not treated as an all-pass result.
+
+**Description:** Ran the original behavioral scripts unchanged and documented
+compatibility copies against this branch using the original PostgreSQL database
+`ai_claude` on localhost:5532, capture port 8161 and performance port 8110. Original
+reports were preserved. Compatibility changes supply mandatory expiry, explicit
+Intake proposals with observed hashes, and SchedulerTools' `cron` argument. The
+updated authority probe additionally tests that plain Routine proposals are
+refused, then uses the real evidence-backed Intake tool for its unchanged lineage
+assertion. Payload/authority assertions were not relaxed.
+
+| Probe | Result |
+| --- | --- |
+| A identity/scopes | Original 222/225; compatible 223/225. Mandatory expiry explains the original extra 422. Remaining expectations omit the executor run permission required to create/resume a Routine and correctly receive 403. |
+| C isolation | 54/55. Subject-less token reads still return 200; this existing shared read behavior is outside Automation. |
+| D disabled/registration | Compatible 15/16, including custom tables and fresh-process registration. The MongoDB probe targets unavailable port 1. Original stops at retired migration imports. |
+| D main-disabled | Completed; no Company routes or tables when Company is disabled. |
+| D2 legacy migration | Inapplicable: imports retired, unreleased migrations. Both copies fail with ImportError; not counted as passing. |
+| E concurrency | Compatible 14/14, retaining 20 rounds per race. Original requires the current explicit Intake proposal argument. |
+| E2 async concurrency | Compatible 6/6; same original Intake signature mismatch. |
+| F authority | Updated compatible 20/22. Original and the first compatibility copy stop at the parent's new plain-Routine-proposal fence. The final copy passes that denial and Intake lineage; two existing payload-shape assertions still fail without demonstrating widened authority. |
+| F2 scheduler fence | Both executor and Routine mutations raise PermissionError; no schedule is written. |
+| G setup/fingerprint | Compatible setup returns 409 and all three fingerprint comparisons are true. Original omits mandatory expiry. |
+| Product Manager route | Ordinary GET returns 200. |
+
+The supplied performance driver seeded 50 Products, 500 Projects, 5,000 Tasks and
+200 wiki pages. Read checks completed and all ten workflow starts were independently
+confirmed In review through the adapter. Live-model Intake failed with
+`OPENAI_API_KEY not set`; no live-model performance claim is made. The temporary
+server and uniquely named performance schema were cleaned up. Export/report
+helpers depend on the original snapshots and are not behavioral probes.

@@ -521,7 +521,8 @@ retaining a known old ID explicitly is necessary for those references.
 
 ### Bounded Project completion
 
-`auto_accept.complete_projects` defaults to `false`. Set it to `true` on a
+`auto_accept.complete_projects` defaults to `false`, preserving existing Task-only
+policy fingerprints and budgets. Set it to `true` on a
 Refresh Routine to allow the automation tick to accept its persisted completion
 proposals. The human author must also hold `projects:write`. Refresh itself only
 proposes completion and archives eligible terminal work; it never accepts Tasks
@@ -532,7 +533,9 @@ scope, required checks, expiry and count as Task acceptance. The proposed
 Project must still be active, its Tasks (including archived Tasks) must all be
 terminal, and its stored Refresh proposal must still match those facts. Checks
 receive the Project as the work record, with `project_id` set to its ID and
-`evidence` collected from its Tasks. `has_source_evidence` re-reads that evidence;
+`evidence` collected from its Tasks. The policy supplies the executor fields and
+its executor still requires registry validation and the human's run permission.
+`has_source_evidence` re-reads that evidence;
 a Project without evidence fails Source bounds and that check. `project_active`
 and `executor_registered` work without application registration.
 

@@ -478,6 +478,13 @@ async def test_policy_defaults_expiry_and_content_fingerprint(system):
     assert stored["required_checks"] == ["executor_registered"]
     assert stored["limits"]["max_acceptances"] == 1
     before = _policy_fingerprint(raw)
+    import hashlib
+    import json
+
+    legacy_content = {key: value for key, value in stored.items() if key != "complete_projects"}
+    assert (
+        before == hashlib.sha256(json.dumps(legacy_content, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    )
     receipt = {
         "product_id": product["id"],
         "transitions": [{"target": "ready", "auto_accept": {"routine_id": routine["id"], "policy": before}}],
@@ -563,7 +570,19 @@ def test_project_completion_policy_requires_projects_write(system, generic):
     scopes = SCOPES + ["routines:write", "routines:read", "schedules:write", "schedules:read"]
     product = client.post("/company/products", json={"name": "Docs"}, headers=headers()).json()
     policy = {"executor_type": "agent", "executor_id": "writer", "limits": {"expires_at": 4102444800}}
-    response = client.post("/company/routines", json=dict(product_id=product["id"], name="refresh", template="refresh", executor_type="agent", executor_id="writer", cron_expr="0 * * * *", auto_accept=policy), headers=headers(scopes=scopes))
+    response = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="refresh",
+            template="refresh",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+            auto_accept=policy,
+        ),
+        headers=headers(scopes=scopes),
+    )
     assert response.status_code == 201, response.text
     routine = response.json()
     before = db.get_schedule(routine["id"])
@@ -587,7 +606,14 @@ async def test_completion_rechecks_managed_human_permission(managed_system, duri
     from agno.company.routines import _CompanyScheduleExecutor
 
     client, db, os, queue, authz = managed_system
-    scopes = SCOPES + ["projects:read", "projects:write", "routines:read", "routines:write", "schedules:read", "schedules:write"]
+    scopes = SCOPES + [
+        "projects:read",
+        "projects:write",
+        "routines:read",
+        "routines:write",
+        "schedules:read",
+        "schedules:write",
+    ]
     authz.define_role("completer", scopes)
     authz.define_role("without_completion", [scope for scope in scopes if scope != "projects:write"])
     authz.set_role("alice", "completer")
@@ -595,19 +621,47 @@ async def test_completion_rechecks_managed_human_permission(managed_system, duri
     manager = CompanyManager(db, os.registry)
     project = manager.create_project(product["id"], "Release", user_id="alice")
     project = manager.transition_project(project["id"], "active", "Start")
+
     async def revoke(proposal, check_manager):
         authz.set_role("alice", "without_completion")
         return True
+
     os.company.acceptance_checks["revoke_completion"] = revoke
-    policy = {"executor_type": "agent", "executor_id": "writer", "complete_projects": True, "limits": {"expires_at": 4102444800}}
+    policy = {
+        "executor_type": "agent",
+        "executor_id": "writer",
+        "complete_projects": True,
+        "limits": {"expires_at": 4102444800},
+    }
     if during_checks:
         policy["required_checks"] = ["executor_registered", "revoke_completion"]
-    response = client.post("/company/routines", json=dict(product_id=product["id"], name="refresh", template="refresh", executor_type="agent", executor_id="writer", cron_expr="0 * * * *", auto_accept=policy), headers=headers())
+    response = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="refresh",
+            template="refresh",
+            executor_type="agent",
+            executor_id="writer",
+            cron_expr="0 * * * *",
+            auto_accept=policy,
+        ),
+        headers=headers(),
+    )
     assert response.status_code == 201, response.text
     if not during_checks:
         authz.set_role("alice", "without_completion")
-    executor = _CompanyScheduleExecutor(os, client.app, base_url="http://test", internal_service_token="company-internal")
-    proposal = {**project, "project_id": project["id"], "routine_id": response.json()["id"], "evidence": [], "_completion_project": project, "_completion_tasks": []}
+    executor = _CompanyScheduleExecutor(
+        os, client.app, base_url="http://test", internal_service_token="company-internal"
+    )
+    proposal = {
+        **project,
+        "project_id": project["id"],
+        "routine_id": response.json()["id"],
+        "evidence": [],
+        "_completion_project": project,
+        "_completion_tasks": [],
+    }
     with pytest.raises(PermissionError, match="projects:write"):
         await executor._accept(proposal, completing=True)
     assert db.get_project(project["id"])["status"] == "active"

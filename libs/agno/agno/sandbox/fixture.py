@@ -1,8 +1,9 @@
 """Credential-free harness double for exercising sandbox infrastructure."""
 
-from typing import ClassVar, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 from agno.agents._config import agent_dataclass
+from agno.agents._media import accept_media
 from agno.agents.base import BaseExternalAgent
 
 
@@ -23,3 +24,7 @@ class FixtureAgent(BaseExternalAgent):
         if self.sandbox is None:
             raise ValueError("FixtureAgent runs only inside a sandbox")
         super().__post_init__()
+
+    def _media_kwargs(self, **media: Any) -> Dict[str, Any]:
+        """Images and files are staged in the sandbox workspace, as for Claude and Codex."""
+        return accept_media(media)

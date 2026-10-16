@@ -3,7 +3,7 @@
 import asyncio
 import contextlib
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from fastapi import HTTPException, Request
@@ -74,8 +74,26 @@ async def enqueue_sandbox_run(
         # Fail-open: the queue row is already committed - a Redis blip
         # must not fail an accepted submission (tails degrade gracefully)
         await get_event_stream().register_run(job["id"], RunStatus.pending)
-    await aprepare_accepted_or_abort(worker, agent, "agent", job["id"], session_id, user_id, input)
+    media = options.get("media")
+    await aprepare_accepted_or_abort(
+        worker, agent, "agent", job["id"], session_id, user_id, input, **({"media": media} if media else {})
+    )
     return job
+
+
+def _uploaded_media(images: List[Any], files: List[Any]) -> Dict[str, List[Any]]:
+    """Request media as Image/File objects; JSON entries arrive as dicts and must not name server paths."""
+    from agno.utils.media import reconstruct_file_from_dict, reconstruct_image_from_dict
+
+    media: Dict[str, List[Any]] = {
+        "images": [reconstruct_image_from_dict(item) for item in images],
+        "files": [reconstruct_file_from_dict(item) for item in files],
+    }
+    if any(item is None for values in media.values() for item in values):
+        raise ValueError("Sandbox attachments must be valid images and files")
+    if any(item.filepath for values in media.values() for item in values):
+        raise ValueError("Sandboxed runs accept uploaded bytes; server file paths are not accepted")
+    return media
 
 
 async def sandbox_run_response(
@@ -90,14 +108,21 @@ async def sandbox_run_response(
     stream: bool,
     background: bool,
     version: Any = None,
-    media: bool = False,
+    images: Optional[List[Any]] = None,
+    files: Optional[List[Any]] = None,
+    unsupported_media: bool = False,
 ) -> Any:
-    if version is not None or media:
+    if version is not None:
         raise HTTPException(
-            status_code=400,
-            detail="Sandboxed runs accept text input on the registered agent only; version pinning and media are not supported",
+            status_code=400, detail="Sandboxed runs use the registered agent; version pinning is not supported"
+        )
+    if unsupported_media:
+        raise HTTPException(
+            status_code=400, detail="Sandboxed runs accept images and files; audio and video are not supported"
         )
     try:
+        if images or files:
+            kwargs = {**kwargs, "media": _uploaded_media(images or [], files or [])}
         job = await enqueue_sandbox_run(
             agent,
             worker,

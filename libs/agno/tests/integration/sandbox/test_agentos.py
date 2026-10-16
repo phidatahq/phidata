@@ -1,7 +1,10 @@
 """Real AgentOS HTTP/queue/Redis/Postgres/Docker execution, with a fixture harness."""
 
 import asyncio
+import json
 import os
+import tempfile
+from pathlib import Path
 from uuid import uuid4
 
 import httpx
@@ -147,7 +150,7 @@ async def test_background_acceptance_poll_and_idempotency(service):
     second = await client.post("/agents/coder/runs", data=data, headers={"Idempotency-Key": "one"})
     assert second.status_code == 202 and second.json()["run_id"] == first.json()["run_id"]
     job = await settled(app, first.json()["run_id"])
-    assert job["status"] == "completed", job
+    assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
     result = await agent.aget_run_output(job["id"], "session")
     assert result.content == "background" and result.metadata["sandbox"]["checkpoint"]
     conflict = await client.post(
@@ -395,3 +398,105 @@ async def test_remote_cancel_fences_the_worker_without_failing_its_ticket(servic
     assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
     for handle in handles:
         assert await _harness.coordinator(agent).provider.aget(handle.provider_ref) is None
+
+
+PNG = b"\x89PNG\r\n\x1a\nfixture"
+
+
+async def checkpointed_uploads(agent, result, run_id):
+    from agno.sandbox.checkpoint import CheckpointRef
+
+    target = Path(tempfile.mkdtemp()) / "restored"
+    await _harness.coordinator(agent).transfer.store.arestore(
+        CheckpointRef(**result.metadata["sandbox"]["checkpoint"]), target
+    )
+    folder = target / "workspace/.agno/uploads" / run_id
+    return {path.name: path.read_bytes() for path in folder.iterdir()} if folder.exists() else {}
+
+
+async def test_uploaded_images_and_files_reach_the_checkpoint(service):
+    client, agent, app, _ = service
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "look", "session_id": "session", "stream": "false"},
+        files=[("files", ("photo.png", PNG, "image/png")), ("files", ("notes.txt", b"notes", "text/plain"))],
+    )
+    assert response.status_code == 200, response.text
+    run_id = response.json()["run_id"]
+    job = await app.state.queue_worker.store.get_job(run_id)
+    assert response.json()["status"] == "COMPLETED", job.get("error")
+    assert [item["kind"] for item in job["payload"]["kwargs"]["media"]] == ["image", "file"]
+    result = await agent.aget_run_output(run_id, "session")
+    assert [image.content for image in result.input.images] == [PNG]
+    assert await checkpointed_uploads(agent, result, run_id) == {"image-1.png": PNG, "notes.txt": b"notes"}
+
+
+async def test_unsupported_or_path_media_is_refused_before_any_job(service):
+    client, _, app, handles = service
+    audio = await client.post(
+        "/agents/coder/runs",
+        data={"message": "listen", "session_id": "session", "stream": "false"},
+        files=[("files", ("clip.wav", b"RIFF0000WAVE", "audio/wav"))],
+    )
+    assert audio.status_code == 400 and "audio and video" in audio.text
+    path = await client.post(
+        "/agents/coder/runs",
+        data={
+            "message": "read",
+            "session_id": "session",
+            "stream": "false",
+            "images": json.dumps([{"filepath": "/etc/hosts"}]),
+        },
+    )
+    assert path.status_code == 400 and "file paths" in path.text, path.text
+    assert not handles
+
+
+async def test_a_reused_key_with_different_attachment_bytes_is_refused(service):
+    client, _, app, _ = service
+    data = {"message": "look", "session_id": "session", "stream": "false", "background": "true"}
+    first = await client.post(
+        "/agents/coder/runs",
+        data=data,
+        files=[("files", ("a.txt", b"one", "text/plain"))],
+        headers={"Idempotency-Key": "k"},
+    )
+    assert first.status_code == 202, first.text
+    again = await client.post(
+        "/agents/coder/runs",
+        data=data,
+        files=[("files", ("a.txt", b"one", "text/plain"))],
+        headers={"Idempotency-Key": "k"},
+    )
+    assert again.status_code == 202 and again.json()["run_id"] == first.json()["run_id"]
+    changed = await client.post(
+        "/agents/coder/runs",
+        data=data,
+        files=[("files", ("a.txt", b"two", "text/plain"))],
+        headers={"Idempotency-Key": "k"},
+    )
+    assert changed.status_code == 409
+    job = await settled(app, first.json()["run_id"])
+    assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
+
+
+async def test_sdk_runs_carry_attachments_directly_and_through_the_queue(service):
+    from agno.media import File, Image
+
+    _, agent, app, _ = service
+    direct = await agent.arun(
+        "direct",
+        session_id="direct",
+        run_id="direct",
+        images=[Image(content=PNG)],
+        files=[File(content=b"d", filename="d.txt")],
+    )
+    assert direct.status == "COMPLETED"
+    assert await checkpointed_uploads(agent, direct, "direct") == {"image-1.png": PNG, "d.txt": b"d"}
+    pending = await agent.arun(
+        "queued", session_id="queued", background=True, files=[File(content=b"q", filename="q.txt")]
+    )
+    job = await settled(app, pending.run_id)
+    assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
+    queued = await agent.aget_run_output(pending.run_id, "queued")
+    assert (await checkpointed_uploads(agent, queued, pending.run_id))["q.txt"] == b"q"

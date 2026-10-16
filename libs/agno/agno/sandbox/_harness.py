@@ -194,6 +194,7 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     extra = {key: value for key, value in kwargs.items() if value is not None}
     for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
         extra.pop(key, None)
+    media = _media_wire(extra.pop("media", None))
     unknown = set(extra) - {"output_schema"}
     if unknown:
         raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
@@ -213,13 +214,38 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
             input=input,
             config=_config(agent, schema),
             execution_timeout=_sandbox(agent).execution_timeout,
+            **({"media": media} if media else {}),
         )
     )
-    return {"output_schema": schema} if schema is not None else {}
+    options: Dict[str, Any] = {}
+    if schema is not None:
+        options["output_schema"] = schema
+    if media:
+        options["media"] = media
+    return options
+
+
+def _media_wire(media: Any) -> List[Dict[str, Any]]:
+    """Attachments in their runtime wire form.
+
+    A run's own images and files arrive as the adapter's accepted media mapping; a queued run
+    arrives with the wire form its submission stored, which is validated again here.
+    """
+    from agno.sandbox.media import encode_media, validate_media
+
+    if not media:
+        return []
+    if isinstance(media, list):
+        validate_media(media)
+        return media
+    if not isinstance(media, dict):
+        raise ValueError("Sandbox media must be images and files")
+    return encode_media(images=media.get("images"), files=media.get("files"))
 
 
 def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     from agno.run.concurrency import get_worker_ownership
+    from agno.sandbox.media import decode_media
 
     options = submission(agent, input, kwargs)
     run_id = kwargs.get("run_id") or str(uuid4())
@@ -235,6 +261,7 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
         env=env(agent),
         queue_attempt=owner.attempt if owner is not None else None,
         execution_timeout=_sandbox(agent).execution_timeout,
+        **decode_media(options.get("media", [])),
     )
 
 
@@ -285,15 +312,22 @@ async def astream(agent: "BaseExternalAgent", input: Any, **kwargs: Any) -> Asyn
 
 
 async def aprepare_pending_run(
-    agent: "BaseExternalAgent", run_id: str, session_id: str, user_id: Optional[str], input: Any
+    agent: "BaseExternalAgent",
+    run_id: str,
+    session_id: str,
+    user_id: Optional[str],
+    input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> RunOutput:
+    from agno.sandbox.media import decode_media
+
     run = RunOutput(
         run_id=run_id,
         session_id=session_id,
         agent_id=agent.get_id(),
         user_id=user_id,
         agent_name=agent.name,
-        input=RunInput(input_content=input),
+        input=RunInput(input_content=input, **decode_media(media or [])),
         # The user's turn is part of the history even if the run never produces output, as on
         # the host path; the runtime's messages replace these when the turn completes.
         messages=[Message(role="user", content=str(input), created_at=int(time.time()))],

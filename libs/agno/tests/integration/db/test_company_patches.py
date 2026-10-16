@@ -191,6 +191,7 @@ async def test_attachment_limits_and_plain_message(db, checkpoint):
     assert len(files) == 16 and sum(len(content) for _, content in files) <= 512 * 1024
     assert [len(content) for _, content in files] == sorted(len(content) for _, content in files)
     assert "oversized.md" in decoded["note"] and "pages/17.md" in decoded["note"]
+    assert "Leave repository changes uncommitted" in decoded["instructions"]
     assert decoded["brief"] == "Implement" and decoded["evidence"] == [{"source": "evidence"}]
     assert "wiki" not in decoded and len({name for name, _ in files}) == 16
     plain = json.loads(await _task_input(manager, task))
@@ -324,3 +325,73 @@ async def test_binary_and_large_patch_survive_filesystem_roundtrip(db, checkpoin
     git("apply", str(patch_file), cwd=checkout)
     assert (checkout / "binary.dat").read_bytes() == binary
     assert (checkout / "large.txt").stat().st_size == 1_100_001
+
+
+@pytest.mark.asyncio
+async def test_non_utf8_patch_is_lossless(db, checkpoint):
+    agent, checkout, _, capture, git = checkpoint
+    (checkout / "modified.txt").write_bytes(b"caf\xe9\n")
+    (checkout / "deleted.txt").write_bytes(b"ol\xe9\n")
+    git("add", ".", cwd=checkout)
+    git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "Encoded baseline", cwd=checkout)
+    commit = git("rev-parse", "HEAD", cwd=checkout)
+    _, task, worker, job = await prepare(db, checkpoint)
+    (checkout / "modified.txt").write_bytes(b"now UTF-8\n")
+    (checkout / "deleted.txt").unlink()
+    (checkout / "added.txt").write_bytes(b"caf\xe9\n")
+    reference = capture()
+    agent.aget_run_output = AsyncMock(return_value=output(agent, task, commit, reference))
+    await _project_run(worker, job, "completed")
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_review", saved["result"]
+    patch = await aread_task_patch(db, task, 1)
+    assert "GIT binary patch" in patch
+    assert saved["result"]["patch_sha256"] == hashlib.sha256(patch.encode()).hexdigest()
+    assert saved["result"]["changed_files"] == [
+        {"path": path, "status": status, "added": None, "removed": None}
+        for path, status in [("added.txt", "A"), ("deleted.txt", "D"), ("modified.txt", "M")]
+    ]
+    restored = checkout.parent.parent / "replacement"
+    with agent.sandbox.checkpoints.open_archive(SimpleNamespace(**reference)) as archive:
+        CheckpointArchive().restore(archive, restored)
+    from agno.company.patches import _extract_patch
+
+    assert (await _extract_patch(restored / "workspace/repository", commit))[0] == patch
+    git("reset", "--hard", commit, cwd=checkout)
+    (checkout / "added.txt").unlink()
+    patch_file = checkout.parent / "apply.patch"
+    patch_file.write_bytes(patch.encode())
+    git("apply", str(patch_file), cwd=checkout)
+    assert (checkout / "added.txt").read_bytes() == b"caf\xe9\n"
+    assert (checkout / "modified.txt").read_bytes() == b"now UTF-8\n"
+    assert not (checkout / "deleted.txt").exists()
+    app = FastAPI()
+    app.include_router(get_tasks_router(db, AgnoAPISettings()))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://test") as client:
+        response = await client.get(f"/company/tasks/{task['id']}/patch")
+        assert response.status_code == 200 and response.content == patch.encode()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["empty_repository", "committed_repository", "gitlink"])
+async def test_nested_repository_refused(db, checkpoint, kind):
+    agent, checkout, commit, capture, git = checkpoint
+    if kind == "gitlink":
+        git("update-index", "--add", "--cacheinfo", f"160000,{commit},nested", cwd=checkout)
+        git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "Gitlink", cwd=checkout)
+        commit = git("rev-parse", "HEAD", cwd=checkout)
+    else:
+        nested = checkout / "nested"
+        nested.mkdir()
+        git("init", cwd=nested)
+        if kind == "committed_repository":
+            (nested / "lost.txt").write_text("Must not be silently omitted\n")
+            git("add", ".", cwd=nested)
+            git("-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "Nested", cwd=nested)
+    _, task, worker, job = await prepare(db, checkpoint)
+    agent.aget_run_output = AsyncMock(return_value=output(agent, task, commit, capture()))
+    await _project_run(worker, job, "completed")
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_progress" and saved["result"]["status"] == "ERROR"
+    assert "unsupported nested repository: nested" in saved["result"]["content"]
+    assert await aread_task_patch(db, task, 1) is None

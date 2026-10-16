@@ -278,7 +278,13 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     )
             if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
-            if previous_status == "completed" and value["status"] not in {"in_review", "ready"}:
+            result = value.get("result") or {}
+            projection_failed = result.get("run_id") == value["job_id"] and result.get("status") == "ERROR"
+            if (
+                previous_status == "completed"
+                and value["status"] not in {"in_review", "ready"}
+                and not projection_failed
+            ):
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         try:
             from agno.company.sandbox import _is_sandboxed

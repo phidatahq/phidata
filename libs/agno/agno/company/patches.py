@@ -67,26 +67,40 @@ async def _extract_patch(
         raise ValueError(f"Checkpoint HEAD {head} differs from Task checkout commit {commit}")
     (git / "company-index").unlink(missing_ok=True)
     await command(["read-tree", commit])
+    for nested in repository.rglob(".git"):
+        if nested != git:
+            raise ValueError(
+                f"Checkpoint contains unsupported nested repository: {nested.parent.relative_to(repository)}"
+            )
+    for entry in (await command(["ls-files", "--stage", "-z"])).split("\0"):
+        if entry.startswith("160000 "):
+            raise ValueError(f"Checkpoint contains unsupported nested repository: {entry.split(chr(9), 1)[1]}")
     await command(["add", "--all", "--", "."])
     args = ["diff", "--cached", "--no-ext-diff", "--no-textconv", "--no-renames"]
     # Write the patch directly: diagnostic scrubbing must never alter artifact bytes.
     patch_file = git / "company.patch"
-    await command(
-        args
-        + [
-            "--binary",
-            "--full-index",
-            "--src-prefix=a/",
-            "--dst-prefix=b/",
-            "--output=" + str(patch_file),
-            commit,
-            "--",
-        ]
-    )
+    patch_args = args + [
+        "--binary",
+        "--full-index",
+        "--src-prefix=a/",
+        "--dst-prefix=b/",
+        "--output=" + str(patch_file),
+        commit,
+        "--",
+    ]
+    await command(patch_args)
+    try:
+        patch = patch_file.read_bytes().decode("utf-8")
+    except UnicodeDecodeError:
+        # The Company filesystem stores text. Encode all changes as Git binary
+        # deltas when textual hunks cannot be stored losslessly as UTF-8.
+        (git / "info").mkdir(exist_ok=True)
+        (git / "info/attributes").write_text("* -diff\n", encoding="utf-8")
+        await command(patch_args)
+        patch = patch_file.read_bytes().decode("utf-8")
     size = patch_file.stat().st_size
     if size > max_bytes:
         raise ValueError(f"Task patch is {size} bytes, exceeding max_patch_bytes={max_bytes}")
-    patch = patch_file.read_bytes().decode("utf-8")
     names = (await command(args + ["--name-status", "-z", commit, "--"])).rstrip("\0").split("\0")
     stats = (await command(args + ["--numstat", "-z", commit, "--"])).rstrip("\0").split("\0")
     counts = {}

@@ -513,7 +513,13 @@ async def _sandbox_task_input(manager: Any, task: Dict[str, Any]) -> tuple[str, 
         files.append((name, content))
         attached.append({"path": path, "attachment": name})
         size += len(content)
-    message = {"brief": task.get("brief"), "evidence": task.get("evidence") or [], "wiki_attachments": attached}
+    message = {
+        "brief": task.get("brief"),
+        "evidence": task.get("evidence") or [],
+        "wiki_attachments": attached,
+        "instructions": "Leave repository changes uncommitted. Do not commit or change HEAD; "
+        "the completed checkpoint must remain at the Task's pinned checkout commit.",
+    }
     if omitted:
         message["note"] = "Wiki attachments truncated to 16 files and 512 KiB total; left out: " + ", ".join(omitted)
     return json.dumps(message, ensure_ascii=False), files

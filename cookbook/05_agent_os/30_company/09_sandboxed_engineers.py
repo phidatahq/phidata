@@ -32,7 +32,7 @@ image = os.getenv("SANDBOX_IMAGE", "agno-sandbox:local")
 checkpoints = FileCheckpointStore(
     Path(os.getenv("SANDBOX_CHECKPOINTS", "tmp/company-checkpoints"))
 )
-instructions = "Inspect the checked-out repository, name a file you read and report its contents. Do not push or publish."
+instructions = "Inspect the checked-out repository, name a file you read and report its contents. Leave changes uncommitted; do not commit, change HEAD, push or publish."
 claude = ClaudeAgent(
     id="claude-engineer",
     db=db,

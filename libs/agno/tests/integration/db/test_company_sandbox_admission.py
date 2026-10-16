@@ -180,3 +180,46 @@ async def test_start_checks_permission_once_before_admission(sandbox_system, mon
     assert response.status_code == (202 if authorized else 403), response.text
     permission.assert_awaited_once()
     assert listing.await_count == (1 if authorized else 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ticketless", [False, True])
+async def test_retry_after_patch_projection_failure(sandbox_system, checkpoint, ticketless):  # noqa: F811
+    client, db, worker, _, agent = sandbox_system
+    fixture_agent, checkout, commit, capture, _ = checkpoint
+    agent.sandbox = fixture_agent.sandbox
+    (checkout / "app.py").write_text("version = 2\n")
+    task = await engineering_task(client, db)
+    path = "/company/tasks/" + task["id"]
+    first = await client.post(path + "/runs")
+    assert first.status_code == 202, first.text
+    job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    assert job["id"] == first.json()["run_id"]
+    run = agent.db.get_run(job["id"], deserialize=False)
+    agent.db.upsert_run(
+        {
+            **run["run_data"],
+            "status": "COMPLETED",
+            "content": "Completed with changes",
+            "metadata": {"sandbox": {"repository": {**PIN, "commit": commit}, "checkpoint": capture()}},
+        },
+        session_id=run["session_id"],
+    )
+    worker._company_max_patch_bytes = 1
+    await _project_run(worker, job, "completed")
+    failed = await _call(db, "get_task", task["id"])
+    assert failed["result"]["status"] == "ERROR" and failed["result"]["run_id"] == job["id"]
+    assert "bytes, exceeding" in failed["result"]["content"]
+    # A failed projection must never bypass an active queue ticket.
+    assert (await client.post(path + "/runs", json={"attempt": 2})).status_code == 409
+    assert await worker.store.complete_job(job["id"], worker.worker_id, job["attempt"], "completed")
+    if ticketless:
+        table = worker.config.db._get_table("jobs")
+        with worker.config.db.Session() as session, session.begin():
+            session.execute(table.delete().where(table.c.id == job["id"]))
+    second = await client.post(path + "/runs", json={"attempt": 2})
+    assert second.status_code == 202, second.text
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["session_id"] == failed["session_id"]
+    assert saved["metadata"]["checkout"] == failed["metadata"]["checkout"]
+    assert saved["job_id"] == second.json()["run_id"]

@@ -3145,10 +3145,14 @@ stale-recovery failures were corrected and are included in the passing recovery
 rerun), with eight conditional skips. All 12 Docker/Redis/Postgres Company
 fixture cases passed, including byte-identical empty patch downloads after
 container replacement; the local repository fixture separately verifies
-nonempty replacement patches. The full database/AgentOS unit rerun is still in progress at publication,
-as requested so testing can proceed in parallel. Its initial 17 queue
-compatibility failures were corrected and all 17 passed on rerun. Full format and clean Python 3.10 validation passed. Python tests
+nonempty replacement patches. The full database/AgentOS unit rerun passed 6,260 tests with 39 conditional skips. Its initial 17 queue
+compatibility failures were corrected. Full format and clean Python 3.10 validation passed. Python tests
 used the existing Python 3.12 development environment. No paid model turns or
 hosted-provider deployment were run.
+
+Review follow-up: added regressions for retries after failed patch projection,
+lossless non-UTF-8 patch application and nested repository refusal. Sandbox
+instructions now require uncommitted changes. Publishing these fixes before
+running their tests, as requested; follow-up test results are pending.
 
 ---

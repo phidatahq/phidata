@@ -824,10 +824,15 @@ compares `workspace/repository` against the Task's checkout commit. The host
 stages tracked and untracked changes in a temporary copy. The Product filesystem
 stores `patches/<task id>/<attempt>.patch` before the Task enters In review.
 An unchanged checkout stores an empty file and still reaches In review.
+Engineers must leave changes uncommitted: do not commit or change HEAD, which
+must stay at the Task's pinned checkout commit. Nested repositories and
+submodule gitlinks are refused because their contents cannot be exported in
+this patch.
 
 Task results expose `patch_path`, `patch_sha256`, `changed_files` (path, Git
 status, added and removed lines), and `summary`. Binary files have null line
-counts. Download the bytes with `GET /company/tasks/<id>/patch?attempt=1` using
+counts. If textual hunks contain non-UTF-8 bytes, all changes in that patch
+use lossless Git binary deltas and null line counts. Download the bytes with `GET /company/tasks/<id>/patch?attempt=1` using
 `tasks:read`; omit `attempt` for the latest attempt. Missing artifacts return
 404. Patch content is never embedded in Task JSON. The example verifies the
 returned bytes against the recorded hash.

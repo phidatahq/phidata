@@ -2,6 +2,7 @@
 
 import json
 import os
+import socket
 import subprocess
 import sys
 from pathlib import Path
@@ -77,6 +78,12 @@ asyncio.run(main())
 
 @pytest.mark.parametrize("backend", ["sqlite", "postgres"])
 def test_company_run_history_survives_process_restart_and_replica(tmp_path, backend):
+    if backend == "postgres":
+        try:
+            with socket.create_connection(("localhost", 5532), timeout=2):
+                pass
+        except OSError:
+            pytest.skip("Postgres not available on localhost:5532")
     url = "postgresql+psycopg://ai:ai@localhost:5532/ai"
     schema = "company_restart_" + uuid4().hex
     options = (

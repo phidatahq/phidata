@@ -7,7 +7,7 @@ reassign ownership, edit a Product brief, change Sources, or schedule work.
 import asyncio
 import json
 from dataclasses import asdict
-from typing import Annotated, Any, Literal, Optional, Union
+from typing import Annotated, Any, Optional
 
 from pydantic import BeforeValidator
 
@@ -23,12 +23,9 @@ def _empty_to_none(value: Any) -> Any:
     return None if value == "" else value
 
 
-# Explicitly describe legacy empty-string arguments as well as null. The
-# three-way union preserves null in the tool schema on Python 3.9 too; plain
-# Optional[T] is flattened to T by the schema builder.
-_OptionalString = Union[str, Literal[""], None]
-# Normalize before Pydantic checks numeric arguments on processed tool calls.
-_OptionalInt = Annotated[Union[int, Literal[""], None], BeforeValidator(_empty_to_none)]
+# Keep nullable schemas and normalize empty strings before Pydantic validation.
+_OptionalString = Annotated[Optional[str], BeforeValidator(_empty_to_none)]
+_OptionalInt = Annotated[Optional[int], BeforeValidator(_empty_to_none)]
 
 
 def _authority(run_context):

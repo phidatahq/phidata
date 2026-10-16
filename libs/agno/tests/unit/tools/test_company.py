@@ -27,7 +27,9 @@ def test_optional_schema_describes_null_and_hides_identity(tmp_path, use_async, 
                 continue
             schema = properties[argument]
             assert schema["description"], (name, argument)
+            assert len(schema["anyOf"]) == 2, (name, argument)
             assert {"type": "null"} in schema["anyOf"], (name, argument)
+            assert all("enum" not in branch for branch in schema["anyOf"]), (name, argument)
     db.close()
 
 

@@ -437,8 +437,9 @@ Recovery runs before current Routine pause, policy and permission checks. It onl
 reconciles existing reservations and never enqueues work. A terminal durable run
 repairs a missing Task result, including after its Routine is paused or its policy
 is revoked. A ticketless Pending row is cancelled. A ticketless Running row is
-observed while the cancellation manager tracks it, and cancelled when it is no
-longer tracked. A cancellation-manager lookup failure leaves recovery retryable.
+observed until durable completion or an explicit cancellation request. Absence
+from a cancellation registry does not prove that another worker has stopped;
+without authoritative liveness evidence, recovery leaves the attempt unresolved.
 The conditional database update preserves a concurrent worker's status change.
 Task result projection checks the reservation history and writes only while the
 attempt has no result, so the first terminal outcome wins. A
@@ -456,7 +457,13 @@ counts each active streak once. A changed reason, Task move or successful check
 ends that streak. Refresh deletes completed automation history after
 `CompanyConfig(automation_history_retention_days=30)` days, measured from the most
 recent occurrence. The setting must be a positive integer. Routine history and
-ordinary executor runs are unaffected.
+ordinary executor runs are unaffected. Retention also supports sync and async
+MongoDB schedule storage paired with SQL Company storage. Synchronous
+`CompanyManager.attention()` can be called from an application event loop.
+
+New dispatch refuses a disabled Task owner and follows the user directory's
+configured failure policy. An authorized collaborator can still cancel existing
+work after its owner is disabled; recovery can still project a completed result.
 
 `09_task_session_ownership.py` demonstrates Alice starting attempt 1 and Bob
 starting attempt 2, with both runs owned by Alice and distinct `started_by` entries.

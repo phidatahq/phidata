@@ -22,7 +22,7 @@ pytestmark = [pytest.mark.asyncio, pytest.mark.parametrize("isolation", [False, 
 EXECUTORS = [("agent", "writer"), ("team", "editors"), ("workflow", "draft")]
 
 
-def company_app(db, worker, components, isolation, authorization=None):
+def company_app(db, worker, components, isolation, authorization=None, user_directory=None):
     os = AgentOS(
         id="actor-owner",
         db=db,
@@ -32,6 +32,7 @@ def company_app(db, worker, components, isolation, authorization=None):
         company=CompanyConfig(),
         queue=worker.config,
         authorization=authorization,
+        user_directory=user_directory,
         user_isolation=isolation,
         telemetry=False,
     )

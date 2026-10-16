@@ -225,7 +225,7 @@ async def _cancel_ticketless_pending_run(
     worker: Any,
     is_admin: bool = False,
 ) -> None:
-    """Close an orphaned Pending or untracked Running attempt, including after replanning."""
+    """Close an orphaned Pending attempt; observe Running until durable completion."""
     if (
         worker is None
         or run["status"] not in {"PENDING", "RUNNING"}
@@ -248,14 +248,13 @@ async def _cancel_ticketless_pending_run(
         run.update(current)
         return
     if current["status"] in {"PENDING", "RUNNING"}:
-        # A missing ticket cannot prove that no worker started. Cancel this
-        # attempt instead of replaying its possibly executed side effects.
         if current["status"] == "RUNNING":
-            from agno.run.cancel import aget_active_runs
-
-            if run["run_id"] in await aget_active_runs():
-                run.update(current)
-                return
+            # Cancellation registries are not authoritative liveness records:
+            # another process may own the run, or its registration may expire.
+            # Wait for durable completion or an explicit cancellation request.
+            run.update(current)
+            return
+        # A lost Pending ticket must not replay possibly executed side effects.
         kind = current["run_type"]
         job = {
             "id": run["run_id"],

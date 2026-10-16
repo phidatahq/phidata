@@ -3396,8 +3396,6 @@ async def test_automation_reconciles_durable_run_without_resubmission(system, mo
         session.execute(table.delete().where(table.c.id == reserved["job_id"]))
     enqueue = AsyncMock(side_effect=AssertionError("An existing durable run must not be resubmitted"))
     monkeypatch.setattr(worker.store, "enqueue_job", enqueue)
-    if status == "RUNNING":
-        status = "CANCELLED"
     if recovery == "http":
         response = await client.post(f"/company/tasks/{task['id']}/runs")
         assert response.status_code == 202, response.text

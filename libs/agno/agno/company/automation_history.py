@@ -1,6 +1,5 @@
 """Bound repeated Task diagnostics in the existing scheduler history."""
 
-import asyncio
 import hashlib
 import json
 import time
@@ -109,4 +108,24 @@ async def aautomation_failures(db: Any, company_db: Any, product_id: Optional[st
 
 def automation_failures(db: Any, company_db: Any, product_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Read current failure streaks through synchronous stores."""
-    return asyncio.run(aautomation_failures(db, company_db, product_id))
+    rows = []
+    page = 1
+    while True:
+        batch, total = db.get_schedule_runs(COMPANY_AUTOMATION_SCHEDULE_ID, limit=100, page=page)
+        rows.extend(batch)
+        if page * 100 >= total:
+            break
+        page += 1
+    failures = []
+    seen = set()
+    for row in sorted(rows, key=lambda row: (row["triggered_at"], row["id"]), reverse=True):
+        diagnostic = (row.get("output") or {}).get("automation_failure")
+        if not diagnostic or diagnostic["task_id"] in seen:
+            continue
+        seen.add(diagnostic["task_id"])
+        if not diagnostic.get("active") or (product_id is not None and diagnostic.get("product_id") != product_id):
+            continue
+        task = company_db.get_task(diagnostic["task_id"])
+        if task is not None and _task_state(task) == diagnostic["state"]:
+            failures.append({key: diagnostic[key] for key in ("task_id", "reason", "count")})
+    return failures

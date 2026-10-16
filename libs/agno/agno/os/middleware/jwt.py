@@ -1862,14 +1862,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
 
         from agno.company.execution import _task_transport
 
-        # Company has authorized the actor; this identity only owns the session.
-        # A network header cannot create this exact in-process route handoff.
-        # The persisted actor authority was still rechecked above.
-        if _task_transport.get() == (method, path, owner):
-            return None
+        company_transport = _task_transport.get() == (method, path, owner)
 
         user_store = getattr(getattr(request.app, "state", None), "user_store", None)
-        if user_store is not None:
+        # An authorized collaborator can still stop an offboarded owner's work.
+        # New work must obey the directory off switch and its failure policy.
+        if user_store is not None and not (company_transport and path.endswith("/cancel")):
             try:
                 disabled = bool(await user_store.ais_disabled(owner))
             except Exception as e:
@@ -1894,6 +1892,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     reason="schedule_owner_disabled",
                 )
                 return self._create_error_response(403, "Schedule owner is disabled", origin, cors_allowed_origins)
+
+        # Company authorizes the actor, not the session owner's executor grants.
+        # This exact in-process handoff cannot be supplied by a network header.
+        if company_transport:
+            return None
 
         if not self.authorization:
             return None

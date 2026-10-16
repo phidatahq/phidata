@@ -157,7 +157,7 @@ async def test_recovery_ignores_current_routine_policy(system, tmp_path, monkeyp
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("live", [False, True])
-async def test_ticketless_running_is_observed_or_cancelled(system, monkeypatch, live):
+async def test_ticketless_running_is_observed_without_authoritative_liveness(system, monkeypatch, live):
     client, db, worker, os_app, _ = system
     task = await accepted(client)
     started = await client.post("/company/tasks/" + task["id"] + "/runs")
@@ -173,8 +173,9 @@ async def test_ticketless_running_is_observed_or_cancelled(system, monkeypatch, 
     monkeypatch.setattr(worker.store, "enqueue_job", AsyncMock(side_effect=AssertionError("Do not replay tools")))
     try:
         result = await _recover_task(os_app, worker, await _call(db, "get_task", task["id"]))
-        assert result["status"] == ("RUNNING" if live else "CANCELLED")
-        assert result["action"] == ("observed" if live else "reconciled")
+        assert result["status"] == "RUNNING"
+        assert result["action"] == "observed"
+        assert (await _call(db, "get_task", task["id"]))["result"] is None
     finally:
         await acleanup_run(run_id)
 

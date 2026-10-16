@@ -617,3 +617,52 @@ async def test_sdk_runs_carry_attachments_directly_and_through_the_queue(service
     assert job["status"] == "completed", str({k: v for k, v in job.items() if "err" in k})
     queued = await agent.aget_run_output(pending.run_id, "queued")
     assert (await checkpointed_uploads(agent, queued, pending.run_id))["q.txt"] == b"q"
+
+
+@pytest.mark.live
+@pytest.mark.skipif(os.environ.get("AGNO_TEST_LIVE_REPOSITORY") != "1", reason="Set AGNO_TEST_LIVE_REPOSITORY=1")
+async def test_request_state_repository_override_reaches_runtime(service, tmp_path):
+    from agno.sandbox import Repository
+    from agno.sandbox.checkpoint import CheckpointRef
+
+    _, agent, app, handles = service
+    # The configured branch does not exist: only the inbound commit can prepare this turn.
+    agent.repository = Repository("https://github.com/octocat/Hello-World", branch="configured-branch-not-present")
+    agent.sandbox.network = "isolated"
+    commit = "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d"
+    metadata = {"repository": {"commit": commit}, "trace_id": "middleware-trace"}
+
+    async def with_request_metadata(scope, receive, send):
+        scope.setdefault("state", {})["metadata"] = metadata
+        await app(scope, receive, send)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=with_request_metadata), base_url="http://test"
+    ) as client:
+        payload = {"message": "inspect", "session_id": "repository-session", "stream": "false"}
+        first = await client.post("/agents/coder/runs", data=payload)
+        assert first.status_code == 200, first.text
+        body = first.json()
+        assert body["status"] == "COMPLETED", body
+        assert body["metadata"]["trace_id"] == "middleware-trace"
+        assert body["metadata"]["repository"] == metadata["repository"]
+        pin = body["metadata"]["sandbox"]["repository"]
+        assert pin == {"url": agent.repository.url, "branch": agent.repository.branch, "commit": commit}
+        job = await app.state.queue_worker.store.get_job(body["run_id"])
+        assert job["payload"]["kwargs"]["metadata"] == metadata
+        for override in ({"commit": commit}, {"commit": "0" * 40}, {"branch": "nonexistent"}):
+            metadata = {"repository": override}
+            later = await client.post("/agents/coder/runs", data=payload)
+            assert later.status_code == 200, later.text
+            assert later.json()["status"] == "COMPLETED", later.text
+            assert later.json()["metadata"]["sandbox"]["repository"] == pin
+        saved = tmp_path / "metadata-checkpoint"
+        await agent.sandbox.checkpoints.arestore(
+            CheckpointRef(**later.json()["metadata"]["sandbox"]["checkpoint"]), saved
+        )
+        assert json.loads((saved / "native/repository.json").read_text()) == pin
+        count = len(handles)
+        metadata = {"repository": {"url": "https://github.com/other/repo", "commit": commit}}
+        refused = await client.post("/agents/coder/runs", data={**payload, "session_id": "new-session"})
+        assert refused.status_code == 400 and "url cannot be overridden" in refused.text
+        assert len(handles) == count

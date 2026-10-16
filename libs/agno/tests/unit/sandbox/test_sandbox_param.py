@@ -475,3 +475,23 @@ async def test_audio_and_oversized_attachments_are_rejected_before_the_coordinat
     with pytest.raises(ValueError, match="base64"):
         await agent.arun("read", session_id="s1", media=[{"kind": "file", "content": "!!", "name": "a.txt"}])
     assert coordinator.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("cls", [ClaudeAgent, CodexAgent])
+@pytest.mark.parametrize("sync", [False, True])
+async def test_repository_metadata_crosses_harness_and_queue_options(coordinator, sandbox, cls, sync):
+    from agno.sandbox import Repository
+
+    agent = cls(sandbox=sandbox, repository=Repository("https://github.com/example/application"))
+    metadata = {"repository": {"commit": "a" * 40}, "trace": "keep"}
+    options = _harness.submission(agent, "inspect", {"metadata": metadata})
+    assert options == {"metadata": metadata}
+    if sync:
+        result = agent.run("inspect", **options)
+    else:
+        result = await agent.arun("inspect", **options)
+    assert result.status == RunStatus.completed
+    execution = coordinator.calls[-1][1]
+    assert execution["metadata"] == metadata
+    assert execution["config"]["repository"]["branch"] == "main"

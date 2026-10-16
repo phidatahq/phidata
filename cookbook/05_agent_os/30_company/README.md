@@ -178,7 +178,13 @@ is enabled. Each executor needs a run database, and execution requires
 `QueueConfig(durable=True)`. Every attempt runs as the Task's accountable owner,
 `task.user_id`. Company checks the starting human's current executor run permission
 first, then uses the internal service transport with the Task owner header. The
-attempt transition records that human as `started_by`; automatic starts record the
+owner does not need the executor's run permission; that permission belongs to the
+acting human. For an unowned Task, Company records the executor's default user as
+the effective session owner and reuses it on later attempts, even if that default
+changes. Cancellation checks the acting human's executor permission too, then
+uses the recorded run owner for cancellation and Task reconciliation. A refused
+cancel leaves the queue ticket unchanged.
+The attempt transition records that human as `started_by`; automatic starts record the
 policy's accepting human. Revisions by another authorized collaborator keep the
 same session and owner in both isolation modes. The ordinary session ownership
 check still rejects unrelated sessions. For a legacy session created by a starter,
@@ -439,6 +445,9 @@ attempt has no result, so the first terminal outcome wins. A
 reservation with neither a queue ticket nor a run is cancelled on the Task.
 Failed or cancelled attempts require a human retry; new dispatch still checks
 current actor permissions and the policy fingerprint.
+Reservation identity conflicts return HTTP 409, and unavailable original run
+stores or recovery executors return HTTP 503. Unrelated session ownership remains
+an HTTP 404 refusal.
 
 Consecutive dispatch failures for the same Task state and reason update one failed
 schedule-history row. `/company/attention` includes an `automation_failures` list

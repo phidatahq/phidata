@@ -3,7 +3,7 @@
 import asyncio
 import json
 from contextvars import ContextVar
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
 from uuid import uuid4
 
 from agno.db.base import AsyncBaseDb
@@ -16,6 +16,20 @@ from agno.run.authorization import RunAuthorization
 _task_submission: ContextVar[Optional[Dict[str, Any]]] = ContextVar("company_task_submission", default=None)
 
 _automatic_task: ContextVar[Optional[Dict[str, Any]]] = ContextVar("company_automatic_task", default=None)
+
+# An already-authorized Company request may scope its executor session to a
+# different owner. Bind the exception to exactly one internal route invocation.
+_task_transport: ContextVar[Optional[Tuple[str, str, Optional[str]]]] = ContextVar(
+    "company_task_transport", default=None
+)
+
+
+class _TaskRunConflict(ValueError):
+    """The persisted reservation conflicts with the observed execution state."""
+
+
+class _TaskRunUnavailable(ValueError):
+    """The original execution store or component is unavailable for recovery."""
 
 
 def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional[str], accepting: bool = False) -> Any:
@@ -108,7 +122,7 @@ def _task_run_database(os: Any, task: Dict[str, Any]) -> Any:
         stores = list({id(store): store for store in os.dbs.get(store_ids[0], [])}.values())
         if len(stores) == 1:
             return stores[0]
-        raise ValueError("Task session database is unavailable or ambiguous")
+        raise _TaskRunUnavailable("Task session database is unavailable or ambiguous")
     return getattr(_executor(os.registry, task["executor_type"], task["executor_id"]), "db", None)
 
 
@@ -119,19 +133,28 @@ def _reservation_owner(task: Dict[str, Any], run: Dict[str, Any]) -> Optional[st
         if attempt and task_run_id(task["id"], attempt) == run["run_id"]:
             owner = entry.get("session_user_id", task.get("user_id") if "started_by" in entry else entry.get("user_id"))
             if run.get("user_id") != owner:
-                raise ValueError("Task run owner does not match its reservation")
+                raise _TaskRunConflict("Task run owner does not match its reservation")
             return owner
-    raise ValueError("Task run has no recorded reservation")
+    raise _TaskRunConflict("Task run has no recorded reservation")
 
 
-async def _prepare_task_session(run_db: Any, task: Dict[str, Any]) -> None:
+def _task_session_owner(task: Dict[str, Any], component: Any) -> Optional[str]:
+    """Retain the accountable owner, or the recorded executor default for unowned work."""
+    if task.get("user_id") is not None:
+        return task["user_id"]
+    for entry in task.get("transitions") or []:
+        if entry.get("attempt") and entry.get("session_user_id") is not None:
+            return entry["session_user_id"]
+    return getattr(component, "user_id", None)
+
+
+async def _prepare_task_session(run_db: Any, task: Dict[str, Any], owner: Optional[str]) -> None:
     """Adopt an idle legacy session only with its original reservation's ownership proof."""
     from agno.db.base import SessionType
     from agno.os.middleware.user_scope import assert_session_writable
 
     kind = SessionType(task["executor_type"])
     session = await _call(run_db, "get_session", task["session_id"], session_type=kind, deserialize=False)
-    owner = task.get("user_id")
     if session and session.get("user_id") not in {None, owner}:
         entries = [entry for entry in task["transitions"] if entry.get("attempt")]
         first = entries[0] if entries else {}
@@ -155,13 +178,13 @@ async def _recover_task(os: Any, worker: Any, task: Dict[str, Any]) -> Optional[
         return None
     run_db = _task_run_database(os, task)
     if run_db is None:
-        raise ValueError("Task run database is unavailable")
+        raise _TaskRunUnavailable("Task run database is unavailable")
     run = await _call(run_db, "get_run", task["job_id"], deserialize=False)
     ticket = await worker.store.get_job(task["job_id"])
     pending = _pending_task_attempt(task) is not None
     if run is not None:
         if run["session_id"] != task["session_id"]:
-            raise ValueError("Run identifier conflicts with another session")
+            raise _TaskRunConflict("Run identifier conflicts with another session")
         owner = _reservation_owner(task, run)
         if not pending:
             await _cancel_ticketless_pending_run(run_db, task, run, owner, worker)
@@ -220,7 +243,7 @@ async def _cancel_ticketless_pending_run(
         return
     current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
     if current is None or current["session_id"] != task["session_id"]:
-        raise ValueError("Task run changed during recovery")
+        raise _TaskRunConflict("Task run changed during recovery")
     if current["status"] != run["status"]:
         run.update(current)
         return
@@ -244,7 +267,7 @@ async def _cancel_ticketless_pending_run(
         }
         component = await worker._aresolve_job_component(job)
         if component is None or getattr(component, "db", None) is not run_db:
-            raise ValueError("Original Task executor database is unavailable for recovery")
+            raise _TaskRunUnavailable("Original Task executor database is unavailable for recovery")
         reason = "Queue ticket lost before completion; this attempt was cancelled. Start the next attempt to retry."
         cancelled = await _call(
             run_db,

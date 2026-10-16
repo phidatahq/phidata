@@ -1860,6 +1860,14 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not owner.strip() or owner == INTERNAL_SCHEDULER_USER_ID:
             return None  # refused downstream as an unusable identity (get_scoped_user_id)
 
+        from agno.company.execution import _task_transport
+
+        # Company has authorized the actor; this identity only owns the session.
+        # A network header cannot create this exact in-process route handoff.
+        # The persisted actor authority was still rechecked above.
+        if _task_transport.get() == (method, path, owner):
+            return None
+
         user_store = getattr(getattr(request.app, "state", None), "user_store", None)
         if user_store is not None:
             try:

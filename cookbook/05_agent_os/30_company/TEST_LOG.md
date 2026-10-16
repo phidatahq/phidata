@@ -12,14 +12,20 @@ supersedes the historical entries; Git retains their previous versions.
 
 ## Integration validation
 
-**Status:** PASS — 1,554 distinct integration cases passed; 12 optional MongoDB
-cases were not run.
+**Status:** PASS — all 128 review-fix regression cases; wider rerun in progress.
 
-**Result:** The four partitions passed 388, 388, 387 and 387 cases (1,550 total),
-with 16 skips. Four skips were the separate PostgreSQL scheduler lifecycle cases;
-all four passed in a subsequent run with `AGNO_TEST_POSTGRES_URL` set. The remaining
-12 skips require the optional MongoDB service. No SQLite or PostgreSQL case in
-the selected integration tree remains skipped or failing.
+The review fixes separate actor authorization from session ownership for start
+and cancel, persist executor defaults for unowned Tasks, and return controlled
+409/503 recovery errors. The new `test_company_actor_owner_parity.py` matrix has
+128 cases across all four SQL adapters and both isolation modes. It includes
+Agent, Team and Workflow execution, token and managed-role authorization,
+unauthorized cancellation without ticket mutation, automatic pickup, retained
+default identity after configuration changes, and ordinary scheduler owner checks.
+The 32 supplied offline review probes also passed.
+
+The previous head `09b7d735b7` passed 1,554 distinct integration cases with 12
+optional MongoDB skips. That result is superseded by the wider rerun in progress
+for these fixes; it is not claimed as validation of the updated source.
 
 The full Company integration tree was collected once and partitioned into four
 disjoint runs. It includes every `test_company_*.py`, Product/Project/Task and
@@ -66,31 +72,23 @@ lifecycle suite. The Company PostgreSQL fixtures already configure that service.
 
 ## Unit validation
 
-**Status:** PASS
+**Status:** Full database, OS, scheduler and Company-tool rerun in progress.
 
-**Description:** Final affected database, scheduler, Company router, Playbook and
-Company-tool suites: **1,966 passed, 35 conditional skips**. These were rerun after
-the terminal-result guard and failure-history changes. The broader database,
-OS, scheduler and Company-tool run earlier in the work passed **6,458 tests with
-39 conditional skips**; that earlier run is supporting evidence, not an additional
-set of distinct final-tree cases.
-
-**Result:** No failures in the final affected run. The command used:
+The prior head passed 1,966 affected unit tests with 35 conditional skips. The
+updated middleware is being checked with the broader OS authorization suites as
+well. The current command is:
 
 ```bash
 .venv/bin/python -m pytest \
-  libs/agno/tests/unit/db libs/agno/tests/unit/scheduler \
-  libs/agno/tests/unit/os/routers/test_company_execution.py \
-  libs/agno/tests/unit/os/routers/test_company_heartbeat.py \
-  libs/agno/tests/unit/os/routers/test_company_source_network.py \
-  libs/agno/tests/unit/os/test_company_playbook.py \
-  libs/agno/tests/unit/tools/test_company.py \
+  libs/agno/tests/unit/db libs/agno/tests/unit/os \
+  libs/agno/tests/unit/scheduler libs/agno/tests/unit/tools/test_company.py \
   -q --disable-warnings --tb=short -o log_cli=false
 ```
 
 ## Cookbook validation
 
-**Status:** PASS — all 15 invocations on the final implementation.
+**Status:** Rerun pending for the review fixes. All 15 invocations below passed
+on the previous head `09b7d735b7`.
 
 All paths below are relative to `cookbook/05_agent_os/30_company/`. Each example
 was executed using the development Python with this worktree's framework on

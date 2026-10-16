@@ -76,7 +76,7 @@ async def test_python_on_demand_create_upsert_and_enable(system):
     manager = ScheduleManager(db)
     for asynchronous in [True] if isinstance(db, AsyncBaseDb) else [False, True]:
 
-        async def call(method, *args, **kwargs):
+        async def call(method, /, *args, **kwargs):
             if asynchronous:
                 return await getattr(manager, "a" + method)(*args, **kwargs)
             return getattr(manager, method)(*args, **kwargs)
@@ -101,7 +101,7 @@ async def test_python_cron_updates_replace_deadline(system):
     manager = ScheduleManager(db)
     for asynchronous in [True] if isinstance(db, AsyncBaseDb) else [False, True]:
 
-        async def call(method, *args, **kwargs):
+        async def call(method, /, *args, **kwargs):
             if asynchronous:
                 return await getattr(manager, "a" + method)(*args, **kwargs)
             return getattr(manager, method)(*args, **kwargs)

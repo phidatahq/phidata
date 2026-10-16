@@ -16,7 +16,7 @@ from agno.fs import FileSystem
 from agno.fs.errors import VersionConflictError
 
 
-async def call(fn, *args, **kwargs):
+async def call(fn, /, *args, **kwargs):
     result = fn(*args, **kwargs)
     return await result if inspect.isawaitable(result) else result
 

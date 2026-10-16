@@ -36,7 +36,7 @@ async def heartbeat(request, tmp_path):
         else CompanyManager(db, registry=registry)
     )
 
-    async def call(method, *args, **kwargs):
+    async def call(method, /, *args, **kwargs):
         fn = getattr(manager, method)
         return (
             await fn(*args, **kwargs)

@@ -44,7 +44,7 @@ async def db(request, tmp_path):
         await call(database.close)
 
 
-async def call(fn, *args, **kwargs):
+async def call(fn, /, *args, **kwargs):
     result = fn(*args, **kwargs)
     return await result if inspect.isawaitable(result) else result
 

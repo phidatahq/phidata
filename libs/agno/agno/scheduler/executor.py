@@ -6,7 +6,6 @@ import time
 from contextvars import ContextVar
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import quote
-from uuid import uuid4
 
 from agno.db.schemas.scheduler import (
     RESERVED_RUN_METADATA_KEYS,
@@ -15,6 +14,7 @@ from agno.db.schemas.scheduler import (
     Schedule,
     match_run_endpoint,
 )
+from agno.scheduler.run_id import new_schedule_run_id
 from agno.utils.log import log_error, log_info, log_warning
 
 try:
@@ -127,7 +127,7 @@ class ScheduleExecutor:
                     )
                     log_error(last_error)
 
-                    run_record_id = str(uuid4())
+                    run_record_id = new_schedule_run_id()
                     now = int(time.time())
                     run_dict = {
                         "id": run_record_id,
@@ -177,7 +177,7 @@ class ScheduleExecutor:
             max_attempts = max(1, (sched.max_retries or 0) + 1)
             retry_delay = sched.retry_delay_seconds or 60
             for attempt in range(1, max_attempts + 1):
-                run_record_id = str(uuid4())
+                run_record_id = new_schedule_run_id()
                 now = int(time.time())
 
                 run_dict = {

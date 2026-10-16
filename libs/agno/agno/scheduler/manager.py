@@ -35,7 +35,7 @@ def _schedule_payload(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
 
 def _schedule_timing_updates(existing: Schedule, updates: Dict[str, Any]) -> None:
     """Validate cadence edits and replace the deadline derived from the old cadence."""
-    if not {"cron_expr", "timezone"}.intersection(updates):
+    if not {"cron_expr", "timezone"}.intersection(updates) and updates.get("enabled") is not True:
         return
     from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
@@ -339,6 +339,7 @@ class ScheduleManager:
             "method",
             "cron_expr",
             "timezone",
+            "enabled",
         }.intersection(kwargs):
             return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = self.get(schedule_id, user_id=user_id)
@@ -347,7 +348,7 @@ class ScheduleManager:
         _schedule_timing_updates(existing, kwargs)
         if "endpoint" in kwargs:
             kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
-        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
+        if current_authorization() is not None or {"payload", "method", "endpoint"}.intersection(kwargs):
             require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
             # Caller payloads cannot mint acceptance grants. Metadata-only changes
             # retain the trusted stored grant while refreshing ordinary run authority.
@@ -587,6 +588,7 @@ class ScheduleManager:
             "method",
             "cron_expr",
             "timezone",
+            "enabled",
         }.intersection(kwargs):
             return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = await self.aget(schedule_id, user_id=user_id)
@@ -595,7 +597,7 @@ class ScheduleManager:
         _schedule_timing_updates(existing, kwargs)
         if "endpoint" in kwargs:
             kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
-        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
+        if current_authorization() is not None or {"payload", "method", "endpoint"}.intersection(kwargs):
             await arequire_schedule_target(
                 kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method)
             )

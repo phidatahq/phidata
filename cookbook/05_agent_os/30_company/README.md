@@ -414,7 +414,13 @@ accepts, dispatches, completes, or recovers work, or encounters an execution
 error. Dispatch failures, including unavailable queue storage or a missing
 executor, produce failed history with Task-specific reasons, readable through
 `/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
-run rows. A missing queue ticket is recreated only when the reserved attempt
+run rows. Unexpected database errors are recorded even before dispatch starts.
+Engineering executors and a previous attempt whose ticket is still active are
+expected skips. If a Ready Task's accepting human loses permission, the Task
+returns to Backlog with the refusal reason and appears in attention; the failed
+tick is recorded once instead of repeating every minute.
+
+A missing queue ticket is recreated only when the reserved attempt
 has no durable run or Task result. If its terminal run exists, the missing Task
 result is recovered without rerunning the executor. Failed or cancelled
 attempts stay for a human to retry, even after queue retention.
@@ -739,3 +745,16 @@ keyword arguments: `create`, `create_project`, `create_task`, `transition_projec
 `manager.create_project(product_id=product["id"], name="Release")`. The sync and
 async signatures match; short lookup and update methods retain their existing
 calling convention.
+
+
+Routine `last_run` uses creation-ordered scheduler history identifiers to resolve
+executions started within the same second. History IDs are opaque strings; they
+are distinct from the executor `run_id` used to cancel a live run. Existing history
+is retained, although the order of old UUID-only records with identical timestamps
+cannot be reconstructed. Pause and resume return the same Routine resource shape
+as a single read, including `last_run`.
+
+Python `ScheduleManager.update(enabled=True)` and `aupdate(enabled=True)` re-arm
+recurring schedules using their current cron and timezone. On-demand schedules
+remain enabled with a null deadline. Clearing a cron during execution also keeps
+the deadline null after release on SQL and MongoDB storage.

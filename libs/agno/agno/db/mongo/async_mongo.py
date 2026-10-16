@@ -3338,15 +3338,20 @@ class AsyncMongoDb(AsyncBaseDb):
                 return False
 
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
-            if next_run_at is not None:
-                updates["next_run_at"] = next_run_at
+            updates["next_run_at"] = {
+                "$cond": [
+                    {"$eq": ["$cron_expr", ""]},
+                    None,
+                    next_run_at if next_run_at is not None else "$next_run_at",
+                ]
+            }
 
             query: Dict[str, Any] = {"id": schedule_id}
             if worker_id is not None:
                 query["locked_by"] = worker_id
             if locked_at is not None:
                 query["locked_at"] = locked_at
-            result = await collection.update_one(query, {"$set": updates})
+            result = await collection.update_one(query, [{"$set": updates}])
             return result.matched_count > 0
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")

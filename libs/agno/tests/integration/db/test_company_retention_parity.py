@@ -32,7 +32,7 @@ async def archive(request, tmp_path):
         db = cls(db_file=str(tmp_path / "archive.db"))
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
 
-    async def call(receiver, method, *args, **kwargs):
+    async def call(receiver, method, /, *args, **kwargs):
         fn = getattr(receiver, method)
         return (
             await fn(*args, **kwargs)

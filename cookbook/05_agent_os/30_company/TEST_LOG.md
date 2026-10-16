@@ -2950,3 +2950,36 @@ Full format and clean Python 3.10 validation passed on the final source (1,178
 framework and 21 CLI files), and `git diff --check` passed. Runtime testing used
 the development Python 3.12 environment. GitHub CI and automated review remain
 separate from these local results.
+
+
+### PR 6.5 automation diagnostics and scheduler follow-up — October 16, 2026
+
+**Status:** Targeted checks and format/validation PASS; full suites running.
+
+**Description:** Unexpected Task-read failures persist in automation history;
+expected engineering/active-ticket refusals remain quiet. A Ready Task whose
+accepting human loses permission returns to Backlog with the reason and one
+failed history row. The existing one-time diagnostic for withdrawal during
+dispatch is preserved. Scheduler history IDs now include a nanosecond creation
+key with a process-local monotonic guard, resolving same-second Routine
+`last_run` ties without changing stored timestamp units. Legacy UUID history
+remains readable; its original same-second order cannot be recovered.
+
+Both Python update variants re-arm a recurring schedule on an enable-only edit
+and retain endpoint permission checks. Mongo release uses an atomic cadence
+check plus worker/timestamp fencing, matching the SQL on-demand race guard.
+Test forwarding helpers use positional-only dispatch parameters.
+
+**Targeted result:** 52 SQL cases passed across sync/async SQLite/PostgreSQL,
+including real managed-role revocation in both isolation modes and the existing
+concurrent-withdrawal contract. Four real sync/async Mongo release cases and two
+history-ID ordering/concurrency unit cases also passed. Full format and clean
+Python 3.10 validation passed (1,179 framework and 21 CLI files).
+
+**Retention review clarification:** The `target` helper collision existed at
+`68b285d39d` and was corrected by `4d1f2f97`; the preceding 92-pass result records
+the rerun with that correction. This follow-up additionally makes forwarding
+parameters positional-only. The complete Company integration tree, scheduler
+and lifecycle suites are being rerun from the final source, with all four SQL
+adapters and the configured Mongo service. Final totals will replace this
+pending status when those runs finish.

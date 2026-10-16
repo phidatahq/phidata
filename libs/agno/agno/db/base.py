@@ -1803,12 +1803,16 @@ class BaseDb(ABC):
         """Update descriptive fields on an active Product within the owner scope."""
         raise NotImplementedError("Company products not supported by the configured database")
 
+    def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Count visible children for a page in one grouped query, including zero statuses."""
+        raise NotImplementedError("Company product counts not supported by the configured database")
+
     def delete_product(self, product_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete an active Product within the owner scope."""
+        """Archive a Product and its children atomically; raise ValueError with active Task ids and titles."""
         raise NotImplementedError("Company products not supported by the configured database")
 
     def restore_product(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a deleted Product within the owner scope; otherwise return None."""
+        """Restore a Product and exactly the children archived by it within the owner scope."""
         raise NotImplementedError("Company products not supported by the configured database")
 
     # --- Projects (Optional) ---
@@ -1841,12 +1845,16 @@ class BaseDb(ABC):
         """Update descriptive fields on an active Project within the owner scope."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
+    def get_project_counts(self, project_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Count visible children for a page in one grouped query, including zero statuses."""
+        raise NotImplementedError("Company project counts not supported by the configured database")
+
     def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete an active Project within the owner scope."""
+        """Archive a Project and its Tasks atomically; raise ValueError with active Task ids and titles."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a deleted Project within the owner scope; otherwise return None."""
+        """Restore a Project and exactly the Tasks archived by it within the owner scope."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     def transition_project(
@@ -3658,12 +3666,16 @@ class AsyncBaseDb(ABC):
         """Update descriptive fields on an active Product within the owner scope."""
         raise NotImplementedError("Company products not supported by the configured database")
 
+    async def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Count visible children for a page in one grouped query, including zero statuses."""
+        raise NotImplementedError("Company product counts not supported by the configured database")
+
     async def delete_product(self, product_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete an active Product within the owner scope."""
+        """Archive a Product and its children atomically; raise ValueError with active Task ids and titles."""
         raise NotImplementedError("Company products not supported by the configured database")
 
     async def restore_product(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a deleted Product within the owner scope; otherwise return None."""
+        """Restore a Product and exactly the children archived by it within the owner scope."""
         raise NotImplementedError("Company products not supported by the configured database")
 
     # --- Projects (Optional) ---
@@ -3696,12 +3708,16 @@ class AsyncBaseDb(ABC):
         """Update descriptive fields on an active Project within the owner scope."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
+    async def get_project_counts(self, project_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Count visible children for a page in one grouped query, including zero statuses."""
+        raise NotImplementedError("Company project counts not supported by the configured database")
+
     async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete an active Project within the owner scope."""
+        """Archive a Project and its Tasks atomically; raise ValueError with active Task ids and titles."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a deleted Project within the owner scope; otherwise return None."""
+        """Restore a Project and exactly the Tasks archived by it within the owner scope."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
     async def transition_project(

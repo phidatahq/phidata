@@ -15,6 +15,11 @@ from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.db.utils import db_from_dict
 
+EMPTY_COUNTS = {
+    "projects": 0,
+    "tasks": dict.fromkeys(["backlog", "ready", "in_progress", "in_review", "done", "cancelled"], 0),
+}
+
 
 @pytest_asyncio.fixture(params=["sqlite", "async_sqlite", "postgres", "async_postgres"])
 async def db(request, tmp_path):
@@ -59,11 +64,11 @@ async def test_lifecycle_and_owner_guards(db):
     b = await call(m.create, "SDK", user_id="bob")
     assert set(a) == {"id", "name", "purpose", "metadata", "user_id", "created_at", "updated_at", "deleted_at"}
     assert a["user_id"] == "alice" and a["updated_at"] is None
-    assert await call(m.get, a["id"], user_id="alice") == a
+    assert await call(m.get, a["id"], user_id="alice") == {**a, "counts": EMPTY_COUNTS}
     assert await call(m.get, a["id"], user_id="bob") is None
     assert await call(m.update, a["id"], user_id="bob", name="stolen") is None
     assert await call(m.delete, a["id"], user_id="bob") is False
-    assert await call(m.get, a["id"]) == a
+    assert await call(m.get, a["id"]) == {**a, "counts": EMPTY_COUNTS}
     changed = await call(m.update, a["id"], user_id="alice", purpose=None, metadata=None, name="Framework")
     assert changed["purpose"] is None and changed["metadata"] is None
     assert changed["created_at"] == a["created_at"] and changed["updated_at"] >= a["created_at"]
@@ -144,7 +149,7 @@ async def test_validation_and_immutable_fields(db):
             await call(m.update, a["id"], **fields)
         with pytest.raises(ValueError):
             await call(db.update_product, a["id"], **fields)
-    assert await call(m.get, a["id"]) == a
+    assert await call(m.get, a["id"]) == {**a, "counts": EMPTY_COUNTS}
 
 
 @pytest.mark.asyncio

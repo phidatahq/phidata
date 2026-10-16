@@ -6301,38 +6301,52 @@ class AsyncPostgresDb(AsyncBaseDb):
             ).fetchone()
             return dict(result._mapping) if result else None
 
+    async def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        from agno.db.sql.company import product_counts
+
+        if not product_ids:
+            return {}
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = await self._get_table(table_type="tasks", create_table_if_not_found=True)
+        async with self.async_session_factory() as sess:
+            return await sess.run_sync(product_counts, products, projects, tasks, product_ids)
+
     async def delete_product(self, product_id: str, user_id: Optional[str] = None) -> bool:
+        from agno.db.sql.company import archive_product
+
         table = await self._get_table(table_type="products")
         if table is None:
             return False
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
-        now = int(time.time())
+        products = table
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
-            result = (await sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id))).fetchone()
-            return result is not None
+            return await sess.run_sync(archive_product, products, projects, tasks, product_id, user_id)
 
     async def restore_product(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from agno.db.sql.company import restore_product
+
         table = await self._get_table(table_type="products")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_not(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
+        products = table
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
-            result = (
-                await sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table))
-            ).fetchone()
-            return dict(result._mapping) if result else None
+            return await sess.run_sync(restore_product, products, projects, tasks, product_id, user_id)
 
     # --- Projects ---
 
     async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        from agno.db.sql.company import lock_product
+
         table = await self._get_table(table_type="projects", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create projects table")
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_product, products, project_data["product_id"])
             result = (await sess.execute(table.insert().values(**project_data).returning(table))).one()
             return dict(result._mapping)
 
@@ -6360,12 +6374,15 @@ class AsyncPostgresDb(AsyncBaseDb):
         product_id: Optional[str] = None,
         status: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.sql.company import active_parents
+
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = await self._get_table(table_type="projects")
         if table is None:
             return [], 0
-        stmt = select(table)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if status is not None:
@@ -6384,6 +6401,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.projects import validate_project_fields
+        from agno.db.sql.company import lock_child
 
         validate_project_fields(fields)
         table = await self._get_table(table_type="projects")
@@ -6394,36 +6412,49 @@ class AsyncPostgresDb(AsyncBaseDb):
             stmt = stmt.where(table.c.status == expected_status)
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_child, products, projects, table, project_id)
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))
             ).fetchone()
             return dict(result._mapping) if result else None
 
+    async def get_project_counts(self, project_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        from agno.db.sql.company import project_counts
+
+        if not project_ids:
+            return {}
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = await self._get_table(table_type="tasks", create_table_if_not_found=True)
+        async with self.async_session_factory() as sess:
+            return await sess.run_sync(project_counts, products, projects, tasks, project_ids)
+
     async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+        from agno.db.sql.company import archive_project
+
         table = await self._get_table(table_type="projects")
         if table is None:
             return False
-        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
-        now = int(time.time())
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = table
+        tasks = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
-            result = (await sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id))).fetchone()
-            return result is not None
+            return await sess.run_sync(archive_project, products, projects, tasks, project_id, user_id)
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from agno.db.sql.company import restore_project
+
         table = await self._get_table(table_type="projects")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_not(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = table
+        tasks = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
-            result = (
-                await sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table))
-            ).fetchone()
-            return dict(result._mapping) if result else None
+            return await sess.run_sync(restore_project, products, projects, tasks, project_id, user_id)
 
     async def transition_project(
         self,
@@ -6435,6 +6466,7 @@ class AsyncPostgresDb(AsyncBaseDb):
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.projects import project_transition_fields
+        from agno.db.sql.company import lock_child
 
         table = await self._get_table(table_type="projects")
         if table is None:
@@ -6442,7 +6474,10 @@ class AsyncPostgresDb(AsyncBaseDb):
         stmt = select(table).where(table.c.id == project_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_child, products, projects, table, project_id)
             row = (await sess.execute(stmt)).fetchone()
             if row is None:
                 return None
@@ -6462,10 +6497,16 @@ class AsyncPostgresDb(AsyncBaseDb):
     # --- Tasks ---
 
     async def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        from agno.db.sql.company import lock_product, require_project
+
         table = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create tasks table")
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_product, products, task_data["product_id"])
+            await sess.run_sync(require_project, projects, task_data.get("project_id"), task_data["product_id"])
             result = (await sess.execute(table.insert().values(**task_data).returning(table))).one()
             return dict(result._mapping)
 
@@ -6496,12 +6537,16 @@ class AsyncPostgresDb(AsyncBaseDb):
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.sql.company import active_parents
+
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = await self._get_table(table_type="tasks")
         if table is None:
             return [], 0
-        stmt = select(table)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products, projects)
         if failed is not None:
             result_status = table.c.result["status"].as_string()
             stmt = stmt.where(
@@ -6533,6 +6578,7 @@ class AsyncPostgresDb(AsyncBaseDb):
 
     async def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.tasks import validate_task_fields
+        from agno.db.sql.company import lock_child, require_project
 
         validate_task_fields(fields)
         table = await self._get_table(table_type="tasks")
@@ -6541,13 +6587,21 @@ class AsyncPostgresDb(AsyncBaseDb):
         stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_(None), table.c.status == "backlog")
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_child, products, projects, table, task_id)
+            product_id = (await sess.execute(select(table.c.product_id).where(table.c.id == task_id))).scalar()
+            if product_id is not None and fields.get("project_id") is not None:
+                await sess.run_sync(require_project, projects, fields["project_id"], product_id)
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))
             ).fetchone()
             return dict(result._mapping) if result else None
 
     async def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+        from agno.db.sql.company import lock_child
+
         table = await self._get_table(table_type="tasks")
         if table is None:
             return False
@@ -6555,20 +6609,31 @@ class AsyncPostgresDb(AsyncBaseDb):
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
         now = int(time.time())
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_child, products, projects, table, task_id)
             result = (await sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id))).fetchone()
             return result is not None
 
     async def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from agno.db.sql.company import lock_child, task_restore_fields
+
         table = await self._get_table(table_type="tasks")
         if table is None:
             return None
         stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_not(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
+            await sess.run_sync(lock_child, products, projects, table, task_id)
+            existing = (await sess.execute(select(table).where(table.c.id == task_id))).mappings().first()
+            if existing is None:
+                return None
             result = (
-                await sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table))
+                await sess.execute(stmt.values(**task_restore_fields(dict(existing))).returning(table))
             ).fetchone()
             return dict(result._mapping) if result else None
 
@@ -6669,6 +6734,7 @@ class AsyncPostgresDb(AsyncBaseDb):
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.tasks import task_transition_fields
+        from agno.db.sql.company import lock_child
 
         table = await self._get_table(table_type="tasks")
         if table is None:
@@ -6676,12 +6742,15 @@ class AsyncPostgresDb(AsyncBaseDb):
         stmt = select(table).where(table.c.id == task_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = await self._get_table(table_type="projects", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
             row = (await sess.execute(stmt)).fetchone()
             if row is None:
                 return None
             existing = dict(row._mapping)
             fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
+            await sess.run_sync(lock_child, products, projects, table, task_id)
             update = table.update().where(
                 table.c.id == task_id,
                 table.c.deleted_at.is_(None),

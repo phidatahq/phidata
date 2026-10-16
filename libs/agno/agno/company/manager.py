@@ -44,7 +44,10 @@ class CompanyManager:
         self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Get a visible Product, optionally including deleted records."""
-        return self.db.get_product(product_id, user_id=user_id, include_deleted=include_deleted)
+        record = self.db.get_product(product_id, user_id=user_id, include_deleted=include_deleted)
+        if record is not None:
+            record["counts"] = (self.db.get_product_counts([product_id]))[product_id]
+        return record
 
     def list(
         self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
@@ -52,7 +55,9 @@ class CompanyManager:
         """Return a page of visible Products and the total before pagination."""
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
-        return self.db.get_products(user_id=user_id, limit=limit, page=page, include_deleted=include_deleted)
+        rows, total = self.db.get_products(user_id=user_id, limit=limit, page=page, include_deleted=include_deleted)
+        counts = self.db.get_product_counts([row["id"] for row in rows])
+        return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
         """Update name, purpose or metadata on an active Product."""
@@ -60,11 +65,11 @@ class CompanyManager:
         return self.db.update_product(product_id, user_id=user_id, **fields)
 
     def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete a visible Product."""
+        """Archive a Product and its children atomically; active Tasks raise ValueError."""
         return self.db.delete_product(product_id, user_id=user_id)
 
     def restore(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a visible deleted Product; return None if it is already active."""
+        """Restore a Product and only children archived by it; return None if already active."""
         return self.db.restore_product(product_id, user_id=user_id)
 
     def create_project(
@@ -101,7 +106,10 @@ class CompanyManager:
         self, project_id: str, user_id: Optional[str] = None, include_deleted: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Get a visible project, optionally including deleted records."""
-        return self.db.get_project(project_id, user_id=user_id, include_deleted=include_deleted)
+        record = self.db.get_project(project_id, user_id=user_id, include_deleted=include_deleted)
+        if record is not None:
+            record["counts"] = (self.db.get_project_counts([project_id]))[project_id]
+        return record
 
     def list_projects(
         self,
@@ -115,7 +123,7 @@ class CompanyManager:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
-        return self.db.get_projects(
+        rows, total = self.db.get_projects(
             user_id=user_id,
             limit=limit,
             page=page,
@@ -123,6 +131,8 @@ class CompanyManager:
             product_id=product_id,
             status=status,
         )
+        counts = self.db.get_project_counts([row["id"] for row in rows])
+        return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     def update_project(
         self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
@@ -136,11 +146,11 @@ class CompanyManager:
         return self.db.update_project(project_id, user_id=user_id, **fields)
 
     def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete a visible project."""
+        """Archive a Project and its Tasks atomically; active Tasks raise ValueError."""
         return self.db.delete_project(project_id, user_id=user_id)
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a deleted project."""
+        """Restore a Project and only Tasks archived by it."""
         return self.db.restore_project(project_id, user_id=user_id)
 
     def transition_project(
@@ -417,7 +427,10 @@ class AsyncCompanyManager:
         self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Get a visible Product, optionally including deleted records."""
-        return await self.db.get_product(product_id, user_id=user_id, include_deleted=include_deleted)
+        record = await self.db.get_product(product_id, user_id=user_id, include_deleted=include_deleted)
+        if record is not None:
+            record["counts"] = (await self.db.get_product_counts([product_id]))[product_id]
+        return record
 
     async def list(
         self, user_id: Optional[str] = None, limit: int = 20, page: int = 1, include_deleted: bool = False
@@ -425,7 +438,11 @@ class AsyncCompanyManager:
         """Return a page of visible Products and the total before pagination."""
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
-        return await self.db.get_products(user_id=user_id, limit=limit, page=page, include_deleted=include_deleted)
+        rows, total = await self.db.get_products(
+            user_id=user_id, limit=limit, page=page, include_deleted=include_deleted
+        )
+        counts = await self.db.get_product_counts([row["id"] for row in rows])
+        return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     async def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
         """Update name, purpose or metadata on an active Product."""
@@ -433,11 +450,11 @@ class AsyncCompanyManager:
         return await self.db.update_product(product_id, user_id=user_id, **fields)
 
     async def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete a visible Product."""
+        """Archive a Product and its children atomically; active Tasks raise ValueError."""
         return await self.db.delete_product(product_id, user_id=user_id)
 
     async def restore(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a visible deleted Product; return None if it is already active."""
+        """Restore a Product and only children archived by it; return None if already active."""
         return await self.db.restore_product(product_id, user_id=user_id)
 
     async def create_project(
@@ -474,7 +491,10 @@ class AsyncCompanyManager:
         self, project_id: str, user_id: Optional[str] = None, include_deleted: bool = False
     ) -> Optional[Dict[str, Any]]:
         """Get a visible project, optionally including deleted records."""
-        return await self.db.get_project(project_id, user_id=user_id, include_deleted=include_deleted)
+        record = await self.db.get_project(project_id, user_id=user_id, include_deleted=include_deleted)
+        if record is not None:
+            record["counts"] = (await self.db.get_project_counts([project_id]))[project_id]
+        return record
 
     async def list_projects(
         self,
@@ -488,7 +508,7 @@ class AsyncCompanyManager:
         """List across Products, filtering status and owner before pagination."""
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
-        return await self.db.get_projects(
+        rows, total = await self.db.get_projects(
             user_id=user_id,
             limit=limit,
             page=page,
@@ -496,6 +516,8 @@ class AsyncCompanyManager:
             product_id=product_id,
             status=status,
         )
+        counts = await self.db.get_project_counts([row["id"] for row in rows])
+        return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     async def update_project(
         self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
@@ -509,11 +531,11 @@ class AsyncCompanyManager:
         return await self.db.update_project(project_id, user_id=user_id, **fields)
 
     async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
-        """Soft-delete a visible project."""
+        """Archive a Project and its Tasks atomically; active Tasks raise ValueError."""
         return await self.db.delete_project(project_id, user_id=user_id)
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        """Restore a deleted project."""
+        """Restore a Project and only Tasks archived by it."""
         return await self.db.restore_project(project_id, user_id=user_id)
 
     async def transition_project(

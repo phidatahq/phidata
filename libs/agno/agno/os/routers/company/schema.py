@@ -31,7 +31,25 @@ class ProductUpdate(BaseModel):
         return value
 
 
+class TaskCounts(BaseModel):
+    backlog: int = 0
+    ready: int = 0
+    in_progress: int = 0
+    in_review: int = 0
+    done: int = 0
+    cancelled: int = 0
+
+
+class ProjectCounts(BaseModel):
+    tasks: TaskCounts = Field(default_factory=TaskCounts)
+
+
+class ProductCounts(ProjectCounts):
+    projects: int = Field(0, description="Non-archived Projects in proposed or active status")
+
+
 class ProductResponse(BaseModel):
+    counts: ProductCounts = Field(default_factory=ProductCounts)
     id: str
     name: str
     purpose: Optional[str] = None
@@ -76,6 +94,7 @@ class ProjectUpdate(BaseModel):
 
 
 class ProjectResponse(BaseModel):
+    counts: ProjectCounts = Field(default_factory=ProjectCounts)
     product_id: str = Field(..., min_length=1)
     name: str = Field(..., min_length=1)
     outcome: Optional[str] = None

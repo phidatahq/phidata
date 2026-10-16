@@ -1120,3 +1120,100 @@ Final suite results follow below. The first integration pass exposed five legacy
 **Result:** **6,317 unit tests passed, 39 skipped** for unavailable optional dependencies, credentials and environment-specific behavior. **544 integration tests passed with no skips.** All eight cookbook invocations passed again after the final change. The initial five integration and two unit failures were legacy metadata assertions; these now include the required default archive window while retaining existing metadata. Final format and validate passed; complete output was read, including mypy success for 1,154 framework and 21 CLI files. No live model or outbound messaging calls.
 
 ---
+
+
+## Heartbeat on cascading archives — October 16, 2026
+
+Rebased onto PR #11114 at 7962abc7f6, including merged Task execution on main at 9d3634e922. Published the requested rebase at 877943e581 after 158 SQLite/focused tests passed (84 PostgreSQL cases deferred to the full run). Subsequent updates use normal commits. PR 4.5 owns cascade transactions, grouped counts, exact restore and ancestor visibility; Heartbeat adds age checks inside that transaction and retains parent locking for Intake deduplication.
+
+The first SQLite run found eight inherited archive-fixture failures because the writer was not registered. PR 4.5 published its fixture correction during the rebase; incorporating that commit resolved all eight. The first wider/cookbook attempt was blocked by sandbox localhost permissions; the rerun uses the existing local database services.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` against the rebased implementation.
+
+**Result:** Product lifecycle and metadata defaults. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` against the rebased implementation.
+
+**Result:** Project lifecycle and completion validation. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` against the rebased implementation.
+
+**Result:** Task lifecycle and executor acceptance. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` against the rebased implementation.
+
+**Result:** Wiki and decision APIs. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` against the rebased implementation.
+
+**Result:** Product Manager configuration and bounded tools. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/06_execute_tasks.py` against the rebased implementation.
+
+**Result:** SQLite and PostgreSQL Company execution through the durable queue; duplicate execution and attention. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py` against the rebased implementation.
+
+**Result:** SQLite and PostgreSQL cascade/refusal/counts/exact-restore behavior, with sync and async managers. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_heartbeat.py` against the rebased implementation.
+
+**Result:** Declarations, bounded Source reads, Intake deduplication, Refresh completion proposals and retention. All assertions passed; no live model or outbound messaging calls.
+
+---
+
+### Final validation on the cascading-archive base
+
+**Status:** PASS
+
+**Description:** Full database/OS/scheduler unit suites and Company/scheduler integrations on SQLite/PostgreSQL sync and async, including cascade and retention composition, durable execution, restart and filesystem transactions.
+
+**Result:** **6,317 unit tests passed, 39 skipped** (optional Firestore/asyncpg dependencies, credentials and root-only behavior). **620 integration tests passed, no skips**, including 12 new cascade/retention/deduplicated-insert cases. All ten cookbook invocations passed. Format and validate passed with complete output read; exact-tree validation also passed after excluding unrelated formatter changes. Mypy checked 1,155 framework and 21 CLI files. Tests/cookbooks used the development Python 3.12 environment; validation used the existing clean Python 3.10 environment. `git diff --check` passed. No live model calls or outbound messages.
+
+---

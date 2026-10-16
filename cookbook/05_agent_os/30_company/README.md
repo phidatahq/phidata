@@ -364,9 +364,15 @@ Tasks that were manually archived while still open.
 Products store `metadata.archive_window_days`, default 14. Refresh soft-archives
 Done and Cancelled Projects and Tasks whose last update is strictly older than
 that window, falling back to creation time when no update exists. The delete
-statement rechecks age and terminal state. Restore retains the lifecycle and
-starts a fresh retention window. Archived records leave normal lists, counts
-and execution; `include_deleted=true` reads them for inspection and restore.
+transaction rechecks age and terminal state. Project retention uses the same
+cascading archive as manual archive: it refuses Ready, In progress or In review
+Tasks, and archives remaining children even if their own updates are newer.
+Restoring the Project restores only children taken by that cascade; Tasks
+independently archived by their own retention window stay archived.
+Restore retains the lifecycle and starts a fresh retention window. Archived
+records leave normal lists, grouped counts and execution. Read an individual
+record with `include_deleted=true` for inspection; lists still hide children
+of archived parents, so restore the parent first.
 Refresh removes expired generated `summary.md` and completion-proposal pages
 through the existing filesystem API. Human pages, `brief.md` and `status.md`
 are protected. The Refresh Skill updates status.md to reflect the remaining work.

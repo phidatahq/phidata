@@ -208,6 +208,121 @@ async def test_archive_window_paging_pages_context_and_restore(archive, monkeypa
 
 
 @pytest.mark.asyncio
+async def test_retention_reuses_cascade_counts_and_exact_restore(archive):
+    db, manager, call = archive
+    now = int(time.time())
+    product = await call(manager, "create", "SDK")
+    project = await call(
+        db,
+        "create_project",
+        dict(
+            id="old-project",
+            product_id=product["id"],
+            name="Finished",
+            status="cancelled",
+            created_at=now - 15 * 86400,
+            updated_at=now - 15 * 86400,
+            transitions=[],
+        ),
+    )
+    for identifier in ("recent-child", "separate-child"):
+        await call(
+            db,
+            "create_task",
+            dict(
+                id=identifier,
+                product_id=product["id"],
+                project_id=project["id"],
+                title=identifier,
+                status="done",
+                created_at=now,
+                updated_at=now,
+                transitions=[],
+            ),
+        )
+    await call(manager, "delete_task", "separate-child")
+    assert (await call(manager, "get", product["id"]))["counts"]["tasks"]["done"] == 1
+    result = await call(manager, "refresh", product["id"])
+    assert result["archived_projects"] == [project["id"]]
+    assert not result["archived_tasks"]  # The parent cascade owns this archive.
+    assert (await call(manager, "list_tasks", product_id=product["id"], include_deleted=True))[1] == 0
+    assert (await call(manager, "get", product["id"]))["counts"]["tasks"]["done"] == 0
+    child = await call(manager, "get_task", "recent-child", include_deleted=True)
+    assert child["transitions"][-1]["archived_by"] == {"type": "project", "id": project["id"]}
+    await call(manager, "restore_project", project["id"])
+    assert await call(manager, "get_task", "recent-child") is not None
+    assert await call(manager, "get_task", "separate-child") is None
+    assert (await call(manager, "get_project", project["id"]))["counts"]["tasks"]["done"] == 1
+
+
+@pytest.mark.asyncio
+async def test_retention_keeps_active_work_refusal(archive):
+    db, manager, call = archive
+    old = int(time.time()) - 15 * 86400
+    product = await call(manager, "create", "SDK")
+    project = await call(
+        db,
+        "create_project",
+        dict(
+            id="cancelled-project",
+            product_id=product["id"],
+            name="Cancelled",
+            status="cancelled",
+            created_at=old,
+            updated_at=old,
+            transitions=[],
+        ),
+    )
+    await call(
+        db,
+        "create_task",
+        dict(
+            id="active-child",
+            product_id=product["id"],
+            project_id=project["id"],
+            title="Still running",
+            status="in_progress",
+            created_at=old,
+            transitions=[],
+        ),
+    )
+    with pytest.raises(ValueError) as refusal:
+        await call(manager, "refresh", product["id"])
+    assert refusal.value.args[0]["tasks"] == [{"id": "active-child", "title": "Still running"}]
+    assert await call(manager, "get_project", project["id"]) is not None
+    assert await call(manager, "get_task", "active-child") is not None
+
+
+@pytest.mark.asyncio
+async def test_deduplicated_insert_keeps_parent_archive_guards(archive):
+    db, manager, call = archive
+    product = await call(manager, "create", "SDK")
+    project = await call(manager, "create_project", product["id"], "Work")
+    fields = dict(
+        id="proposal",
+        product_id=product["id"],
+        project_id=project["id"],
+        title="Observed issue",
+        status="backlog",
+        dedupe_key="source-issue",
+        created_at=int(time.time()),
+        transitions=[],
+    )
+    await call(manager, "delete_project", project["id"])
+    with pytest.raises(ValueError, match="Project is missing or archived"):
+        await call(db, "create_task", fields)
+    await call(manager, "restore_project", project["id"])
+    await call(manager, "delete", product["id"])
+    with pytest.raises(ValueError, match="Product is missing or archived"):
+        await call(db, "create_task", fields)
+    await call(manager, "restore", product["id"])
+    first = await call(db, "create_task", fields)
+    repeated = await call(db, "create_task", {**fields, "id": "another-id"})
+    assert repeated["id"] == first["id"]
+    assert (await call(manager, "get", product["id"]))["counts"]["tasks"]["backlog"] == 1
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("domain", ["products", "projects", "tasks"])
 async def test_activity_sorting_precedes_paging(archive, domain):
     db, manager, call = archive

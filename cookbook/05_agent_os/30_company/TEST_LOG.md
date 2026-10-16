@@ -8,34 +8,51 @@
 
 **Validated tree:** the implementation, tests, README and examples in the commit
 containing this record. The implementation was published for parallel review as
-`29185faf7a514ef2ad85f0df7a3c6c307aa2c39e`; the final follow-up changes this validation
+`51b03980c696c296a1780b31dad20001c2c1b561`; the final follow-up changes this validation
 record only. The PR reports the final full commit SHA. This single record
 supersedes the historical entries; Git retains their previous versions.
 
 ## Integration validation
 
-**Status:** PASS — 1,682 distinct integration cases, including all 128 review-fix
-regressions. Twelve optional MongoDB cases were skipped.
+**Status:** PASS — 1,744 distinct integration cases, including all 50 new
+regressions. No skips or failures.
 
-The review fixes separate actor authorization from session ownership for start
-and cancel, persist executor defaults for unowned Tasks, and return controlled
-409/503 recovery errors. The new `test_company_actor_owner_parity.py` matrix has
-128 cases across all four SQL adapters and both isolation modes. It includes
-Agent, Team and Workflow execution, token and managed-role authorization,
-unauthorized cancellation without ticket mutation, automatic pickup, retained
-default identity after configuration changes, and ordinary scheduler owner checks.
-The 32 supplied offline review probes also passed.
+The four follow-up fixes preserve remote Running attempts, restore disabled-owner
+checks for new work, implement MongoDB schedule-history retention, and provide a
+native synchronous attention reader. `test_company_replica_offboarding.py` adds
+50 regression cases:
 
-**Result:** All four disjoint partitions passed: 421, 421, 420 and 420 cases.
-Each partition skipped three optional MongoDB cases. PostgreSQL was explicitly
-enabled for the schedule lifecycle suite; no selected SQLite/PostgreSQL case
-was skipped or failed. These results supersede the earlier PR-head validation.
+- Eight real two-process checkpoint cases across four SQL adapters and both
+  isolation modes. The worker has executed a tool and persists Running; another
+  process loses the ticket and recovers twice without cancellation or replay.
+  The worker then completes and the Task receives its completed result.
+- Twenty-four disabled-owner cases across Agent, Team and Workflow, four SQL
+  adapters and both isolation modes. A lost completed result still recovers;
+  new manual and automatic work is refused; the automatic refusal records one
+  failure and returns the Task to Backlog; an authorized collaborator can cancel
+  existing work after its owner is disabled.
+- Eight fail-closed directory checks across four SQL adapters and both isolation
+  modes. Directory errors refuse new Company work with HTTP 503.
+- Eight real MongoDB retention cases: both Mongo adapters paired with all four
+  SQL Company stores. Refresh removes old completed automation history, retains
+  recent/incomplete/other-schedule rows, and continues to completion proposals.
+- Two synchronous attention cases inside an event loop, on SQLite and PostgreSQL,
+  with empty and paginated histories, product filtering and stale-failure removal.
+
+The prior actor/owner, authorization, recovery-error and failure-streak matrices
+remain in the complete integration selection.
+
+**Result:** All four disjoint partitions passed 436 cases each on implementation
+`51b03980c696c296a1780b31dad20001c2c1b561` (259.39, 262.49, 274.26 and 279.01
+seconds). Both PostgreSQL and MongoDB were explicitly enabled. A separate clean
+run of all 50 new regression cases passed in 73.98 seconds. These final runs
+supersede the earlier development runs and prior-head validation.
 
 The full Company integration tree was collected once and partitioned into four
 disjoint runs. It includes every `test_company_*.py`, Product/Project/Task and
 schedule lifecycle parity suites, and the SQLite Product/Project/Task suites.
 The four Company adapters are sync SQLite, async SQLite, sync PostgreSQL and
-async PostgreSQL. PostgreSQL used the local service on port 5532.
+async PostgreSQL. PostgreSQL used the local service on port 5532; MongoDB used port 27017.
 
 The new ownership and recovery suite covers:
 
@@ -49,8 +66,9 @@ The new ownership and recovery suite covers:
   matching its original reservation and run. Unrelated session owners return 404.
 - Paused Routines and revoked policies do not prevent existing-attempt cleanup
   or completed-result projection. Recovery is fenced against enqueueing.
-- Ticketless Pending and untracked Running attempts are cancelled. Tracked
-  Running attempts are observed. Missing ticket-and-run reservations receive a
+- Ticketless Pending attempts are cancelled. Running attempts remain observable
+  until durable completion or explicit cancellation; registry absence alone is
+  not authoritative liveness evidence. Missing ticket-and-run reservations receive a
   cancelled Task result and can start a new numbered attempt.
 - Concurrent worker projection and recovery settle once. Competing completed,
   failed and cancelled terminal results preserve exactly one winner.
@@ -71,8 +89,9 @@ Reproduce the integration selection with the development Python and
   -q --disable-warnings --tb=short -o log_cli=false
 ```
 
-Set `AGNO_TEST_POSTGRES_URL` to the local PostgreSQL URL for the separate schedule
-lifecycle suite. The Company PostgreSQL fixtures already configure that service.
+Set `AGNO_TEST_POSTGRES_URL` and `AGNO_TEST_MONGO_URL` to the local services to
+include optional schedule lifecycle and MongoDB cases. The Company PostgreSQL
+fixtures already configure the local service.
 
 ## Unit validation
 
@@ -81,7 +100,7 @@ lifecycle suite. The Company PostgreSQL fixtures already configure that service.
 **Description:** Reran the complete database, OS (including authorization),
 scheduler and Company-tool suites on the review-fix implementation.
 
-**Result:** All selected unit suites passed in 459.55 seconds. The command was:
+**Result:** All selected unit suites passed in 536.61 seconds. The command was:
 
 ```bash
 .venv/bin/python -m pytest \

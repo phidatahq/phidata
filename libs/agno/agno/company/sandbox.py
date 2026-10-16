@@ -45,6 +45,14 @@ def _accept_sandbox(component: Any, sources: list) -> Dict[str, Any]:
     return sorted(usable, key=lambda source: source["id"])[0]
 
 
+def _accept_checkout(component: Any, task: Dict[str, Any]) -> None:
+    checkout = (task.get("metadata") or {}).get("checkout")
+    if checkout is not None and any(
+        checkout.get(key) != getattr(component.repository, key) for key in ("url", "branch")
+    ):
+        raise ValueError("Task checkout is already pinned to another repository or branch; create a new Task")
+
+
 async def _project_checkout(
     db: Any, task: Dict[str, Any], component: Any, data: Dict[str, Any], result: Dict[str, Any]
 ) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any]]:

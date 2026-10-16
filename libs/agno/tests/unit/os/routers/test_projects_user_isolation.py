@@ -156,8 +156,8 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
 
     db = SqliteDb(db_file=str(tmp_path / "service-accounts.db"))
     manager = CompanyManager(db)
-    product = manager.create("Shared product", user_id="alice")
-    shared = manager.create_project(product["id"], "Shared work", user_id="alice")
+    product = manager.create(name="Shared product", user_id="alice")
+    shared = manager.create_project(product_id=product["id"], name="Shared work", user_id="alice")
     token, token_hash, token_prefix = generate_token()
     db.create_service_account(
         {

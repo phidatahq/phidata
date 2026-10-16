@@ -2902,3 +2902,34 @@ found a naming collision in the new test helper; it was corrected before the
 passing full run. No runtime failures remain.
 Full format and clean Python 3.10 validation passed (1,178 framework and 21 CLI
 files); runtime tests use development Python 3.12. `git diff --check` passed.
+
+
+### PR 6.5 named mutations and review fixes — October 16, 2026
+
+**Status:** Targeted regressions, cookbooks and validation PASS; broad suites running.
+
+**Description:** Eleven long Company mutation methods now require named arguments
+in both sync and async managers. Framework, HTTP, tool, automation, test and cookbook
+callers are updated, including Summary's serialization wrapper. Short read/update
+methods retain their calling convention; `is_on_demand` retains its name.
+
+Routine history checks both `routines:read` and `schedules:read` before the broad
+Routine read rule. Reaccepted Ready Tasks start the next unused attempt after
+being returned to Backlog and explicitly accepted again; fresh Ready work still
+starts attempt 1, and direct transitions to In progress remain refused. This
+supersedes the earlier Ready-only-attempt-1 restriction. Python cron/timezone edits
+validate and recompute or clear the deadline in sync and async managers, including
+a combined enable-and-cron edit. The automation executor uses `next_run_for` too.
+
+**Targeted result:** 31 review regressions passed across both isolation modes and
+sync/async SQLite/PostgreSQL, covering successful and failed prior attempts with
+human and automatic restarts. The four adapter cases for Python cadence changes
+also passed after adding combined enable/cron coverage. Summary's positional
+forwarding wrapper was corrected during the initial smoke run. Two table-driven
+unsupported-manager tests were migrated to named arguments; their entire file
+passed all 52 tests on rerun. Final broad-suite totals follow below.
+
+**Cookbooks:** All 13 offline Company invocations passed: nine numbered examples,
+manual Task execution on PostgreSQL, automatic Task pickup on SQLite/PostgreSQL,
+and cascading archive on PostgreSQL. Examples 03 and 06 continue to create the
+required Project before each Task. No paid-model or hosted validation is claimed.

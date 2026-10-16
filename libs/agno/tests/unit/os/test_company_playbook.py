@@ -73,8 +73,8 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
     from agno.agent import Agent
 
     manager = CompanyManager(db, registry=Registry(agents=[Agent(id="writer")]))
-    product = manager.create("SDK", user_id="alice")
-    project = manager.create_project(product["id"], "Release", user_id="alice")
+    product = manager.create(name="SDK", user_id="alice")
+    project = manager.create_project(product_id=product["id"], name="Release", user_id="alice")
     tools = CompanyTools(db, user_isolation=True)
     alice = RunContext(run_id="r", session_id="s", user_id="alice")
     bob = RunContext(run_id="r2", session_id="s2", user_id="bob")
@@ -92,7 +92,12 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
         await invoke("edit_company_task", task["id"], "stolen", "no", _agno_run_context=bob)
     await invoke("edit_company_task", task["id"], "Draft", "better", _agno_run_context=alice)
     manager.transition_task(
-        task["id"], "ready", "approved", executor_type="agent", executor_id="writer", accepted_by="alice"
+        task_id=task["id"],
+        target="ready",
+        reason="approved",
+        executor_type="agent",
+        executor_id="writer",
+        accepted_by="alice",
     )
     with pytest.raises(ValueError, match="Backlog"):
         await invoke("edit_company_task", task["id"], "changed", "no", _agno_run_context=alice)
@@ -123,8 +128,8 @@ async def test_direct_mcp_has_only_bounded_tools(tmp_path):
     from agno.os.mcp import build_mcp_server
 
     db = SqliteDb(db_file=str(tmp_path / "mcp.db"))
-    product = CompanyManager(db).create("SDK")
-    project = CompanyManager(db).create_project(product["id"], "Release")
+    product = CompanyManager(db).create(name="SDK")
+    project = CompanyManager(db).create_project(product_id=product["id"], name="Release")
     tools = CompanyTools(db)
     os = AgentOS(db=db, company=CompanyConfig(), mcp=MCPConfig(tools=[tools], default_tools=False), telemetry=False)
     async with Client(build_mcp_server(os)) as client:
@@ -156,8 +161,8 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, mode)
     from agno.models.response import ModelResponse
 
     db = SqliteDb(db_file=str(tmp_path / "runtime.db"))
-    product = CompanyManager(db).create("SDK", user_id="alice")
-    project = CompanyManager(db).create_project(product["id"], "Release", user_id="alice")
+    product = CompanyManager(db).create(name="SDK", user_id="alice")
+    project = CompanyManager(db).create_project(product_id=product["id"], name="Release", user_id="alice")
 
     class PlanningModel(Model):
         def __init__(self):

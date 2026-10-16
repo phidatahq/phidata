@@ -33,6 +33,21 @@ def _schedule_payload(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
     return stamp_authorization(payload)
 
 
+def _schedule_timing_updates(existing: Schedule, updates: Dict[str, Any]) -> None:
+    """Validate cadence edits and replace the deadline derived from the old cadence."""
+    if not {"cron_expr", "timezone"}.intersection(updates):
+        return
+    from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
+
+    cron = updates.get("cron_expr", existing.cron_expr)
+    timezone = updates.get("timezone", existing.timezone)
+    if not isinstance(cron, str) or not validate_cron_expr(cron):
+        raise ValueError(f"Invalid cron expression: {cron}")
+    if not isinstance(timezone, str) or not validate_timezone(timezone):
+        raise ValueError(f"Invalid timezone: {timezone}")
+    updates["next_run_at"] = next_run_for(cron, timezone) if updates.get("enabled", existing.enabled) else None
+
+
 # Valid DB method names for the scheduler
 SchedulerDbMethod = Literal[
     "get_schedule",
@@ -318,11 +333,18 @@ class ScheduleManager:
     def update(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
         _require_mutable_schedule(schedule_id)
-        if current_authorization() is None and not {"payload", "endpoint", "method"}.intersection(kwargs):
+        if current_authorization() is None and not {
+            "payload",
+            "endpoint",
+            "method",
+            "cron_expr",
+            "timezone",
+        }.intersection(kwargs):
             return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = self.get(schedule_id, user_id=user_id)
         if existing is None:
             return None
+        _schedule_timing_updates(existing, kwargs)
         if "endpoint" in kwargs:
             kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
         if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
@@ -559,11 +581,18 @@ class ScheduleManager:
     async def aupdate(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Async update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
         _require_mutable_schedule(schedule_id)
-        if current_authorization() is None and not {"payload", "endpoint", "method"}.intersection(kwargs):
+        if current_authorization() is None and not {
+            "payload",
+            "endpoint",
+            "method",
+            "cron_expr",
+            "timezone",
+        }.intersection(kwargs):
             return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = await self.aget(schedule_id, user_id=user_id)
         if existing is None:
             return None
+        _schedule_timing_updates(existing, kwargs)
         if "endpoint" in kwargs:
             kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
         if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):

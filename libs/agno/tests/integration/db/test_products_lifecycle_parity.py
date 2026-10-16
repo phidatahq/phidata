@@ -60,8 +60,8 @@ def manager(db):
 async def test_lifecycle_and_owner_guards(db):
     m = manager(db)
     assert await call(m.list) == ([], 0)
-    a = await call(m.create, "SDK", purpose="Build", metadata={"nested": [1, {"yes": True}]}, user_id="alice")
-    b = await call(m.create, "SDK", user_id="bob")
+    a = await call(m.create, name="SDK", purpose="Build", metadata={"nested": [1, {"yes": True}]}, user_id="alice")
+    b = await call(m.create, name="SDK", user_id="bob")
     assert set(a) == {"id", "name", "purpose", "metadata", "user_id", "created_at", "updated_at", "deleted_at"}
     assert a["user_id"] == "alice" and a["updated_at"] is None
     assert await call(m.get, a["id"], user_id="alice") == {**a, "counts": EMPTY_COUNTS}
@@ -130,13 +130,13 @@ async def test_validation_and_immutable_fields(db):
     m = manager(db)
     for name in [None, "", "   "]:
         with pytest.raises(ValueError):
-            await call(m.create, name)
+            await call(m.create, name=name)
     for kwargs in [{"limit": 0}, {"page": 0}]:
         with pytest.raises(ValueError):
             await call(m.list, **kwargs)
         with pytest.raises(ValueError):
             await call(db.get_products, **kwargs)
-    a = await call(m.create, "SDK", user_id="alice")
+    a = await call(m.create, name="SDK", user_id="alice")
     for fields in [
         {"id": "other"},
         {"created_at": 0},
@@ -155,7 +155,7 @@ async def test_validation_and_immutable_fields(db):
 
 @pytest.mark.asyncio
 async def test_custom_table_and_shared_schema_version(db):
-    product = await call(manager(db).create, "SDK")
+    product = await call(manager(db).create, name="SDK")
     assert await call(db.table_exists, db.products_table_name)
     assert not await call(db.table_exists, "agno_company_products")
     assert await call(db.get_latest_schema_version, db.products_table_name)
@@ -165,7 +165,7 @@ async def test_custom_table_and_shared_schema_version(db):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("loader", ["adapter", "resolver", "agent"])
 async def test_configuration_roundtrip(db, loader):
-    product = await call(manager(db).create, "Roundtrip", user_id="alice")
+    product = await call(manager(db).create, name="Roundtrip", user_id="alice")
     data = db.to_dict()
     assert data["products_table"] == db.products_table_name
     if loader == "adapter":

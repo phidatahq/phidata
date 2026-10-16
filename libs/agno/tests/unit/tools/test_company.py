@@ -42,10 +42,10 @@ def test_optional_schema_describes_null_and_hides_identity(tmp_path, use_async, 
 async def test_empty_optionals_equal_omission(tmp_path, use_async, processed, name):
     db = SqliteDb(db_file=str(tmp_path / "tools.db"))
     manager = CompanyManager(db)
-    product = manager.create("SDK", user_id="alice")
-    project = manager.create_project(product["id"], "Release")
-    manager.create_task(product["id"], "Existing task", project_id=project["id"])
-    manager.log_decision("Review before shipping", agent_id="planner", session_id="prior")
+    product = manager.create(name="SDK", user_id="alice")
+    project = manager.create_project(product_id=product["id"], name="Release")
+    manager.create_task(product_id=product["id"], title="Existing task", project_id=project["id"])
+    manager.log_decision(decision="Review before shipping", agent_id="planner", session_id="prior")
     tools = CompanyTools(db)
     context = RunContext(run_id="run", session_id="session", user_id="alice")
     raw = getattr(tools, ("a" if use_async else "") + name)
@@ -91,7 +91,7 @@ async def test_empty_optionals_equal_omission(tmp_path, use_async, processed, na
 async def test_empty_optionals_do_not_weaken_required_validation(tmp_path, use_async):
     tools = CompanyTools(SqliteDb(db_file=str(tmp_path / "validation.db")))
     manager = CompanyManager(tools.db)
-    product = manager.create("SDK")
+    product = manager.create(name="SDK")
     fn = tools.apropose_company_task if use_async else tools.propose_company_task
     with pytest.raises(ValueError, match="title"):
         result = fn(product["id"], "", project_id="project")
@@ -111,10 +111,10 @@ async def test_empty_optionals_do_not_weaken_required_validation(tmp_path, use_a
 async def test_source_optionals_equal_omission(tmp_path, use_async, processed, name):
     db = SqliteDb(db_file=str(tmp_path / "sources.db"))
     manager = CompanyManager(db)
-    product = manager.create("SDK")
+    product = manager.create(name="SDK")
     path = tmp_path / "source.md"
     path.write_text("Observed content")
-    source = manager.create_source(product["id"], "markdown", str(path))
+    source = manager.create_source(product_id=product["id"], type="markdown", reference=str(path))
     tools = CompanyTools(db)
     context = RunContext(run_id="scan", session_id="session", user_id="alice")
     raw = getattr(tools, ("a" if use_async else "") + name)

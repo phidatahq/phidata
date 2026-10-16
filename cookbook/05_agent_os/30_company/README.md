@@ -164,8 +164,10 @@ To request a revision from In review, POST to the runs route with `attempt` equa
 to the highest recorded attempt plus one. The reservation writes the In review
 to In progress transition and clears the previous result, retaining the same
 session and executor. A rejected submission leaves the result and lifecycle unchanged.
-Ready can start only attempt 1; Backlog and Ready cannot start revisions. Failed
-or cancelled runs can still be retried while the Task remains In progress. No
+A fresh Ready Task starts attempt 1. Work returned to Backlog, edited, and accepted
+again starts the next unused attempt from Ready, retaining its session. Backlog
+cannot start a run. Failed or cancelled runs can still be retried while the Task
+remains In progress. No
 revision feedback field is accepted by this request. Each Task retains one session. GET on the same route returns ordinary session runs
 with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
 POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
@@ -726,3 +728,14 @@ Workflow route). There is no separate Routine stop operation.
 
 `08_custom_routines.py` demonstrates on-demand declaration, single read, pause,
 resume, and adding/removing a cron without calling a model.
+
+
+## Named arguments for Company mutations
+
+The long `CompanyManager` and `AsyncCompanyManager` mutation methods require
+keyword arguments: `create`, `create_project`, `create_task`, `transition_project`,
+`transition_task`, `write_wiki`, `log_decision`, `create_source`, `add_source`,
+`intake`, and `summarize`. Name the fields explicitly, for example
+`manager.create_project(product_id=product["id"], name="Release")`. The sync and
+async signatures match; short lookup and update methods retain their existing
+calling convention.

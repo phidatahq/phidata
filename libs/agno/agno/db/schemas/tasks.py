@@ -112,8 +112,6 @@ def task_run_fields(
         raise ValueError("Engineering executors cannot be started yet")
     history = existing.get("transitions") or []
     attempts = [entry["attempt"] for entry in history if "attempt" in entry]
-    if existing["status"] == "ready" and attempt != 1:
-        raise ValueError("Ready Tasks can only start attempt 1")
     if existing["status"] == "in_review" and not attempts:
         raise ValueError("A revision requires a previous Task attempt")
     if attempt != max(attempts, default=0) + 1:

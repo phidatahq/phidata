@@ -165,7 +165,7 @@ def get_tasks_router(
             await _require_endpoint_permission(request, f"/{resource}/{body.executor_id}/runs", "POST", action="accept")
         record = await _call(
             "transition_task",
-            task_id,
+            task_id=task_id,
             **body.model_dump(),
             user_id=None,
             accepted_by=getattr(request.state, "user_id", None),

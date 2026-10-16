@@ -165,14 +165,18 @@ def test_unaccepted_no_queue_and_request_overrides(system):
 def test_python_acceptance_also_validates_registry(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "registry.db"))
     manager = CompanyManager(db)
-    product = manager.create("SDK")
-    project = manager.create_project(product["id"], "Release")
-    task = manager.create_task(product["id"], "Draft", project_id=project["id"])
+    product = manager.create(name="SDK")
+    project = manager.create_project(product_id=product["id"], name="Release")
+    task = manager.create_task(product_id=product["id"], title="Draft", project_id=project["id"])
     with pytest.raises(ValueError, match="missing"):
-        manager.transition_task(task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+        manager.transition_task(
+            task_id=task["id"], target="ready", reason="Accept", executor_type="agent", executor_id="writer"
+        )
     manager.registry = Registry(agents=[Agent(id="writer", tools=[SchedulerTools(db=db)])])
     with pytest.raises(ValueError, match="SchedulerTools"):
-        manager.transition_task(task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+        manager.transition_task(
+            task_id=task["id"], target="ready", reason="Accept", executor_type="agent", executor_id="writer"
+        )
     db.close()
 
 
@@ -415,7 +419,7 @@ async def test_routine_payload_cannot_grant_or_widen_authorization(system, monke
         assert error.value.status_code == 403
         with pytest.raises(PermissionError, match="cannot accept"):
             CompanyManager(db, os.registry).transition_task(
-                task["id"], "ready", "self-accept", executor_type="agent", executor_id="writer"
+                task_id=task["id"], target="ready", reason="self-accept", executor_type="agent", executor_id="writer"
             )
 
 
@@ -671,8 +675,8 @@ async def test_completion_rechecks_managed_human_permission(managed_system, duri
     authz.set_role("alice", "completer")
     product = client.post("/company/products", json={"name": "Docs"}, headers=headers()).json()
     manager = CompanyManager(db, os.registry)
-    project = manager.create_project(product["id"], "Release", user_id="alice")
-    project = manager.transition_project(project["id"], "active", "Start")
+    project = manager.create_project(product_id=product["id"], name="Release", user_id="alice")
+    project = manager.transition_project(project_id=project["id"], target="active", reason="Start")
 
     async def revoke(proposal, check_manager):
         authz.set_role("alice", "without_completion")

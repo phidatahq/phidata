@@ -111,10 +111,10 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
             await _call(
                 manager,
                 "write_wiki",
-                product_id,
-                path,
-                content,
-                existing.metadata.version if existing else 0,
+                product_id=product_id,
+                path=path,
+                content=content,
+                expected_version=existing.metadata.version if existing else 0,
                 user_id=user_id,
             )
         result["completion_proposals"].append({"project_id": project["id"], "name": project["name"], "path": path})

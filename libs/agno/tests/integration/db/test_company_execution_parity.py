@@ -205,31 +205,61 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
 
 
 @pytest.mark.asyncio
-async def test_revisions_refuse_backlog_and_ready(system):
+@pytest.mark.parametrize("automatic", [False, True])
+@pytest.mark.parametrize("first_failed", [False, True])
+async def test_reaccepted_ready_starts_next_attempt(system, monkeypatch, automatic, first_failed):
     from agno.company.execution import _call
     from agno.db.schemas.tasks import task_run_id
 
-    client, db, worker, _, _ = system
+    client, db, worker, _, components = system
     value = await accepted(client)
     path = f"/company/tasks/{value['id']}"
-    # Ready cannot skip its first attempt, even before any run exists.
     before = await _call(db, "get_task", value["id"])
     assert (await client.post(path + "/runs", json={"attempt": 2})).status_code == 409
     assert await _call(db, "get_task", value["id"]) == before
-    assert (await client.post(path + "/runs")).status_code == 202
+    first = await client.post(path + "/runs")
+    assert first.status_code == 202, first.text
+    original = components["writer"].arun
+    if first_failed:
+
+        async def fail(*args, **kwargs):
+            raise RuntimeError("First attempt failed")
+
+        monkeypatch.setattr(components["writer"], "arun", fail)
+        assert (await execute(worker))["status"] == "queued"
+        assert (await execute(worker))["status"] == "failed"
+        monkeypatch.setattr(components["writer"], "arun", original)
+    else:
+        assert (await execute(worker))["status"] == "completed"
+    assert (
+        await client.post(path + "/transitions", json={"target": "backlog", "reason": "Rescope"})
+    ).status_code == 200
+    before = await _call(db, "get_task", value["id"])
+    assert (await client.post(path + "/runs", json={"attempt": 2})).status_code == 409
+    assert await _call(db, "get_task", value["id"]) == before
+    assert await worker.store.get_job(task_run_id(value["id"], 2)) is None
+    assert (await client.patch(path, json={"brief": "Revised scope"})).status_code == 200
+    ready = await client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Accept revised scope", "executor_type": "agent", "executor_id": "writer"},
+    )
+    assert ready.status_code == 200, ready.text
+    assert (await client.post(path + "/runs", json={"attempt": 1})).status_code == 409
+    if automatic:
+        executor, _ = await automation(system)
+        result = await tick(executor, db)
+        assert result["status"] == "success", result
+    else:
+        result = await client.post(path + "/runs", json={"attempt": 2})
+        assert result.status_code == 202, result.text
+    running = (await client.get(path)).json()
+    assert running["status"] == "in_progress" and running["result"] is None
+    assert running["session_id"] == first.json()["session_id"]
+    assert running["job_id"] == task_run_id(value["id"], 2)
+    assert running["transitions"][-1]["attempt"] == 2
+    assert running["transitions"][-1]["from"] == "ready"
     assert (await execute(worker))["status"] == "completed"
-    for state in ("backlog", "ready"):
-        body = {"target": state, "reason": "Rescope"}
-        if state == "ready":
-            body.update(executor_type="agent", executor_id="writer")
-        response = await client.post(path + "/transitions", json=body)
-        assert response.status_code == 200, response.text
-        before = await _call(db, "get_task", value["id"])
-        assert before["status"] == state
-        response = await client.post(path + "/runs", json={"attempt": 2})
-        assert response.status_code == 409, response.text
-        assert await _call(db, "get_task", value["id"]) == before
-        assert await worker.store.get_job(task_run_id(value["id"], 2)) is None
+    assert (await client.get(path)).json()["status"] == "in_review"
 
 
 @pytest.mark.asyncio
@@ -1121,9 +1151,9 @@ async def intake_proposal(manager, title, evidence, **kwargs):
     return await _manager_call(
         manager,
         "intake",
-        evidence[0]["source_id"],
-        "proposal-run",
-        dict(
+        source_id=evidence[0]["source_id"],
+        run_id="proposal-run",
+        proposal=dict(
             title=title,
             brief=kwargs.pop("brief", title),
             proposal_key=title,
@@ -1340,7 +1370,7 @@ async def test_routine_can_still_propose_projects(system):
     product = (await client.post("/company/products", json={"name": "Routine projects"})).json()
     manager = AsyncCompanyManager(db, os.registry) if isinstance(db, AsyncBaseDb) else CompanyManager(db, os.registry)
     with authorization_scope(lambda: _RoutineAuthorization(None, "routine")):
-        project = await _manager_call(manager, "create_project", product["id"], "Proposed release")
+        project = await _manager_call(manager, "create_project", product_id=product["id"], name="Proposed release")
     assert project["status"] == "proposed"
     assert (await _manager_call(manager, "get_project", project["id"]))["product_id"] == product["id"]
 
@@ -1756,7 +1786,7 @@ async def test_refresh_completion_requires_permission_and_never_completes_on_arc
 
     client, db, worker, os, _ = system
     task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
-    await _manager_call(manager, "transition_task", task["id"], "cancelled", "No longer needed")
+    await _manager_call(manager, "transition_task", task_id=task["id"], target="cancelled", reason="No longer needed")
     executor, schedule = await automation(system)
     # Terminal work alone is not a completion proposal.
     assert await executor._tick() == []
@@ -1789,9 +1819,9 @@ async def test_refresh_completion_requires_permission_and_never_completes_on_arc
             transitions=[],
         ),
     )
-    independent = await _manager_call(manager, "create_project", task["product_id"], "Human review")
+    independent = await _manager_call(manager, "create_project", product_id=task["product_id"], name="Human review")
     backlog = await _manager_call(
-        manager, "create_task", task["product_id"], "Needs human review", project_id=independent["id"]
+        manager, "create_task", product_id=task["product_id"], title="Needs human review", project_id=independent["id"]
     )
     refreshed = await _manager_call(manager, "refresh", task["product_id"])
     assert "old-terminal" in refreshed["archived_tasks"]
@@ -1817,10 +1847,10 @@ async def test_project_completion_and_task_acceptance_share_atomic_budget(system
 
     client, db, worker, os, _ = system
     task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
-    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    await _manager_call(manager, "transition_task", task_id=task["id"], target="cancelled", reason="Finished")
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy.update(complete_projects=True, required_checks=["has_source_evidence", "executor_registered"])
-    independent = await _manager_call(manager, "create_project", task["product_id"], "Independent work")
+    independent = await _manager_call(manager, "create_project", product_id=task["product_id"], name="Independent work")
     policy["work_scope"]["project_ids"].append(independent["id"])
     assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
     other = await intake_proposal(
@@ -1854,7 +1884,7 @@ async def test_project_completion_enforces_live_policy_and_terminal_tasks(system
 
     client, db, worker, os, _ = system
     task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
-    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    await _manager_call(manager, "transition_task", task_id=task["id"], target="cancelled", reason="Finished")
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy["complete_projects"] = True
     if restriction == "scope":
@@ -1914,7 +1944,7 @@ async def test_completion_rechecks_routine_binding(system, tmp_path, binding):
 
     client, db, worker, os, _ = system
     task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
-    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    await _manager_call(manager, "transition_task", task_id=task["id"], target="cancelled", reason="Finished")
     other = (await client.post("/company/products", json={"name": "Other"})).json()
 
     async def change_binding():
@@ -2373,7 +2403,7 @@ async def test_template_free_policy_never_completes_projects(system, tmp_path):
     client, db, worker, os, _ = system
     task, routine, manager = await routine_proposal(system, tmp_path, template=None)
     assert routine["payload"]["metadata"]["template"] is None
-    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    await _manager_call(manager, "transition_task", task_id=task["id"], target="cancelled", reason="Finished")
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy["complete_projects"] = True
     assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
@@ -2458,7 +2488,7 @@ async def test_completion_uses_project_timestamp_and_terminal_task_gate(system, 
 
     client, db, _, os, _ = system
     task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
-    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    await _manager_call(manager, "transition_task", task_id=task["id"], target="cancelled", reason="Finished")
     now = int(time.time())
     monkeypatch.setattr(time, "time", lambda: now)
     await _call(db, "update_project", task["project_id"], name="Observed")
@@ -2813,8 +2843,7 @@ async def test_human_backlog_withdrawal_requires_fresh_human_acceptance(system, 
         assert saved["status"] == "backlog"
         assert saved["transitions"] == withdrawn["transitions"]
         assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
-    # Human acceptance permits an unstarted Task to be picked up. A withdrawn
-    # attempt cannot restart from Ready: later attempts require In review.
+    # Fresh human acceptance permits pickup at the next unused attempt.
     response = await client.post(
         "/company/tasks/" + task["id"] + "/transitions",
         json={
@@ -2827,16 +2856,11 @@ async def test_human_backlog_withdrawal_requires_fresh_human_acceptance(system, 
     assert response.status_code == 200, response.text
     await _call(db, "update_schedule", schedule["id"], next_run_at=0)
     outcome = await tick(executor, db)
-    if queued:
-        assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None
-        assert outcome["output"]["tasks"][0]["status"] == "failed"
-        refused = await client.post("/company/tasks/" + task["id"] + "/runs", json={"attempt": 2})
-        assert refused.status_code == 409, refused.text
-    else:
-        assert (await execute(worker))["status"] == "completed"
+    assert outcome["status"] == "success", outcome
+    assert (await execute(worker))["status"] == "completed"
     current = await _call(db, "get_task", task["id"])
     attempts = [entry["attempt"] for entry in current["transitions"] if entry.get("attempt")]
-    assert attempts == [1]
+    assert attempts == ([1, 2] if queued else [1])
     stored = await _call(db, "get_schedule", routine["id"])
     assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(stored), "") == 1
 
@@ -2949,12 +2973,12 @@ async def test_automatic_acceptance_requires_wiki_read(system, tmp_path, isolati
             manager = (
                 AsyncCompanyManager(db, os.registry) if isinstance(db, AsyncBaseDb) else CompanyManager(db, os.registry)
             )
-            project = await _manager_call(manager, "create_project", product["id"], "Routine work")
+            project = await _manager_call(manager, "create_project", product_id=product["id"], name="Routine work")
             task = await _manager_call(
                 manager,
                 "create_task",
-                product["id"],
-                "Routine proposal",
+                product_id=product["id"],
+                title="Routine proposal",
                 project_id=project["id"],
                 user_id="alice",
                 origin="routine",

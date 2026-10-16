@@ -32,7 +32,7 @@ if __name__ == "__main__":
         )
         manager = CompanyManager(db)
         product = manager.create(
-            "SDK", purpose="Build reliable agents", user_id="alice"
+            name="SDK", purpose="Build reliable agents", user_id="alice"
         )
         # Trusted application code supplies context. HTTP and MCP inject their
         # authenticated caller automatically; identity is never a model argument.

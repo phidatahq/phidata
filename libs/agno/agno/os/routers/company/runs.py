@@ -225,7 +225,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     )
             if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
-            if previous_status == "completed" and value["status"] != "in_review":
+            if previous_status == "completed" and value["status"] not in {"in_review", "ready"}:
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         try:
             message = await _task_input(manager, value)

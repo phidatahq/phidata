@@ -152,13 +152,17 @@ if __name__ == "__main__":
                     )
                     routine.raise_for_status()
                     manager = CompanyManager(db, agent_os.registry)
-                    project = manager.create_project(product["id"], "Release guide")
-                    manager.transition_project(project["id"], "active", "Scope agreed")
+                    project = manager.create_project(
+                        product_id=product["id"], name="Release guide"
+                    )
+                    manager.transition_project(
+                        project_id=project["id"], target="active", reason="Scope agreed"
+                    )
                     evidence = manager.read_source(source["id"], "cookbook-source-scan")
                     proposal = manager.intake(
-                        source["id"],
-                        "cookbook-source-scan",
-                        {
+                        source_id=source["id"],
+                        run_id="cookbook-source-scan",
+                        proposal={
                             "title": "Document the reviewed API",
                             "brief": "Explain the released API in the guide",
                             "proposal_key": "reviewed-api-guide",
@@ -191,7 +195,9 @@ if __name__ == "__main__":
                     # A human reviews the Task. Refresh can only propose Project
                     # completion; a separate human policy grants the tick permission.
                     manager.transition_task(
-                        proposal["id"], "done", "Human reviewed the guide"
+                        task_id=proposal["id"],
+                        target="done",
+                        reason="Human reviewed the guide",
                     )
                     refresh = client.post(
                         "/company/routines",

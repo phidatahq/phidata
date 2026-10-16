@@ -170,9 +170,9 @@ async def test_task_and_intake_require_project(system):
         assert refused.status_code == 422, refused.text
     manager = AsyncCompanyManager(db, os.registry) if isinstance(db, AsyncBaseDb) else CompanyManager(db, os.registry)
     with pytest.raises(ValueError, match="requires a Project"):
-        await _manager_call(manager, "create_task", product["id"], "Work")
+        await _manager_call(manager, "create_task", product_id=product["id"], title="Work")
     with pytest.raises(ValueError, match="requires a Project"):
-        await _manager_call(manager, "intake", "source", "run", {})
+        await _manager_call(manager, "intake", source_id="source", run_id="run", proposal={})
     tools = CompanyTools(db)
     for async_tools in (False, True):
         if not async_tools and isinstance(db, AsyncBaseDb):

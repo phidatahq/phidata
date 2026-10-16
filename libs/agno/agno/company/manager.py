@@ -35,6 +35,7 @@ class CompanyManager:
 
     def create(
         self,
+        *,
         name: str,
         purpose: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -101,6 +102,7 @@ class CompanyManager:
 
     def create_project(
         self,
+        *,
         product_id: str,
         name: str,
         outcome: Optional[str] = None,
@@ -201,6 +203,7 @@ class CompanyManager:
 
     def transition_project(
         self,
+        *,
         project_id: str,
         target: str,
         reason: str,
@@ -236,6 +239,7 @@ class CompanyManager:
 
     def create_task(
         self,
+        *,
         product_id: str,
         title: str,
         brief: Optional[str] = None,
@@ -362,6 +366,7 @@ class CompanyManager:
 
     def transition_task(
         self,
+        *,
         task_id: str,
         target: str,
         reason: str,
@@ -454,7 +459,13 @@ class CompanyManager:
         return result
 
     def write_wiki(
-        self, product_id: Optional[str], path: str, content: str, expected_version: int, user_id: Optional[str] = None
+        self,
+        *,
+        product_id: Optional[str],
+        path: str,
+        content: str,
+        expected_version: int,
+        user_id: Optional[str] = None,
     ):
         """Write with a filesystem version check; a scoped caller must own the Product.
 
@@ -474,6 +485,7 @@ class CompanyManager:
 
     def log_decision(
         self,
+        *,
         decision: str,
         reasoning: Optional[str] = None,
         context: Optional[str] = None,
@@ -510,6 +522,7 @@ class CompanyManager:
 
     def create_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
@@ -543,6 +556,7 @@ class CompanyManager:
 
     def add_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
@@ -669,6 +683,7 @@ class CompanyManager:
 
     def intake(
         self,
+        *,
         source_id: str,
         run_id: str,
         proposal: Any,
@@ -729,7 +744,9 @@ class CompanyManager:
         return refresh_product(self, product_id, user_id)
 
     @_serialized_summary
-    def summarize(self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None):
+    def summarize(
+        self, *, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
+    ):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
         from agno.company.summary import (
@@ -770,7 +787,13 @@ class CompanyManager:
         report, delivered, marker = _summary_page(previous, run_id, content)
         if delivered:
             return {"path": path, "delivered": True, "quiet": True}
-        saved = self.write_wiki(product_id, path, report, existing.metadata.version if existing else 0, user_id=user_id)
+        saved = self.write_wiki(
+            product_id=product_id,
+            path=path,
+            content=report,
+            expected_version=existing.metadata.version if existing else 0,
+            user_id=user_id,
+        )
         deliver_summary(
             interfaces,
             delivery["interface"],
@@ -779,7 +802,9 @@ class CompanyManager:
         )
         completed = _summary_delivered(report, marker)
         state_fs.write(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
-        self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
+        self.write_wiki(
+            product_id=product_id, path=path, content=completed, expected_version=saved.version, user_id=user_id
+        )
         return {"path": path, "delivered": True, "quiet": not rows}
 
 
@@ -797,6 +822,7 @@ class AsyncCompanyManager:
 
     async def create(
         self,
+        *,
         name: str,
         purpose: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -863,6 +889,7 @@ class AsyncCompanyManager:
 
     async def create_project(
         self,
+        *,
         product_id: str,
         name: str,
         outcome: Optional[str] = None,
@@ -963,6 +990,7 @@ class AsyncCompanyManager:
 
     async def transition_project(
         self,
+        *,
         project_id: str,
         target: str,
         reason: str,
@@ -1000,6 +1028,7 @@ class AsyncCompanyManager:
 
     async def create_task(
         self,
+        *,
         product_id: str,
         title: str,
         brief: Optional[str] = None,
@@ -1128,6 +1157,7 @@ class AsyncCompanyManager:
 
     async def transition_task(
         self,
+        *,
         task_id: str,
         target: str,
         reason: str,
@@ -1220,7 +1250,13 @@ class AsyncCompanyManager:
         return result
 
     async def write_wiki(
-        self, product_id: Optional[str], path: str, content: str, expected_version: int, user_id: Optional[str] = None
+        self,
+        *,
+        product_id: Optional[str],
+        path: str,
+        content: str,
+        expected_version: int,
+        user_id: Optional[str] = None,
     ):
         """Write with a filesystem version check; a scoped caller must own the Product.
 
@@ -1240,6 +1276,7 @@ class AsyncCompanyManager:
 
     async def log_decision(
         self,
+        *,
         decision: str,
         reasoning: Optional[str] = None,
         context: Optional[str] = None,
@@ -1276,6 +1313,7 @@ class AsyncCompanyManager:
 
     async def create_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
@@ -1309,6 +1347,7 @@ class AsyncCompanyManager:
 
     async def add_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
@@ -1435,6 +1474,7 @@ class AsyncCompanyManager:
 
     async def intake(
         self,
+        *,
         source_id: str,
         run_id: str,
         proposal: Any,
@@ -1496,7 +1536,7 @@ class AsyncCompanyManager:
 
     @_serialized_summary
     async def summarize(
-        self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
+        self, *, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
     ):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
@@ -1539,7 +1579,11 @@ class AsyncCompanyManager:
         if delivered:
             return {"path": path, "delivered": True, "quiet": True}
         saved = await self.write_wiki(
-            product_id, path, report, existing.metadata.version if existing else 0, user_id=user_id
+            product_id=product_id,
+            path=path,
+            content=report,
+            expected_version=existing.metadata.version if existing else 0,
+            user_id=user_id,
         )
         await adeliver_summary(
             interfaces,
@@ -1549,7 +1593,9 @@ class AsyncCompanyManager:
         )
         completed = _summary_delivered(report, marker)
         await state_fs.awrite(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
-        await self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
+        await self.write_wiki(
+            product_id=product_id, path=path, content=completed, expected_version=saved.version, user_id=user_id
+        )
         return {"path": path, "delivered": True, "quiet": not rows}
 
 

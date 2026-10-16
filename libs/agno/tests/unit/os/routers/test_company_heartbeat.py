@@ -184,13 +184,15 @@ async def test_company_metadata_survives_executor_scrub(monkeypatch):
 def test_routine_cannot_accept(system):
     _, _, db = system
     manager = CompanyManager(db)
-    product = manager.create("Docs")
-    project = manager.create_project(product["id"], "Documentation")
-    project = manager.create_project(product["id"], "Release")
-    task = manager.create_task(product["id"], "Draft", project_id=project["id"])
+    product = manager.create(name="Docs")
+    project = manager.create_project(product_id=product["id"], name="Documentation")
+    project = manager.create_project(product_id=product["id"], name="Release")
+    task = manager.create_task(product_id=product["id"], title="Draft", project_id=project["id"])
     with authorization_scope(lambda: _RoutineAuthorization(None)):
         with pytest.raises(PermissionError, match="cannot accept"):
-            manager.transition_task(task["id"], "ready", "self approval", executor_type="agent", executor_id="reader")
+            manager.transition_task(
+                task_id=task["id"], target="ready", reason="self approval", executor_type="agent", executor_id="reader"
+            )
     assert manager.get_task(task["id"])["status"] == "backlog"
 
 
@@ -303,6 +305,25 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
         path = "/company/routines/" + routine_id
         assert client.get(path, headers=headers("bob")).status_code == 200
         assert client.get(path + "/runs", headers=headers("bob")).status_code == 200
+        assert client.get(path, headers=headers("bob", ["routines:read"])).status_code == 200
+        for granted in (["routines:read"], ["schedules:read"]):
+            denied = client.get(path + "/runs", headers=headers("bob", granted))
+            assert denied.status_code == 403, denied.text
+        db.create_schedule_run(
+            {
+                "id": "private-history",
+                "schedule_id": routine_id,
+                "status": "success",
+                "attempt": 1,
+                "created_at": 1,
+                "triggered_at": 1,
+                "output": {"content": "Execution diagnostics"},
+            }
+        )
+        history = client.get(path + "/runs", headers=headers("bob", ["routines:read", "schedules:read"]))
+        assert history.status_code == 200, history.text
+        assert history.json()["data"][0]["output"] == {"content": "Execution diagnostics"}
+
         for missing_scope in ("routines:write", "schedules:write", "agents:reader:run"):
             assert (
                 client.post(
@@ -321,7 +342,7 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
             response = client.post(path + "/" + action, headers=headers(actor))
             assert response.status_code == 200, response.text
             assert response.json()["enabled"] is enabled
-            assert response.json()["last_run"] is None
+            assert response.json()["last_run"]["status"] == "success"
             assert response.json()["schedule_type"] == "scheduled"
             assert "_agno_authorization" not in response.text
             assert "private-claim-alice" not in response.text
@@ -385,11 +406,11 @@ async def test_source_tools_only_require_source_and_proposal_scopes(tmp_path, as
 
     db = SqliteDb(db_file=str(tmp_path / "permissions.db"))
     manager = CompanyManager(db)
-    product = manager.create("Docs")
-    project = manager.create_project(product["id"], "Documentation")
+    product = manager.create(name="Docs")
+    project = manager.create_project(product_id=product["id"], name="Documentation")
     path = tmp_path / "page.md"
     path.write_text("Document the released API")
-    source = manager.create_source(product["id"], "markdown", str(path))
+    source = manager.create_source(product_id=product["id"], type="markdown", reference=str(path))
     tools = CompanyTools(db)
     authority = RunAuthorization(
         _default_authorization_provider(),
@@ -563,8 +584,8 @@ async def test_routine_cannot_use_plain_task_proposals(tmp_path, async_tools, ro
 
     db = SqliteDb(db_file=str(tmp_path / "routine-proposals.db"))
     manager = CompanyManager(db)
-    product = manager.create("Docs")
-    project = manager.create_project(product["id"], "Documentation")
+    product = manager.create(name="Docs")
+    project = manager.create_project(product_id=product["id"], name="Documentation")
     tools = CompanyTools(db)
     context = RunContext(run_id="run", session_id="session", authorization=_RoutineAuthorization(None, routine_id))
     for _ in range(3):
@@ -656,7 +677,7 @@ async def test_refresh_requires_routine_and_saved_delete_authority(tmp_path, asy
 
     db = SqliteDb(db_file=str(tmp_path / "refresh.db"))
     manager = CompanyManager(db)
-    product = manager.create("Docs", user_id="owner")
+    product = manager.create(name="Docs", user_id="owner")
     tools = CompanyTools(db, user_isolation=True)
     context = RunContext(run_id="refresh", session_id="session", user_id="owner")
 
@@ -955,7 +976,7 @@ async def test_source_tool_requires_write_scope_and_hides_injected_identity(tmp_
     from agno.tools.company import CompanyTools
 
     db = SqliteDb(db_file=str(tmp_path / "scoped-source.db"))
-    product = CompanyManager(db).create("Owned", user_id="owner")
+    product = CompanyManager(db).create(name="Owned", user_id="owner")
     toolkit = CompanyTools(db, user_isolation=True)
     authority = RunAuthorization(
         _default_authorization_provider(), AuthorizationContext(principal_id="owner", scopes=["sources:read"])
@@ -1106,7 +1127,7 @@ async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch
 
     db = SqliteDb(db_file=str(tmp_path / "archive-dispatch.db"))
     manager = CompanyManager(db)
-    product = manager.create("SDK")
+    product = manager.create(name="SDK")
     schedule = ScheduleManager(db).create(
         name="check",
         cron="0 * * * *",
@@ -1140,7 +1161,7 @@ async def test_team_source_uses_injected_team_identity(tmp_path, async_tools):
     from agno.tools.company import CompanyTools
 
     db = SqliteDb(db_file=str(tmp_path / "team.db"))
-    product = CompanyManager(db).create("SDK")
+    product = CompanyManager(db).create(name="SDK")
     toolkit = CompanyTools(db)
     fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
     kwargs = dict(

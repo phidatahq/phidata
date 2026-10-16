@@ -274,10 +274,10 @@ async def _check_automatic_policy(schedule_db, task):
         raise ValueError("Routine automatic acceptance expired")
 
 
-async def _manager_call(manager, name, *args, **kwargs):
+async def _manager_call(manager, method, *args, **kwargs):
     import inspect
 
-    fn = getattr(manager, name)
+    fn = getattr(manager, method)
     return (
         await fn(*args, **kwargs) if inspect.iscoroutinefunction(fn) else await asyncio.to_thread(fn, *args, **kwargs)
     )
@@ -409,7 +409,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         from uuid import uuid4
 
         from agno.db.schemas.scheduler import Schedule, ScheduleRun
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
         from agno.utils.log import log_error, log_warning
 
         sched = Schedule.from_dict(schedule) if isinstance(schedule, dict) else schedule
@@ -460,7 +460,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             # Always release the schedule lock so it doesn't stay stuck
             if release_schedule and schedule_id is not None:
                 try:
-                    next_run_at = compute_next_run(
+                    next_run_at = next_run_for(
                         sched.cron_expr,
                         sched.timezone or "UTC",
                     )
@@ -772,9 +772,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 accepted = await _manager_call(
                     manager,
                     "transition_project",
-                    task["id"],
-                    "done",
-                    "Authorized Refresh completion proposal",
+                    project_id=task["id"],
+                    target="done",
+                    reason="Authorized Refresh completion proposal",
                     accepted_by=grant.get("user_id"),
                     expected_updated_at=task["updated_at"],
                     auto_accept=receipt,
@@ -783,9 +783,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 accepted = await _manager_call(
                     manager,
                     "transition_task",
-                    task["id"],
-                    "ready",
-                    "Authorized Routine proposal",
+                    task_id=task["id"],
+                    target="ready",
+                    reason="Authorized Routine proposal",
                     accepted_by=grant.get("user_id"),
                     executor_type=policy.executor_type,
                     executor_id=policy.executor_id,

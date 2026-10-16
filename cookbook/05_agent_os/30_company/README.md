@@ -38,12 +38,20 @@ change every Product; admins bypass owner isolation.
 | `02_manage_projects.py` | Product-contained Projects, owner filtering, explicit transitions, soft delete and restore. |
 | `03_manage_tasks.py` | Backlog proposals, executor acceptance, frozen scope, rescoping, review and completion. |
 
+A Product contains Projects and Routines. Every new Task belongs to a Project
+in that Product: `project_id` is required by Task creation and proposal/Intake
+tools. HTTP rejects omission with 422; Python managers and tools raise
+`ValueError`. When no Project fits, propose one with `propose_company_project`,
+then pass its ID to the Task proposal. A Backlog Task can move between Projects
+but cannot clear its Project. Existing nullable storage rows remain readable.
+
 Projects start `proposed` and move to `active`, then `done`. Tasks start
 `backlog` and move through `ready`, `in_progress`, `in_review`, and `done`.
 Either can be `cancelled` from any non-terminal state. Each transition takes
 `target` and a non-empty `reason`; history is returned on the record. Tasks
 may return to Backlog to clear acceptance and change scope, and In review may
-return to In progress for revisions. Terminal states cannot transition.
+return to In progress for revisions by starting the next run attempt. Direct HTTP
+transitions to In progress return 409 and name the runs endpoint. Terminal states cannot transition.
 
 The HTTP routes use `/company/projects` and `/company/tasks`, with the same
 CRUD, paging, soft delete and restore conventions as Products, plus
@@ -146,15 +154,21 @@ the local PostgreSQL URL. SQLite follows the queue's existing development
 fallback; use PostgreSQL session storage for production attempt fencing.
 
 POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
-that attempt returns the first run. A full queue returns 429 without changing
+an active attempt returns the first run. In review, a stale attempt returns 409. A full queue returns 429 without changing
 the Task or consuming the attempt; retry the same attempt when capacity is available.
 The durable ticket is accepted before the Task moves to In progress, and the worker
 can recover that update if the submitting process stops. If acceptance changes
 before the Task can reserve a fresh ticket, the request returns 409 and cancels
 the waiting ticket; an already-claimed ticket is rejected by the worker.
-A new attempt increments the number; after
-success, first transition In review to In progress to request revisions. Each
-Task retains one session. GET on the same route returns ordinary session runs
+To request a revision from In review, POST to the runs route with `attempt` equal
+to the highest recorded attempt plus one. The reservation writes the In review
+to In progress transition and clears the previous result, retaining the same
+session and executor. A rejected submission leaves the result and lifecycle unchanged.
+A fresh Ready Task starts attempt 1. Work returned to Backlog, edited, and accepted
+again starts the next unused attempt from Ready, retaining its session. Backlog
+cannot start a run. Failed or cancelled runs can still be retried while the Task
+remains In progress. No
+revision feedback field is accepted by this request. Each Task retains one session. GET on the same route returns ordinary session runs
 with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
 POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
 
@@ -394,10 +408,38 @@ indistinguishable from the checked record. Project completion still refuses any
 current non-terminal Task, but child evidence changes do not advance the Project's
 timestamp and are not fenced by this comparison.
 
-Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
-release, and run history. No extra loop, table, or route is installed. Skipped
-Tasks and proposals have their reasons in this schedule's run output, readable
-through `/schedules/{id}/runs`.
+Each minute it checks Ready Tasks and authorized Routine proposals using the
+scheduler's ordinary claims and release. A tick records history only when it
+accepts, dispatches, completes, or recovers work, or encounters an execution
+error. Dispatch failures, including unavailable queue storage or a missing
+executor, produce failed history with Task-specific reasons, readable through
+`/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
+run rows. Unexpected database errors are recorded even before dispatch starts.
+Engineering executors and a previous attempt whose ticket is still active are
+expected skips. If a Ready Task's accepting human loses permission, the Task
+returns to Backlog with the refusal reason and appears in attention; the failed
+tick is recorded once instead of repeating every minute.
+
+A missing queue ticket is recreated only when the reserved attempt
+has no durable run or Task result. If its terminal run exists, the missing Task
+result is recovered without rerunning the executor. If a ticket disappears while
+its durable run is still Pending, reconciliation cancels that attempt and records
+the lost-ticket reason in the Task result. Return the Task to Backlog and accept
+it again to start the next attempt. Cancellation and next-attempt starts also
+recover this state when the Task has already returned to Backlog or Ready.
+The cancellation is conditional on the stored run still being Pending in the
+same database update. If the worker advances or settles first, recovery preserves
+that status and result. A Running row is never automatically replayed: its worker
+may still be executing. Failed or cancelled attempts stay for a human
+to retry, even after queue retention.
+
+Starting AgentOS without Company disables an existing automation schedule with
+`disabled_reason="company_off"`. Enabling Company again re-enables that row;
+other disabled reasons are preserved. GET `/config` exposes `company.dbs` with
+the configured Company database id and its Product, Project, Task, and Source
+tables. The `company` key is null when Company is off. YAML Product declarations
+can share their `company` section with optional `display_name` and `dbs` display
+overrides.
 
 The tick stops admitting work 240 seconds after its claim, before the scheduler's
 default 300-second stale-lock threshold. It checks again after IO and before
@@ -452,10 +494,10 @@ Every authorization names an exact executor type and ID. A proposal with no
 executor receives that authorized executor at acceptance. A proposal that names
 an executor must name the same one. It must belong to the Routine's Product and
 carry the framework's Routine origin. `propose_company_task` and
-`intake_company_source` can name a proposed executor and Project; neither can
+`intake_company_source` require a Project and can name a proposed executor; neither can
 accept work. Source IDs and work scope are optional bounds. Omitted Source/scope
 bounds impose no additional restriction; an empty allowed-ID list permits no matching work.
-`project_ids` can include `null` to allow independent Tasks. Unknown fields and
+`project_ids` can include `null` for legacy Tasks without a Project; new Tasks require a Project. Unknown fields and
 check names fail closed. A Source bound requires verified reader evidence.
 Omitting `required_checks` defaults to `["executor_registered"]`; an explicit
 empty check list is rejected. Every policy therefore runs at least one server-side
@@ -647,11 +689,12 @@ when its policy sets `complete_projects: true`.
 A custom Routine does maintenance only when it calls the Refresh tool, and
 Summary bookkeeping only when it calls the Summary tool.
 
-Product Manager and executors can call `add_company_source` with `type="website"`
+Product Manager and executors can call `add_company_source(product_id, reference, config=None)`
 when granted `sources:write` and permitted to write the Product. Repository and
 path Sources remain human-added. Source storage has a single existing JSON
-field, `config`: server-stamped `config.metadata.agent_id` and
-`config.metadata.run_id` identify the first discovery. These fields are not
+field, `config`: server-stamped `config.metadata.agent_id` or
+`config.metadata.team_id`, plus `config.metadata.run_id`, identify the first discovery.
+The tool adds website Sources only; there is no `type` argument. These fields are not
 reader options or model-supplied identities. Matching additions reuse the same
 Source; conflicting settings or archived references are refused with the existing
 Source id. Policies may name these website Sources in `source_ids`;
@@ -666,3 +709,60 @@ Summary's unresolved failures match attention: only Tasks still `in_progress`
 with an ERROR or CANCELLED execution result appear under Failed Tasks. Moving
 work on or archiving it removes that unresolved failure without deleting its
 execution history.
+
+## Routine controls and on-demand work
+
+`GET /company/routines/{id}` returns the same Routine shape as the list.
+Create, read, update, pause, and resume responses include `schedule_type`
+(`scheduled` or `on_demand`) and `last_run`. The latter is null before the first
+run, then contains `status`, `triggered_at`, `completed_at`, `run_id`,
+`session_id`, and `error`. List pages fetch the latest runs together in one
+query. Run history remains at `GET /company/routines/{id}/runs`.
+
+Omit `cron_expr` (or use null) to create an on-demand Routine in code, YAML,
+setup, or `POST /company/routines`. It stays enabled with `next_run_at: null`
+and is never claimed by the poller. `PATCH /company/routines/{id}` with a cron
+makes it scheduled; `{"cron_expr": null}` removes the schedule and keeps history.
+Pause and resume also apply to on-demand Routines.
+
+On-demand execution is a scheduler rule for all schedules. The generic schedule
+API accepts an empty or omitted cron on creation and an empty cron on update;
+omitting it from a PATCH preserves the current cron. Schedule responses expose
+an empty stored cron as null. These schedules run only through trigger, with
+`next_run_at` remaining null across polling, restart, and pause/resume.
+
+With the scheduler enabled, `POST /company/routines/{id}/trigger` starts one
+execution and returns its schedule-run record when it finishes. It uses the
+same owner and executor permission checks as the other Routine controls;
+paused Routines return 409. Automation and non-Company schedule IDs return 404.
+A concurrent GET exposes the live `last_run.run_id` and `session_id` while
+execution is running. Stop uses the existing executor cancel route, such as
+`POST /agents/{executor_id}/runs/{run_id}/cancel` (or the equivalent Team or
+Workflow route). There is no separate Routine stop operation.
+
+`08_custom_routines.py` demonstrates on-demand declaration, single read, pause,
+resume, and adding/removing a cron without calling a model.
+
+
+## Named arguments for Company mutations
+
+The long `CompanyManager` and `AsyncCompanyManager` mutation methods require
+keyword arguments: `create`, `create_project`, `create_task`, `transition_project`,
+`transition_task`, `write_wiki`, `log_decision`, `create_source`, `add_source`,
+`intake`, and `summarize`. Name the fields explicitly, for example
+`manager.create_project(product_id=product["id"], name="Release")`. The sync and
+async signatures match; short lookup and update methods retain their existing
+calling convention.
+
+
+Routine `last_run` uses creation-ordered scheduler history identifiers to resolve
+executions started within the same second. History IDs are opaque strings; they
+are distinct from the executor `run_id` used to cancel a live run. Existing history
+is retained, although the order of old UUID-only records with identical timestamps
+cannot be reconstructed. Pause and resume return the same Routine resource shape
+as a single read, including `last_run`.
+
+Python `ScheduleManager.update(enabled=True)` and `aupdate(enabled=True)` re-arm
+recurring schedules using their current cron and timezone. On-demand schedules
+remain enabled with a null deadline. Clearing a cron during execution also keeps
+the deadline null after release on SQL and MongoDB storage.

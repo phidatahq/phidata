@@ -20,16 +20,27 @@ if __name__ == "__main__":
         db = SqliteDb(db_file=directory + "/company.db")
         writer = Agent(id="writer", db=db)
         manager = CompanyManager(db, registry=Registry(agents=[writer]))
-        product = manager.create("SDK", user_id="alice")
-        first = manager.create_task(product["id"], "Ship release", user_id="alice")
-        manager.create_task(product["id"], "Plan next release", user_id="bob")
+        product = manager.create(name="SDK", user_id="alice")
+        project = manager.create_project(product_id=product["id"], name="Release")
+        first = manager.create_task(
+            product_id=product["id"],
+            title="Ship release",
+            project_id=project["id"],
+            user_id="alice",
+        )
+        manager.create_task(
+            product_id=product["id"],
+            title="Plan next release",
+            project_id=project["id"],
+            user_id="bob",
+        )
         assert manager.list_tasks()[1] == 2
         assert manager.list_tasks(user_id="alice")[1] == 1
         # In HTTP, Ready also checks the accepting caller's executor run permission.
         ready = manager.transition_task(
-            first["id"],
-            "ready",
-            "Scope and executor agreed",
+            task_id=first["id"],
+            target="ready",
+            reason="Scope and executor agreed",
             accepted_by="alice",
             executor_type="agent",
             executor_id="writer",
@@ -42,25 +53,37 @@ if __name__ == "__main__":
         else:
             raise AssertionError("Accepted scope changed")
         manager.transition_task(
-            first["id"], "backlog", "Clarify scope", accepted_by="alice"
+            task_id=first["id"],
+            target="backlog",
+            reason="Clarify scope",
+            accepted_by="alice",
         )
         manager.update_task(first["id"], brief="Write the release notes")
         manager.transition_task(
-            first["id"],
-            "ready",
-            "Reaccepted",
+            task_id=first["id"],
+            target="ready",
+            reason="Reaccepted",
             accepted_by="alice",
             executor_type="agent",
             executor_id="writer",
         )
         manager.transition_task(
-            first["id"], "in_progress", "Work started", accepted_by="alice"
+            task_id=first["id"],
+            target="in_progress",
+            reason="Work started",
+            accepted_by="alice",
         )
         manager.transition_task(
-            first["id"], "in_review", "Results available", accepted_by="alice"
+            task_id=first["id"],
+            target="in_review",
+            reason="Results available",
+            accepted_by="alice",
         )
         done = manager.transition_task(
-            first["id"], "done", "Results approved", accepted_by="alice"
+            task_id=first["id"],
+            target="done",
+            reason="Results approved",
+            accepted_by="alice",
         )
         assert done["status"] == "done"
         assert manager.list_tasks(status="done")[1] == 1

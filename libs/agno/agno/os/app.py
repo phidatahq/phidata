@@ -27,6 +27,8 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.os.config import (
     AgentOSConfig,
     AuthorizationConfig,
+    CompanyDomainConfig,
+    CompanySectionConfig,
     CORSConfig,
     DatabaseConfig,
     EvalsConfig,
@@ -2943,6 +2945,28 @@ class AgentOS:
                 )
 
         return memory_config
+
+    def _get_company_config(self) -> Optional[CompanySectionConfig]:
+        if self.company is None or self._company_db is None:
+            return None
+        company_config = (
+            CompanySectionConfig(
+                display_name=self.config.company.display_name,
+                dbs=[entry.model_copy(deep=True) for entry in self.config.company.dbs],
+            )
+            if self.config and self.config.company
+            else CompanySectionConfig()
+        )
+        db = self._company_db
+        configured = next((item for item in company_config.dbs if item.db_id == db.id), None)
+        company_config.dbs = [
+            DatabaseConfig(
+                db_id=db.id,
+                domain_config=configured.domain_config if configured else CompanyDomainConfig(display_name=db.id),
+                tables=[db.products_table_name, db.projects_table_name, db.tasks_table_name, db.sources_table_name],
+            )
+        ]
+        return company_config
 
     def _get_learning_config(self) -> LearningConfig:
         learning_config = self.config.learning if self.config and self.config.learning else LearningConfig()

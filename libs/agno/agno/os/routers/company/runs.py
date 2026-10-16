@@ -6,7 +6,17 @@ from urllib.parse import quote, urlencode
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from starlette.responses import JSONResponse, Response
 
-from agno.company.execution import _call, _executor, _reserve_task, _task_input, _task_submission
+from agno.company.execution import (
+    _call,
+    _cancel_ticketless_pending_run,
+    _executor,
+    _pending_task_attempt,
+    _reconcile_task_run,
+    _reserve_task,
+    _task_input,
+    _task_run_database,
+    _task_submission,
+)
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.schemas.tasks import task_run_fields, task_run_id
@@ -112,13 +122,10 @@ def get_company_runs_router(os: Any) -> APIRouter:
         return f"/{resource}/{quote(value['executor_id'], safe='')}/runs"
 
     def run_database(value: Dict[str, Any]):
-        store_ids = [entry.get("run_db_id") for entry in value["transitions"] if entry.get("attempt")]
-        if store_ids and store_ids[0]:
-            stores = list({id(store): store for store in os.dbs.get(store_ids[0], [])}.values())
-            if len(stores) == 1:
-                return stores[0]
-            raise HTTPException(503, "Task session database is unavailable or ambiguous")
-        return getattr(executor(value), "db", None)
+        try:
+            return _task_run_database(os, value)
+        except ValueError as exc:
+            raise HTTPException(503, str(exc)) from exc
 
     @router.post("/tasks/{task_id}/runs", status_code=202)
     async def start(task_id: str, request: Request, body: TaskRunCreate = TaskRunCreate(), _: bool = Depends(auth)):
@@ -146,6 +153,16 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 except PermissionError as exc:
                     raise HTTPException(403, str(exc)) from exc
         queue = worker(request)
+        caller = get_scoped_user_id(request) or getattr(request.state, "user_id", None)
+        if observed is not None:
+            caller = value.get("accepted_by")
+        # Review requests start the next attempt; an old attempt is not a revision.
+        # Validate before looking up tickets so retained runs cannot bypass this gate.
+        if value["status"] in {"ready", "in_review"} or (value["status"] == "backlog" and body.attempt > 1):
+            try:
+                task_run_fields(value, body.attempt, caller)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
         run_id = task_run_id(task_id, body.attempt)
         existing = await queue.store.get_job(run_id)
         if existing is not None:
@@ -163,22 +180,31 @@ def get_company_runs_router(os: Any) -> APIRouter:
         # Queue retention does not erase idempotency: the Task session's run row
         # remains the authority after the ticket has been cleaned up.
         if value.get("job_id"):
-            prior_run = await _call(run_database(value), "get_run", run_id, deserialize=False)
+            original_db = run_database(value)
+            prior_run = await _call(original_db, "get_run", run_id, deserialize=False)
             if prior_run is not None and prior_run["session_id"] == value["session_id"]:
+                from agno.os.middleware.user_scope import caller_is_admin
+
+                await _reconcile_task_run(
+                    db,
+                    original_db,
+                    value,
+                    prior_run,
+                    caller or getattr(component, "user_id", None),
+                    is_admin=caller_is_admin(request),
+                    worker=queue,
+                )
                 return JSONResponse(
                     {"run_id": run_id, "session_id": value["session_id"], "status": prior_run["status"]},
                     status_code=202,
                 )
-        if value["status"] not in {"ready", "in_progress"} or not value.get("executor_id"):
+        if value["status"] not in {"ready", "in_progress", "in_review"} or not value.get("executor_id"):
             raise HTTPException(409, "Only accepted work can be started")
         run_db = getattr(component, "db", None)
         if run_db is None:
             raise HTTPException(409, "Task executor requires a database for durable runs")
         if value.get("job_id") and run_database(value) is not run_db:
             raise HTTPException(409, "A Task session must stay in its original executor database")
-        caller = get_scoped_user_id(request) or getattr(request.state, "user_id", None)
-        if observed is not None:
-            caller = value.get("accepted_by")
         # The ordinary run route owns session permissions, including on revisions.
         from agno.db.base import SessionType
         from agno.os.middleware.user_scope import assert_session_writable, caller_is_admin
@@ -196,15 +222,20 @@ def get_company_runs_router(os: Any) -> APIRouter:
             if previous is None:
                 previous_run = await _call(run_db, "get_run", value["job_id"], deserialize=False)
                 if previous_run:
+                    await _cancel_ticketless_pending_run(
+                        run_db,
+                        value,
+                        previous_run,
+                        caller or getattr(component, "user_id", None),
+                        queue,
+                        is_admin=caller_is_admin(request),
+                    )
                     previous_status = {"ERROR": "failed", "CANCELLED": "cancelled", "COMPLETED": "completed"}.get(
                         previous_run["status"]
                     )
             if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
-            if previous_status == "completed" and not any(
-                entry.get("from") == "in_review" and entry.get("target") == "in_progress"
-                for entry in value["transitions"]
-            ):
+            if previous_status == "completed" and value["status"] not in {"in_review", "ready"}:
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         try:
             message = await _task_input(manager, value)
@@ -218,7 +249,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
         # Rejected input must not consume an attempt or leave phantom active work.
         validate_seam_input(component, message)
         try:
-            task_run_fields(value, body.attempt, caller, run_db.id)
+            if _pending_task_attempt(value) != body.attempt:
+                task_run_fields(value, body.attempt, caller, run_db.id)
         except ValueError as exc:
             raise HTTPException(409, str(exc))
         token = _task_submission.set({"db": db, "task": value, "attempt": body.attempt, "run_db_id": run_db.id})
@@ -312,12 +344,37 @@ def get_company_runs_router(os: Any) -> APIRouter:
         get_scoped_user_id(request)
         job, _task = await company_run(run_id, request)
         value = {"executor_type": job["component_type"], "executor_id": job["component_id"]}
-        executor(value)
+        component = executor(value)
         if (job.get("payload") or {}).get("company_task_id"):
             await _reserve_task(db, job)
-        return await _run_route(
+        response = await _run_route(
             request, endpoint(value) + f"/{quote(run_id, safe='')}/cancel", "POST", session_id=job["session_id"]
         )
+        if response.status_code < 300:
+            from agno.os.middleware.user_scope import caller_is_admin
+
+            original_db = run_database(_task)
+            run = await _call(original_db, "get_run", run_id, deserialize=False)
+            if run is not None:
+                caller = (
+                    get_scoped_user_id(request)
+                    or getattr(request.state, "user_id", None)
+                    or getattr(component, "user_id", None)
+                )
+                queue = getattr(request.app.state, "queue_worker", None)
+                await _cancel_ticketless_pending_run(
+                    original_db, _task, run, caller, queue, is_admin=caller_is_admin(request)
+                )
+                await _reconcile_task_run(
+                    db,
+                    original_db,
+                    _task,
+                    run,
+                    caller,
+                    is_admin=caller_is_admin(request),
+                    worker=queue,
+                )
+        return response
 
     @router.get("/attention")
     async def attention(request: Request, product_id: Optional[str] = None, _: bool = Depends(auth)):

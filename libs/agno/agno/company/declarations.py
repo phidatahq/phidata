@@ -52,7 +52,7 @@ class Routine(BaseModel):
     template: Optional[Literal["refresh", "intake", "summary"]] = None
     executor_type: Literal["agent", "team", "workflow"]
     executor_id: str = Field(min_length=1)
-    cron_expr: str
+    cron_expr: Optional[str] = None
     timezone: str = "UTC"
     instructions: Optional[str] = None
     auto_accept: Union[Literal[False], AutoAccept] = False
@@ -65,7 +65,7 @@ class Routine(BaseModel):
             raise ValueError("Routine instructions must be nonempty")
         if self.template is None and not self.instructions:
             raise ValueError("Routine instructions are required without a template")
-        if not validate_cron_expr(self.cron_expr):
+        if self.cron_expr is not None and not validate_cron_expr(self.cron_expr):
             raise ValueError("Invalid cron expression")
         if not validate_timezone(self.timezone):
             raise ValueError("Invalid timezone")

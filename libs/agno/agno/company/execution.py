@@ -83,17 +83,150 @@ async def _reserve_task(db: Any, job: Dict[str, Any]) -> Optional[Dict[str, Any]
     return task
 
 
+def _pending_task_attempt(task: Dict[str, Any]) -> Optional[int]:
+    """Identify an unfinished reservation without authorizing another attempt."""
+    history = task.get("transitions") or []
+    attempt = history[-1].get("attempt") if history else None
+    if (
+        task["status"] == "in_progress"
+        and task.get("result") is None
+        and isinstance(attempt, int)
+        and not isinstance(attempt, bool)
+        and attempt > 0
+        and history[-1].get("target") == "in_progress"
+        and task.get("job_id") == task_run_id(task["id"], attempt)
+    ):
+        return attempt
+    return None
+
+
+def _task_run_database(os: Any, task: Dict[str, Any]) -> Any:
+    """Resolve the original run store even if the executor's database has changed."""
+    store_ids = [entry.get("run_db_id") for entry in task["transitions"] if entry.get("attempt")]
+    if store_ids and store_ids[0]:
+        stores = list({id(store): store for store in os.dbs.get(store_ids[0], [])}.values())
+        if len(stores) == 1:
+            return stores[0]
+        raise ValueError("Task session database is unavailable or ambiguous")
+    return getattr(_executor(os.registry, task["executor_type"], task["executor_id"]), "db", None)
+
+
+async def _cancel_ticketless_pending_run(
+    run_db: Any,
+    task: Dict[str, Any],
+    run: Dict[str, Any],
+    caller: Optional[str],
+    worker: Any,
+    is_admin: bool = False,
+) -> None:
+    """Close an orphaned Pending attempt even after its Task was returned to Backlog."""
+    if (
+        worker is None
+        or run["status"] != "PENDING"
+        or run["run_id"] != task.get("job_id")
+        or run["session_id"] != task.get("session_id")
+    ):
+        return
+    from agno.db.base import SessionType
+    from agno.os.middleware.user_scope import assert_session_writable
+
+    await assert_session_writable(
+        run_db, run["session_id"], caller, session_type=SessionType(run["run_type"]), is_admin=is_admin
+    )
+    if await worker.store.get_job(run["run_id"]) is not None:
+        return
+    current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
+    if current is None or current["session_id"] != task["session_id"]:
+        raise ValueError("Task run changed during recovery")
+    if current["status"] == "PENDING":
+        # A missing ticket cannot prove that no worker started. Cancel this
+        # attempt instead of replaying its possibly executed side effects.
+        kind = current["run_type"]
+        job = {
+            "id": run["run_id"],
+            "session_id": task["session_id"],
+            "component_type": kind,
+            "component_id": current.get(kind + "_id"),
+            "user_id": current.get("user_id"),
+            "attempt": (current.get("run_data") or {}).get("queue_attempt"),
+        }
+        component = await worker._aresolve_job_component(job)
+        if component is None or getattr(component, "db", None) is not run_db:
+            raise ValueError("Original Task executor database is unavailable for recovery")
+        reason = "Queue ticket lost before completion; this attempt was cancelled. Start the next attempt to retry."
+        cancelled = await _call(
+            run_db,
+            "cancel_pending_run",
+            run["run_id"],
+            session_id=task["session_id"],
+            reason=reason,
+            user_id=current.get("user_id"),
+        )
+        if cancelled:
+            await component.acancel_run(run["run_id"])
+        # The worker may have advanced to Running or settled the run while we
+        # were resolving its executor. Reconcile that winner without rewriting it.
+        current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
+        if current is None or current["status"] == "PENDING":
+            raise RuntimeError("Ticketless Task cancellation has not reached durable storage")
+    run.update(current)
+
+
+async def _reconcile_task_run(
+    db: Any,
+    run_db: Any,
+    task: Dict[str, Any],
+    run: Dict[str, Any],
+    caller: Optional[str],
+    is_admin: bool = False,
+    worker: Any = None,
+) -> bool:
+    """Repair a missing result without enqueueing or overwriting a newer acceptance."""
+    if (
+        _pending_task_attempt(task) is None
+        or run["run_id"] != task["job_id"]
+        or run["session_id"] != task["session_id"]
+        or run["status"] not in {"COMPLETED", "ERROR", "CANCELLED", "PENDING"}
+    ):
+        return False
+    from agno.db.base import SessionType
+    from agno.os.middleware.user_scope import assert_session_writable
+
+    await assert_session_writable(
+        run_db, task["session_id"], caller, session_type=SessionType(task["executor_type"]), is_admin=is_admin
+    )
+    await _cancel_ticketless_pending_run(run_db, task, run, caller, worker, is_admin=is_admin)
+    if run["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}:
+        return False
+    data = run.get("run_data") or {}
+    result = {
+        "run_id": run["run_id"],
+        "status": run["status"],
+        "content": data.get("content"),
+        "content_type": data.get("content_type"),
+    }
+    updated = await _call(
+        db, "complete_task_run", task["id"], run["run_id"], result, expected_transitions=task["transitions"]
+    )
+    return updated is not None
+
+
 async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     submission = _task_submission.get()
     if submission is None:
         return await worker.store.enqueue_job(job, max_depth=worker.config.max_queue_depth)
     task = submission["task"]
+    history = task["transitions"]
+    if _pending_task_attempt(task) == submission["attempt"]:
+        # Recreate the missing ticket against the acceptance preceding its
+        # existing reservation. The worker verifies that exact history again.
+        history = history[:-1]
     job = {
         **job,
         "payload": {
             **job["payload"],
             "company_task_id": task["id"],
-            "company_task_transitions": task["transitions"],
+            "company_task_transitions": history,
             "company_task_attempt": submission["attempt"],
             "company_run_db_id": submission["run_db_id"],
         },

@@ -633,6 +633,14 @@ class BaseDb(ABC):
         """
         return None
 
+    def cancel_pending_run(self, run_id: str, *, session_id: str, reason: str, user_id: Optional[str] = None) -> bool:
+        """Atomically cancel only a Pending run, preserving all other statuses and run data.
+
+        Return whether the row changed. Unsupported adapters must fail rather
+        than fall back to a read followed by an unconditional write.
+        """
+        raise NotImplementedError
+
     def get_runs(
         self,
         session_id: Optional[str] = None,
@@ -2129,6 +2137,10 @@ class BaseDb(ABC):
         """Get a schedule run by ID."""
         raise NotImplementedError
 
+    def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Return the latest run for each requested schedule in one query."""
+        raise NotImplementedError
+
     def get_schedule_runs(
         self,
         schedule_id: str,
@@ -2887,6 +2899,16 @@ class AsyncBaseDb(ABC):
     ) -> Optional[Union[RunOutput, TeamRunOutput, WorkflowRunOutput, Dict[str, Any]]]:
         """Async read of a single run. Adapters ported to v3 storage override this."""
         return None
+
+    async def cancel_pending_run(
+        self, run_id: str, *, session_id: str, reason: str, user_id: Optional[str] = None
+    ) -> bool:
+        """Atomically cancel only a Pending run, preserving all other statuses and run data.
+
+        Return whether the row changed. Unsupported adapters must fail rather
+        than fall back to a read followed by an unconditional write.
+        """
+        raise NotImplementedError
 
     async def get_runs(
         self,
@@ -4063,6 +4085,10 @@ class AsyncBaseDb(ABC):
 
     async def get_schedule_run(self, run_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a schedule run by ID."""
+        raise NotImplementedError
+
+    async def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Return the latest run for each requested schedule in one query."""
         raise NotImplementedError
 
     async def get_schedule_runs(

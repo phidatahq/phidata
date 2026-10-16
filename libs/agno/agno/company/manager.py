@@ -35,6 +35,7 @@ class CompanyManager:
 
     def create(
         self,
+        *,
         name: str,
         purpose: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -101,6 +102,7 @@ class CompanyManager:
 
     def create_project(
         self,
+        *,
         product_id: str,
         name: str,
         outcome: Optional[str] = None,
@@ -201,6 +203,7 @@ class CompanyManager:
 
     def transition_project(
         self,
+        *,
         project_id: str,
         target: str,
         reason: str,
@@ -236,6 +239,7 @@ class CompanyManager:
 
     def create_task(
         self,
+        *,
         product_id: str,
         title: str,
         brief: Optional[str] = None,
@@ -267,6 +271,8 @@ class CompanyManager:
             "executor_id": executor_id,
         }
         validate_task_fields(fields)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         if self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
         if project_id is not None:
@@ -340,6 +346,8 @@ class CompanyManager:
             return None
         if existing["status"] != "backlog":
             raise ValueError("Accepted task scope requires a return to Backlog")
+        if "project_id" in fields and not fields["project_id"]:
+            raise ValueError("A Task requires a Project")
         if fields.get("project_id") is not None:
             project = self.db.get_project(fields["project_id"], user_id=None)
             if project is None:
@@ -358,6 +366,7 @@ class CompanyManager:
 
     def transition_task(
         self,
+        *,
         task_id: str,
         target: str,
         reason: str,
@@ -450,7 +459,13 @@ class CompanyManager:
         return result
 
     def write_wiki(
-        self, product_id: Optional[str], path: str, content: str, expected_version: int, user_id: Optional[str] = None
+        self,
+        *,
+        product_id: Optional[str],
+        path: str,
+        content: str,
+        expected_version: int,
+        user_id: Optional[str] = None,
     ):
         """Write with a filesystem version check; a scoped caller must own the Product.
 
@@ -470,6 +485,7 @@ class CompanyManager:
 
     def log_decision(
         self,
+        *,
         decision: str,
         reasoning: Optional[str] = None,
         context: Optional[str] = None,
@@ -506,6 +522,7 @@ class CompanyManager:
 
     def create_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
@@ -539,16 +556,18 @@ class CompanyManager:
 
     def add_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
-        agent_id: str,
+        executor_id: str,
+        executor_type: str,
         run_id: str,
         config: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
         scoped_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Add a website discovered by an identified agent without widening an existing Source."""
+        """Add a website discovered by an identified agent or team without widening an existing Source."""
         from agno.company.playbook import _require_owner
         from agno.db.schemas.sources import validate_source_fields
 
@@ -556,8 +575,8 @@ class CompanyManager:
             raise PermissionError(
                 "Agents may add only website Sources; local repository and path Sources require a human"
             )
-        if not agent_id or not run_id:
-            raise ValueError("Adding a Source requires the calling agent and run identity")
+        if executor_type not in {"agent", "team"} or not executor_id or not run_id:
+            raise ValueError("Adding a Source requires the calling agent or team and run identity")
         validate_source_fields(dict(type=type, reference=reference, config=config))
         product = self.get(product_id)
         if product is None:
@@ -571,7 +590,7 @@ class CompanyManager:
                 "reference": reference,
                 "credential_ref": None,
                 "user_id": user_id,
-                "config": {**(config or {}), "metadata": {"agent_id": agent_id, "run_id": run_id}},
+                "config": {**(config or {}), "metadata": {executor_type + "_id": executor_id, "run_id": run_id}},
                 "created_at": int(time.time()),
                 "updated_at": None,
                 "deleted_at": None,
@@ -664,6 +683,7 @@ class CompanyManager:
 
     def intake(
         self,
+        *,
         source_id: str,
         run_id: str,
         proposal: Any,
@@ -678,6 +698,8 @@ class CompanyManager:
         from agno.company.sources import _proposal_fields
         from agno.db.schemas.tasks import validate_task_fields
 
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         validate_task_fields({"executor_type": executor_type, "executor_id": executor_id, "project_id": project_id})
 
         source = self.get_source(source_id)
@@ -722,7 +744,9 @@ class CompanyManager:
         return refresh_product(self, product_id, user_id)
 
     @_serialized_summary
-    def summarize(self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None):
+    def summarize(
+        self, *, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
+    ):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
         from agno.company.summary import (
@@ -763,7 +787,13 @@ class CompanyManager:
         report, delivered, marker = _summary_page(previous, run_id, content)
         if delivered:
             return {"path": path, "delivered": True, "quiet": True}
-        saved = self.write_wiki(product_id, path, report, existing.metadata.version if existing else 0, user_id=user_id)
+        saved = self.write_wiki(
+            product_id=product_id,
+            path=path,
+            content=report,
+            expected_version=existing.metadata.version if existing else 0,
+            user_id=user_id,
+        )
         deliver_summary(
             interfaces,
             delivery["interface"],
@@ -772,7 +802,9 @@ class CompanyManager:
         )
         completed = _summary_delivered(report, marker)
         state_fs.write(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
-        self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
+        self.write_wiki(
+            product_id=product_id, path=path, content=completed, expected_version=saved.version, user_id=user_id
+        )
         return {"path": path, "delivered": True, "quiet": not rows}
 
 
@@ -790,6 +822,7 @@ class AsyncCompanyManager:
 
     async def create(
         self,
+        *,
         name: str,
         purpose: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -856,6 +889,7 @@ class AsyncCompanyManager:
 
     async def create_project(
         self,
+        *,
         product_id: str,
         name: str,
         outcome: Optional[str] = None,
@@ -956,6 +990,7 @@ class AsyncCompanyManager:
 
     async def transition_project(
         self,
+        *,
         project_id: str,
         target: str,
         reason: str,
@@ -993,6 +1028,7 @@ class AsyncCompanyManager:
 
     async def create_task(
         self,
+        *,
         product_id: str,
         title: str,
         brief: Optional[str] = None,
@@ -1024,6 +1060,8 @@ class AsyncCompanyManager:
             "executor_id": executor_id,
         }
         validate_task_fields(fields)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         if await self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
         if project_id is not None:
@@ -1097,6 +1135,8 @@ class AsyncCompanyManager:
             return None
         if existing["status"] != "backlog":
             raise ValueError("Accepted task scope requires a return to Backlog")
+        if "project_id" in fields and not fields["project_id"]:
+            raise ValueError("A Task requires a Project")
         if fields.get("project_id") is not None:
             project = await self.db.get_project(fields["project_id"], user_id=None)
             if project is None:
@@ -1117,6 +1157,7 @@ class AsyncCompanyManager:
 
     async def transition_task(
         self,
+        *,
         task_id: str,
         target: str,
         reason: str,
@@ -1209,7 +1250,13 @@ class AsyncCompanyManager:
         return result
 
     async def write_wiki(
-        self, product_id: Optional[str], path: str, content: str, expected_version: int, user_id: Optional[str] = None
+        self,
+        *,
+        product_id: Optional[str],
+        path: str,
+        content: str,
+        expected_version: int,
+        user_id: Optional[str] = None,
     ):
         """Write with a filesystem version check; a scoped caller must own the Product.
 
@@ -1229,6 +1276,7 @@ class AsyncCompanyManager:
 
     async def log_decision(
         self,
+        *,
         decision: str,
         reasoning: Optional[str] = None,
         context: Optional[str] = None,
@@ -1265,6 +1313,7 @@ class AsyncCompanyManager:
 
     async def create_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
@@ -1298,16 +1347,18 @@ class AsyncCompanyManager:
 
     async def add_source(
         self,
+        *,
         product_id: str,
         type: str,
         reference: str,
-        agent_id: str,
+        executor_id: str,
+        executor_type: str,
         run_id: str,
         config: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
         scoped_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """Add a website discovered by an identified agent without widening an existing Source."""
+        """Add a website discovered by an identified agent or team without widening an existing Source."""
         from agno.company.playbook import _require_owner
         from agno.db.schemas.sources import validate_source_fields
 
@@ -1315,8 +1366,8 @@ class AsyncCompanyManager:
             raise PermissionError(
                 "Agents may add only website Sources; local repository and path Sources require a human"
             )
-        if not agent_id or not run_id:
-            raise ValueError("Adding a Source requires the calling agent and run identity")
+        if executor_type not in {"agent", "team"} or not executor_id or not run_id:
+            raise ValueError("Adding a Source requires the calling agent or team and run identity")
         validate_source_fields(dict(type=type, reference=reference, config=config))
         product = await self.get(product_id)
         if product is None:
@@ -1330,7 +1381,7 @@ class AsyncCompanyManager:
                 "reference": reference,
                 "credential_ref": None,
                 "user_id": user_id,
-                "config": {**(config or {}), "metadata": {"agent_id": agent_id, "run_id": run_id}},
+                "config": {**(config or {}), "metadata": {executor_type + "_id": executor_id, "run_id": run_id}},
                 "created_at": int(time.time()),
                 "updated_at": None,
                 "deleted_at": None,
@@ -1423,6 +1474,7 @@ class AsyncCompanyManager:
 
     async def intake(
         self,
+        *,
         source_id: str,
         run_id: str,
         proposal: Any,
@@ -1437,6 +1489,8 @@ class AsyncCompanyManager:
         from agno.company.sources import _proposal_fields
         from agno.db.schemas.tasks import validate_task_fields
 
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         validate_task_fields({"executor_type": executor_type, "executor_id": executor_id, "project_id": project_id})
 
         source = await self.get_source(source_id)
@@ -1482,7 +1536,7 @@ class AsyncCompanyManager:
 
     @_serialized_summary
     async def summarize(
-        self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
+        self, *, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
     ):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
@@ -1525,7 +1579,11 @@ class AsyncCompanyManager:
         if delivered:
             return {"path": path, "delivered": True, "quiet": True}
         saved = await self.write_wiki(
-            product_id, path, report, existing.metadata.version if existing else 0, user_id=user_id
+            product_id=product_id,
+            path=path,
+            content=report,
+            expected_version=existing.metadata.version if existing else 0,
+            user_id=user_id,
         )
         await adeliver_summary(
             interfaces,
@@ -1535,7 +1593,9 @@ class AsyncCompanyManager:
         )
         completed = _summary_delivered(report, marker)
         await state_fs.awrite(_STATE_PATH, _delivery_state(completed), expected_version=state_version)
-        await self.write_wiki(product_id, path, completed, saved.version, user_id=user_id)
+        await self.write_wiki(
+            product_id=product_id, path=path, content=completed, expected_version=saved.version, user_id=user_id
+        )
         return {"path": path, "delivered": True, "quiet": not rows}
 
 

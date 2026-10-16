@@ -152,6 +152,11 @@ def get_tasks_router(
         task_id: str, body: TaskTransition, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
         await _writable(task_id, None)
+        if body.target == "in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Start a run with POST /company/tasks/{task_id}/runs to enter In progress",
+            )
         if body.target == "ready":
             assert body.executor_type is not None  # Validated by TaskTransition.
             resource = {"agent": "agents", "team": "teams", "workflow": "workflows", "engineering": "engineering"}[
@@ -160,7 +165,7 @@ def get_tasks_router(
             await _require_endpoint_permission(request, f"/{resource}/{body.executor_id}/runs", "POST", action="accept")
         record = await _call(
             "transition_task",
-            task_id,
+            task_id=task_id,
             **body.model_dump(),
             user_id=None,
             accepted_by=getattr(request.state, "user_id", None),

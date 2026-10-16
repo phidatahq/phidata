@@ -948,6 +948,20 @@ class AsyncPostgresDb(AsyncBaseDb):
             log_error(f"Exception reading from runs table: {str(e)}")
             return None
 
+    async def cancel_pending_run(
+        self, run_id: str, *, session_id: str, reason: str, user_id: Optional[str] = None
+    ) -> bool:
+        """Cancel a Pending run with a conditional UPDATE; concurrent status changes win."""
+        from agno.db.sql.runs import cancel_pending_run_statement
+
+        table = await self._get_table(table_type="runs")
+        if table is None:
+            return False
+        statement = cancel_pending_run_statement(table, "postgresql", run_id, session_id, reason, user_id)
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return result.scalar_one_or_none() is not None
+
     async def upsert_run(
         self,
         run: Union[RunOutput, TeamRunOutput, WorkflowRunOutput, Dict[str, Any]],
@@ -4436,15 +4450,6 @@ class AsyncPostgresDb(AsyncBaseDb):
             kwargs["updated_at"] = int(time.time())
             async with self.async_session_factory() as sess:
                 async with sess.begin():
-                    if "endpoint" in kwargs:
-                        from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
-
-                        existing = (await sess.execute(select(table).where(table.c.id == schedule_id))).first()
-                        target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
-                        if existing is not None and existing._mapping.get("managed_by") == "company":
-                            if target is None:
-                                raise ValueError("Routine executor must be a run endpoint")
-                            kwargs.update(target_type=target.group(1).rstrip("s"), target_id=target.group(2))
                     stmt = table.update().where(table.c.id == schedule_id)
                     if user_id is not None:
                         stmt = stmt.where(table.c.user_id == user_id)
@@ -4607,8 +4612,12 @@ class AsyncPostgresDb(AsyncBaseDb):
             if table is None:
                 return False
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
-            if next_run_at is not None:
-                updates["next_run_at"] = next_run_at
+            # A cron may be cleared while this claim is running. Never re-arm
+            # an on-demand schedule using the executor's older schedule snapshot.
+            updates["next_run_at"] = case(
+                (table.c.cron_expr == "", None),
+                else_=next_run_at if next_run_at is not None else table.c.next_run_at,
+            )
             statement = table.update().where(table.c.id == schedule_id)
             if worker_id is not None:
                 statement = statement.where(table.c.locked_by == worker_id)
@@ -4663,6 +4672,31 @@ class AsyncPostgresDb(AsyncBaseDb):
         except Exception as e:
             log_debug(f"Error getting schedule run: {e}")
             return None
+
+    async def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Fetch one most recent run per schedule, without per-schedule queries."""
+        if not schedule_ids:
+            return {}
+        table = await self._get_table(table_type="schedule_runs")
+        if table is None:
+            return {}
+        ranked = (
+            select(
+                table,
+                func.row_number()
+                .over(
+                    partition_by=table.c.schedule_id,
+                    order_by=(table.c.triggered_at.desc(), table.c.created_at.desc(), table.c.id.desc()),
+                )
+                .label("position"),
+            )
+            .where(table.c.schedule_id.in_(schedule_ids))
+            .subquery()
+        )
+        stmt = select(*(ranked.c[column.name] for column in table.columns)).where(ranked.c.position == 1)
+        async with self.async_session_factory() as sess:
+            result = await sess.execute(stmt)
+            return {row._mapping["schedule_id"]: dict(row._mapping) for row in result.fetchall()}
 
     async def get_schedule_runs(
         self,

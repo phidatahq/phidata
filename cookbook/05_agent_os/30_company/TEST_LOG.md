@@ -2575,6 +2575,98 @@ All 13 offline cookbook invocations passed: `01_manage_products.py`, `02_manage_
 
 The retained four-adapter tests prove null-template completion denial, instruction-only edits preserving fingerprint and spent budget, agent-discovered website Source evidence, executor-less Intake through the real queue, concurrent pickup/restart, policy revocation, exhausted budgets, refused completion and all Task/Project write timestamps. Supplied release probes were not rerun in this merge; their earlier results above remain historical evidence, not proof that the removed scope/child-set guards remain effective.
 
+
+
+## PR 6.5 follow-up — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/01_manage_products.py` — Product creation, paging, ownership, archive, and restore.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/02_manage_projects.py` — Project lifecycle and Product binding.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/03_manage_tasks.py` — Task lifecycle, acceptance, and executor checks.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/04_manage_playbook.py` — Versioned Product wiki and decision log operations.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/05_product_manager.py` — Product Manager configuration and bounded tools without a model call.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/06_execute_tasks.py` — Offline Task execution and durable history in SQLite/PostgreSQL, both manual and automatic modes (four executions).
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/07_cascading_archive.py` — Sync/async cascading archive and exact restore, in SQLite and PostgreSQL (two executions).
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/07_heartbeat.py` — Declared Routines, Source reads, Intake deduplication, and Refresh.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
+---
+
+### 08_custom_routines.py
+
+**Status:** PASS
+
+**Description:** `cookbook/05_agent_os/30_company/08_custom_routines.py` — Custom Routine and repeated website discovery using add_company_source(product_id, reference, config=None); no type argument. First-discovery provenance and human archive verified.
+
+**Result:** Completed with all assertions passing using development Python 3.12. Offline execution; no provider calls.
+
 ---
 
 ### PR 6 round-5 scheduler and withdrawal fixes — October 16, 2026
@@ -2600,5 +2692,404 @@ Wider results: **11,779 unit tests passed, 21 conditional skips** across the com
 Subsequent wider results: **1,047 Company/scheduler/parent lifecycle integration tests passed without skips**, across SQLite/PostgreSQL sync and async and configured scheduler backends. All **13 offline cookbook invocations passed** (nine Company files, PostgreSQL manual execution, SQLite/PostgreSQL automation, PostgreSQL cascading archive). The full db/os/scheduler/tools/sandbox unit run reported **11,709 passed, 71 skips, seven GCS fixture setup errors and one Redis real-clock expiry failure**. Missing optional SDKs initially blocked collection; restoring them allowed the run, and installing the remaining GCS SDK resolved the seven setup errors. Both affected files then passed all **55 tests**, including the Redis expiry case: **11,717 distinct unit cases passed across the full run and rerun**. No source or assertion changes were made for these environment/timing failures. Skips remain conditional or optional-dependency coverage; this is not a claim that every optional backend ran.
 
 Format and clean Python 3.10 validation passed. Development Python 3.12 validation output was read: exact main and head have the same **40 diagnostics in 14 files**, including a fresh no-incremental comparison, with **zero introduced** under identical restored dependencies. Quiet history remains unchanged on this branch.
+
+---
+
+### Company follow-up regression suites
+
+### Initial Company follow-up regression suites at ace873af7a
+
+**Status:** PASS
+
+**Description:** Complete database, AgentOS, scheduler, and Company tools unit
+suites, plus all Company/Product/Project/Task integration suites. The final
+execution suite was rerun after repairing pending-reservation recovery. Coverage
+includes quiet history, dispatch history, failed/cancelled attempts after queue
+retention, attention counts, shutdown lock release, Company off/on startup,
+configured database display and explicit null, all-schedule target edits,
+Routine executor edits, team discovery provenance, and Source deduplication.
+
+**Result:** 6,859 passed and five environment-dependent skips in the broad run;
+484 passed without skips in the final execution run. Total: 7,343 passed,
+five skipped. Skips are one root-only ownership test, three live-model credential
+tests, and one optional asyncpg test. Company parity covers SQLite and PostgreSQL,
+sync and async. No unresolved test failures. At this initial head, the Manager test and guide allowed managed retargeting.
+That policy was corrected in the review follow-up below.
+
+`./scripts/format.sh` passed. `./scripts/validate.sh` passed on the exact source
+using the existing clean Python 3.10 validation environment: 1,155 framework and
+21 CLI files. Unrelated formatter-only changes were excluded. Shared development
+Python 3.12 validation reports 34 typing diagnostics in 11 files; no unrelated
+typing changes are included. Tests and cookbooks used development Python 3.12,
+local databases, and offline models. `git diff --check` passed.
+
+Items 3–5 began at PR 6 head `e3fb6c64141dc105d9fb0c20ab70f4c5eefa5071`.
+A normal merge incorporated `0c0983de9216293df8221cc3af1f5b0adb7eda46` before
+items 1–2. Pending-reservation replay and all final verification use that final
+parent head. No rebase, history rewrite, direct Heartbeat merge, or main merge.
+
+
+### PR 6.5 review fixes — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Restored immutable targets for Studio and other control-plane
+schedules. REST and sync/async Python update/upsert derive targets only for
+unmanaged schedules and Company Routines; endpoint-only Python updates preserve
+saved caller authorization. Company non-run endpoints remain invalid.
+Dispatch failures persist failed history with reasons, while idle checks and
+exhausted acceptance policies remain quiet. Terminal runs repair missing Task
+results through both HTTP and automation without another enqueue. Run/session
+identity, session ownership and stale acceptance guards are covered; durable
+PENDING, RUNNING and PAUSED runs are never resubmitted. The missing-ticket probe
+explicitly removes a running job after an injected Task projection failure; it
+does not claim that ordinary queue retention removes running jobs.
+
+**Result:** 7,666 passed, nine optional/environment skips, no failures across
+disjoint final coverage: 7,560 passed / five skipped in complete scheduler,
+AgentOS (including Manager), database, Company/SchedulerTools unit tests and
+Company integration suites; 102 additional Product/Project/Task/schedule
+lifecycle and SQLite integration tests passed; all four PostgreSQL scheduler
+lifecycle cases passed in an explicitly configured follow-up. Four optional
+MongoDB lifecycle cases remain skipped, alongside one root-only ownership test,
+three live-model credential checks and one optional asyncpg unit check. All
+Company SQLite/PostgreSQL sync/async parity cases ran. The final Python API
+matrix was additionally rerun after the saved-authorization assertion (64
+passed); HTTP/automation recovery and guard probes passed all 68 selected cases.
+These focused selections overlap the full run and are not added to its totals.
+
+Both full formatting and exact-source validation passed. Validation used the
+existing Python 3.10 environment and checked 1,155 framework and 21 CLI files.
+The shared development Python 3.12 environment still reports exactly the same
+34 typing diagnostics in 11 files as the recorded baseline; no new diagnostics.
+Tests used development Python 3.12 and offline models. Unrelated formatter-only
+changes were excluded; `git diff --check` passed. No paid/provider calls or
+hosted validation. CI and automated review are separate from these local results.
+
+The parent remains PR 6 at `0c0983de9216293df8221cc3af1f5b0adb7eda46`.
+The review fixes are a normal follow-up commit, with no history rewrite.
+
+
+### PR 6.5 item 7 and revision starts — October 16, 2026
+
+**Status:** Focused checks passed before the final rebase; full suites pending at publication.
+
+**Description:** Direct HTTP transitions to In progress return 409 and name the
+Task runs endpoint. Ready starts attempt 1; In review starts the next attempt
+on the same executor/session, and the reservation clears the previous result.
+Stale review attempts and revisions from Backlog or Ready return 409. Current
+executor run permission is rechecked. Active attempt replay and failed-run
+retry remain supported. No feedback field was added. TASK_TRANSITIONS and the
+storage transition method remain unchanged.
+
+**Result:** The focused revision/transition/queue-capacity matrix passed all 60
+cases on SQLite/PostgreSQL, sync and async, before the final parent rebase.
+At the user's request, rebased onto PR 6 head `2575b2013a` and publishing after
+format/validation, ahead of the complete unit/integration results. Pre-rebase
+broad runs were stopped; fresh runs will verify the published tree. Earlier
+full-suite counts above describe their recorded heads, not this publication.
+
+The rebase preserves the parent's timestamp-only acceptance contract, generic
+Company-schedule mutation refusal, deadline/claim ownership guards, and archived
+Product checks, alongside PR 6.5's history and recovery changes. Unrelated
+formatter-only changes are excluded. No live model calls are involved.
+
+`./scripts/format.sh` and `./scripts/validate.sh` passed before publication.
+Validation used the clean Python 3.10 environment and checked 1,178 framework
+and 21 CLI files. `git diff --check` passed. Full runtime suites use development
+Python 3.12 and will be recorded after completion.
+
+
+### PR 6.5 completed verification after publication — October 16, 2026
+
+**Status:** PASS; no unresolved failures.
+
+**Description:** Continued testing after publishing `ea6ba085a6` for review.
+The full scheduler, AgentOS/Manager, database and Company/SchedulerTools unit
+selection finished with 6,642 passes, five conditional skips and two failures.
+The full Company and Product/Project/Task/schedule lifecycle integrations finished
+with 1,173 passes, four optional MongoDB skips and twelve failures. All fourteen
+failures were inherited test fixtures using the old Source-tool/manager signature
+or the old agent metadata key for Team discovery. No production code changed
+after the initial publication.
+
+**Result:** Corrected those fixtures and reran the entire heartbeat unit file
+(84 passed), all Source-discovery execution cases (eight passed across four SQL
+adapters), and the entire retention integration file (92 passed). Excluding
+repeated cases, final coverage is **6,644 unit + 1,185 integration = 7,829 passed**,
+with nine skips and no remaining failures. The skip set is four optional MongoDB
+lifecycle cases, three live-model credential cases, one optional asyncpg case
+and one root-only ownership case. PostgreSQL scheduler parity was explicitly
+enabled; SQLite/PostgreSQL sync/async revision and run-start coverage all ran.
+
+All thirteen offline Company cookbook invocations passed: the nine numbered
+examples, additional PostgreSQL manual Task execution, SQLite/PostgreSQL automatic
+Task execution, and PostgreSQL cascading archive. The code reviewed at publication
+is unchanged; this follow-up updates three test fixtures and the verification log.
+
+Full `./scripts/format.sh` and `./scripts/validate.sh` passed on the final source,
+with clean Python 3.10 mypy checking 1,178 framework and 21 CLI files. Runtime tests
+used development Python 3.12. Unrelated formatter-only changes were excluded and
+`git diff --check` passed. No live-model, hosted or outbound-delivery validation
+is claimed; GitHub CI and automated review are separate from these local results.
+
+
+### PR 6.5 Routine controls and Project hierarchy — October 16, 2026
+
+**Status:** Targeted checks PASS; complete regression suites continue after the review push.
+
+**Description:** Items 8–10 add single-Routine reads, owned trigger, batched
+`last_run`, on-demand creation and cron changes, and required Projects for Task
+creation and Intake. Live run IDs support the existing cancel endpoint. Clearing
+a cron during an active claim cannot rearm the on-demand Routine. Rebased onto
+PR 6 `071f0ae1c24c5e614eb5aff4f351e548f98da297`, retaining its wiki authorization
+checks and per-claim release guard. The inherited withdrawal test now respects
+the approved rule that Ready starts attempt 1 only; revisions start In review.
+
+**Result:** All 24 new SQL-adapter cases passed on sync/async SQLite and
+PostgreSQL, including a fresh database instance for restart and constant
+schedule-run query counts. The targeted execution selection passed 92 cases;
+the execution authorization unit file passed 44 cases. Older fixtures were
+updated to create Projects explicitly; legacy nullable rows still have storage
+coverage. Final full-suite totals will be recorded after the review push.
+
+**Cookbooks:** PASS for all nine numbered examples: `01_manage_products.py`,
+`02_manage_projects.py`, `03_manage_tasks.py`, `04_manage_playbook.py`,
+`05_product_manager.py`, `06_execute_tasks.py`, `07_cascading_archive.py`,
+`07_heartbeat.py`, and `08_custom_routines.py`. The Task, Product Manager and
+Intake examples create Projects first; the custom Routine example verifies
+on-demand controls and cron changes. Also PASS: `06_execute_tasks.py` with
+PostgreSQL, automatic pickup with SQLite and PostgreSQL, and
+`07_cascading_archive.py --postgres`: 13 offline invocations, no model calls.
+
+Full format and clean Python 3.10 validation passed on the rebased tree
+(1,178 framework and 21 CLI files). Runtime tests use the development Python
+3.12 environment.
+
+
+### PR 6.5 main merge and generic on-demand scheduling — October 16, 2026
+
+**Status:** PASS. Implementation pushed at `3f1370f5827011ee0b1b28899348794255927588`; all regression suites completed successfully.
+
+**Description:** Merged main's PR 6 squash
+`ab0e2d233af36bda475f03fb12f75f1d5a9e2f66` with normal merge commit
+`fa831b1f7a748fccc7946011277f64c21fbc06ef`; no history rewrite. The merge
+preserves acceptance checks, automation history filtering, and both worker-id
+and claim-timestamp release fencing. The PR now targets main.
+
+An empty stored cron now means on demand for every schedule. Shared cron
+helpers drive create, cadence updates, enable, and executor release; SQL release
+checks only the stored cron. Generic schedule responses expose empty crons as
+null. Studio cadence edits share the rule while preserving immutable targets.
+The existing Company on-demand tests remain unchanged. A remaining SQLite Task
+storage fixture now creates its required Project.
+
+**Cookbooks:** PASS for all 13 offline invocations: all nine numbered examples,
+PostgreSQL manual Task execution, automatic Task execution on SQLite and
+PostgreSQL, and PostgreSQL cascading archive. Both `03_manage_tasks.py` and
+`06_execute_tasks.py` create Projects before their Tasks and ran successfully.
+No paid-model or hosted verification was performed.
+
+**Unit results:** 6,604 passed and 39 skipped across scheduler, AgentOS/Manager,
+database and Company/scheduler tools; 414 additional Studio tests passed. The
+scheduler owner-recheck integration file passed six tests. The full SQLite/PostgreSQL
+Company and scheduler integration selection passed 1,293 tests with four optional
+MongoDB lifecycle skips. Including the six scheduler owner-recheck cases, final
+coverage is **7,018 unit + 1,299 integration = 8,317 passed**, with 43 skips.
+All 12 new plain-schedule cases ran across sync/async SQLite and PostgreSQL; the
+24 existing Company Routine cases passed unchanged. The initial focused run
+found a naming collision in the new test helper; it was corrected before the
+passing full run. No runtime failures remain.
+Full format and clean Python 3.10 validation passed (1,178 framework and 21 CLI
+files); runtime tests use development Python 3.12. `git diff --check` passed.
+
+
+### PR 6.5 named mutations and review fixes — October 16, 2026
+
+**Status:** PASS. Production changes published at `68b285d39dfaaa9cedfbc003f3269b3a53785685`; broad suites completed with the fixture follow-ups below.
+
+**Description:** Eleven long Company mutation methods now require named arguments
+in both sync and async managers. Framework, HTTP, tool, automation, test and cookbook
+callers are updated, including Summary's serialization wrapper. Short read/update
+methods retain their calling convention; `is_on_demand` retains its name.
+
+Routine history checks both `routines:read` and `schedules:read` before the broad
+Routine read rule. Reaccepted Ready Tasks start the next unused attempt after
+being returned to Backlog and explicitly accepted again; fresh Ready work still
+starts attempt 1, and direct transitions to In progress remain refused. This
+supersedes the earlier Ready-only-attempt-1 restriction. Python cron/timezone edits
+validate and recompute or clear the deadline in sync and async managers, including
+a combined enable-and-cron edit. The automation executor uses `next_run_for` too.
+
+**Targeted result:** 31 review regressions passed across both isolation modes and
+sync/async SQLite/PostgreSQL, covering successful and failed prior attempts with
+human and automatic restarts. The four adapter cases for Python cadence changes
+also passed after adding combined enable/cron coverage. Summary's positional
+forwarding wrapper was corrected during the initial smoke run. Two table-driven
+unsupported-manager tests were migrated to named arguments; their entire file
+passed all 52 tests on rerun. Final broad-suite totals follow below.
+
+**Cookbooks:** All 13 offline Company invocations passed: nine numbered examples,
+manual Task execution on PostgreSQL, automatic Task pickup on SQLite/PostgreSQL,
+and cascading archive on PostgreSQL. Examples 03 and 06 continue to create the
+required Project before each Task. No paid-model or hosted validation is claimed.
+
+
+**Final result:** **7,018 unit + 1,319 integration = 8,337 distinct passing cases**,
+with 39 unit skips and four optional MongoDB integration skips. The broad unit
+run initially reported 7,016 passes and two positional fixture failures; the full
+affected file subsequently passed all 52 cases. Integration initially reported
+1,277 passes and 42 fixture failures: the retention dispatch helper's `target`
+parameter collided with the new named transition argument, a table-driven
+mutation list still supplied positional arguments, and a subprocess script still
+created its Product positionally. Corrected those test callers; the full retention
+file passed 92 cases and both independent-process restart cases passed. Repeated
+cases are not counted twice. No production code changed after the review push.
+
+Full format and clean Python 3.10 validation passed on the final source (1,178
+framework and 21 CLI files), and `git diff --check` passed. Runtime testing used
+the development Python 3.12 environment. GitHub CI and automated review remain
+separate from these local results.
+
+
+### PR 6.5 automation diagnostics and scheduler follow-up — October 16, 2026
+
+**Status:** PASS. Production fixes at `57d4abfe249c632e8f0ecf1d48e963929d7d8646`; complete final-source results below.
+
+**Description:** Unexpected Task-read failures persist in automation history;
+expected engineering/active-ticket refusals remain quiet. A Ready Task whose
+accepting human loses permission returns to Backlog with the reason and one
+failed history row. The existing one-time diagnostic for withdrawal during
+dispatch is preserved. Scheduler history IDs now include a nanosecond creation
+key with a process-local monotonic guard, resolving same-second Routine
+`last_run` ties without changing stored timestamp units. Legacy UUID history
+remains readable; its original same-second order cannot be recovered.
+
+Both Python update variants re-arm a recurring schedule on an enable-only edit
+and retain endpoint permission checks. Mongo release uses an atomic cadence
+check plus worker/timestamp fencing, matching the SQL on-demand race guard.
+Test forwarding helpers use positional-only dispatch parameters.
+
+**Targeted result:** 52 SQL cases passed across sync/async SQLite/PostgreSQL,
+including real managed-role revocation in both isolation modes and the existing
+concurrent-withdrawal contract. Four real sync/async Mongo release cases and two
+history-ID ordering/concurrency unit cases also passed. Full format and clean
+Python 3.10 validation passed (1,179 framework and 21 CLI files).
+
+**Retention review clarification:** The `target` helper collision existed at
+`68b285d39d` and was corrected by `4d1f2f97`; the preceding 92-pass result records
+the rerun with that correction. This follow-up additionally makes forwarding
+parameters positional-only. The complete Company integration tree, scheduler
+and lifecycle suites were rerun from the final source, with all four SQL
+adapters and the configured Mongo service. The totals below supersede the
+pending status recorded during review.
+
+
+**Unit completion:** 6,975 distinct cases passed with 39 skips. The broad run
+reported 6,973 passes and two assertions expecting the old generic ValueError.
+Those assertions now require HTTP 403 explicitly; their entire Company execution
+router file passed all 44 cases. Repeated cases are not counted twice. No runtime
+behavior changed for this test correction.
+
+**Cookbook recheck:** `03_manage_tasks.py` passed with Projects, and
+`06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes.
+All used the offline workflow and made no model calls. The complete final-source
+Company integration run subsequently passed.
+
+
+**Endpoint-update follow-up:** Restoring the Python target check initially also
+restamped an existing payload on an unauthenticated endpoint-only update. The
+full integration run caught the resulting loss of saved authorization. The check
+and payload rewrite are now separate; all 298 scheduler and targeted retargeting
+checks passed, including the four SQL adapters. The complete 1,369-case integration
+set was rerun on the corrected source in four independent shards. Collection
+manifests verify that every case runs exactly once, including all 1,216 Company
+cases and all 92 retention cases; this is not a targeted selection.
+
+
+**Final integration result:** **1,369 passed, zero failures/errors, zero skips**.
+This includes every **1,216 Company integration case** and every **92 retention
+case**, across sync/async SQLite and PostgreSQL. Generic scheduler/lifecycle and
+owner-recheck tests also passed, including real sync/async MongoDB release tests.
+Four collection manifests have identical full collections and disjoint selections
+whose union is all 1,369 cases; per-shard deselection is scheduling, not omitted
+coverage. JUnit totals are 343 + 342 + 342 + 342 passes. The earlier unsharded run
+caught 32 endpoint-only payload assertions; all pass in this full corrected run.
+
+**Final checks:** 6,975 distinct unit passes with 39 conditional skips, including
+a full 44-case execution-router rerun and the scheduler rerun after the endpoint
+payload correction. Full format and clean Python 3.10 validation passed (1,179
+framework and 21 CLI files), and `git diff --check` passed. Runtime tests used
+Python 3.12. Three offline cookbook invocations passed as described above. Local
+results are separate from GitHub CI; no paid-model or hosted checks are claimed.
+
+
+### Project completion diagnostics, Mongo Routine APIs, and lost-ticket recovery
+
+**Status:** PASS (targeted checks; complete suites running separately)
+
+**Description:** Tested actual queued Task acceptance followed by deletion of its ticket before execution, leaving the durable Pending row intact. Automation, HTTP retry, and cancellation cancel and reconcile that attempt without replaying it. Reacceptance starts the next attempt on the same session. Agent, Team, and Workflow cases run on sync/async SQLite and PostgreSQL. Additional tests preserve session authorization, live tickets, Running observations, and retry after a cancellation write fails. Project completion database failures persist history, while explicit policy refusals stay quiet. Routine create, trigger, read, list, update, pause, resume and constant-query history lookup run against both Mongo variants with each of the four SQL Company adapters.
+
+**Result:** 124 focused integration checks passed (68 new cases plus 56 existing terminal reconciliation and authorization cases). The initial 60-case run also passed; it is not additive to the 124. Full formatter, validator (1,179 framework and 21 CLI files), and diff whitespace checks passed. These are local results; full-suite and CI results are not yet claimed.
+
+---
+
+### Lost ticket after withdrawal and reacceptance
+
+**Status:** PASS
+
+**Description:** Extended the recovery to close a Pending run after its Task has already returned to Backlog or Ready. Cancellation uses the run row's original executor identity. Both manual and automatic next attempts can proceed without replaying the lost attempt.
+
+**Result:** All 84 failure-state cases passed across the four SQL adapters and both Mongo variants, including 16 additional Backlog/Ready cases. Full format and validation passed again. The complete integration suite is being rerun on this correction; previous-head totals are not claimed for this change.
+
+---
+
+### Final validation of Project diagnostics, Mongo history, and ticket recovery
+
+**Status:** PASS
+
+**Description:** Complete local validation of production head `0de5985186a83e35bd9851d38c0ad13eccb1bf94`. The final follow-up updates documentation only.
+
+**Result:**
+
+- **1,445 integration tests passed, zero failures/errors, zero skips**. This includes the entire **1,292-case Company integration tree**, all **92 retention cases**, scheduler/lifecycle/owner-recheck coverage, all four SQL adapters, and real sync/async Mongo. Four disjoint shards selected every collected case exactly once (362 + 361 + 361 + 361).
+- **6,975 distinct unit tests passed, 39 skipped, zero failures/errors** across scheduler, AgentOS/Manager, database, Company/scheduler/Studio tools, and agent session storage. All were rerun on final source in four disjoint shards. Two module-level skips appeared in each shard and are counted once, not four times; the 39 skips require optional drivers, API credentials, or root access.
+- The **84 new failure-state cases** and **181 affected Company unit cases** also passed separately; these are included in the complete totals, not additional tests. The earlier 1,429-case integration pass and interrupted pre-correction unit run are not counted in the final totals.
+- `03_manage_tasks.py` passed with required Projects. `06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes. No paid model calls were made.
+- Full `./scripts/format.sh`, `./scripts/validate.sh` (1,179 framework and 21 CLI files), and `git diff --check` passed. Runtime tests used development Python 3.12; validation used the clean Python 3.10 environment.
+
+These are local results. GitHub CI and independent review remain separate.
+
+---
+
+### Atomic Pending cancellation preserves concurrent worker outcomes
+
+**Status:** PASS (focused checks; complete suites follow)
+
+**Description:** The supplied race probe reproduced four ERROR-to-CANCELLED overwrites on the prior head; its four concurrent-completion cases passed. Recovery now uses a single conditional SQL UPDATE that changes only a Pending row and patches its status/content without replacing unrelated run data. It sends a cancellation signal only when that update succeeds, then rereads and reconciles the winning status. The generic worker retry/error persistence behavior is unchanged.
+
+**Result:** All **136 failure-recovery cases passed** across sync/async SQLite and PostgreSQL, including **40 new races** (automation and HTTP retry against concurrent ERROR, COMPLETED, CANCELLED, RUNNING and PAUSED) and **12 new storage checks** for session/owner predicates and structured content/metadata preservation. The races use claimed jobs, normal attempt stamping, and the worker's real error writer. Existing SQL/Mongo Routine and recovery regressions also pass. Full format, validation (1,180 framework and 21 CLI files), and diff whitespace checks passed. Complete-suite totals are pending and are not inferred from the prior head.
+
+---
+
+### Complete validation of atomic Pending cancellation
+
+**Status:** PASS
+
+**Description:** Final local verification of production head `0b828875676b1e42baaf8f0574786a6961024916`. The final follow-up records validation only.
+
+**Result:** **6,975 distinct unit tests passed, 39 skipped, zero failures/errors** across scheduler, AgentOS/Manager, databases, Company/scheduler/Studio tools and session storage. **1,497 integration tests passed, zero skips/failures/errors**, including the entire **1,344-case Company integration tree**, all **92 retention cases**, scheduler/lifecycle/owner-recheck tests, all four SQL adapters and both real Mongo variants. Both collections were partitioned into disjoint shards covering each collected test once; repeated module-level skips were counted once. Optional drivers, credentials and root access explain the unit skips. The 136 focused checks are included in these totals.
+
+`03_manage_tasks.py` passed with required Projects; `06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes. No paid model calls were made. Full format, validation (1,180 framework and 21 CLI files) and diff whitespace checks passed. Runtime tests used Python 3.12; validation used clean Python 3.10. GitHub CI is separate: at this check lint/style/parity/runtime guards had passed on the source commit and five test shards were still running.
+
+---
+
+### Remaining recovery boundaries identified after atomic cancellation validation
+
+**Status:** NOT COVERED / OPEN
+
+**Description:** A subsequent review identified recovery using the accepting identity rather than a different starter/session owner, and current Routine policy checks preventing reconciliation of an existing in-progress attempt after pause or policy edits. Source inspection confirms both paths remain on the atomic-cancellation head. The passing counts above do not establish correctness for these combinations.
+
+**Result:** These are unresolved merge blockers. Recovery needs a separate path that uses the recorded reservation/session identity and cannot enqueue work; new dispatch must retain current authorization and policy checks. No fix for these two findings is claimed in this validation update.
 
 ---

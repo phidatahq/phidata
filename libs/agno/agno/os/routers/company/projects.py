@@ -172,7 +172,7 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         await _writable(project_id, None)
         record = await _call(
             "transition_project",
-            project_id,
+            project_id=project_id,
             **body.model_dump(),
             user_id=None,
             accepted_by=getattr(request.state, "user_id", None),

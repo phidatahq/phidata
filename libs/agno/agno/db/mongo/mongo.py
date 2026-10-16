@@ -3212,15 +3212,20 @@ class MongoDb(BaseDb):
                 return False
 
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
-            if next_run_at is not None:
-                updates["next_run_at"] = next_run_at
+            updates["next_run_at"] = {
+                "$cond": [
+                    {"$eq": ["$cron_expr", ""]},
+                    None,
+                    next_run_at if next_run_at is not None else "$next_run_at",
+                ]
+            }
 
             query: Dict[str, Any] = {"id": schedule_id}
             if worker_id is not None:
                 query["locked_by"] = worker_id
             if locked_at is not None:
                 query["locked_at"] = locked_at
-            result = collection.update_one(query, {"$set": updates})
+            result = collection.update_one(query, [{"$set": updates}])
             return result.matched_count > 0
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")
@@ -3270,6 +3275,25 @@ class MongoDb(BaseDb):
         except Exception as e:
             log_debug(f"Error getting schedule run: {e}")
             return None
+
+    def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Fetch the latest run for every requested schedule in one aggregation."""
+        if not schedule_ids:
+            return {}
+        collection = self._get_collection(table_type="schedule_runs")
+        if collection is None:
+            return {}
+        pipeline: List[Dict[str, Any]] = [
+            {"$match": {"schedule_id": {"$in": schedule_ids}}},
+            {"$sort": {"schedule_id": 1, "triggered_at": -1, "created_at": -1, "id": -1}},
+            {"$group": {"_id": "$schedule_id", "run": {"$first": "$$ROOT"}}},
+        ]
+        latest = {}
+        for group in collection.aggregate(pipeline):
+            run = group["run"]
+            run.pop("_id", None)
+            latest[group["_id"]] = run
+        return latest
 
     def get_schedule_runs(
         self,

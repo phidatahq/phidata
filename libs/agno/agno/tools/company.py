@@ -240,7 +240,9 @@ class CompanyTools(Toolkit):
         _permission("projects", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return _public_json(
-            self._sync().create_project(product_id, name, outcome=outcome, user_id=_identity(_agno_run_context))
+            self._sync().create_project(
+                product_id=product_id, name=name, outcome=outcome, user_id=_identity(_agno_run_context)
+            )
         )
 
     @requires_permission()
@@ -260,19 +262,21 @@ class CompanyTools(Toolkit):
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
             brief: Task brief; null leaves it unspecified.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         _require_plain_proposal(_agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return _public_json(
             self._sync().create_task(
-                product_id,
-                title,
+                product_id=product_id,
+                title=title,
                 brief=brief,
                 project_id=project_id,
                 user_id=_identity(_agno_run_context),
@@ -359,7 +363,11 @@ class CompanyTools(Toolkit):
         return _public_json(
             asdict(
                 self._sync().write_wiki(
-                    product_id, "status.md", content, expected_version, user_id=self._scoped_user(_agno_run_context)
+                    product_id=product_id,
+                    path="status.md",
+                    content=content,
+                    expected_version=expected_version,
+                    user_id=self._scoped_user(_agno_run_context),
                 )
             )
         )
@@ -388,10 +396,10 @@ class CompanyTools(Toolkit):
         return _public_json(
             asdict(
                 self._sync().log_decision(
-                    decision,
-                    reasoning,
-                    context,
-                    outcome,
+                    decision=decision,
+                    reasoning=reasoning,
+                    context=context,
+                    outcome=outcome,
                     user_id=_identity(_agno_run_context),
                     session_id=getattr(_agno_run_context, "session_id", None),
                     agent_id=self._agent_id,
@@ -522,7 +530,9 @@ class CompanyTools(Toolkit):
         await _apermission("projects", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return _public_json(
-            await self._async().create_project(product_id, name, outcome=outcome, user_id=_identity(_agno_run_context))
+            await self._async().create_project(
+                product_id=product_id, name=name, outcome=outcome, user_id=_identity(_agno_run_context)
+            )
         )
 
     @requires_permission()
@@ -542,19 +552,21 @@ class CompanyTools(Toolkit):
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
             brief: Task brief; null leaves it unspecified.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         brief = _empty_to_none(brief)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         _require_plain_proposal(_agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return _public_json(
             await self._async().create_task(
-                product_id,
-                title,
+                product_id=product_id,
+                title=title,
                 brief=brief,
                 project_id=project_id,
                 user_id=_identity(_agno_run_context),
@@ -645,7 +657,11 @@ class CompanyTools(Toolkit):
         return _public_json(
             asdict(
                 await self._async().write_wiki(
-                    product_id, "status.md", content, expected_version, user_id=self._scoped_user(_agno_run_context)
+                    product_id=product_id,
+                    path="status.md",
+                    content=content,
+                    expected_version=expected_version,
+                    user_id=self._scoped_user(_agno_run_context),
                 )
             )
         )
@@ -674,10 +690,10 @@ class CompanyTools(Toolkit):
         return _public_json(
             asdict(
                 await self._async().log_decision(
-                    decision,
-                    reasoning,
-                    context,
-                    outcome,
+                    decision=decision,
+                    reasoning=reasoning,
+                    context=context,
+                    outcome=outcome,
                     user_id=_identity(_agno_run_context),
                     session_id=getattr(_agno_run_context, "session_id", None),
                     agent_id=self._agent_id,
@@ -727,7 +743,6 @@ class CompanyTools(Toolkit):
     def add_company_source(
         self,
         product_id: str,
-        type: str,
         reference: str,
         config: _OptionalSourceConfig = None,
         _agno_agent: Optional[Any] = None,
@@ -744,10 +759,11 @@ class CompanyTools(Toolkit):
         _permission("sources", "write", _agno_run_context)
         config = _empty_to_none(config)
         row = self._sync().add_source(
-            product_id,
-            type,
-            reference,
-            agent_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            product_id=product_id,
+            type="website",
+            reference=reference,
+            executor_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            executor_type="team" if _agno_team is not None else "agent",
             run_id=getattr(_agno_run_context, "run_id", None),
             config=config,
             user_id=_identity(_agno_run_context),
@@ -846,20 +862,22 @@ class CompanyTools(Toolkit):
         Args:
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         _permission("sources", "read", _agno_run_context)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         run_id = self._source_context(source_id, _agno_run_context)
         return _public_json(
             self._sync().intake(
-                source_id,
-                run_id,
-                {
+                source_id=source_id,
+                run_id=run_id,
+                proposal={
                     "title": title,
                     "brief": brief,
                     "proposal_key": proposal_key,
@@ -904,7 +922,11 @@ class CompanyTools(Toolkit):
         run_id = self._source_context(product_id, _agno_run_context)
         return _public_json(
             self._sync().summarize(
-                product_id, run_id, self.interfaces, narrative=narrative, user_id=self._scoped_user(_agno_run_context)
+                product_id=product_id,
+                run_id=run_id,
+                interfaces=self.interfaces,
+                narrative=narrative,
+                user_id=self._scoped_user(_agno_run_context),
             )
         )
 
@@ -912,7 +934,6 @@ class CompanyTools(Toolkit):
     async def aadd_company_source(
         self,
         product_id: str,
-        type: str,
         reference: str,
         config: _OptionalSourceConfig = None,
         _agno_agent: Optional[Any] = None,
@@ -929,10 +950,11 @@ class CompanyTools(Toolkit):
         await _apermission("sources", "write", _agno_run_context)
         config = _empty_to_none(config)
         row = await self._async().add_source(
-            product_id,
-            type,
-            reference,
-            agent_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            product_id=product_id,
+            type="website",
+            reference=reference,
+            executor_id=getattr(_agno_team if _agno_team is not None else _agno_agent, "id", None),
+            executor_type="team" if _agno_team is not None else "agent",
             run_id=getattr(_agno_run_context, "run_id", None),
             config=config,
             user_id=_identity(_agno_run_context),
@@ -1033,20 +1055,22 @@ class CompanyTools(Toolkit):
         Args:
             executor_type: Suggested executor kind; null leaves selection to acceptance.
             executor_id: Suggested executor ID; null leaves selection to acceptance.
-            project_id: Project ID within the Product; null proposes work without a Project.
+            project_id: Required Project ID within the Product. Propose a Project first when none fits.
         """
         executor_type = _empty_to_none(executor_type)
         executor_id = _empty_to_none(executor_id)
         project_id = _empty_to_none(project_id)
+        if not project_id:
+            raise ValueError("A Task requires a Project")
         await _apermission("sources", "read", _agno_run_context)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         run_id = self._source_context(source_id, _agno_run_context)
         return _public_json(
             await self._async().intake(
-                source_id,
-                run_id,
-                {
+                source_id=source_id,
+                run_id=run_id,
+                proposal={
                     "title": title,
                     "brief": brief,
                     "proposal_key": proposal_key,
@@ -1091,7 +1115,11 @@ class CompanyTools(Toolkit):
         run_id = self._source_context(product_id, _agno_run_context)
         return _public_json(
             await self._async().summarize(
-                product_id, run_id, self.interfaces, narrative=narrative, user_id=self._scoped_user(_agno_run_context)
+                product_id=product_id,
+                run_id=run_id,
+                interfaces=self.interfaces,
+                narrative=narrative,
+                user_id=self._scoped_user(_agno_run_context),
             )
         )
 

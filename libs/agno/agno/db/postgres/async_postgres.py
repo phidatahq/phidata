@@ -948,6 +948,20 @@ class AsyncPostgresDb(AsyncBaseDb):
             log_error(f"Exception reading from runs table: {str(e)}")
             return None
 
+    async def cancel_pending_run(
+        self, run_id: str, *, session_id: str, reason: str, user_id: Optional[str] = None
+    ) -> bool:
+        """Cancel a Pending run with a conditional UPDATE; concurrent status changes win."""
+        from agno.db.sql.runs import cancel_pending_run_statement
+
+        table = await self._get_table(table_type="runs")
+        if table is None:
+            return False
+        statement = cancel_pending_run_statement(table, "postgresql", run_id, session_id, reason, user_id)
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return result.scalar_one_or_none() is not None
+
     async def upsert_run(
         self,
         run: Union[RunOutput, TeamRunOutput, WorkflowRunOutput, Dict[str, Any]],

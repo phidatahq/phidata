@@ -153,12 +153,21 @@ async def _cancel_ticketless_pending_run(
         component = await worker._aresolve_job_component(job)
         if component is None or getattr(component, "db", None) is not run_db:
             raise ValueError("Original Task executor database is unavailable for recovery")
-        await component.acancel_run(run["run_id"])
         reason = "Queue ticket lost before completion; this attempt was cancelled. Start the next attempt to retry."
-        if not await worker._persist_run_error(job, reason, status="cancelled"):
-            raise RuntimeError("Could not persist cancellation of the ticketless Task run")
+        cancelled = await _call(
+            run_db,
+            "cancel_pending_run",
+            run["run_id"],
+            session_id=task["session_id"],
+            reason=reason,
+            user_id=current.get("user_id"),
+        )
+        if cancelled:
+            await component.acancel_run(run["run_id"])
+        # The worker may have advanced to Running or settled the run while we
+        # were resolving its executor. Reconcile that winner without rewriting it.
         current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
-        if current is None or current["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}:
+        if current is None or current["status"] == "PENDING":
             raise RuntimeError("Ticketless Task cancellation has not reached durable storage")
     run.update(current)
 

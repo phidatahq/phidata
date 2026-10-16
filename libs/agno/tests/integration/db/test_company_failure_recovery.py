@@ -95,7 +95,7 @@ async def test_ticketless_pending_recovery_does_not_cancel_live_ticket(system):
 
 @pytest.mark.asyncio
 async def test_ticketless_pending_cancellation_write_failure_stays_retryable(system, monkeypatch):
-    from unittest.mock import AsyncMock
+    from unittest.mock import AsyncMock, Mock
 
     client, db, worker, _, _ = system
     task = await accepted(client)
@@ -104,7 +104,8 @@ async def test_ticketless_pending_cancellation_write_failure_stays_retryable(sys
     delete_ticket(worker, run_id)
     executor, schedule = await automation(system)
     with monkeypatch.context() as failure:
-        failure.setattr(worker, "_persist_run_error", AsyncMock(return_value=False))
+        mock = AsyncMock if isinstance(db, AsyncBaseDb) else Mock
+        failure.setattr(db, "cancel_pending_run", mock(side_effect=RuntimeError("Could not persist cancellation")))
         result = await tick(executor, db)
         assert result["status"] == "failed"
         assert "Could not persist cancellation" in result["error"]
@@ -322,3 +323,128 @@ async def test_ticket_lost_before_withdrawal_and_reacceptance(system, recovery):
     saved = await _call(db, "get_task", task["id"])
     assert saved["status"] == "in_review" and saved["session_id"] == task["session_id"]
     assert saved["transitions"][-2]["attempt"] == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("winner", ["ERROR", "COMPLETED", "CANCELLED", "RUNNING", "PAUSED"])
+@pytest.mark.parametrize("recovery", ["automation", "http"])
+async def test_pending_cancellation_preserves_concurrent_worker_status(system, monkeypatch, winner, recovery):
+    import asyncio
+    from unittest.mock import AsyncMock
+
+    from agno.run.base import RunStatus
+    from agno.run.status_persist import apersist_run_status
+
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    path = f"/company/tasks/{task['id']}/runs"
+    started = await client.post(path)
+    assert started.status_code == 202, started.text
+    run_id = started.json()["run_id"]
+    job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    assert job["id"] == run_id and job["attempt"] == 1
+    component = await worker._aresolve_job_component(job)
+    await apersist_run_status(
+        component,
+        "agent",
+        session_id=task["session_id"],
+        run_id=run_id,
+        fields={"queue_attempt": job["attempt"]},
+        user_id=job.get("user_id"),
+        expected_attempt=job["attempt"],
+    )
+    delete_ticket(worker, run_id)
+    pending = await _call(db, "get_run", run_id)
+    assert pending.status == RunStatus.pending
+    original = db.cancel_pending_run
+    advanced = False
+    loop = asyncio.get_running_loop()
+    reason = "The original worker settled this attempt"
+    cancel_intent = AsyncMock(wraps=component.acancel_run)
+    monkeypatch.setattr(component, "acancel_run", cancel_intent)
+
+    async def advance():
+        nonlocal advanced
+        assert not advanced
+        advanced = True
+        if winner in {"ERROR", "CANCELLED"}:
+            assert await worker._persist_run_error(job, reason, status=winner.lower())
+        else:
+            pending.status = RunStatus(winner)
+            pending.content = reason
+            await _call(db, "upsert_run", pending, session_id=task["session_id"])
+
+    def cancel(*args, **kwargs):
+        asyncio.run_coroutine_threadsafe(advance(), loop).result(timeout=10)
+        return original(*args, **kwargs)
+
+    async def acancel(*args, **kwargs):
+        await advance()
+        return await original(*args, **kwargs)
+
+    # Settle after recovery has read Pending and resolved the executor, immediately
+    # before the conditional database UPDATE. Use the worker's real error writer.
+    monkeypatch.setattr(db, "cancel_pending_run", acancel if isinstance(db, AsyncBaseDb) else cancel)
+    executor, _ = await automation(system)
+    if recovery == "automation":
+        result = await tick(executor, db)
+        assert result["status"] == "success", result
+        assert result["output"]["tasks"][0]["status"] == winner
+    else:
+        response = await client.post(path)
+        assert response.status_code == 202, response.text
+        assert response.json()["status"] == winner
+    assert advanced
+    cancel_intent.assert_not_awaited()
+    stored = await _call(db, "get_run", run_id, deserialize=False)
+    saved = await _call(db, "get_task", task["id"])
+    assert stored["status"] == stored["run_data"]["status"] == winner
+    assert stored["run_data"]["content"] == reason
+    if winner in {"ERROR", "COMPLETED", "CANCELLED"}:
+        assert saved["result"]["status"] == winner
+        assert saved["result"]["content"] == reason
+    else:
+        assert saved["result"] is None
+    assert await worker.store.get_job(run_id) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("guard", ["none", "session", "owner"])
+async def test_pending_cancellation_is_conditional_and_preserves_run_fields(system, guard):
+    client, db, _, _, _ = system
+    task = await accepted(client)
+    started = await client.post(f"/company/tasks/{task['id']}/runs")
+    run_id = started.json()["run_id"]
+    run = await _call(db, "get_run", run_id)
+    data = {
+        **run.to_dict(),
+        "metadata": {"preserve": "original"},
+        "queue_attempt": 7,
+        "content": {"structured": "preserve"},
+    }
+    await _call(db, "upsert_run", data, session_id=task["session_id"], user_id="owner")
+    before = await _call(db, "get_run", run_id, deserialize=False)
+    changed = await _call(
+        db,
+        "cancel_pending_run",
+        run_id,
+        session_id="other-session" if guard == "session" else task["session_id"],
+        user_id="other-owner" if guard == "owner" else "owner",
+        reason="Lost ticket",
+    )
+    after = await _call(db, "get_run", run_id, deserialize=False)
+    if guard == "none":
+        assert changed
+        assert after["status"] == "CANCELLED"
+        assert after["run_data"] == {**before["run_data"], "status": "CANCELLED"}
+        assert not await _call(
+            db,
+            "cancel_pending_run",
+            run_id,
+            session_id=task["session_id"],
+            user_id="owner",
+            reason="Must not overwrite cancellation",
+        )
+    else:
+        assert not changed
+        assert after == before

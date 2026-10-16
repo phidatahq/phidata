@@ -3061,3 +3061,13 @@ results are separate from GitHub CI; no paid-model or hosted checks are claimed.
 These are local results. GitHub CI and independent review remain separate.
 
 ---
+
+### Atomic Pending cancellation preserves concurrent worker outcomes
+
+**Status:** PASS (focused checks; complete suites follow)
+
+**Description:** The supplied race probe reproduced four ERROR-to-CANCELLED overwrites on the prior head; its four concurrent-completion cases passed. Recovery now uses a single conditional SQL UPDATE that changes only a Pending row and patches its status/content without replacing unrelated run data. It sends a cancellation signal only when that update succeeds, then rereads and reconciles the winning status. The generic worker retry/error persistence behavior is unchanged.
+
+**Result:** All **136 failure-recovery cases passed** across sync/async SQLite and PostgreSQL, including **40 new races** (automation and HTTP retry against concurrent ERROR, COMPLETED, CANCELLED, RUNNING and PAUSED) and **12 new storage checks** for session/owner predicates and structured content/metadata preservation. The races use claimed jobs, normal attempt stamping, and the worker's real error writer. Existing SQL/Mongo Routine and recovery regressions also pass. Full format, validation (1,180 framework and 21 CLI files), and diff whitespace checks passed. Complete-suite totals are pending and are not inferred from the prior head.
+
+---

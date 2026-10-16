@@ -427,7 +427,10 @@ its durable run is still Pending, reconciliation cancels that attempt and record
 the lost-ticket reason in the Task result. Return the Task to Backlog and accept
 it again to start the next attempt. Cancellation and next-attempt starts also
 recover this state when the Task has already returned to Backlog or Ready.
-A Running row is never automatically replayed: its worker may still be executing. Failed or cancelled attempts stay for a human
+The cancellation is conditional on the stored run still being Pending in the
+same database update. If the worker advances or settles first, recovery preserves
+that status and result. A Running row is never automatically replayed: its worker
+may still be executing. Failed or cancelled attempts stay for a human
 to retry, even after queue retention.
 
 Starting AgentOS without Company disables an existing automation schedule with

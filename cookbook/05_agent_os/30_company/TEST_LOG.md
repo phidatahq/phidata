@@ -2954,7 +2954,7 @@ separate from these local results.
 
 ### PR 6.5 automation diagnostics and scheduler follow-up — October 16, 2026
 
-**Status:** Targeted checks, unit suites and format/validation PASS; full integration run in progress.
+**Status:** PASS. Production fixes at `57d4abfe249c632e8f0ecf1d48e963929d7d8646`; complete final-source results below.
 
 **Description:** Unexpected Task-read failures persist in automation history;
 expected engineering/active-ticket refusals remain quiet. A Ready Task whose
@@ -2980,9 +2980,9 @@ Python 3.10 validation passed (1,179 framework and 21 CLI files).
 `68b285d39d` and was corrected by `4d1f2f97`; the preceding 92-pass result records
 the rerun with that correction. This follow-up additionally makes forwarding
 parameters positional-only. The complete Company integration tree, scheduler
-and lifecycle suites are being rerun from the final source, with all four SQL
-adapters and the configured Mongo service. Final totals will replace this
-pending status when those runs finish.
+and lifecycle suites were rerun from the final source, with all four SQL
+adapters and the configured Mongo service. The totals below supersede the
+pending status recorded during review.
 
 
 **Unit completion:** 6,975 distinct cases passed with 39 skips. The broad run
@@ -2994,7 +2994,7 @@ behavior changed for this test correction.
 **Cookbook recheck:** `03_manage_tasks.py` passed with Projects, and
 `06_execute_tasks.py` passed in manual SQLite and automatic PostgreSQL modes.
 All used the offline workflow and made no model calls. The complete final-source
-Company integration run is still in progress.
+Company integration run subsequently passed.
 
 
 **Endpoint-update follow-up:** Restoring the Python target check initially also
@@ -3002,6 +3002,23 @@ restamped an existing payload on an unauthenticated endpoint-only update. The
 full integration run caught the resulting loss of saved authorization. The check
 and payload rewrite are now separate; all 298 scheduler and targeted retargeting
 checks passed, including the four SQL adapters. The complete 1,369-case integration
-set is rerunning on the corrected source in four independent shards. Collection
+set was rerun on the corrected source in four independent shards. Collection
 manifests verify that every case runs exactly once, including all 1,216 Company
 cases and all 92 retention cases; this is not a targeted selection.
+
+
+**Final integration result:** **1,369 passed, zero failures/errors, zero skips**.
+This includes every **1,216 Company integration case** and every **92 retention
+case**, across sync/async SQLite and PostgreSQL. Generic scheduler/lifecycle and
+owner-recheck tests also passed, including real sync/async MongoDB release tests.
+Four collection manifests have identical full collections and disjoint selections
+whose union is all 1,369 cases; per-shard deselection is scheduling, not omitted
+coverage. JUnit totals are 343 + 342 + 342 + 342 passes. The earlier unsharded run
+caught 32 endpoint-only payload assertions; all pass in this full corrected run.
+
+**Final checks:** 6,975 distinct unit passes with 39 conditional skips, including
+a full 44-case execution-router rerun and the scheduler rerun after the endpoint
+payload correction. Full format and clean Python 3.10 validation passed (1,179
+framework and 21 CLI files), and `git diff --check` passed. Runtime tests used
+Python 3.12. Three offline cookbook invocations passed as described above. Local
+results are separate from GitHub CI; no paid-model or hosted checks are claimed.

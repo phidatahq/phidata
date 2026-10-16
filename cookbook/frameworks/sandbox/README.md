@@ -117,3 +117,69 @@ Each active turn costs the database: one held connection during a provider call,
 
 Use deployment storage accessible to every coordinator replica for checkpoint bytes. The local directory store in these examples is temporary and does not certify host-loss recovery. Workspace and native files restore; live processes restart, and remote MCP/tool effects are not rolled back. Direct stream reconnection may repeat provisional events; durable event transport remains an AgentOS integration responsibility.
 
+
+## Repository workspaces
+
+`repository_workspace.py` configures `repository=Repository(url, branch="main")` on a
+sandboxed Codex agent. ClaudeAgent uses the same field. The runtime resolves the branch
+on the session's first turn, fetches that commit shallowly, and starts the harness in
+`/workspace/repository`. Later turns retain commits and uncommitted files, even after
+restoring a checkpoint on a replacement computer. Changing the agent's URL or branch
+requires a new session. Passing `repository=` to `run()` or `arun()` is refused.
+
+Set `REPOSITORY_URL`, optionally `REPOSITORY_BRANCH`, `ENGINEER_SESSION_ID`,
+`SANDBOX_DATABASE_URL`, `SANDBOX_IMAGE`, and `SANDBOX_CHECKPOINTS`, then run:
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/repository_workspace.py
+```
+
+Public GitHub repositories need no token. For a private repository, set
+`env={"GITHUB_READ_TOKEN": ...}` on the sandbox using a short-lived, single-repository
+read token. It is read only from the sandbox environment; the host environment is not
+forwarded automatically. `GITHUB_TOKEN` is refused once a repository is configured. Git
+receives authentication through its child environment, with redirects and interactive
+prompting disabled, and never stores the token in the checkout or checkpoint. Model/tools
+running inside the sandbox can access its environment; never put a publishing credential
+there.
+
+The completed run exposes `{url, branch, commit}` at
+`run.metadata["sandbox"]["repository"]`, alongside its checkpoint and resumed status.
+Git preparation has a 120-second timeout per command; a preparation failure is retryable
+and removes the partial checkout before the model starts. Run attachments are staged under
+`.agno/uploads/` inside the checkout; the checkout's `.git/info/exclude` keeps them out of
+`git status` and `git add`.
+
+Sandboxed agents require PostgreSQL and an explicit checkpoint store. AgentOS durable
+queue deployments also require Redis. Docker needs `network="isolated"` (or another
+network with GitHub/model egress); AgentCore needs egress. Size `workspace_mb` for the
+shallow checkout and generated files, within the 1 GiB checkpoint cap. Use one host or
+a shared checkpoint filesystem until another shared checkpoint store is configured.
+
+A first turn may select a specific commit or another branch through run metadata:
+
+```python
+result = engineer.run(
+    "Inspect this revision.",
+    session_id="revision-review",
+    metadata={"repository": {"commit": "<40-hex commit SHA>"}},
+)
+# Alternatively: metadata={"repository": {"branch": "release"}}
+```
+
+The URL always comes from `agent.repository`; a metadata override containing `url`
+is refused, even when it matches. Supply exactly one of `commit` or `branch`.
+AgentOS middleware can provide the same value through `request.state.metadata`;
+the durable queue carries it to the runtime. Once `native/repository.json` exists,
+valid overrides are ignored: the saved pin and engineer's changes win. Invalid
+overrides still fail validation without network access.
+
+The published pin has `url`, `branch`, and `commit`. For a commit override, `branch`
+remains the agent's configured branch; for a branch override, it is the effective
+branch. In the latter case the marker also retains `configured_branch` internally
+so changing the agent's configuration mid-session is still refused.
+
+Other inbound metadata is retained in the service run record. The `sandbox`,
+`warnings`, `attempts`, `retryable`, and `error_type` keys are reserved for execution
+and recovery results. Preparation deadlines and missing restored repository state
+are retryable before the harness starts; timeouts after it starts remain terminal.

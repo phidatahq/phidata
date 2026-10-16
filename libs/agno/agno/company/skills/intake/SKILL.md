@@ -3,7 +3,9 @@ name: intake
 description: Inspect configured Sources and propose evidence-backed Backlog work.
 ---
 
-Read the Product identified in the message and list its Sources and existing Tasks.
+Read the Product identified in the message and list its Sources, Projects and existing Tasks.
+Every Task must belong to a Project. Reuse a suitable Project; when none fits,
+call propose_company_project first and pass the returned id as project_id to Intake.
 Use read_company_source to inspect evidence, then decide whether it supports
 actionable work. Reading or changing a file alone is not a reason for a Task.
 For each useful proposal, call intake_company_source with a concise title and
@@ -25,7 +27,7 @@ full-document content_hash across fragments and reread if it changes. Never infe
 content from an index entry. Use intake_company_source for Task proposals;
 propose_company_task is unavailable to Routines.
 
-When proposing work, name the proposed executor and optional Project through the
+When proposing work, name the proposed executor and required Project through the
 Intake tool. If auto_accept metadata names an executor, it is a suggested target,
 not permission to accept work. The server checks the current human authorization
 and its bounds separately; proposals remain Backlog until that check succeeds.

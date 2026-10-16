@@ -128,7 +128,7 @@ class TaskCreate(BaseModel):
     product_id: str = Field(..., min_length=1)
     title: str = Field(..., min_length=1)
     brief: Optional[str] = None
-    project_id: Optional[str] = None
+    project_id: str = Field(..., min_length=1)
     evidence: Optional[List[Dict[str, Any]]] = None
 
     @field_validator("title")

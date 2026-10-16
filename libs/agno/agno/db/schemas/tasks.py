@@ -99,19 +99,25 @@ def task_run_id(task_id: str, attempt: int) -> str:
 
 
 def task_run_fields(
-    existing: Dict[str, Any], attempt: int, user_id: Optional[str], run_db_id: Optional[str] = None
+    existing: Dict[str, Any],
+    attempt: int,
+    user_id: Optional[str],
+    run_db_id: Optional[str] = None,
+    session_user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Reserve execution in the Task lifecycle, retaining the session across attempts."""
     from uuid import NAMESPACE_URL, uuid5
 
     if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
         raise ValueError("attempt must be a positive integer")
-    if existing["status"] not in {"ready", "in_progress"} or not existing.get("executor_id"):
+    if existing["status"] not in {"ready", "in_progress", "in_review"} or not existing.get("executor_id"):
         raise ValueError("Only accepted work can be started")
     if existing.get("executor_type") == "engineering":
         raise ValueError("Engineering executors cannot be started yet")
     history = existing.get("transitions") or []
     attempts = [entry["attempt"] for entry in history if "attempt" in entry]
+    if existing["status"] == "in_review" and not attempts:
+        raise ValueError("A revision requires a previous Task attempt")
     if attempt != max(attempts, default=0) + 1:
         raise ValueError("Start the next Task attempt, or retry the original attempt")
     now = int(time.time())
@@ -128,6 +134,8 @@ def task_run_fields(
                 "target": "in_progress",
                 "reason": "Task execution requested",
                 "user_id": user_id,
+                "started_by": user_id,
+                "session_user_id": session_user_id if session_user_id is not None else existing.get("user_id"),
                 "created_at": now,
                 "attempt": attempt,
                 "run_db_id": run_db_id,

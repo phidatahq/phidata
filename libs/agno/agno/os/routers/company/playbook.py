@@ -75,7 +75,12 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     ):
         return asdict(
             await call(
-                "write_wiki", product_id, path, body.content, body.expected_version, user_id=get_scoped_user_id(request)
+                "write_wiki",
+                product_id=product_id,
+                path=path,
+                content=body.content,
+                expected_version=body.expected_version,
+                user_id=get_scoped_user_id(request),
             )
         )
 
@@ -95,7 +100,12 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def write_company_wiki(path: str, body: WikiWrite, request: Request, _: bool = Depends(auth)):
         return asdict(
             await call(
-                "write_wiki", None, path, body.content, body.expected_version, user_id=get_scoped_user_id(request)
+                "write_wiki",
+                product_id=None,
+                path=path,
+                content=body.content,
+                expected_version=body.expected_version,
+                user_id=get_scoped_user_id(request),
             )
         )
 

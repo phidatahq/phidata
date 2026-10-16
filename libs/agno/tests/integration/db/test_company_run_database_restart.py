@@ -37,7 +37,7 @@ async def main():
     db = cls(**json.loads(options))
     try:
         if mode == "write":
-            product = await AsyncCompanyManager(db).create("SDK")
+            product = await AsyncCompanyManager(db).create(name="SDK")
             run = RunOutput(
                 run_id="prior-run", session_id="task-session", agent_id="writer",
                 content="Persisted before restart", status=RunStatus.completed,

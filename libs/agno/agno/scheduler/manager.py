@@ -6,7 +6,13 @@ import time
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun, _require_mutable_schedule
+from agno.db.schemas.scheduler import (
+    INTERNAL_SCHEDULER_USER_ID,
+    Schedule,
+    ScheduleRun,
+    _require_mutable_schedule,
+    _schedule_endpoint_targets,
+)
 from agno.run.authorization import (
     arequire_schedule_target,
     current_authorization,
@@ -25,6 +31,21 @@ def _schedule_payload(payload: Optional[Dict[str, Any]]) -> Optional[Dict[str, A
     if payload is not None:
         payload = {key: value for key, value in payload.items() if key != "_agno_company_acceptance"}
     return stamp_authorization(payload)
+
+
+def _schedule_timing_updates(existing: Schedule, updates: Dict[str, Any]) -> None:
+    """Validate cadence edits and replace the deadline derived from the old cadence."""
+    if not {"cron_expr", "timezone"}.intersection(updates) and updates.get("enabled") is not True:
+        return
+    from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
+
+    cron = updates.get("cron_expr", existing.cron_expr)
+    timezone = updates.get("timezone", existing.timezone)
+    if not isinstance(cron, str) or not validate_cron_expr(cron):
+        raise ValueError(f"Invalid cron expression: {cron}")
+    if not isinstance(timezone, str) or not validate_timezone(timezone):
+        raise ValueError(f"Invalid timezone: {timezone}")
+    updates["next_run_at"] = next_run_for(cron, timezone) if updates.get("enabled", existing.enabled) else None
 
 
 # Valid DB method names for the scheduler
@@ -166,7 +187,7 @@ class ScheduleManager:
                 An existing schedule keeps its stored state, including under
                 ``if_exists="update"``; use enable/disable to change it.
         """
-        from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+        from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
         require_schedule_target(endpoint, method)
 
@@ -196,7 +217,7 @@ class ScheduleManager:
             if if_exists == "update":
                 _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
-                next_run_at = compute_next_run(cron, timezone)
+                next_run_at = next_run_for(cron, timezone)
                 updated = self._to_schedule(
                     self._call(
                         "update_schedule",
@@ -212,12 +233,13 @@ class ScheduleManager:
                         max_retries=max_retries,
                         retry_delay_seconds=retry_delay_seconds,
                         next_run_at=next_run_at,
+                        **_schedule_endpoint_targets(existing.managed_by, endpoint),
                     )
                 )
                 return updated or existing
             raise ValueError(f"Schedule with name '{name}' already exists")
 
-        next_run_at = compute_next_run(cron, timezone)
+        next_run_at = next_run_for(cron, timezone)
         now = int(time.time())
 
         schedule = Schedule(
@@ -311,17 +333,29 @@ class ScheduleManager:
     def update(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
         _require_mutable_schedule(schedule_id)
-        if current_authorization() is None and not {"payload", "endpoint", "method"}.intersection(kwargs):
+        if current_authorization() is None and not {
+            "payload",
+            "endpoint",
+            "method",
+            "cron_expr",
+            "timezone",
+            "enabled",
+        }.intersection(kwargs):
             return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = self.get(schedule_id, user_id=user_id)
         if existing is None:
             return None
-        require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        # Caller payloads cannot mint acceptance grants. Metadata-only changes
-        # retain the trusted stored grant while refreshing ordinary run authority.
-        kwargs["payload"] = (
-            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
-        )
+        _schedule_timing_updates(existing, kwargs)
+        if "endpoint" in kwargs:
+            kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
+        if current_authorization() is not None or {"payload", "method", "endpoint"}.intersection(kwargs):
+            require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
+            # Caller payloads cannot mint acceptance grants. Metadata-only changes
+            # retain the trusted stored grant while refreshing ordinary run authority.
+            kwargs["payload"] = (
+                _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+            )
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     def delete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
@@ -335,9 +369,9 @@ class ScheduleManager:
         schedule = self._to_schedule(self._call("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
 
-        next_run_at = compute_next_run(schedule.cron_expr, schedule.timezone)
+        next_run_at = next_run_for(schedule.cron_expr, schedule.timezone)
         return self._to_schedule(
             self._call("update_schedule", schedule_id, user_id=user_id, enabled=True, next_run_at=next_run_at)
         )
@@ -403,7 +437,7 @@ class ScheduleManager:
                 An existing schedule keeps its stored state, including under
                 ``if_exists="update"``; use enable/disable to change it.
         """
-        from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+        from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
         await arequire_schedule_target(endpoint, method)
 
@@ -433,7 +467,7 @@ class ScheduleManager:
             if if_exists == "update":
                 _require_mutable_schedule(existing.id)
                 log_debug(f"Schedule '{name}' already exists, updating")
-                next_run_at = compute_next_run(cron, timezone)
+                next_run_at = next_run_for(cron, timezone)
                 updated = self._to_schedule(
                     await self._acall(
                         "update_schedule",
@@ -449,12 +483,13 @@ class ScheduleManager:
                         max_retries=max_retries,
                         retry_delay_seconds=retry_delay_seconds,
                         next_run_at=next_run_at,
+                        **_schedule_endpoint_targets(existing.managed_by, endpoint),
                     )
                 )
                 return updated or existing
             raise ValueError(f"Schedule with name '{name}' already exists")
 
-        next_run_at = compute_next_run(cron, timezone)
+        next_run_at = next_run_for(cron, timezone)
         now = int(time.time())
 
         schedule = Schedule(
@@ -548,17 +583,31 @@ class ScheduleManager:
     async def aupdate(self, schedule_id: str, user_id: Optional[str] = None, **kwargs: Any) -> Optional[Schedule]:
         """Async update a schedule. ``user_id`` filters the row, it does not reassign the owner."""
         _require_mutable_schedule(schedule_id)
-        if current_authorization() is None and not {"payload", "endpoint", "method"}.intersection(kwargs):
+        if current_authorization() is None and not {
+            "payload",
+            "endpoint",
+            "method",
+            "cron_expr",
+            "timezone",
+            "enabled",
+        }.intersection(kwargs):
             return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
         existing = await self.aget(schedule_id, user_id=user_id)
         if existing is None:
             return None
-        await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        # Caller payloads cannot mint acceptance grants. Metadata-only changes
-        # retain the trusted stored grant while refreshing ordinary run authority.
-        kwargs["payload"] = (
-            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
-        )
+        _schedule_timing_updates(existing, kwargs)
+        if "endpoint" in kwargs:
+            kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
+        if current_authorization() is not None or {"payload", "method", "endpoint"}.intersection(kwargs):
+            await arequire_schedule_target(
+                kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method)
+            )
+        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
+            # Caller payloads cannot mint acceptance grants. Metadata-only changes
+            # retain the trusted stored grant while refreshing ordinary run authority.
+            kwargs["payload"] = (
+                _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+            )
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     async def adelete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
@@ -572,9 +621,9 @@ class ScheduleManager:
         schedule = self._to_schedule(await self._acall("get_schedule", schedule_id, user_id=user_id))
         if schedule is None:
             return None
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
 
-        next_run_at = compute_next_run(schedule.cron_expr, schedule.timezone)
+        next_run_at = next_run_for(schedule.cron_expr, schedule.timezone)
         return self._to_schedule(
             await self._acall("update_schedule", schedule_id, user_id=user_id, enabled=True, next_run_at=next_run_at)
         )

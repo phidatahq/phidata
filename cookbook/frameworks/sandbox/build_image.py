@@ -26,7 +26,15 @@ def main() -> None:
         # --load puts the result in the daemon's image store: a docker-container builder
         # otherwise keeps it in the build cache and exits 0 with no image to run.
         subprocess.run(
-            ["docker", "build", "--progress=plain", "--load", "--tag", args.tag, str(context)],
+            [
+                "docker",
+                "build",
+                "--progress=plain",
+                "--load",
+                "--tag",
+                args.tag,
+                str(context),
+            ],
             check=True,
         )
     inspected = subprocess.run(

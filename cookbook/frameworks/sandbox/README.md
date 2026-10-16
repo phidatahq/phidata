@@ -36,6 +36,15 @@ export ANTHROPIC_API_KEY=...   # or CLAUDE_CODE_OAUTH_TOKEN
 
 `sandbox_claude.py` is a `ClaudeAgent` with a `PostgresDb` and `sandbox=DockerSandbox(image)`, nothing else. It runs two turns on a new session: the first writes and runs a file, the second asks what file was created. Each turn runs the whole Claude Code process in a container from the image; when it completes, its workspace and Claude Code's own conversation are checkpointed and the container is removed, and the next turn starts a fresh container restored from that checkpoint, which is how turn 2 knows the file name. The credential in the process environment (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`) is forwarded into the container. Checkpoints default to `~/.agno/sandbox/checkpoints`, which suits a single host.
 
+The agent needs the network to reach its model API, so this and every other cookbook with a real harness use `network="isolated"`: one bridge per host with a pinned subnet, `172.30.0.0/22` by default (see Boundaries). On a host where another Docker network already uses that range, `create` is refused with the overlap named; set `AGNO_SANDBOX_SUBNET` to a free range for the cookbooks, and `AGNO_TEST_SANDBOX_SUBNET` for the integration tests:
+
+```bash
+export AGNO_SANDBOX_SUBNET=10.213.0.0/22
+AGNO_TEST_SANDBOX_SUBNET=10.213.0.0/22 AGNO_TEST_RUNTIME_IMAGE=agno-sandbox:local .venv/bin/python -m pytest libs/agno/tests/integration/sandbox/test_runtime.py -q
+```
+
+Every process sharing the host's bridge must use the same subnet; remove the bridge with `remove_network` while nothing is attached before changing it.
+
 `sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
 
 ## Attachments

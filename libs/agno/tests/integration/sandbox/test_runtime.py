@@ -11,6 +11,8 @@ from agno.sandbox.client import SandboxRuntimeClient
 from agno.sandbox.docker import DockerSandbox
 
 IMAGE = os.environ.get("AGNO_TEST_RUNTIME_IMAGE")
+# The isolated network's range; a host with a 172.30.x network sets a free one.
+SUBNET = {"subnet": os.environ["AGNO_TEST_SANDBOX_SUBNET"]} if os.environ.get("AGNO_TEST_SANDBOX_SUBNET") else {}
 pytestmark = [
     pytest.mark.asyncio,
     pytest.mark.skipif(not IMAGE, reason="Set AGNO_TEST_RUNTIME_IMAGE after building the cookbook image"),
@@ -21,7 +23,7 @@ pytestmark = [
 async def runtime_computer(request):
     """Every runtime case runs over both transports: the runtime spawned per request over
     docker exec, and the runtime served over HTTP from a port published on loopback."""
-    options = {"network": "isolated", "runtime_port": 8765} if request.param == "http" else {}
+    options = {"network": "isolated", "runtime_port": 8765, **SUBNET} if request.param == "http" else {}
     provider = DockerSandbox(IMAGE, namespace="runtime-test-" + uuid4().hex, memory_mb=512, **options)
     handle = await provider.acreate("s", agent_id="a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     assert (handle.runtime_url is not None) == (request.param == "http")
@@ -43,6 +45,7 @@ async def test_reconnect_and_duplicate_dispatch_execute_only_once(runtime_comput
             namespace=provider.namespace,
             memory_mb=512,
             network=provider.network,
+            subnet=provider.subnet,
             runtime_port=provider.runtime_port,
         )
     )
@@ -252,7 +255,7 @@ async def test_sandboxes_cannot_reach_each_other_on_the_isolated_network(network
     port, while on Docker's default bridge the same connection succeeds. The host still reaches
     both through their published loopback ports, which create already verified via /health."""
     provider = DockerSandbox(
-        IMAGE, namespace="isolation-test-" + uuid4().hex, memory_mb=512, network=network, runtime_port=8765
+        IMAGE, namespace="isolation-test-" + uuid4().hex, memory_mb=512, network=network, runtime_port=8765, **SUBNET
     )
     a = await provider.acreate("a", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})
     b = await provider.acreate("b", env={"AGNO_SANDBOX_TEST_RUNTIME": "1"})

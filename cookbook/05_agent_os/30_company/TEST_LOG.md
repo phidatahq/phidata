@@ -361,3 +361,25 @@ calls were made. Format and validation passed and their output was read.
 The full unit-suite result above predates these focused review fixes.
 
 ---
+
+### Attention lifecycle and reserved executors — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Added 56 cases: failure attention after cancellation, Backlog,
+reacceptance, review and completion; all four framework-reserved executor IDs
+at acceptance/start on all four SQL adapters; and reserved-ID exclusion during
+registry mounting. The initial run reproduced 38 failures, with 18 existing
+reserved-specialist protections already passing. Failed/nonfailed predicates
+now partition Tasks by active error state while retaining SQL/JSON null handling.
+
+**Result:** **253 targeted tests passed**, including all 56 new cases and the
+previous review regressions. Per-Product and company-wide attention clear handled
+failures, pagination totals remain correct, and error results remain intact as
+history. Product Manager and OS Manager are rejected explicitly even with a
+custom registry resolver. Reran `06_execute_tasks.py` with SQLite and
+`COMPANY_DB=postgres`; both completed with one Task In review. Format and
+validation passed, including both mypy checks, and their output was read. No
+provider calls were made. The earlier full unit-suite result remains the baseline.
+
+---

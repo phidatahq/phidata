@@ -413,3 +413,83 @@ async def test_nonfailed_filter_includes_sql_and_json_null_results(system):
     assert [row["id"] for row in nonfailed["data"]] == [unstarted["id"]]
     assert failed["meta"]["total_count"] == 1
     assert [row["id"] for row in failed["data"]] == [pending["id"]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["cancelled", "backlog", "ready", "in_review", "done"])
+async def test_attention_clears_acted_on_failures_and_preserves_results(system, target):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    value = await accepted(client)
+    other = await accepted(client)
+    for task in (value, other):
+        reserved = await _call(db, "start_task_run", task["id"], 1, task["transitions"])
+        await _call(db, "complete_task_run", task["id"], reserved["job_id"], {"status": "ERROR", "content": "Failure"})
+    path = f"/company/tasks/{value['id']}"
+    product_filter = {"product_id": value["product_id"]}
+    assert (await client.get("/company/attention", params=product_filter)).json()["failed"] == 1
+    assert (await client.get("/company/attention")).json()["failed"] == 2
+    steps = ["backlog", "ready"] if target == "ready" else ["in_review", "done"] if target == "done" else [target]
+    for step in steps:
+        body = {"target": step, "reason": "Human acted on failure"}
+        if step == "ready":
+            body.update(executor_type="agent", executor_id="writer")
+        response = await client.post(path + "/transitions", json=body)
+        assert response.status_code == 200, response.text
+        attention = (await client.get("/company/attention", params=product_filter)).json()
+        assert attention == {"proposals": int(step == "backlog"), "in_review": int(step == "in_review"), "failed": 0}
+    assert (await client.get(path)).json()["result"] == {"status": "ERROR", "content": "Failure"}
+    assert (await client.get("/company/attention")).json()["failed"] == 1
+    failed = (await client.get("/company/tasks", params={"failed": "true", "limit": 1})).json()
+    nonfailed = (await client.get("/company/tasks", params={"failed": "false", "limit": 1})).json()
+    assert failed["meta"]["total_count"] == nonfailed["meta"]["total_count"] == 1
+    assert [row["id"] for row in failed["data"]] == [other["id"]]
+    assert [row["id"] for row in nonfailed["data"]] == [value["id"]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "kind,executor_id",
+    [
+        ("agent", "product-manager-internal"),
+        ("team", "os-manager-internal"),
+        ("agent", "platform-builder-internal"),
+        ("agent", "platform-manager-internal"),
+    ],
+)
+@pytest.mark.parametrize("phase", ["acceptance", "start"])
+async def test_all_framework_executor_ids_are_rejected(system, monkeypatch, kind, executor_id, phase):
+    from unittest.mock import Mock
+
+    from agno.company.execution import _call
+
+    client, db, worker, os, components = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    await _call(db, "transition_task", value["id"], "backlog", "Replan")
+    # The Company boundary must reject reserved IDs even if a custom registry
+    # resolver returns a component, rather than relying on catalog exclusion.
+    resolve = Mock(return_value=components["writer" if kind == "agent" else "editors"])
+    monkeypatch.setattr(os.registry, "get_" + kind, resolve)
+    if phase == "acceptance":
+        response = await client.post(
+            path + "/transitions",
+            json={"target": "ready", "reason": "Accept", "executor_type": kind, "executor_id": executor_id},
+        )
+        assert response.status_code == 409, response.text
+        assert (await client.get(path)).json()["status"] == "backlog"
+    else:
+        await _call(
+            db,
+            "transition_task",
+            value["id"],
+            "ready",
+            "Previously accepted",
+            executor_type=kind,
+            executor_id=executor_id,
+        )
+        response = await client.post(path + "/runs")
+        assert response.status_code == 409, response.text
+        assert (await client.get(path)).json()["job_id"] is None
+    resolve.assert_not_called()

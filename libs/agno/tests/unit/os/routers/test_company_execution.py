@@ -166,3 +166,26 @@ def test_missing_product_context_does_not_reserve_execution(system):
     response = client.post(path + "/runs", headers=headers())
     assert response.status_code == 404, response.text
     assert db.get_task(task["id"])["job_id"] is None
+
+
+@pytest.mark.parametrize(
+    "resource,executor_id",
+    [
+        ("agents", "product-manager-internal"),
+        ("teams", "os-manager-internal"),
+        ("agents", "platform-builder-internal"),
+        ("agents", "platform-manager-internal"),
+    ],
+)
+def test_registry_mount_excludes_all_framework_executors(resource, executor_id):
+    from types import SimpleNamespace
+
+    from agno.company.execution import _mount_executors
+
+    ordinary = SimpleNamespace(id="ordinary")
+    reserved = SimpleNamespace(id=executor_id)
+    registry = SimpleNamespace(agents=[], teams=[], workflows=[])
+    setattr(registry, resource, [ordinary, reserved])
+    os = SimpleNamespace(registry=registry, agents=[], teams=[], workflows=[])
+    _mount_executors(os)
+    assert getattr(os, resource) == [ordinary]

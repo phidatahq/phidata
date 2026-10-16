@@ -156,7 +156,9 @@ Start rechecks the registry, `tasks:write`, `wiki:read` and the executor's run
 permission. Registry-only executors receive their ordinary routes when Company
 is enabled. Each executor needs a run database, and execution requires
 `QueueConfig(durable=True)`. An existing session retains the normal run route's
-ownership checks. Engineering executors cannot be started yet.
+ownership checks. Engineering executors cannot be started yet. Framework-reserved executors,
+including Product Manager and OS Manager, cannot be accepted or started as
+Task executors.
 
 Executor input contains only the Task brief, its evidence and the current
 company and Product wiki pages. Queue retries and restart recovery use the
@@ -167,5 +169,8 @@ cannot acquire scheduler mutation authority.
 GET `/company/attention?product_id=...` returns `proposals`, `in_review` and
 `failed` counts using the Task list filters. Omitting Product counts all work.
 Attention and run reads are company-wide with `tasks:read`; Task lists also
-accept `failed=true`. Existing databases add the Task execution columns with
+accept `failed=true`. Failed work means an In progress Task whose latest result
+is an error. Cancelling, replanning, reaccepting or reviewing the Task clears it
+from failed attention while preserving the result as history. `failed=false`
+includes all other Tasks, including those with no result. Existing databases add the Task execution columns with
 `MigrationManager(db).up(table_type="tasks")` (await this migration coroutine).

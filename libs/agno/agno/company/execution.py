@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 from uuid import uuid4
 
 from agno.db.base import AsyncBaseDb
-from agno.registry._reserved import RESERVED_MEMBER_IDS
+from agno.registry._reserved import RESERVED_MANAGER_IDS
 from agno.run.authorization import RunAuthorization
 
 # Trusted, request-local handoff to the existing run routes. It never comes from
@@ -20,7 +20,7 @@ def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional
         if accepting:
             return None
         raise ValueError("Engineering executors cannot be started yet")
-    if executor_type not in {"agent", "team", "workflow"} or executor_id in RESERVED_MEMBER_IDS:
+    if executor_type not in {"agent", "team", "workflow"} or executor_id in RESERVED_MANAGER_IDS:
         raise ValueError("Select a registered agent, team or workflow executor")
     component = getattr(registry, "get_" + executor_type)(executor_id) if registry is not None else None
     if component is None:
@@ -219,7 +219,7 @@ def _mount_executors(os: Any) -> None:
         by_id = {getattr(component, "id", None): component for component in served}
         for component in getattr(os.registry, resource):
             component_id = getattr(component, "id", None)
-            if component_id in RESERVED_MEMBER_IDS:
+            if component_id in RESERVED_MANAGER_IDS:
                 continue
             if component_id in by_id:
                 if by_id[component_id] is not component:

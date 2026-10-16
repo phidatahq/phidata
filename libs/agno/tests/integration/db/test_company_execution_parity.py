@@ -1894,7 +1894,9 @@ async def test_automation_schedule_follows_company_lifespan(system, monkeypatch)
     os.company = None
     for restart in range(2):
         async with scheduler_lifespan(app, os):
-            assert (await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID))["enabled"] is False
+            disabled = await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID)
+            assert disabled["enabled"] is False
+            assert disabled["disabled_reason"] == "company_off"
             claimed = await _call(db, "claim_due_schedule", "off-worker")
             if restart == 0:
                 assert claimed is not None and claimed["id"] == unrelated.id
@@ -2877,3 +2879,134 @@ async def test_automatic_acceptance_requires_wiki_read(system, tmp_path, isolati
             assert await _call(db, "count_company_acceptances", routine["id"], fingerprint, "") == 1
     finally:
         auth_db.close()
+
+
+@pytest.mark.asyncio
+async def test_quiet_automation_history_and_dispatch(system):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    executor, schedule = await automation(system)
+    before = (await client.get("/company/attention")).json()
+    for _ in range(10):
+        await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+        assert (await tick(executor, db))["status"] == "success"
+    assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 0
+    assert (await client.get("/company/attention")).json() == before
+    await accepted(client)
+    await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+    await tick(executor, db)
+    rows, total = await _call(db, "get_schedule_runs", schedule["id"])
+    assert total == 1 and rows[0]["status"] == "success"
+    await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+    await tick(executor, db)
+    assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["ERROR", "CANCELLED"])
+async def test_automation_does_not_repost_retained_result(system, monkeypatch, status):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    task = await accepted(client)
+    executor, schedule = await automation(system)
+    await tick(executor, db)
+    saved = await _call(db, "get_task", task["id"])
+    await _call(db, "complete_task_run", task["id"], saved["job_id"], {"status": status})
+    table = worker.config.db._get_table("jobs")
+    with worker.config.db.Session() as session, session.begin():
+        session.execute(table.delete().where(table.c.id == saved["job_id"]))
+    before = (await client.get("/company/attention")).json()
+    assert before["failed"] == 1
+    dispatch = AsyncMock(side_effect=AssertionError("Failed attempts must not be posted"))
+    monkeypatch.setattr(executor, "_dispatch", dispatch)
+    await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+    await tick(executor, db)
+    dispatch.assert_not_called()
+    assert (await client.get("/company/attention")).json() == before
+    assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 1
+
+
+@pytest.mark.asyncio
+async def test_automation_records_raised_tick_and_preserves_other_disable_reason(system, monkeypatch):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _call
+    from agno.company.routines import _ensure_automation_schedule
+
+    _, db, _, _, _ = system
+    executor, schedule = await automation(system)
+    monkeypatch.setattr(executor, "_tick", AsyncMock(side_effect=RuntimeError("storage unavailable")))
+    result = await tick(executor, db)
+    assert result["status"] == "failed" and result["error"] == "storage unavailable"
+    assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 1
+    await _call(db, "update_schedule", schedule["id"], enabled=False, disabled_reason="operator")
+    saved = await _ensure_automation_schedule(db)
+    assert saved["enabled"] is False and saved["disabled_reason"] == "operator"
+
+
+@pytest.mark.asyncio
+async def test_company_config_database_and_disabled_section(system):
+    from agno.os.config import AgentOSConfig, CompanyDomainConfig, CompanySectionConfig, DatabaseConfig
+
+    client, db, _, os, _ = system
+    section = (await client.get("/config")).json()["company"]
+    tables = [db.products_table_name, db.projects_table_name, db.tasks_table_name, db.sources_table_name]
+    assert section["dbs"] == [{"db_id": db.id, "domain_config": {"display_name": db.id}, "tables": tables}]
+    os.config = AgentOSConfig(
+        company=CompanySectionConfig(
+            display_name="Work",
+            dbs=[
+                DatabaseConfig(db_id="unrelated", tables=["hidden"]),
+                DatabaseConfig(db_id=db.id, domain_config=CompanyDomainConfig(display_name="Company records")),
+            ],
+        )
+    )
+    configured = (await client.get("/config")).json()["company"]
+    assert configured["display_name"] == "Work"
+    assert configured["dbs"] == [
+        {"db_id": db.id, "domain_config": {"display_name": "Company records"}, "tables": tables}
+    ]
+    os.company = None
+    assert (await client.get("/config")).json()["company"] is None
+
+
+@pytest.mark.asyncio
+async def test_company_executor_preserves_regular_schedule_history(system, monkeypatch):
+    from agno.company.execution import _call
+    from agno.db.schemas.scheduler import Schedule
+    from agno.scheduler import ScheduleExecutor
+
+    _, db, _, _, _ = system
+    executor, _ = await automation(system)
+    regular = Schedule(id="regular", name="Regular", cron_expr="* * * * *", endpoint="/health")
+    await _call(db, "create_schedule", regular.to_dict())
+
+    async def endpoint(self, schedule):
+        rows, total = await _call(db, "get_schedule_runs", schedule.id)
+        assert total == 1 and rows[0]["status"] == "running"
+        return {"status": "success"}
+
+    monkeypatch.setattr(ScheduleExecutor, "_call_endpoint", endpoint)
+    assert (await executor.execute(regular, db))["status"] == "success"
+    rows, total = await _call(db, "get_schedule_runs", regular.id)
+    assert total == 1 and rows[0]["status"] == "success"
+
+
+@pytest.mark.asyncio
+async def test_company_config_uses_explicit_company_database_only(system):
+    _, db, _, _, _ = system
+    unrelated = SqliteDb(id="unrelated", db_file=":memory:")
+    os = AgentOS(db=unrelated, company=CompanyConfig(db=db), telemetry=False)
+    async with AsyncClient(transport=ASGITransport(app=os.get_app()), base_url="http://test") as client:
+        section = (await client.get("/config")).json()["company"]
+    assert [entry["db_id"] for entry in section["dbs"]] == [db.id]
+    assert section["dbs"][0]["tables"] == [
+        db.products_table_name,
+        db.projects_table_name,
+        db.tasks_table_name,
+        db.sources_table_name,
+    ]

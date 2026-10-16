@@ -384,8 +384,12 @@ async def _ensure_automation_schedule(db, *, enabled=True):
         or existing["method"] != "GET"
     ):
         raise ValueError("Company automation schedule identity is already in use")
-    if existing["enabled"] != enabled:
-        existing = await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, enabled=enabled)
+    if enabled and not existing["enabled"] and existing.get("disabled_reason") == "company_off":
+        existing = await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, enabled=True, disabled_reason=None)
+    elif not enabled and existing["enabled"]:
+        existing = await _call(
+            db, "update_schedule", _AUTOMATION_SCHEDULE_ID, enabled=False, disabled_reason="company_off"
+        )
     return existing
 
 
@@ -398,6 +402,87 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         super().__init__(**kwargs)
         self.agent_os = agent_os
         self.app = app
+
+    async def execute(self, schedule, db, release_schedule=True):
+        """Persist automation history only after work or an execution failure."""
+        import time
+        from uuid import uuid4
+
+        from agno.db.schemas.scheduler import Schedule, ScheduleRun
+        from agno.scheduler.cron import compute_next_run
+        from agno.utils.log import log_error, log_warning
+
+        sched = Schedule.from_dict(schedule) if isinstance(schedule, dict) else schedule
+        if sched.id != _AUTOMATION_SCHEDULE_ID:
+            return await super().execute(schedule, db, release_schedule=release_schedule)
+        schedule_id = sched.id
+        started_at = int(time.time())
+        try:
+            try:
+                result = await self._call_endpoint(sched)
+            except asyncio.CancelledError:
+                await _call(
+                    db,
+                    "create_schedule_run",
+                    ScheduleRun(
+                        id=str(uuid4()),
+                        schedule_id=schedule_id,
+                        triggered_at=started_at,
+                        completed_at=int(time.time()),
+                        status="cancelled",
+                        error="Execution cancelled during shutdown",
+                        user_id=sched.user_id,
+                    ).to_dict(),
+                )
+                raise
+            except Exception as exc:
+                result = {"status": "failed", "error": str(exc)}
+            outcomes = (result.get("output") or {}).get("tasks", [])
+            active = any(item.get("status") in {"accepted", "submitted", "done"} for item in outcomes)
+            if result["status"] == "failed" or active:
+                run = ScheduleRun(
+                    id=str(uuid4()),
+                    schedule_id=schedule_id,
+                    triggered_at=started_at,
+                    completed_at=int(time.time()),
+                    status=result["status"],
+                    error=result.get("error"),
+                    output=result.get("output"),
+                    user_id=sched.user_id,
+                ).to_dict()
+                await _call(db, "create_schedule_run", run)
+                return run
+            return result
+        finally:
+            # Always release the schedule lock so it doesn't stay stuck
+            if release_schedule and schedule_id is not None:
+                try:
+                    next_run_at = compute_next_run(
+                        sched.cron_expr,
+                        sched.timezone or "UTC",
+                    )
+                except Exception as e:
+                    log_warning(
+                        f"Failed to compute next_run_at for schedule {schedule_id}; "
+                        f"disabling schedule to prevent it from becoming stuck: {e}",
+                    )
+
+                    next_run_at = None
+                    try:
+                        if asyncio.iscoroutinefunction(getattr(db, "update_schedule", None)):
+                            await db.update_schedule(schedule_id, enabled=False)
+                        else:
+                            db.update_schedule(schedule_id, enabled=False)
+                    except Exception as exc:
+                        log_error(f"Failed to disable schedule {schedule_id} after cron failure: {exc}")
+
+                try:
+                    if asyncio.iscoroutinefunction(getattr(db, "release_schedule", None)):
+                        await db.release_schedule(schedule_id, next_run_at=next_run_at)
+                    else:
+                        db.release_schedule(schedule_id, next_run_at=next_run_at)
+                except Exception as exc:
+                    log_error(f"Failed to release schedule {schedule_id}: {exc}")
 
     async def _call_endpoint(self, schedule):
         import time
@@ -443,6 +528,20 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     if task.get("origin") != "routine" or not task.get("routine_id"):
                         continue
                     task = await self._accept(task)
+                    outcomes.append({"task_id": task["id"], "status": "accepted"})
+                if task["status"] == "in_progress":
+                    # Only an unfinished reservation with no queue job may resume.
+                    # Persisted results survive queue retention and require human retry.
+                    if task.get("result") is not None or not any(entry.get("attempt") for entry in task["transitions"]):
+                        continue
+                    queue = getattr(self.app.state, "queue_worker", None)
+                    if queue is None:
+                        continue
+                    if task.get("job_id") and await queue.store.get_job(task["job_id"]) is not None:
+                        outcomes.append(
+                            {"task_id": task["id"], "status": "already_submitted", "run_id": task["job_id"]}
+                        )
+                        continue
                 if task["status"] not in {"ready", "in_progress"}:
                     raise ValueError("Task is no longer Ready")
                 result = await self._dispatch(task)
@@ -740,7 +839,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 )
             if response.status_code != 202:
                 raise ValueError(response.text)
-            return {"status": "submitted", **response.json()}
+            return {**response.json(), "status": "submitted"}
         finally:
             _automatic_task.reset(token)
 

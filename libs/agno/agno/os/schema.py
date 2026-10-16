@@ -13,6 +13,7 @@ from agno.db.base import SessionType
 from agno.db.utils import detect_session_type
 from agno.os.config import (
     ChatConfig,
+    CompanySectionConfig,
     EvalsConfig,
     KnowledgeConfig,
     LearningConfig,
@@ -480,6 +481,7 @@ class ConfigResponse(BaseModel):
     metrics: Optional[MetricsConfig] = Field(None, description="Metrics configuration")
     memory: Optional[MemoryConfig] = Field(None, description="Memory configuration")
     learning: Optional[LearningConfig] = Field(None, description="Learning configuration")
+    company: Optional[CompanySectionConfig] = Field(None, description="Company configuration")
     filesystem: Optional[FileSystemConfig] = Field(None, description="Filesystem configuration")
     knowledge: Optional[KnowledgeConfig] = Field(None, description="Knowledge configuration")
     evals: Optional[EvalsConfig] = Field(None, description="Evaluations configuration")
@@ -492,6 +494,13 @@ class ConfigResponse(BaseModel):
     teams: List[TeamSummaryResponse] = Field(..., description="List of registered teams")
     workflows: List[WorkflowSummaryResponse] = Field(..., description="List of registered workflows")
     interfaces: List[InterfaceResponse] = Field(..., description="List of available interfaces")
+
+    @model_serializer(mode="wrap")
+    def _serialize_config(self, handler: SerializerFunctionWrapHandler) -> Dict[str, Any]:
+        data = handler(self)
+        # Clients use an explicit null to hide Company when it is not configured.
+        data.setdefault("company", None)
+        return data
 
 
 class ModelResponse(BaseModel):

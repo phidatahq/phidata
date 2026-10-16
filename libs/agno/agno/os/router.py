@@ -211,6 +211,7 @@ def get_base_router(
             session=os._get_session_config(),
             memory=os._get_memory_config(),
             learning=os._get_learning_config(),
+            company=os._get_company_config(),
             filesystem=os._get_filesystem_config(
                 user_id=get_scoped_user_id(request) or getattr(request.state, "user_id", None),
                 agents=agents_in_scope,

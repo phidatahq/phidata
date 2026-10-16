@@ -1533,7 +1533,17 @@ class QueueWorker:
             )
             return None
         from agno.run.base import RunStatus
-        from agno.run.status_persist import RunPersistOutcome, apersist_run_status, component_hook, fallback_allowed
+        from agno.run.status_persist import (
+            RunPersistOutcome,
+            apersist_run_status,
+            component_hook,
+            fallback_allowed,
+            queue_terminal_writer,
+        )
+
+        terminal_writer = queue_terminal_writer(component)
+        if terminal_writer is not None:
+            return await terminal_writer(job, error, status, cancellation_stage)
 
         fields: Dict[str, Any] = {
             "status": RunStatus.cancelled.value if status == "cancelled" else RunStatus.error.value,
@@ -2084,6 +2094,7 @@ class QueueWorker:
             # be guaranteed. Continuation legs are excluded - their PAUSED
             # row exists by definition, or acontinue_run fails honestly.
             try:
+                media = (payload.get("kwargs") or {}).get("media")
                 await aprepare_queued_run(
                     component_for_stamp,
                     job.get("component_type", ""),
@@ -2091,6 +2102,8 @@ class QueueWorker:
                     session_id=job["session_id"],
                     user_id=job.get("user_id"),
                     input=payload.get("input"),
+                    # Only a sandboxed agent's pending row records attachments.
+                    **({"media": media} if media and getattr(component_for_stamp, "sandbox", None) is not None else {}),
                 )
             except Exception as e:
                 log_error(
@@ -2315,10 +2328,13 @@ class QueueWorker:
             # manager): honour it - the ticket tombstones as cancelled
             if ownership is not None:
                 ownership.cancellation_cause = "user_cancel"
-            await self._asettle_ticket(job_id, attempt, "cancelled")
-            # Not gated: honouring the user's cancel on the ticket beats
-            # run-row terminality (leaving the job stale would re-execute a
-            # cancelled run) - but the divergence must be loud, not silent
+            from agno.run.status_persist import queue_terminal_writer
+
+            requires_cleanup = queue_terminal_writer(component) is not None
+            if not requires_cleanup:
+                await self._asettle_ticket(job_id, attempt, "cancelled")
+            # Ordinary components retain immediate ticket cancellation. A
+            # component with external compute must finish its cleanup first.
             from agno.run.base import CancellationStage
 
             # The stage is what the run was doing when cancelled. Before the
@@ -2337,6 +2353,12 @@ class QueueWorker:
                 cancellation_stage=stage,
             ):
                 log_error(f"Job queue: cancelled job {job_id} but its run row could not be terminalized")
+                if requires_cleanup:
+                    # Compute cleanup failed or its acknowledgement is unknown.
+                    # Preserve the claim for reconciliation before settlement.
+                    return
+            if requires_cleanup:
+                await self._asettle_ticket(job_id, attempt, "cancelled")
             await self._terminate_stream_view(job, status="cancelled")
         except asyncio.TimeoutError:
             error = f"Run exceeded timeout_seconds={self.config.timeout_seconds}"
@@ -2759,7 +2781,13 @@ async def _aappend_pending_run(
 
 
 async def aprepare_queued_run(
-    component: Any, component_type: str, run_id: str, session_id: str, user_id: Optional[str], input: Any
+    component: Any,
+    component_type: str,
+    run_id: str,
+    session_id: str,
+    user_id: Optional[str],
+    input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """Persist the PENDING run row after a successful enqueue so pollers find
     the run immediately. Idempotent: if a worker already started (and possibly
@@ -2779,7 +2807,8 @@ async def aprepare_queued_run(
 
     prepare_hook = component_hook(component, "_aprepare_pending_run")
     if component_type == "agent" and prepare_hook is not None:
-        await prepare_hook(run_id, session_id, user_id, input, queued=True)
+        # Sandbox runs record their attachments on the pending row so the claim sees the same input.
+        await prepare_hook(run_id, session_id, user_id, input, queued=True, **({"media": media} if media else {}))
     elif component_type == "agent":
         from agno.agent._session import asave_run, asave_session
         from agno.agent._storage import aread_or_create_session, update_metadata
@@ -2909,6 +2938,7 @@ async def aprepare_accepted_or_abort(
     session_id: str,
     user_id: Optional[str],
     input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """Post-enqueue prepare under the acceptance invariant: once the ticket
     committed, every response must either ACKNOWLEDGE the durable acceptance
@@ -2929,7 +2959,9 @@ async def aprepare_accepted_or_abort(
       lie - the work happens anyway.
     """
     try:
-        await aprepare_queued_run(component, component_type, run_id, session_id, user_id, input)
+        await aprepare_queued_run(
+            component, component_type, run_id, session_id, user_id, input, **({"media": media} if media else {})
+        )
     except Exception as e:
         cancelled = False
         with contextlib.suppress(Exception):

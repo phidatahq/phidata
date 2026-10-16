@@ -2494,11 +2494,11 @@ record follows as a normal commit without rewriting history.
 `./scripts/format.sh` and clean-environment `./scripts/validate.sh` passed; complete outputs were read (1,155 framework and 21 CLI files checked by mypy). Development Python 3.12 validation retains the same 34 baseline diagnostics, with zero introduced. The previous complete database/OS unit run remains historical; this merge reran the Company/scheduler suites. Earlier external release probes were not rerun. Tests and cookbooks used offline execution.
 # Independent review fixes — October 16, 2026
 
-**Status:** Focused validation PASS; final broad integration rerun in progress at the implementation push.
+**Status:** PASS. Implementation published as `2fe4faa069`; final validation recorded in a normal follow-up commit.
 
 **Description:** Checked the supplied reviews against the current implementation. Fixed public website transport bounds and DNS/redirect confinement, Team Source identity, Product-bound Routine mutations, managed-schedule mutation guards, archived Product dispatch/pause, version-guarded retention deletion, Project-first cascade retention, incoming open-work validation, repeat Project proposals, JSON-independent Routine linking, archived-parent Source lists, concurrent Summary delivery, YAML declaration conflicts, non-Company scheduler-owner provisioning and Gemini schema expectations.
 
-**Result:** 287 focused Company/router/network/retention tests passed across SQLite, async SQLite, PostgreSQL and async PostgreSQL. Another 589 filesystem/reader/execution checks passed, including real Agent and Team website-discovery runs through the durable scheduler queue. Three final configuration/dispatch/directory checks passed. Format and validation passed with full output inspected. Broad unit and final integration results will be recorded in a normal follow-up commit.
+**Result:** 287 focused Company/router/network/retention tests passed across SQLite, async SQLite, PostgreSQL and async PostgreSQL. Another 589 filesystem/reader/execution checks passed, including real Agent and Team website-discovery runs through the durable scheduler queue. Three final configuration/dispatch/directory checks passed. Format and validation passed with full output inspected. The complete database/OS/scheduler/Company tool/Gemini unit run passed 6,506 tests (five conditional skips). After the final dedupe adjustment, the entire database unit suite passed again: 1,627 tests, one root-only skip. The expanded Company/scheduler/parent lifecycle/filesystem transaction integration run passed 744 tests, no skips, with PostgreSQL and Mongo scheduler parity explicitly enabled. The original eight environment-gated scheduler skips were therefore exercised in the final run. `git diff --check` passes. Warnings include short test JWT keys, duplicate existing OpenAPI operation IDs, and async SQLite event-loop cleanup warnings; no test failed.
 
 ### Company cookbooks
 
@@ -2509,4 +2509,3 @@ record follows as a normal commit without rewriting history.
 **Result:** All 11 invocations succeeded with deterministic local models. No live model calls, live website fetches or outbound messages. Website security tests use mocked transport/DNS. Delivery tests use mocked interface sends.
 
 ---
-

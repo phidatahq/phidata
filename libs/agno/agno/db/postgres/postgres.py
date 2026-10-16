@@ -26,9 +26,10 @@ from agno.db.base import (
 )
 from agno.db.migrations.manager import MigrationManager
 from agno.db.postgres.engine import _engine_options
-from agno.db.postgres.schemas import get_table_schema_definition
+from agno.db.postgres.schemas import default_sandbox_table_name, get_table_schema_definition
 from agno.db.postgres.utils import (
     apply_sorting,
+    is_foreign_key_violation,
     bulk_upsert_metrics,
     calculate_date_metrics,
     create_schema,
@@ -169,6 +170,7 @@ class PostgresDb(BaseDb):
         mcp_oauth_keys_table: Optional[str] = None,
         id: Optional[str] = None,
         create_schema: bool = True,
+        sandbox_table: Optional[str] = None,
     ):
         """
         Interface for interacting with a PostgreSQL database.
@@ -209,6 +211,8 @@ class PostgresDb(BaseDb):
             id (Optional[str]): ID of the database.
             create_schema (bool): Whether to automatically create the database schema if it doesn't exist.
                 Set to False if schema is managed externally (e.g., via migrations). Defaults to True.
+            sandbox_table (Optional[str]): Name of the table to store sandbox session leases and recovery state.
+                Defaults to "<session_table>_sandbox_bindings"; it serves exactly one session table.
 
         Raises:
             ValueError: If neither db_url nor db_engine is provided.
@@ -267,6 +271,8 @@ class PostgresDb(BaseDb):
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
+        # The bindings table has a foreign key to one session table, so each gets its own.
+        self.sandbox_table_name: str = sandbox_table or default_sandbox_table_name(self.session_table_name)
 
         # Initialize database session
         self.Session: scoped_session = scoped_session(sessionmaker(bind=self.db_engine, expire_on_commit=False))
@@ -286,6 +292,7 @@ class PostgresDb(BaseDb):
             {
                 "db_url": self.db_url,
                 "db_schema": self.db_schema,
+                "sandbox_table": self.sandbox_table_name,
                 "type": "postgres",
             }
         )
@@ -315,6 +322,7 @@ class PostgresDb(BaseDb):
             projects_table=data.get("projects_table"),
             tasks_table=data.get("tasks_table"),
             schedule_runs_table=data.get("schedule_runs_table"),
+            sandbox_table=data.get("sandbox_table"),
             approvals_table=data.get("approvals_table"),
             service_accounts_table=data.get("service_accounts_table"),
             id=data.get("id"),
@@ -389,6 +397,7 @@ class PostgresDb(BaseDb):
                 db_schema=self.db_schema,
                 schedules_table_name=self.schedules_table_name,
                 session_table_name=self.session_table_name,
+                runs_table_name=self.runs_table_name,
             ).copy()
 
             # Register FK parent tables on the metadata first, so SQLAlchemy
@@ -785,6 +794,14 @@ class PostgresDb(BaseDb):
                 create_table_if_not_found=create_table_if_not_found,
             )
             return self.job_table
+
+        if table_type == "sandbox_bindings":
+            self.sandbox_table = self._get_or_create_table(
+                table_name=self.sandbox_table_name,
+                table_type="sandbox_bindings",
+                create_table_if_not_found=create_table_if_not_found,
+            )
+            return self.sandbox_table
 
         if table_type == "tool_results":
             self.tool_results_table = self._get_or_create_table(
@@ -1306,6 +1323,11 @@ class PostgresDb(BaseDb):
             return deleted
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # The sandbox bindings table references the run a turn holds; the run stays
+                # until that turn ends, or until its session is deleted.
+                log_warning(f"Run {run_id} was not deleted: an active sandbox turn still holds it")
+                return False
             log_error(f"Error deleting run: {str(e)}")
             raise e
 
@@ -1327,6 +1349,10 @@ class PostgresDb(BaseDb):
             log_debug(f"Successfully deleted {result.rowcount} runs")
 
         except Exception as e:
+            if is_foreign_key_violation(e):
+                # One statement, so none of the runs were deleted.
+                log_warning("Runs were not deleted: an active sandbox turn still holds one of them")
+                return
             log_error(f"Error deleting runs: {str(e)}")
             raise e
 
@@ -8082,6 +8108,9 @@ class PostgresDb(BaseDb):
         page: int = 1,
         sort_by: Optional[str] = "created_at",
         sort_order: Optional[str] = "desc",
+        *,
+        session_id: Optional[Union[str, List[str]]] = None,
+        user_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         try:
             table = self._get_table(table_type="jobs")
@@ -8091,6 +8120,11 @@ class PostgresDb(BaseDb):
             if status is not None:
                 statuses = [status] if isinstance(status, str) else list(status)
                 stmt = stmt.where(table.c.status.in_(statuses))
+            if session_id is not None:
+                session_ids = [session_id] if isinstance(session_id, str) else list(session_id)
+                stmt = stmt.where(table.c.session_id.in_(session_ids))
+            if user_id is not None:
+                stmt = stmt.where(table.c.user_id == user_id)
             count_stmt = select(func.count()).select_from(stmt.alias())
             stmt = apply_sorting(stmt, table, sort_by, sort_order)
             # Deterministic tiebreaker: timestamps are epoch seconds, so ties
@@ -8102,7 +8136,10 @@ class PostgresDb(BaseDb):
                 result = sess.execute(stmt)
                 return [dict(row._mapping) for row in result.fetchall()], total_count
         except Exception as e:
-            log_warning(f"Job queue store: list_jobs failed (status={status!r}): {e}")
+            log_warning(
+                f"Job queue store: list_jobs failed (status={status!r}, session_id={session_id!r}, "
+                f"user_id={user_id!r}): {e}"
+            )
             return [], 0
 
     def requeue_job(self, job_id: str) -> bool:

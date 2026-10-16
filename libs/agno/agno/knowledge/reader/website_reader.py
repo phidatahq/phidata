@@ -418,6 +418,9 @@ class WebsiteReader(Reader):
             if self.public_only:
                 from agno.knowledge.reader.utils.public_fetch import fetch_public_page
 
+                if not is_host_allowed(url, self.allowed_hosts):
+                    log_debug(f"Start URL host not in allowed_hosts, refusing to read: {url}")
+                    return []
                 _, body = fetch_public_page(url)
                 crawler_result = {url: self._extract_main_content(BeautifulSoup(body, "html.parser"))}
             else:
@@ -466,6 +469,9 @@ class WebsiteReader(Reader):
             if self.public_only:
                 from agno.knowledge.reader.utils.public_fetch import afetch_public_page
 
+                if not is_host_allowed(url, self.allowed_hosts):
+                    log_debug(f"Start URL host not in allowed_hosts, refusing to read: {url}")
+                    return []
                 _, body = await afetch_public_page(url)
                 crawler_result = {url: self._extract_main_content(BeautifulSoup(body, "html.parser"))}
             else:

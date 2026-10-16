@@ -151,3 +151,26 @@ queue deployments also require Redis. Docker needs `network="isolated"` (or anot
 network with GitHub/model egress); AgentCore needs egress. Size `workspace_mb` for the
 shallow checkout and generated files, within the 1 GiB checkpoint cap. Use one host or
 a shared checkpoint filesystem until another shared checkpoint store is configured.
+
+A first turn may select a specific commit or another branch through run metadata:
+
+```python
+result = engineer.run(
+    "Inspect this revision.",
+    session_id="revision-review",
+    metadata={"repository": {"commit": "<40-hex commit SHA>"}},
+)
+# Alternatively: metadata={"repository": {"branch": "release"}}
+```
+
+The URL always comes from `agent.repository`; a metadata override containing `url`
+is refused, even when it matches. Supply exactly one of `commit` or `branch`.
+AgentOS middleware can provide the same value through `request.state.metadata`;
+the durable queue carries it to the runtime. Once `native/repository.json` exists,
+valid overrides are ignored: the saved pin and engineer's changes win. Invalid
+overrides still fail validation without network access.
+
+The published pin has `url`, `branch`, and `commit`. For a commit override, `branch`
+remains the agent's configured branch; for a branch override, it is the effective
+branch. In the latter case the marker also retains `configured_branch` internally
+so changing the agent's configuration mid-session is still refused.

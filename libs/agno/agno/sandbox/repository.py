@@ -8,7 +8,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from agno.sandbox.base import SandboxError
 
@@ -51,6 +51,27 @@ def validate_repository(value: Any) -> Dict[str, str]:
     return dict(value)
 
 
+def _repository_override(metadata: Any, repository: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
+    """Validate an optional first-turn pin, including on turns where the marker wins."""
+    if metadata is None:
+        return None
+    if not isinstance(metadata, dict):
+        raise ValueError("Run metadata must be a JSON object")
+    if "repository" not in metadata:
+        return None
+    value = metadata["repository"]
+    if not isinstance(value, dict) or set(value) not in ({"commit"}, {"branch"}):
+        raise ValueError("metadata.repository requires exactly commit or branch; url cannot be overridden")
+    if repository is None:
+        raise ValueError("metadata.repository requires agent.repository=Repository(...)")
+    if "branch" in value:
+        validate_repository({**repository, "branch": value["branch"]})
+        return dict(value)
+    if not isinstance(value["commit"], str) or not re.fullmatch(r"[0-9a-fA-F]{40}", value["commit"]):
+        raise ValueError("metadata.repository.commit must be a full 40-hex commit SHA")
+    return {"commit": value["commit"].lower()}
+
+
 class RepositoryPreparationError(SandboxError):
     """A retryable preparation failure before any model or tools have run."""
 
@@ -60,15 +81,17 @@ def _read_pin(native: Path, repository: Dict[str, str]) -> Dict[str, str]:
         pin = json.loads((native / "repository.json").read_text())
         if (
             not isinstance(pin, dict)
-            or set(pin) != {"url", "branch", "commit"}
-            or any(pin[key] != repository[key] for key in ("url", "branch"))
+            or set(pin) not in ({"url", "branch", "commit"}, {"url", "branch", "commit", "configured_branch"})
+            or pin["url"] != repository["url"]
+            or pin.get("configured_branch", pin["branch"]) != repository["branch"]
             or not isinstance(pin["commit"], str)
             or not re.fullmatch(r"[0-9a-f]{40}", pin["commit"])
         ):
             raise ValueError
+        validate_repository({"url": pin["url"], "branch": pin["branch"]})
     except (OSError, ValueError):
         raise ValueError("Restored repository does not match the configured repository and pinned source") from None
-    return pin
+    return {key: pin[key] for key in ("url", "branch", "commit")}
 
 
 def _check_env() -> None:
@@ -76,8 +99,16 @@ def _check_env() -> None:
         raise ValueError("Sandbox repository access requires GITHUB_READ_TOKEN; remove GITHUB_TOKEN")
 
 
-def _prepare(repository: Dict[str, str], workspace: Path, native: Path, *, resume: bool) -> Path:
+def _prepare(
+    repository: Dict[str, str],
+    workspace: Path,
+    native: Path,
+    *,
+    resume: bool,
+    override: Optional[Dict[str, str]] = None,
+) -> Path:
     repository = validate_repository(repository)
+    override = _repository_override({"repository": override} if override is not None else None, repository)
     _check_env()
     target = workspace / "repository"
     marker = native / "repository.json"
@@ -125,11 +156,14 @@ def _prepare(repository: Dict[str, str], workspace: Path, native: Path, *, resum
 
         git("init", "--quiet")
         git("remote", "add", "origin", repository["url"])
-        ref = "refs/heads/" + repository["branch"]
-        resolved = git("ls-remote", "--exit-code", "--refs", "origin", ref).split()
-        if len(resolved) != 2 or resolved[1] != ref or not re.fullmatch(r"[0-9a-f]{40}", resolved[0]):
-            raise RepositoryPreparationError("Repository preparation failed; check repository access and branch")
-        commit = resolved[0]
+        branch = (override or {}).get("branch", repository["branch"])
+        commit = (override or {}).get("commit")
+        if commit is None:
+            ref = "refs/heads/" + branch
+            resolved = git("ls-remote", "--exit-code", "--refs", "origin", ref).split()
+            if len(resolved) != 2 or resolved[1] != ref or not re.fullmatch(r"[0-9a-f]{40}", resolved[0]):
+                raise RepositoryPreparationError("Repository preparation failed; check repository access and branch")
+            commit = resolved[0]
         git("fetch", "--depth=1", "origin", commit)
         git("checkout", "--detach", commit)
         if git("rev-parse", "HEAD") != commit:
@@ -137,7 +171,11 @@ def _prepare(repository: Dict[str, str], workspace: Path, native: Path, *, resum
         staging.rename(target)
         moved = True
         native.mkdir(parents=True, exist_ok=True)
-        temporary.write_text(json.dumps({**repository, "commit": commit}, sort_keys=True))
+        pin = {"url": repository["url"], "branch": branch, "commit": commit}
+        if branch != repository["branch"]:
+            # Keep agent configuration identity separate from the effective first-turn branch.
+            pin["configured_branch"] = repository["branch"]
+        temporary.write_text(json.dumps(pin, sort_keys=True))
         temporary.replace(marker)
         return target
     except OSError:
@@ -151,8 +189,15 @@ def _prepare(repository: Dict[str, str], workspace: Path, native: Path, *, resum
             shutil.rmtree(target)
 
 
-async def _aprepare(repository: Dict[str, str], workspace: Path, native: Path, *, resume: bool) -> Path:
+async def _aprepare(
+    repository: Dict[str, str],
+    workspace: Path,
+    native: Path,
+    *,
+    resume: bool,
+    override: Optional[Dict[str, str]] = None,
+) -> Path:
     # Drain filesystem work before cancellation can hand this workspace to a retry.
     from agno.sandbox.checkpoint import _thread
 
-    return await _thread(_prepare, repository, workspace, native, resume=resume)
+    return await _thread(_prepare, repository, workspace, native, resume=resume, override=override)

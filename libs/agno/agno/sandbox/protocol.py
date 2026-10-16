@@ -43,6 +43,9 @@ def validate_request(request: Dict[str, Any]) -> None:
         from agno.sandbox.repository import validate_repository
 
         validate_repository(request["config"]["repository"])
+    from agno.sandbox.repository import _repository_override
+
+    _repository_override(request.get("metadata"), request.get("config", {}).get("repository"))
     from agno.sandbox.media import validate_media
 
     validate_media(request.get("media", []))

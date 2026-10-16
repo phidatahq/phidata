@@ -345,3 +345,157 @@ def test_runtime_fingerprint_includes_repository(tmp_path, monkeypatch):
     request["config"]["repository"] = {**SPEC, "branch": "other"}
     with pytest.raises(SandboxError, match="different input"):
         runtime._start(tmp_path, request)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["commit", "branch"])
+async def test_first_turn_override_and_marker_wins(tmp_path, monkeypatch, local_repository, kind):
+    from agno.sandbox import runtime
+
+    source, sha, calls, git = local_repository
+    git("branch", "chosen")
+    (source / "app.py").write_text("default branch advanced")
+    git("commit", "-am", "default advance")
+    default_head = git("rev-parse", "HEAD")
+    assert sha != default_head
+    root = tmp_path / "computer"
+    directory = root / "jobs/first"
+    directory.mkdir(parents=True)
+    workspace, native = root / "workspace", root / "native"
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(workspace))
+    override = {"commit": sha.upper()} if kind == "commit" else {"branch": "chosen"}
+    request = {
+        "sdk": "fixture",
+        "input": "inspect",
+        "agent_id": "agent",
+        "session_id": "session",
+        "run_id": "first",
+        "config": {"repository": SPEC},
+        "metadata": {"repository": override},
+    }
+    first = await runtime._execute(directory, request)
+    expected = {**SPEC, "commit": sha, "branch": "chosen" if kind == "branch" else "main"}
+    assert first["repository"] == repository._read_pin(native, SPEC) == expected
+    assert git("rev-parse", "HEAD", cwd=workspace / "repository") == sha
+    if kind == "commit":
+        assert not any("ls-remote" in args for args, _ in calls)
+    else:
+        assert json.loads((native / "repository.json").read_text())["configured_branch"] == "main"
+    count = len(calls)
+    (workspace / "repository/app.py").write_text("engineer edit")
+    request["native_session_id"] = first["session"]["session_data"]["fixture_session_id"]
+    for later in (override, {"commit": default_head}, {"branch": "nonexistent"}):
+        request["metadata"] = {"repository": later}
+        result = await runtime._execute(directory, request)
+        assert result["repository"] == expected
+        assert (workspace / "repository/app.py").read_text() == "engineer edit"
+        assert len(calls) == count
+    checkpoint = tmp_path / "override-checkpoint.tar"
+    archive = CheckpointArchive()
+    archive.capture({"workspace": workspace, "native": native}, checkpoint, state={})
+    replacement = tmp_path / "replacement"
+    archive.restore(checkpoint, replacement)
+    repository._prepare(
+        SPEC, replacement / "workspace", replacement / "native", resume=True, override={"branch": "other"}
+    )
+    assert repository._read_pin(replacement / "native", SPEC) == expected
+    assert len(calls) == count
+    with pytest.raises(ValueError, match="pinned source"):
+        repository._prepare(
+            {**SPEC, "branch": "changed-agent"}, replacement / "workspace", replacement / "native", resume=True
+        )
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"url": SPEC["url"], "commit": "a" * 40},
+        {"url": "https://github.com/other/repo", "branch": "main"},
+        {"commit": "short"},
+        {"commit": 123},
+        {"branch": "../invalid"},
+        {"branch": "-invalid"},
+        {"branch": "main", "commit": "a" * 40},
+        {},
+        None,
+    ],
+)
+def test_invalid_metadata_refused_without_network(tmp_path, monkeypatch, override):
+    from agno.agents.codex import CodexAgent
+    from agno.sandbox._harness import submission
+    from agno.sandbox.docker import DockerSandbox
+
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("network/Git called"))
+    agent = CodexAgent(sandbox=DockerSandbox(image="fixture"), repository=Repository(**SPEC))
+    with pytest.raises(ValueError):
+        submission(agent, "inspect", {"metadata": {"repository": override}})
+
+
+@pytest.mark.asyncio
+async def test_url_override_rejected_even_when_marker_exists(tmp_path, monkeypatch, local_repository):
+    from agno.sandbox import runtime
+
+    root = tmp_path / "computer"
+    directory = root / "jobs/first"
+    directory.mkdir(parents=True)
+    workspace, native = root / "workspace", root / "native"
+    repository._prepare(SPEC, workspace, native, resume=False)
+    monkeypatch.setenv("AGNO_SANDBOX_WORKSPACE", str(workspace))
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("network/Git called"))
+    monkeypatch.setattr(runtime, "_execute_harness", lambda *a: pytest.fail("model called"))
+    for url in (SPEC["url"], "https://github.com/other/repo"):
+        with pytest.raises(ValueError, match="url cannot be overridden"):
+            await runtime._execute(
+                directory,
+                {"config": {"repository": SPEC}, "metadata": {"repository": {"url": url, "commit": "a" * 40}}},
+            )
+
+
+@pytest.mark.parametrize("method", ["run", "arun", "stream"])
+def test_coordinator_wrappers_preserve_metadata(method):
+    from types import SimpleNamespace
+
+    from agno.run.agent import RunOutput
+    from agno.sandbox.coordinator import SandboxCoordinator
+
+    coordinator = SandboxCoordinator.__new__(SandboxCoordinator)
+    coordinator.store = SimpleNamespace(db=None, _sync=lambda fn, *a, **kw: asyncio.run(fn(*a, **kw)))
+    captured = []
+
+    async def stream(session_id, **kwargs):
+        captured.append(kwargs)
+        yield RunOutput(run_id="r")
+
+    coordinator.astream = stream
+    metadata = {"repository": {"commit": "a" * 40}}
+    value = getattr(coordinator, method)(
+        "session", agent_id="a", run_id="r", input="inspect", sdk="fixture", metadata=metadata
+    )
+    if method == "arun":
+        asyncio.run(value)
+    elif method == "stream":
+        list(value)
+    assert captured[0]["metadata"] == metadata
+
+
+@pytest.mark.parametrize("sync", [False, True])
+def test_runtime_client_preserves_metadata(sync):
+    from agno.sandbox import SandboxHandle
+    from agno.sandbox.client import SandboxRuntimeClient
+
+    client = SandboxRuntimeClient(None)
+    captured = []
+
+    async def rpc(handle, operation, request):
+        captured.append(request)
+        return {"accepted": True}
+
+    client._rpc = rpc
+    handle = SandboxHandle("ref", "name", "a", "s", 1, "running", "digest")
+    metadata = {"repository": {"branch": "release"}}
+    kwargs = dict(execution_id="e", run_id="r", sdk="fixture", input="inspect", metadata=metadata)
+    if sync:
+        client.start(handle, **kwargs)
+    else:
+        asyncio.run(client.astart(handle, **kwargs))
+    assert captured[0]["metadata"] == metadata

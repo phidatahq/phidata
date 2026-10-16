@@ -229,7 +229,7 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
     for key in ("run_id", "session_id", "user_id", "yield_run_output", "stream_events", "background_tasks"):
         extra.pop(key, None)
     media = _media_wire(extra.pop("media", None))
-    unknown = set(extra) - {"output_schema"}
+    unknown = set(extra) - {"output_schema", "metadata"}
     if unknown:
         raise ValueError("Unsupported sandbox run options: " + ", ".join(sorted(unknown)))
     schema = extra.get("output_schema", agent.output_schema)
@@ -249,11 +249,14 @@ def submission(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
             config=_config(agent, schema),
             execution_timeout=_sandbox(agent).execution_timeout,
             **({"media": media} if media else {}),
+            **({"metadata": extra["metadata"]} if "metadata" in extra else {}),
         )
     )
     options: Dict[str, Any] = {}
     if schema is not None:
         options["output_schema"] = schema
+    if "metadata" in extra:
+        options["metadata"] = json.loads(json.dumps(extra["metadata"], allow_nan=False))
     if media:
         options["media"] = media
     return options
@@ -296,6 +299,7 @@ def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -
         queue_attempt=owner.attempt if owner is not None else None,
         execution_timeout=_sandbox(agent).execution_timeout,
         **decode_media(options.get("media", [])),
+        **({"metadata": options["metadata"]} if "metadata" in options else {}),
     )
 
 

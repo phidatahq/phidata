@@ -87,6 +87,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -103,6 +104,7 @@ class SandboxCoordinator:
             user_id=user_id,
             agent_name=agent_name,
             config=config,
+            **({"metadata": metadata} if metadata is not None else {}),
             env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
@@ -126,6 +128,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -142,6 +145,7 @@ class SandboxCoordinator:
             user_id=user_id,
             agent_name=agent_name,
             config=config,
+            **({"metadata": metadata} if metadata is not None else {}),
             env=env,
             queue_attempt=queue_attempt,
             execution_timeout=execution_timeout,
@@ -256,6 +260,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -280,6 +285,7 @@ class SandboxCoordinator:
                     user_id=user_id,
                     agent_name=agent_name,
                     config=config,
+                    **({"metadata": metadata} if metadata is not None else {}),
                     env=env,
                     queue_attempt=queue_attempt,
                     execution_timeout=execution_timeout,
@@ -316,6 +322,7 @@ class SandboxCoordinator:
         user_id: Optional[str] = None,
         agent_name: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
         env: Optional[Mapping[str, str]] = None,
         queue_attempt: Optional[int] = None,
         execution_timeout: float = 900,
@@ -345,6 +352,8 @@ class SandboxCoordinator:
             config=dict(config or {}),
             execution_timeout=execution_timeout,
         )
+        if metadata is not None:
+            request["metadata"] = metadata
         media = encode_media(images=images, files=files)
         if media:
             request["media"] = media
@@ -357,6 +366,7 @@ class SandboxCoordinator:
         _validate({**probe, "sdk": "claude" if sdk == "fixture" else sdk})
         request = json.loads(json.dumps(request, allow_nan=False))
         config = request["config"]
+        metadata = request.get("metadata")
         # The client's own measurement of the start request.
         if len(json.dumps(probe, allow_nan=False).encode()) > 1024 * 1024:
             raise ValueError("Runtime request exceeds 1 MiB")
@@ -528,6 +538,7 @@ class SandboxCoordinator:
                             config=config,
                             execution_timeout=execution_timeout,
                             media=media,
+                            **({"metadata": metadata} if metadata is not None else {}),
                             # The conversation the restored checkpoint must hold; None on a session's first turn.
                             native_session_id=(state.record.get("native") or {}).get(NATIVE_SESSION_KEYS[sdk]),
                         )

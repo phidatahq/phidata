@@ -1418,7 +1418,8 @@ async def test_queue_termination_racing_a_claim_does_not_deadlock(store):
     assert (await rows(store))[0]["status"] == "CANCELLED"
 
 
-async def test_repository_marker_pin_published_at_commit(store, tmp_path, monkeypatch):
+@pytest.mark.parametrize("override_kind", [None, "commit", "branch"])
+async def test_repository_marker_pin_published_at_commit(store, tmp_path, monkeypatch, override_kind):
     import json
     import subprocess
 
@@ -1439,6 +1440,10 @@ async def test_repository_marker_pin_published_at_commit(store, tmp_path, monkey
     git("add", ".")
     git("commit", "-m", "initial")
     sha = git("rev-parse", "HEAD")
+    git("branch", "chosen")
+    if override_kind is not None:
+        (source / "file.txt").write_text("advanced default")
+        git("commit", "-am", "advance default")
 
     def local_run(args, **kwargs):
         if "fetch" in args or "ls-remote" in args:
@@ -1462,9 +1467,16 @@ async def test_repository_marker_pin_published_at_commit(store, tmp_path, monkey
         "config": {"repository": configured},
         "user_id": "user",
     }
+    if override_kind is not None:
+        request["metadata"] = {"repository": {override_kind: sha if override_kind == "commit" else "chosen"}}
     runtime_result = await runtime._execute(directory, request)
-    marker = json.loads((native / "repository.json").read_text())
-    assert marker == {**configured, "commit": sha} == runtime_result["repository"]
+    raw_marker = json.loads((native / "repository.json").read_text())
+    marker = {key: raw_marker[key] for key in ("url", "branch", "commit")}
+    assert (
+        marker
+        == {**configured, "branch": "chosen" if override_kind == "branch" else "main", "commit": sha}
+        == runtime_result["repository"]
+    )
     (workspace / "repository/file.txt").write_text("engineer edit")
     checkpoint = tmp_path / "checkpoint.tar"
     archive = CheckpointArchive()

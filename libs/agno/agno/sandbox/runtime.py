@@ -270,11 +270,12 @@ async def _login_codex(agent: Any, api_key: str) -> None:
 
 
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
-    from agno.sandbox.repository import _aprepare, _check_env, _read_pin
+    from agno.sandbox.repository import _aprepare, _check_env, _read_pin, _repository_override
 
     _check_env()
     native = directory.parent.parent / "native"
     repository = request.get("config", {}).get("repository")
+    override = _repository_override(request.get("metadata"), repository)
     if (native / "repository.json").exists() and repository is None:
         raise ValueError("Continue this session with its pinned repository; set agent.repository")
     if repository is not None:
@@ -283,6 +284,7 @@ async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
             Path(os.environ.get("AGNO_SANDBOX_WORKSPACE", "/workspace")),
             native,
             resume=request.get("native_session_id") is not None,
+            override=override,
         )
     result = await _execute_harness(directory, request)
     if repository is not None:

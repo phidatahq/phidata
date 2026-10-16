@@ -41,3 +41,25 @@
 **Result:** Format passed. Full validation passed in the existing clean Python 3.10 environment. Development Python 3.12 validation reported the same 40 errors in 14 files as untouched main `ab0e2d233a`, with identical diagnostics and zero introduced. `git diff --check` passed.
 
 ---
+
+## October 16, 2026: first-turn metadata override
+
+### Repository metadata overrides and transport
+
+**Status:** PASS
+
+**Description:** Added `metadata.repository` with exactly one full commit SHA or valid branch name. Validation refuses URL overrides before Git/network access. The first turn uses the override; later turns and restored computers retain the marker's pin. A branch override records its effective branch and retains the original configured branch internally for configuration mismatch checks.
+
+**Result:** All 511 sandbox unit tests passed. Tests cover old-commit checkout after the default branch advances, a different branch, same/different later overrides, restored checkpoints, URL refusal, and sync/async harness, coordinator, and runtime-client forwarding. Six PostgreSQL cases passed across both adapters for default, commit, and branch pin publication. One live AgentOS route/Redis/PostgreSQL/Docker test passed: middleware `request.state.metadata` reaches the queued payload and runtime, the requested commit is published, later overrides are ignored, and a URL override returns 400 before allocation. No live model calls.
+
+---
+
+### Override format and validation
+
+**Status:** PASS
+
+**Description:** Ran the full format script and full validation script in the clean Python 3.10 environment after the forwarding changes.
+
+**Result:** Both passed; `git diff --check` passed. Unrelated baseline formatter edits were removed. The earlier development-environment baseline comparison above belongs to the initial revision and was not rerun for this addition.
+
+---

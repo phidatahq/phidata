@@ -10,7 +10,7 @@ from sqlalchemy import and_, or_
 if TYPE_CHECKING:
     from agno.tracing.schemas import Span, Trace
 
-from agno.db.base import AsyncBaseDb, SessionType
+from agno.db.base import _UNSET_UPDATED_AT, AsyncBaseDb, SessionType
 from agno.db.migrations.manager import MigrationManager
 from agno.db.schemas.authz import (
     AUTHZ_AUDIT,
@@ -5841,8 +5841,7 @@ class AsyncSqliteDb(AsyncBaseDb):
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
-        expected_project: Optional[Dict[str, Any]] = None,
-        expected_tasks: Optional[List[Dict[str, Any]]] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
@@ -5863,14 +5862,8 @@ class AsyncSqliteDb(AsyncBaseDb):
         async with self.async_session_factory() as sess, sess.begin():
             await sess.run_sync(lock_child, products, projects, table, project_id)
             if auto_accept is not None:
-                if (
-                    target != "done"
-                    or expected_project is None
-                    or expected_tasks is None
-                    or products is None
-                    or tasks is None
-                ):
-                    raise ValueError("Automatic completion requires an observed Project and its Tasks")
+                if target != "done" or expected_updated_at is _UNSET_UPDATED_AT or products is None or tasks is None:
+                    raise ValueError("Automatic completion requires expected_updated_at and a Project with Tasks")
                 task_histories: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
@@ -5890,20 +5883,10 @@ class AsyncSqliteDb(AsyncBaseDb):
                     >= auto_accept["max_acceptances"]
                 ):
                     raise ValueError("Routine acceptance limit reached")
-                current_tasks = [
-                    dict(item._mapping)
-                    for item in (await sess.execute(select(tasks).where(tasks.c.project_id == project_id))).fetchall()
-                ]
-                if sorted(current_tasks, key=lambda row: row["id"]) != sorted(
-                    expected_tasks, key=lambda row: row["id"]
-                ):
-                    return None
             row = (await sess.execute(stmt)).fetchone()
             if row is None:
                 return None
             existing = dict(row._mapping)
-            if expected_project is not None and existing != expected_project:
-                return None
             open_tasks = []
             if tasks_table is not None:
                 open_query = select(tasks_table).where(
@@ -5922,13 +5905,8 @@ class AsyncSqliteDb(AsyncBaseDb):
             )
             if tasks_table is not None:
                 update = update.where(~open_query.exists())
-            if expected_project is not None:
-                update = update.where(
-                    *[
-                        table.c[field] == expected_project.get(field)
-                        for field in ("product_id", "name", "outcome", "target_date", "updated_at")
-                    ]
-                )
+            if expected_updated_at is not _UNSET_UPDATED_AT:
+                update = update.where(table.c.updated_at == expected_updated_at)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()
@@ -6257,11 +6235,11 @@ class AsyncSqliteDb(AsyncBaseDb):
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
-        expected_task: Optional[Dict[str, Any]] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
-        from agno.db.schemas.tasks import _acceptance_count, _task_scope_predicates, task_transition_fields
+        from agno.db.schemas.tasks import _acceptance_count, task_transition_fields
         from agno.db.sql.company import lock_child
 
         table = await self._get_table(table_type="tasks")
@@ -6275,8 +6253,8 @@ class AsyncSqliteDb(AsyncBaseDb):
         async with self.async_session_factory() as sess, sess.begin():
             if auto_accept is not None:
                 await sess.run_sync(lock_child, products, projects, table, task_id)
-                if expected_task is None or products is None:
-                    raise ValueError("Automatic acceptance requires an observed Task and Product")
+                if expected_updated_at is _UNSET_UPDATED_AT or products is None:
+                    raise ValueError("Automatic acceptance requires expected_updated_at and a Product")
                 prior: Sequence[Optional[List[Dict[str, Any]]]] = (
                     (
                         await sess.execute(
@@ -6299,20 +6277,19 @@ class AsyncSqliteDb(AsyncBaseDb):
             if row is None:
                 return None
             existing = dict(row._mapping)
-            if expected_task is not None and existing != expected_task:
-                return None
             fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
             if auto_accept is not None:
                 fields["transitions"][-1]["auto_accept"] = auto_accept
             else:
                 await sess.run_sync(lock_child, products, projects, table, task_id)
             update = table.update().where(
-                *_task_scope_predicates(table, existing),
                 table.c.id == task_id,
                 table.c.deleted_at.is_(None),
                 table.c.status == existing["status"],
                 table.c.transitions == existing["transitions"],
             )
+            if expected_updated_at is not _UNSET_UPDATED_AT:
+                update = update.where(table.c.updated_at == expected_updated_at)
             if user_id is not None:
                 update = update.where(table.c.user_id == user_id)
             result = (await sess.execute(update.values(**fields).returning(table))).fetchone()

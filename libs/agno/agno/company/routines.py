@@ -309,7 +309,8 @@ def _acceptance_checks(agent_os):
 _AUTOMATION_SCHEDULE_ID = COMPANY_AUTOMATION_SCHEDULE_ID
 
 
-async def _ensure_automation_schedule(db):
+async def _ensure_automation_schedule(db, *, enabled=True):
+    """Reconcile the runtime-owned schedule with the deployment configuration."""
     import time
 
     from agno.db.schemas.scheduler import Schedule
@@ -317,6 +318,8 @@ async def _ensure_automation_schedule(db):
 
     existing = await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID)
     if existing is None:
+        if not enabled:
+            return None
         row = Schedule(
             id=_AUTOMATION_SCHEDULE_ID,
             name="Company automation",
@@ -333,8 +336,15 @@ async def _ensure_automation_schedule(db):
             if not is_unique_violation(exc):
                 raise
         existing = await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID)
-    if existing is None or existing.get("managed_by") != "company" or existing["endpoint"] != "/company/attention":
+    if (
+        existing is None
+        or existing.get("managed_by") != "company"
+        or existing["endpoint"] != "/company/attention"
+        or existing["method"] != "GET"
+    ):
         raise ValueError("Company automation schedule identity is already in use")
+    if existing["enabled"] != enabled:
+        existing = await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, enabled=enabled)
     return existing
 
 
@@ -423,8 +433,6 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
     async def _completion_candidate(self, manager, project, routine_id):
         from agno.company.refresh import _completion_proposal, _records
 
-        # Grouped counts are a read projection, not part of the stored lifecycle snapshot.
-        project = {key: value for key, value in project.items() if key != "counts"}
         tasks = await _records(manager, "list_tasks", project_id=project["id"], include_deleted=True)
         if not tasks or any(task["status"] not in {"done", "cancelled"} for task in tasks):
             return None
@@ -438,8 +446,6 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
             "project_id": project["id"],
             "routine_id": routine_id,
             "evidence": [item for task in tasks for item in (task.get("evidence") or [])],
-            "_completion_tasks": tasks,
-            "_completion_project": project,
         }
 
     async def _accept(self, task, *, completing=False):
@@ -549,26 +555,31 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                     result = await result
                 if result is not True:
                     raise ValueError("Required automatic acceptance check failed: " + name)
-            # Re-read authorization after potentially slow Source/check work.
-            current = await _call(os.db, "get_schedule", schedule["id"])
-            if not current or not current["enabled"] or _policy_fingerprint(current) != _policy_fingerprint(schedule):
-                raise ValueError("Routine automatic acceptance changed during checks")
-            if policy.limits.expires_at is not None and int(time.time()) >= policy.limits.expires_at:
-                raise ValueError("Routine automatic acceptance expired during checks")
             if authority is not None:
                 await authority.arequire("schedules", "write")
                 await authority.arequire(acceptance_resource, "write")
                 await authority.arequire(policy.executor_type + "s", "run", policy.executor_id)
+            # Re-read after all checks and proposal IO. Product/template bindings
+            # are separate from the content-only policy fingerprint.
+            current = await _call(os.db, "get_schedule", schedule["id"])
+            current_metadata = ((current or {}).get("payload") or {}).get("metadata") or {}
+            if (
+                not current
+                or not current["enabled"]
+                or current.get("managed_by") != "company"
+                or current_metadata.get("product_id") != task["product_id"]
+                or (completing and current_metadata.get("template") != "refresh")
+                or _policy_fingerprint(current) != _policy_fingerprint(schedule)
+            ):
+                raise ValueError("Routine automatic acceptance changed during checks")
+            if policy.limits.expires_at is not None and int(time.time()) >= policy.limits.expires_at:
+                raise ValueError("Routine automatic acceptance expired during checks")
             receipt = {
                 "routine_id": schedule["id"],
                 "policy": _policy_fingerprint(schedule),
                 "max_acceptances": policy.limits.max_acceptances,
             }
             if completing:
-                # Only an unchanged, server-produced Refresh proposal may complete.
-                latest = await self._completion_candidate(manager, task["_completion_project"], schedule["id"])
-                if latest != task:
-                    raise ValueError("Project completion proposal changed during checks")
                 accepted = await _manager_call(
                     manager,
                     "transition_project",
@@ -576,8 +587,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                     "done",
                     "Authorized Refresh completion proposal",
                     accepted_by=grant.get("user_id"),
-                    expected_project=task["_completion_project"],
-                    expected_tasks=task["_completion_tasks"],
+                    expected_updated_at=task["updated_at"],
                     auto_accept=receipt,
                 )
             else:
@@ -590,7 +600,7 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
                     accepted_by=grant.get("user_id"),
                     executor_type=policy.executor_type,
                     executor_id=policy.executor_id,
-                    expected_task=task,
+                    expected_updated_at=task["updated_at"],
                     auto_accept=receipt,
                 )
         if accepted is None:
@@ -636,9 +646,10 @@ class _CompanyScheduleExecutor(ScheduleExecutor):
         if task.get("accepted_by") is not None:
             headers[SCHEDULE_OWNER_HEADER] = quote(task["accepted_by"], safe="")
         current = await _call(os._company_db, "get_task", task["id"])
-        if current != task:
+        observed = {key: task[key] for key in ("id", "status", "updated_at")}
+        if current is None or any(current[key] != value for key, value in observed.items()):
             raise ValueError("Task acceptance changed before automatic dispatch")
-        token = _automatic_task.set(task)
+        token = _automatic_task.set(observed)
         try:
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=self.app), base_url=self.base_url) as client:
                 response = await client.post(

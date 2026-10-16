@@ -374,8 +374,20 @@ With Company, `scheduler=True`, and the durable queue configured, the scheduler
 creates one managed `Company automation` schedule. This runtime-owned row cannot
 be edited, disabled, deleted or manually triggered through schedule APIs or
 SchedulerTools; those operations return a refusal. Ordinary Routines remain
-editable and pausable. Candidate queries select Backlog, Ready and In progress
+editable and pausable. When the scheduler starts without Company configured, it
+disables any existing managed automation row before polling; a fresh deployment
+without Company creates no such row. Enabling Company again re-enables that row
+and preserves its history. Deployments sharing scheduler storage must use the
+same Company configuration.
+
+Candidate queries select Backlog, Ready and In progress
 Tasks before pagination, leaving completed history out of the pickup scan.
+Automatic transitions compare the observed `updated_at` with the stored value,
+including SQL NULL for a record that has never been updated. The existing status
+and terminal-Task predicates remain in the database UPDATE. `updated_at` uses
+epoch seconds: two writes in the same second are indistinguishable, while the
+status predicate still holds in that window. No full-row snapshots are compared.
+
 Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
 release, and run history. No extra loop, table, or route is installed. Skipped
 Tasks and proposals have their reasons in this schedule's run output, readable

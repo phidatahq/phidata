@@ -126,7 +126,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
         from agno.company.execution import _automatic_task
 
         observed = _automatic_task.get()
-        if observed is not None and value != observed:
+        if observed is not None and any(value[key] != observed[key] for key in ("id", "status", "updated_at")):
             raise HTTPException(409, "Task acceptance changed before automatic dispatch")
         component = executor(value)
         path = endpoint(value)

@@ -4,7 +4,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
-from agno.db.base import AsyncBaseDb, BaseDb
+from agno.db.base import _UNSET_UPDATED_AT, AsyncBaseDb, BaseDb
 from agno.db.schemas.products import validate_product_fields
 
 
@@ -180,8 +180,7 @@ class CompanyManager:
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
-        expected_project: Optional[Dict[str, Any]] = None,
-        expected_tasks: Optional[List[Dict[str, Any]]] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -205,8 +204,7 @@ class CompanyManager:
             reason,
             user_id=user_id,
             accepted_by=accepted_by,
-            expected_project=expected_project,
-            expected_tasks=expected_tasks,
+            expected_updated_at=expected_updated_at,
             auto_accept=auto_accept,
         )
 
@@ -341,7 +339,7 @@ class CompanyManager:
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
-        expected_task: Optional[Dict[str, Any]] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -362,7 +360,7 @@ class CompanyManager:
             accepted_by=accepted_by,
             executor_type=executor_type,
             executor_id=executor_id,
-            expected_task=expected_task,
+            expected_updated_at=expected_updated_at,
             auto_accept=auto_accept,
         )
 
@@ -865,8 +863,7 @@ class AsyncCompanyManager:
         reason: str,
         user_id: Optional[str] = None,
         accepted_by: Optional[str] = None,
-        expected_project: Optional[Dict[str, Any]] = None,
-        expected_tasks: Optional[List[Dict[str, Any]]] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -892,8 +889,7 @@ class AsyncCompanyManager:
             reason,
             user_id=user_id,
             accepted_by=accepted_by,
-            expected_project=expected_project,
-            expected_tasks=expected_tasks,
+            expected_updated_at=expected_updated_at,
             auto_accept=auto_accept,
         )
 
@@ -1030,7 +1026,7 @@ class AsyncCompanyManager:
         accepted_by: Optional[str] = None,
         executor_type: Optional[str] = None,
         executor_id: Optional[str] = None,
-        expected_task: Optional[Dict[str, Any]] = None,
+        expected_updated_at: Optional[int] = _UNSET_UPDATED_AT,
         auto_accept: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Apply an explicit transition; the caller enforces platform authorization."""
@@ -1051,7 +1047,7 @@ class AsyncCompanyManager:
             accepted_by=accepted_by,
             executor_type=executor_type,
             executor_id=executor_id,
-            expected_task=expected_task,
+            expected_updated_at=expected_updated_at,
             auto_accept=auto_accept,
         )
 

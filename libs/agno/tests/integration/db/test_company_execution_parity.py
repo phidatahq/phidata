@@ -1519,7 +1519,7 @@ async def test_exhausted_policy_skips_source_reads_on_every_tick(system, tmp_pat
 
 
 @pytest.mark.asyncio
-async def test_automatic_checks_retry_when_server_fact_changes(system, tmp_path):
+async def test_automatic_checks_retry_when_server_fact_changes(system, tmp_path, monkeypatch):
     from agno.company.execution import _call
 
     client, db, worker, os, _ = system
@@ -1528,8 +1528,10 @@ async def test_automatic_checks_retry_when_server_fact_changes(system, tmp_path)
     await _call(db, "delete_project", task["project_id"])
     with pytest.raises(ValueError, match="project_active"):
         await executor._accept(task)
-    await _call(db, "restore_project", task["project_id"])
-    # Cascading restore adds history: a stale proposal must still fail the snapshot check.
+    with monkeypatch.context() as clock:
+        clock.setattr(time, "time", lambda: (task["updated_at"] or task["created_at"]) + 1)
+        await _call(db, "restore_project", task["project_id"])
+    # A later restoration timestamp must refuse the stale proposal.
     with pytest.raises(ValueError, match="Proposal changed"):
         await executor._accept(task)
     task = await _call(db, "get_task", task["id"])
@@ -1734,8 +1736,10 @@ async def test_project_completion_and_task_acceptance_share_atomic_budget(system
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("restriction", ["scope", "expiry", "revoked", "check", "source", "changed_task"])
-async def test_project_completion_enforces_live_policy_and_task_snapshot(system, tmp_path, restriction):
+@pytest.mark.parametrize(
+    "restriction", ["scope", "expiry", "revoked", "check", "source", "changed_task", "changed_project"]
+)
+async def test_project_completion_enforces_live_policy_and_terminal_tasks(system, tmp_path, monkeypatch, restriction):
     from agno.company.execution import _call
     from agno.company.routines import _manager_call
 
@@ -1750,9 +1754,14 @@ async def test_project_completion_enforces_live_policy_and_task_snapshot(system,
         policy["limits"]["expires_at"] = 1
     elif restriction == "source":
         policy["source_ids"] = []
-    elif restriction in {"check", "changed_task"}:
+    elif restriction in {"check", "changed_task", "changed_project"}:
 
         async def check(proposal, check_manager):
+            if restriction == "changed_project":
+                with monkeypatch.context() as clock:
+                    clock.setattr(time, "time", lambda: proposal["updated_at"] + 1)
+                    await _call(db, "update_project", proposal["id"], name="Changed during checks")
+                return True
             if restriction == "changed_task":
                 await _call(
                     db,
@@ -1784,3 +1793,224 @@ async def test_project_completion_enforces_live_policy_and_task_snapshot(system,
     with pytest.raises(ValueError):
         await executor._accept(proposal, completing=True)
     assert (await _manager_call(manager, "get_project", task["project_id"]))["status"] == "active"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("binding", ["product_id", "template"])
+async def test_completion_rechecks_routine_binding(system, tmp_path, binding):
+    from agno.company.execution import _call
+    from agno.company.routines import _manager_call, _policy_fingerprint
+
+    client, db, worker, os, _ = system
+    task, routine, manager = await routine_proposal(system, tmp_path, template="refresh")
+    await _manager_call(manager, "transition_task", task["id"], "cancelled", "Finished")
+    other = (await client.post("/company/products", json={"name": "Other"})).json()
+
+    async def change_binding():
+        current = await _call(db, "get_schedule", routine["id"])
+        before = _policy_fingerprint(current)
+        payload = current["payload"]
+        payload["metadata"][binding] = other["id"] if binding == "product_id" else "intake"
+        response = await client.patch("/schedules/" + routine["id"], json={"payload": payload})
+        assert response.status_code == 200, response.text
+        assert _policy_fingerprint(await _call(db, "get_schedule", routine["id"])) == before
+
+    async def check(proposal, check_manager):
+        await change_binding()
+        return True
+
+    os.company.acceptance_checks["binding_check"] = check
+    policy = routine["payload"]["metadata"]["auto_accept"]
+    policy.update(complete_projects=True, required_checks=["executor_registered", "binding_check"])
+    assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
+    await _manager_call(manager, "refresh", task["product_id"])
+    executor, _ = await automation(system)
+    project = await _manager_call(manager, "get_project", task["project_id"])
+    proposal = await executor._completion_candidate(manager, project, routine["id"])
+    assert proposal is not None
+    with pytest.raises(ValueError, match="Routine automatic acceptance changed"):
+        await executor._accept(proposal, completing=True)
+    assert (await _manager_call(manager, "get_project", task["project_id"]))["status"] == "active"
+    current = await _call(db, "get_schedule", routine["id"])
+    assert await _call(db, "count_company_acceptances", routine["id"], _policy_fingerprint(current), "") == 0
+
+
+@pytest.mark.asyncio
+async def test_automation_schedule_follows_company_lifespan(system, monkeypatch):
+    from agno.company.execution import _call
+    from agno.company.routines import _AUTOMATION_SCHEDULE_ID, _CompanyScheduleExecutor
+    from agno.db.schemas.scheduler import Schedule
+    from agno.os.app import scheduler_lifespan
+    from agno.scheduler import SchedulePoller
+
+    client, db, worker, os, _ = system
+    app = worker.authorization_app
+    company = os.company
+    os._internal_service_token = "test"
+
+    # Drive real claims deterministically, after the actual lifespan setup.
+    async def start(poller):
+        pass
+
+    monkeypatch.setattr(SchedulePoller, "start", start)
+    os.company = None
+    async with scheduler_lifespan(app, os):
+        assert await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID) is None
+    os.company = company
+    async with scheduler_lifespan(app, os):
+        assert (await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID))["enabled"] is True
+    await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, next_run_at=0)
+    unrelated = Schedule(id="unrelated", name="Unrelated", cron_expr="* * * * *", endpoint="/health", next_run_at=0)
+    await _call(db, "create_schedule", unrelated.to_dict())
+    os.company = None
+    for restart in range(2):
+        async with scheduler_lifespan(app, os):
+            assert (await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID))["enabled"] is False
+            claimed = await _call(db, "claim_due_schedule", "off-worker")
+            if restart == 0:
+                assert claimed is not None and claimed["id"] == unrelated.id
+                await _call(db, "delete_schedule", unrelated.id)
+            else:
+                assert claimed is None
+            assert await _call(db, "claim_due_schedule", "off-worker") is None
+    os.company = company
+    async with scheduler_lifespan(app, os):
+        assert isinstance(app.state.scheduler_executor, _CompanyScheduleExecutor)
+        assert (await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID))["enabled"] is True
+        result = await tick(app.state.scheduler_executor, db)
+        assert result["status"] == "success", result
+
+
+@pytest.mark.asyncio
+async def test_all_task_and_project_writes_stamp_updated_at(system, monkeypatch):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    product = (await client.post("/company/products", json={"name": "Timestamps"})).json()
+    project = (await client.post("/company/projects", json={"product_id": product["id"], "name": "Project"})).json()
+    task = (
+        await client.post(
+            "/company/tasks", json={"product_id": product["id"], "project_id": project["id"], "title": "Task"}
+        )
+    ).json()
+    now = int(time.time())
+    monkeypatch.setattr(time, "time", lambda: now)
+
+    async def write(method, *args, **kwargs):
+        nonlocal now
+        now += 1
+        result = await _call(db, method, *args, **kwargs)
+        assert result is not None
+        assert result["updated_at"] == now, method
+        return result
+
+    await write("update_project", project["id"], name="Edited")
+    await write("transition_project", project["id"], "active", "Start")
+    await write("update_task", task["id"], brief="Edited")
+    ready = await write("transition_task", task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+    running = await write("start_task_run", task["id"], 1, ready["transitions"])
+    failed = await write("complete_task_run", task["id"], running["job_id"], {"status": "ERROR"})
+    assert failed["status"] == "in_progress"
+    completed = await write("complete_task_run", task["id"], running["job_id"], {"status": "COMPLETED"})
+    assert completed["status"] == "in_review"
+    await write("transition_task", task["id"], "done", "Review accepted")
+    await write("transition_project", project["id"], "done", "All work finished")
+    # Direct and cascading archives/restores must stamp every affected child.
+    for kind, record in (("task", task), ("project", project), ("product", product)):
+        children = [("task", task)] if kind == "task" else [("task", task), ("project", project)]
+        for method, archived in (("delete_", True), ("restore_", False)):
+            now += 1
+            assert await _call(db, method + kind, record["id"])
+            for child_kind, child in children:
+                saved = await _call(db, "get_" + child_kind, child["id"], include_deleted=True)
+                assert saved["updated_at"] == now, (method, kind, child_kind)
+                assert (saved["deleted_at"] is not None) is archived
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind", ["task", "project"])
+@pytest.mark.parametrize("automatic", [False, True])
+@pytest.mark.parametrize("timestamp", [None, 100])
+async def test_transition_updated_at_compare_and_set(system, monkeypatch, kind, automatic, timestamp):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    product = (await client.post("/company/products", json={"name": "CAS"})).json()
+    record = await _call(
+        db,
+        "create_" + kind,
+        dict(
+            id=str(uuid4()),
+            product_id=product["id"],
+            **(
+                {"title": "Task", "status": "backlog", "routine_id": "routine"}
+                if kind == "task"
+                else {"name": "Project", "status": "active"}
+            ),
+            created_at=1,
+            updated_at=timestamp,
+            transitions=[],
+        ),
+    )
+    if kind == "project":
+        await _call(
+            db,
+            "create_task",
+            dict(
+                id=str(uuid4()),
+                product_id=product["id"],
+                project_id=record["id"],
+                title="Finished",
+                status="done",
+                created_at=1,
+                transitions=[],
+            ),
+        )
+    options = {"executor_type": "agent", "executor_id": "writer"} if kind == "task" else {}
+    target = "ready" if kind == "task" else "done"
+    if automatic:
+        options["auto_accept"] = {"routine_id": "routine", "policy": "version", "max_acceptances": 1}
+        with pytest.raises(ValueError, match="requires expected_updated_at"):
+            await _call(db, "transition_" + kind, record["id"], target, "Accept", **options)
+    # Wrong timestamps (including NULL versus an integer) never transition.
+    if timestamp is not None:
+        assert (
+            await _call(
+                db, "transition_" + kind, record["id"], target, "Stale NULL", expected_updated_at=None, **options
+            )
+            is None
+        )
+    assert (
+        await _call(db, "transition_" + kind, record["id"], target, "Stale", expected_updated_at=101, **options) is None
+    )
+    assert (await _call(db, "get_" + kind, record["id"]))["status"] == record["status"]
+    monkeypatch.setattr(time, "time", lambda: 102)
+    accepted = await _call(
+        db, "transition_" + kind, record["id"], target, "Accept", expected_updated_at=timestamp, **options
+    )
+    assert accepted["status"] == target
+    assert accepted["updated_at"] == 102
+    if automatic:
+        assert await _call(db, "count_company_acceptances", "routine", "version", "") == 1
+
+
+@pytest.mark.asyncio
+async def test_same_second_timestamp_keeps_status_guard(system, monkeypatch):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    product = (await client.post("/company/products", json={"name": "Epoch seconds"})).json()
+    task = (await client.post("/company/tasks", json={"product_id": product["id"], "title": "First"})).json()
+    monkeypatch.setattr(time, "time", lambda: 100)
+    observed = await _call(db, "update_task", task["id"], title="Observed")
+    await _call(db, "update_task", task["id"], title="Edited in the same second")
+    options = dict(expected_updated_at=observed["updated_at"], executor_type="agent", executor_id="writer")
+    accepted = await _call(db, "transition_task", task["id"], "ready", "Accept", **options)
+    assert accepted["title"] == "Edited in the same second"
+    assert accepted["updated_at"] == observed["updated_at"]
+    with pytest.raises(ValueError, match="Invalid task transition"):
+        await _call(db, "transition_task", task["id"], "ready", "Duplicate", **options)
+    assert (
+        len([entry for entry in (await _call(db, "get_task", task["id"]))["transitions"] if entry["target"] == "ready"])
+        == 1
+    )

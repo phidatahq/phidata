@@ -659,8 +659,6 @@ async def test_completion_rechecks_managed_human_permission(managed_system, duri
         "project_id": project["id"],
         "routine_id": response.json()["id"],
         "evidence": [],
-        "_completion_project": project,
-        "_completion_tasks": [],
     }
     with pytest.raises(PermissionError, match="projects:write"):
         await executor._accept(proposal, completing=True)

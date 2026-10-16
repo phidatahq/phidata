@@ -2349,3 +2349,57 @@ OPENAI_API_KEY and the optional asyncpg configuration case. No history rewrite
 followed the early rebase publication. Final format and clean validation passed;
 all output was read and the exact source tree was checked after excluding
 unrelated baseline formatter changes.
+
+
+### Automation review fixes and timestamp compare-and-set — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Automatic completion rechecks the Routine's Product and Refresh
+binding after server checks. Scheduler startup reconciles the managed automation
+row with Company configuration, before polling. Automatic Task and Project
+transitions now compare the observed `updated_at` in SQL, preserving the existing
+status predicates, terminal-Task gate and Product-locked budget. Full-row and
+Task-list snapshots are removed. Dispatch carries only id, status and timestamp.
+
+**Result:** The initial 20 review regression cases reproduced both defects on all
+four SQL adapters, then passed with the fixes. The final timestamp design removes
+the second completion-page rendering, retaining the Product/template race checks
+at the server-check boundary. All original refusal, revocation and exhausted-budget
+assertions remain. The timestamp audit covers edits, transitions, direct/cascading
+archive and restore, run reservation, and error/success completion. Every path
+already stamps epoch seconds. Explicit None matches SQL NULL; omitting the
+observation is allowed only for manual transitions. Same-second writes remain
+indistinguishable, with the existing status predicate still enforced.
+
+Cookbook rerun: **12/12 PASS**, no live model calls:
+
+- `01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`:
+  Product/Project/Task lifecycle and archive behavior.
+- `04_manage_playbook.py`, `05_product_manager.py`: versioned wiki and restricted
+  Product Manager wiring.
+- `06_execute_tasks.py`: manual and automatic modes on SQLite and PostgreSQL;
+  real durable queue execution, one Task attempt and human-review result.
+- `07_cascading_archive.py`: SQLite and PostgreSQL cascade/refusal/restore/counts.
+- `07_heartbeat.py`: offline Routine, Source, Intake and Refresh behavior.
+
+Final validation on the timestamp-CAS tree:
+
+- **6,570 passed, 5 conditional skips**: full `tests/unit/db`, `tests/unit/os`
+  and `tests/unit/scheduler`, plus Company and SchedulerTools units.
+- **733 passed, no skips**: all Company integration files on sync/async SQLite
+  and PostgreSQL, plus SQLite scheduler, schedule lifecycle (PostgreSQL/MongoDB
+  enabled) and schedule-owner recheck suites.
+- **315 focused Company/scheduler units passed**, included in the full run.
+- `./scripts/format.sh` and clean `./scripts/validate.sh` passed; complete output
+  was read. Clean mypy checked 1,155 framework and 21 CLI files with no errors.
+  Tests, cookbooks and formatting used the Python 3.12 development environment;
+  clean validation used Python 3.10. Python 3.12 validation still reports the
+  same 34 baseline diagnostics in 11 files as the recorded parent and pre-change
+  runs, with no new diagnostics. Unrelated formatter edits were inspected and
+  excluded before exact-tree validation. Whitespace checks passed.
+
+An intermediate broad unit run with the superseded completion re-render failed
+two synthetic managed-role cases. The final full rerun above passes both, with
+permission-refusal assertions intact. The external release scripts were not
+rerun in this follow-up; their earlier outcomes remain recorded above.

@@ -147,16 +147,3 @@ def _acceptance_count(histories, routine_id, policy):
         )
         for history in histories
     )
-
-
-def _task_scope_predicates(table, task):
-    from sqlalchemy import bindparam, or_
-
-    # JSON null is a JSON value, distinct from SQL NULL. A typed parameter
-    # preserves the adapter's JSON encoding for the evidence comparison.
-    evidence = table.c.evidence == bindparam("observed_evidence", task.get("evidence"), type_=table.c.evidence.type)
-    if task.get("evidence") is None:
-        evidence = or_(table.c.evidence.is_(None), evidence)
-    return [
-        table.c[name] == task.get(name) for name in ("title", "brief", "project_id", "executor_type", "executor_id")
-    ] + [evidence]

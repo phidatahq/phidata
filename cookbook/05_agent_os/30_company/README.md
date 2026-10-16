@@ -422,8 +422,12 @@ tick is recorded once instead of repeating every minute.
 
 A missing queue ticket is recreated only when the reserved attempt
 has no durable run or Task result. If its terminal run exists, the missing Task
-result is recovered without rerunning the executor. Failed or cancelled
-attempts stay for a human to retry, even after queue retention.
+result is recovered without rerunning the executor. If a ticket disappears while
+its durable run is still Pending, reconciliation cancels that attempt and records
+the lost-ticket reason in the Task result. Return the Task to Backlog and accept
+it again to start the next attempt. A Running row is never automatically replayed:
+its worker may still be executing. Failed or cancelled attempts stay for a human
+to retry, even after queue retention.
 
 Starting AgentOS without Company disables an existing automation schedule with
 `disabled_reason="company_off"`. Enabling Company again re-enables that row;

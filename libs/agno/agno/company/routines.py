@@ -626,7 +626,19 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                         await self._accept(proposal, completing=True)
                         outcomes.append({"project_id": project["id"], "status": "done"})
                     except Exception as exc:
-                        outcomes.append({"project_id": project["id"], "status": "skipped", "reason": str(exc)})
+                        from fastapi import HTTPException
+
+                        expected = isinstance(exc, (_AutomationSkip, PermissionError)) or (
+                            isinstance(exc, HTTPException) and exc.status_code == 403
+                        )
+                        reason = str(exc.detail) if isinstance(exc, HTTPException) else str(exc)
+                        outcomes.append(
+                            {
+                                "project_id": project["id"],
+                                "status": "skipped" if expected else "failed",
+                                "reason": reason,
+                            }
+                        )
         return outcomes
 
     async def _completion_candidate(self, manager, project, routine_id):
@@ -883,6 +895,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     task,
                     prior_run,
                     task.get("accepted_by") or getattr(component, "user_id", None),
+                    worker=queue,
                 )
                 return {
                     "status": prior_run["status"],

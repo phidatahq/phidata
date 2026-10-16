@@ -118,13 +118,14 @@ async def _reconcile_task_run(
     run: Dict[str, Any],
     caller: Optional[str],
     is_admin: bool = False,
+    worker: Any = None,
 ) -> bool:
     """Repair a missing result without enqueueing or overwriting a newer acceptance."""
     if (
         _pending_task_attempt(task) is None
         or run["run_id"] != task["job_id"]
         or run["session_id"] != task["session_id"]
-        or run["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}
+        or run["status"] not in {"COMPLETED", "ERROR", "CANCELLED", "PENDING"}
     ):
         return False
     from agno.db.base import SessionType
@@ -133,6 +134,38 @@ async def _reconcile_task_run(
     await assert_session_writable(
         run_db, task["session_id"], caller, session_type=SessionType(task["executor_type"]), is_admin=is_admin
     )
+    if run["status"] == "PENDING":
+        if worker is None or await worker.store.get_job(run["run_id"]) is not None:
+            return False
+        current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
+        if current is None or current["session_id"] != task["session_id"]:
+            raise ValueError("Task run changed during recovery")
+        if current["status"] == "PENDING":
+            # A missing ticket cannot prove that no worker started. Cancel this
+            # attempt instead of replaying its possibly executed side effects.
+            job = {
+                "id": run["run_id"],
+                "session_id": task["session_id"],
+                "component_type": task["executor_type"],
+                "component_id": task["executor_id"],
+                "user_id": current.get("user_id"),
+                "attempt": (current.get("run_data") or {}).get("queue_attempt"),
+            }
+            component = await worker._aresolve_job_component(job)
+            if component is None or getattr(component, "db", None) is not run_db:
+                raise ValueError("Original Task executor database is unavailable for recovery")
+            await component.acancel_run(run["run_id"])
+            reason = (
+                "Queue ticket lost before completion; this attempt was cancelled. Return the Task to Backlog to retry."
+            )
+            if not await worker._persist_run_error(job, reason, status="cancelled"):
+                raise RuntimeError("Could not persist cancellation of the ticketless Task run")
+            current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
+            if current is None or current["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}:
+                raise RuntimeError("Ticketless Task cancellation has not reached durable storage")
+        run.update(current)
+        if run["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}:
+            return False
     data = run.get("run_data") or {}
     result = {
         "run_id": run["run_id"],

@@ -191,6 +191,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     prior_run,
                     caller or getattr(component, "user_id", None),
                     is_admin=caller_is_admin(request),
+                    worker=queue,
                 )
                 return JSONResponse(
                     {"run_id": run_id, "session_id": value["session_id"], "status": prior_run["status"]},
@@ -334,12 +335,30 @@ def get_company_runs_router(os: Any) -> APIRouter:
         get_scoped_user_id(request)
         job, _task = await company_run(run_id, request)
         value = {"executor_type": job["component_type"], "executor_id": job["component_id"]}
-        executor(value)
+        component = executor(value)
         if (job.get("payload") or {}).get("company_task_id"):
             await _reserve_task(db, job)
-        return await _run_route(
+        response = await _run_route(
             request, endpoint(value) + f"/{quote(run_id, safe='')}/cancel", "POST", session_id=job["session_id"]
         )
+        if response.status_code < 300:
+            from agno.os.middleware.user_scope import caller_is_admin
+
+            original_db = run_database(_task)
+            run = await _call(original_db, "get_run", run_id, deserialize=False)
+            if run is not None:
+                await _reconcile_task_run(
+                    db,
+                    original_db,
+                    _task,
+                    run,
+                    get_scoped_user_id(request)
+                    or getattr(request.state, "user_id", None)
+                    or getattr(component, "user_id", None),
+                    is_admin=caller_is_admin(request),
+                    worker=getattr(request.app.state, "queue_worker", None),
+                )
+        return response
 
     @router.get("/attention")
     async def attention(request: Request, product_id: Optional[str] = None, _: bool = Depends(auth)):

@@ -3403,6 +3403,25 @@ class AsyncMongoDb(AsyncBaseDb):
             log_debug(f"Error getting schedule run: {e}")
             return None
 
+    async def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Fetch the latest run for every requested schedule in one aggregation."""
+        if not schedule_ids:
+            return {}
+        collection = await self._get_collection(table_type="schedule_runs")
+        if collection is None:
+            return {}
+        pipeline: List[Dict[str, Any]] = [
+            {"$match": {"schedule_id": {"$in": schedule_ids}}},
+            {"$sort": {"schedule_id": 1, "triggered_at": -1, "created_at": -1, "id": -1}},
+            {"$group": {"_id": "$schedule_id", "run": {"$first": "$$ROOT"}}},
+        ]
+        latest = {}
+        for group in await self._aggregate_to_list(collection, pipeline):
+            run = group["run"]
+            run.pop("_id", None)
+            latest[group["_id"]] = run
+        return latest
+
     async def get_schedule_runs(
         self,
         schedule_id: str,

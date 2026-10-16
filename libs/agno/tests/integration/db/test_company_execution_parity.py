@@ -3355,7 +3355,7 @@ async def test_automation_dispatch_failures_remain_visible(system, monkeypatch, 
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("status", ["COMPLETED", "ERROR", "CANCELLED", "RUNNING", "PAUSED", "PENDING"])
+@pytest.mark.parametrize("status", ["COMPLETED", "ERROR", "CANCELLED", "RUNNING", "PAUSED"])
 @pytest.mark.parametrize("recovery", ["automation", "http"])
 async def test_automation_reconciles_durable_run_without_resubmission(system, monkeypatch, status, recovery):
     from unittest.mock import AsyncMock

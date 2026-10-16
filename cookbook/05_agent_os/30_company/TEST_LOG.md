@@ -3022,3 +3022,14 @@ payload correction. Full format and clean Python 3.10 validation passed (1,179
 framework and 21 CLI files), and `git diff --check` passed. Runtime tests used
 Python 3.12. Three offline cookbook invocations passed as described above. Local
 results are separate from GitHub CI; no paid-model or hosted checks are claimed.
+
+
+### Project completion diagnostics, Mongo Routine APIs, and lost-ticket recovery
+
+**Status:** PASS (targeted checks; complete suites running separately)
+
+**Description:** Tested actual queued Task acceptance followed by deletion of its ticket before execution, leaving the durable Pending row intact. Automation, HTTP retry, and cancellation cancel and reconcile that attempt without replaying it. Reacceptance starts the next attempt on the same session. Agent, Team, and Workflow cases run on sync/async SQLite and PostgreSQL. Additional tests preserve session authorization, live tickets, Running observations, and retry after a cancellation write fails. Project completion database failures persist history, while explicit policy refusals stay quiet. Routine create, trigger, read, list, update, pause, resume and constant-query history lookup run against both Mongo variants with each of the four SQL Company adapters.
+
+**Result:** 124 focused integration checks passed (68 new cases plus 56 existing terminal reconciliation and authorization cases). The initial 60-case run also passed; it is not additive to the 124. Full formatter, validator (1,179 framework and 21 CLI files), and diff whitespace checks passed. These are local results; full-suite and CI results are not yet claimed.
+
+---

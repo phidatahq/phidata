@@ -6,7 +6,13 @@ import time
 from typing import Any, Dict, List, Literal, Optional
 from uuid import uuid4
 
-from agno.db.schemas.scheduler import INTERNAL_SCHEDULER_USER_ID, Schedule, ScheduleRun, _require_mutable_schedule
+from agno.db.schemas.scheduler import (
+    INTERNAL_SCHEDULER_USER_ID,
+    Schedule,
+    ScheduleRun,
+    _require_mutable_schedule,
+    _schedule_endpoint_targets,
+)
 from agno.run.authorization import (
     arequire_schedule_target,
     current_authorization,
@@ -212,6 +218,7 @@ class ScheduleManager:
                         max_retries=max_retries,
                         retry_delay_seconds=retry_delay_seconds,
                         next_run_at=next_run_at,
+                        **_schedule_endpoint_targets(existing.managed_by, endpoint),
                     )
                 )
                 return updated or existing
@@ -316,12 +323,15 @@ class ScheduleManager:
         existing = self.get(schedule_id, user_id=user_id)
         if existing is None:
             return None
-        require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        # Caller payloads cannot mint acceptance grants. Metadata-only changes
-        # retain the trusted stored grant while refreshing ordinary run authority.
-        kwargs["payload"] = (
-            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
-        )
+        if "endpoint" in kwargs:
+            kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
+        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
+            require_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+            # Caller payloads cannot mint acceptance grants. Metadata-only changes
+            # retain the trusted stored grant while refreshing ordinary run authority.
+            kwargs["payload"] = (
+                _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+            )
         return self._to_schedule(self._call("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     def delete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:
@@ -449,6 +459,7 @@ class ScheduleManager:
                         max_retries=max_retries,
                         retry_delay_seconds=retry_delay_seconds,
                         next_run_at=next_run_at,
+                        **_schedule_endpoint_targets(existing.managed_by, endpoint),
                     )
                 )
                 return updated or existing
@@ -553,12 +564,15 @@ class ScheduleManager:
         existing = await self.aget(schedule_id, user_id=user_id)
         if existing is None:
             return None
-        await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
-        # Caller payloads cannot mint acceptance grants. Metadata-only changes
-        # retain the trusted stored grant while refreshing ordinary run authority.
-        kwargs["payload"] = (
-            _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
-        )
+        if "endpoint" in kwargs:
+            kwargs.update(_schedule_endpoint_targets(existing.managed_by, kwargs["endpoint"]))
+        if current_authorization() is not None or {"payload", "method"}.intersection(kwargs):
+            await arequire_schedule_target(kwargs.get("endpoint", existing.endpoint), kwargs.get("method", existing.method))
+            # Caller payloads cannot mint acceptance grants. Metadata-only changes
+            # retain the trusted stored grant while refreshing ordinary run authority.
+            kwargs["payload"] = (
+                _schedule_payload(kwargs["payload"]) if "payload" in kwargs else stamp_authorization(existing.payload)
+            )
         return self._to_schedule(await self._acall("update_schedule", schedule_id, user_id=user_id, **kwargs))
 
     async def adelete(self, schedule_id: str, user_id: Optional[str] = None) -> bool:

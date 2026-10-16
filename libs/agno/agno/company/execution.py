@@ -100,6 +100,52 @@ def _pending_task_attempt(task: Dict[str, Any]) -> Optional[int]:
     return None
 
 
+def _task_run_database(os: Any, task: Dict[str, Any]) -> Any:
+    """Resolve the original run store even if the executor's database has changed."""
+    store_ids = [entry.get("run_db_id") for entry in task["transitions"] if entry.get("attempt")]
+    if store_ids and store_ids[0]:
+        stores = list({id(store): store for store in os.dbs.get(store_ids[0], [])}.values())
+        if len(stores) == 1:
+            return stores[0]
+        raise ValueError("Task session database is unavailable or ambiguous")
+    return getattr(_executor(os.registry, task["executor_type"], task["executor_id"]), "db", None)
+
+
+async def _reconcile_task_run(
+    db: Any,
+    run_db: Any,
+    task: Dict[str, Any],
+    run: Dict[str, Any],
+    caller: Optional[str],
+    is_admin: bool = False,
+) -> bool:
+    """Repair a missing result without enqueueing or overwriting a newer acceptance."""
+    if (
+        _pending_task_attempt(task) is None
+        or run["run_id"] != task["job_id"]
+        or run["session_id"] != task["session_id"]
+        or run["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}
+    ):
+        return False
+    from agno.db.base import SessionType
+    from agno.os.middleware.user_scope import assert_session_writable
+
+    await assert_session_writable(
+        run_db, task["session_id"], caller, session_type=SessionType(task["executor_type"]), is_admin=is_admin
+    )
+    data = run.get("run_data") or {}
+    result = {
+        "run_id": run["run_id"],
+        "status": run["status"],
+        "content": data.get("content"),
+        "content_type": data.get("content_type"),
+    }
+    updated = await _call(
+        db, "complete_task_run", task["id"], run["run_id"], result, expected_transitions=task["transitions"]
+    )
+    return updated is not None
+
+
 async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
     submission = _task_submission.get()
     if submission is None:

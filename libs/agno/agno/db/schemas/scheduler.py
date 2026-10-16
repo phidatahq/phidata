@@ -31,6 +31,19 @@ def _require_mutable_schedule(schedule_id: str) -> None:
 RUN_ENDPOINT_RE = re.compile(r"^/(agents|teams|workflows)/([^/]+)/runs/?\Z")
 
 
+def _schedule_endpoint_targets(managed_by: Optional[str], endpoint: str) -> Dict[str, Optional[str]]:
+    """Derive editable targets while preserving control-plane target ownership."""
+    target = RUN_ENDPOINT_RE.fullmatch(endpoint)
+    if target is None and managed_by == "company":
+        raise ValueError("Routine executor must be a run endpoint")
+    if managed_by not in (None, "company"):
+        return {}
+    return {
+        "target_type": target.group(1).rstrip("s") if target else None,
+        "target_id": target.group(2) if target else None,
+    }
+
+
 def build_run_endpoint(target_type: str, target_id: str) -> str:
     """Build the canonical run endpoint for a component.
 

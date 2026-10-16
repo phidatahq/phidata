@@ -1251,7 +1251,8 @@ async def test_automation_records_revocation_before_dispatch(system, monkeypatch
 
     monkeypatch.setattr(executor, "_dispatch", revoke)
     result = await tick(executor, db)
-    assert result["output"]["tasks"][0]["status"] == "skipped"
+    assert result["status"] == "failed"
+    assert result["output"]["tasks"][0]["status"] == "failed"
     assert "changed" in result["output"]["tasks"][0]["reason"]
     assert (await _call(db, "get_task", value["id"]))["job_id"] is None
 
@@ -1525,6 +1526,8 @@ async def test_exhausted_policy_skips_source_reads_on_every_tick(system, tmp_pat
             {"task_id": other["id"], "status": "skipped", "reason": "Routine acceptance limit reached"}
         ]
         assert (await _call(db, "get_task", other["id"]))["status"] == "backlog"
+        assert result["status"] == "success"
+        assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 0
     # Editing the policy immediately opens its own budget; a skip is not cached forever.
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy["limits"]["max_acceptances"] = 2
@@ -3013,7 +3016,7 @@ async def test_company_config_uses_explicit_company_database_only(system):
 
 
 @pytest.mark.asyncio
-async def test_schedule_endpoint_updates_target_columns_for_all_schedules(system):
+async def test_unmanaged_schedule_endpoint_updates_target_columns(system):
     from agno.company.execution import _call
 
     client, db, _, _, _ = system
@@ -3067,6 +3070,10 @@ async def test_routine_endpoint_edit_rejects_nonrun_target(system):
     )
     assert response.status_code == 201, response.text
     schedule_id = response.json()["id"]
+    patched = await client.patch("/schedules/" + schedule_id, json={"endpoint": "/teams/editors/runs"})
+    assert patched.status_code == 200, patched.text
+    saved = await _call(db, "get_schedule", schedule_id)
+    assert (saved["target_type"], saved["target_id"]) == ("team", "editors")
     changed = await client.patch(
         "/company/routines/" + schedule_id, json={"executor_type": "team", "executor_id": "editors"}
     )
@@ -3091,7 +3098,8 @@ async def test_automation_resumes_reserved_attempt_without_job_or_result(system)
     assert await worker.store.get_job(reserved["job_id"]) is None
     executor, schedule = await automation(system)
     result = await tick(executor, db)
-    assert result["output"]["tasks"][0]["status"] == "submitted"
+    assert result["output"]["tasks"][0]["status"] == "PENDING"
+    assert result["output"]["tasks"][0]["action"] == "submitted"
     assert await worker.store.get_job(reserved["job_id"]) is not None
     assert (await _call(db, "get_task", task["id"]))["transitions"] == reserved["transitions"]
     assert (await execute(worker))["status"] == "completed"
@@ -3115,3 +3123,195 @@ async def test_automation_shutdown_records_cancellation_and_releases_claim(syste
     saved = await _call(db, "get_schedule", schedule["id"])
     assert saved["locked_by"] is None and saved["next_run_at"] is not None
 
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("managed_by", ["studio", "other-control-plane"])
+async def test_managed_schedule_patch_preserves_target(system, managed_by):
+    from agno.company.execution import _call
+    from agno.scheduler.manager import ScheduleManager
+
+    client, db, _, _, _ = system
+    schedule = await ScheduleManager(db).acreate(
+        name="Managed target",
+        cron="0 * * * *",
+        endpoint="/agents/writer/runs",
+        provenance={"managed_by": managed_by, "target_type": "agent", "target_id": "writer"},
+    )
+    response = await client.patch("/schedules/" + schedule.id, json={"endpoint": "/teams/editors/runs"})
+    assert response.status_code == 200, response.text
+    saved = await _call(db, "get_schedule", schedule.id)
+    assert saved["endpoint"] == "/teams/editors/runs"
+    assert (saved["target_type"], saved["target_id"]) == ("agent", "writer")
+    assert saved["managed_by"] == managed_by
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("managed_by", [None, "company", "studio", "other-control-plane"])
+@pytest.mark.parametrize("operation", ["update", "upsert"])
+@pytest.mark.parametrize("async_api", [False, True])
+async def test_python_schedule_retargeting_policy(system, managed_by, operation, async_api):
+    from agno.company.execution import _call
+    from agno.scheduler.manager import ScheduleManager
+
+    _, db, _, _, _ = system
+    manager = ScheduleManager(db)
+    provenance = {"target_type": "agent", "target_id": "writer"}
+    if managed_by is not None:
+        provenance["managed_by"] = managed_by
+    schedule = await manager.acreate(
+        name="Python targets", cron="0 * * * *", endpoint="/agents/writer/runs", provenance=provenance
+    )
+    payload = {"message": "Keep the saved caller", "_agno_authorization": {"user_id": "original-caller"}}
+    await _call(db, "update_schedule", schedule.id, payload=payload)
+
+    async def change(endpoint):
+        args = {"endpoint": endpoint}
+        if operation == "upsert":
+            method = "create"
+            args.update(name=schedule.name, cron=schedule.cron_expr, if_exists="update")
+        else:
+            method = "update"
+            args["schedule_id"] = schedule.id
+        if async_api:
+            return await getattr(manager, "a" + method)(**args)
+        return await asyncio.to_thread(getattr(manager, method), **args)
+
+    try:
+        updated = await change("/teams/editors/runs/")
+        expected = ("team", "editors") if managed_by in (None, "company") else ("agent", "writer")
+        assert (updated.target_type, updated.target_id) == expected
+        assert updated.managed_by == managed_by
+        if operation == "update":
+            assert updated.payload == payload
+        if managed_by == "company":
+            with pytest.raises(ValueError, match="Routine executor must be a run endpoint"):
+                await change("/health")
+            saved = await _call(db, "get_schedule", schedule.id)
+            assert saved["endpoint"] == "/teams/editors/runs/"
+        else:
+            updated = await change("/health")
+            expected = (None, None) if managed_by is None else ("agent", "writer")
+            assert (updated.target_type, updated.target_id) == expected
+    finally:
+        manager.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["executor", "queue"])
+async def test_automation_dispatch_failures_remain_visible(system, monkeypatch, failure):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _call
+
+    client, db, worker, os, components = system
+    task = await accepted(client)
+    executor, schedule = await automation(system)
+    if failure == "executor":
+        os.registry.agents.remove(components["writer"])
+        reason = "Task executor is missing from the registry"
+    else:
+        reason = "queue storage unavailable"
+        monkeypatch.setattr(worker.store, "get_job", AsyncMock(side_effect=RuntimeError(reason)))
+    for _ in range(3):
+        await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+        result = await tick(executor, db)
+        assert result["status"] == "failed", result
+        assert reason in result["error"]
+        assert result["output"]["tasks"][0]["status"] == "failed"
+    rows, total = await _call(db, "get_schedule_runs", schedule["id"])
+    assert total == 3 and all(reason in row["error"] for row in rows)
+    assert (await _call(db, "get_task", task["id"]))["status"] == "ready"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["COMPLETED", "ERROR", "CANCELLED", "RUNNING", "PAUSED", "PENDING"])
+@pytest.mark.parametrize("recovery", ["automation", "http"])
+async def test_automation_reconciles_durable_run_without_resubmission(system, monkeypatch, status, recovery):
+    from unittest.mock import AsyncMock
+
+    from agno.company.execution import _call
+    from agno.run import RunStatus
+
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    executor, schedule = await automation(system)
+    await tick(executor, db)
+    reserved = await _call(db, "get_task", task["id"])
+    # The model run commits, but projecting its result into the Task fails.
+    with monkeypatch.context() as failure:
+
+        def unavailable(*args, **kwargs):
+            raise RuntimeError("Task result storage unavailable")
+
+        failure.setattr(db, "complete_task_run", unavailable)
+        await execute(worker)
+    run = await _call(db, "get_run", reserved["job_id"])
+    assert run.status == RunStatus.completed
+    run.status = RunStatus(status)
+    await _call(db, "upsert_run", run, session_id=task["session_id"])
+    assert (await _call(db, "get_task", task["id"]))["result"] is None
+    # Simulate a missing ticket, not normal retention of a running ticket.
+    table = worker.config.db._get_table("jobs")
+    with worker.config.db.Session() as session, session.begin():
+        session.execute(table.delete().where(table.c.id == reserved["job_id"]))
+    enqueue = AsyncMock(side_effect=AssertionError("An existing durable run must not be resubmitted"))
+    monkeypatch.setattr(worker.store, "enqueue_job", enqueue)
+    if recovery == "http":
+        response = await client.post(f"/company/tasks/{task['id']}/runs")
+        assert response.status_code == 202, response.text
+        assert response.json()["status"] == status
+    for index in range(3):
+        await _call(db, "update_schedule", schedule["id"], next_run_at=0)
+        result = await tick(executor, db)
+        assert result["status"] == "success", result
+        if index == 0 and recovery == "automation":
+            assert result["output"]["tasks"][0]["status"] == status
+    enqueue.assert_not_called()
+    saved = await _call(db, "get_task", task["id"])
+    terminal = status in {"COMPLETED", "ERROR", "CANCELLED"}
+    assert saved["status"] == ("in_review" if status == "COMPLETED" else "in_progress")
+    assert saved["result"] == (
+        {"run_id": run.run_id, "status": status, "content": run.content, "content_type": run.content_type}
+        if terminal
+        else None
+    )
+    assert await worker.store.get_job(reserved["job_id"]) is None
+    assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == (
+        2 if terminal and recovery == "automation" else 1
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("conflict", ["session", "run", "acceptance", "session_owner"])
+async def test_terminal_reconciliation_preserves_task_and_session_guards(system, conflict):
+    from fastapi import HTTPException
+
+    from agno.company.execution import _call, _reconcile_task_run
+
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    assert (await client.post(f"/company/tasks/{task['id']}/runs")).status_code == 202
+    reserved = await _call(db, "get_task", task["id"])
+    assert (await execute(worker))["status"] == "completed"
+    run = await _call(db, "get_run", reserved["job_id"], deserialize=False)
+    # A stale observation must not overwrite a later lifecycle transition.
+    if conflict == "acceptance":
+        await _call(db, "transition_task", task["id"], "in_progress", "Revise this result")
+    elif conflict == "session":
+        run["session_id"] = "another-session"
+    elif conflict == "run":
+        run["run_id"] = "another-run"
+    else:
+        from agno.db.base import SessionType
+
+        session = await _call(db, "get_session", task["session_id"], session_type=SessionType.AGENT)
+        session.user_id = "session-owner"
+        await _call(db, "upsert_session", session)
+    before = await _call(db, "get_task", task["id"])
+    if conflict == "session_owner":
+        with pytest.raises(HTTPException) as exc:
+            await _reconcile_task_run(db, db, reserved, run, "another-user")
+        assert exc.value.status_code == 404
+    else:
+        assert await _reconcile_task_run(db, db, reserved, run, None) is False
+    assert await _call(db, "get_task", task["id"]) == before

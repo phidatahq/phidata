@@ -2693,6 +2693,8 @@ Wider results: **11,779 unit tests passed, 21 conditional skips** across the com
 
 ### Company follow-up regression suites
 
+### Initial Company follow-up regression suites at ace873af7a
+
 **Status:** PASS
 
 **Description:** Complete database, AgentOS, scheduler, and Company tools unit
@@ -2707,9 +2709,8 @@ Routine executor edits, team discovery provenance, and Source deduplication.
 484 passed without skips in the final execution run. Total: 7,343 passed,
 five skipped. Skips are one root-only ownership test, three live-model credential
 tests, and one optional asyncpg test. Company parity covers SQLite and PostgreSQL,
-sync and async. No unresolved test failures. The older Manager test and guide
-requiring replacement of managed schedules now check authorized retargeting,
-as required by the shared endpoint-update contract.
+sync and async. No unresolved test failures. At this initial head, the Manager test and guide allowed managed retargeting.
+That policy was corrected in the review follow-up below.
 
 `./scripts/format.sh` passed. `./scripts/validate.sh` passed on the exact source
 using the existing clean Python 3.10 validation environment: 1,155 framework and
@@ -2722,3 +2723,44 @@ Items 3–5 began at PR 6 head `e3fb6c64141dc105d9fb0c20ab70f4c5eefa5071`.
 A normal merge incorporated `0c0983de9216293df8221cc3af1f5b0adb7eda46` before
 items 1–2. Pending-reservation replay and all final verification use that final
 parent head. No rebase, history rewrite, direct Heartbeat merge, or main merge.
+
+
+### PR 6.5 review fixes — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Restored immutable targets for Studio and other control-plane
+schedules. REST and sync/async Python update/upsert derive targets only for
+unmanaged schedules and Company Routines; endpoint-only Python updates preserve
+saved caller authorization. Company non-run endpoints remain invalid.
+Dispatch failures persist failed history with reasons, while idle checks and
+exhausted acceptance policies remain quiet. Terminal runs repair missing Task
+results through both HTTP and automation without another enqueue. Run/session
+identity, session ownership and stale acceptance guards are covered; durable
+PENDING, RUNNING and PAUSED runs are never resubmitted. The missing-ticket probe
+explicitly removes a running job after an injected Task projection failure; it
+does not claim that ordinary queue retention removes running jobs.
+
+**Result:** 7,666 passed, nine optional/environment skips, no failures across
+disjoint final coverage: 7,560 passed / five skipped in complete scheduler,
+AgentOS (including Manager), database, Company/SchedulerTools unit tests and
+Company integration suites; 102 additional Product/Project/Task/schedule
+lifecycle and SQLite integration tests passed; all four PostgreSQL scheduler
+lifecycle cases passed in an explicitly configured follow-up. Four optional
+MongoDB lifecycle cases remain skipped, alongside one root-only ownership test,
+three live-model credential checks and one optional asyncpg unit check. All
+Company SQLite/PostgreSQL sync/async parity cases ran. The final Python API
+matrix was additionally rerun after the saved-authorization assertion (64
+passed); HTTP/automation recovery and guard probes passed all 68 selected cases.
+These focused selections overlap the full run and are not added to its totals.
+
+Both full formatting and exact-source validation passed. Validation used the
+existing Python 3.10 environment and checked 1,155 framework and 21 CLI files.
+The shared development Python 3.12 environment still reports exactly the same
+34 typing diagnostics in 11 files as the recorded baseline; no new diagnostics.
+Tests used development Python 3.12 and offline models. Unrelated formatter-only
+changes were excluded; `git diff --check` passed. No paid/provider calls or
+hosted validation. CI and automated review are separate from these local results.
+
+The parent remains PR 6 at `0c0983de9216293df8221cc3af1f5b0adb7eda46`.
+The review fixes are a normal follow-up commit, with no history rewrite.

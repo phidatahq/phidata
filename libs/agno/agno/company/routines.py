@@ -438,7 +438,10 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             except Exception as exc:
                 result = {"status": "failed", "error": str(exc)}
             outcomes = (result.get("output") or {}).get("tasks", [])
-            active = any(item.get("status") in {"accepted", "submitted", "done"} for item in outcomes)
+            active = any(
+                item.get("status") in {"accepted", "done"} or item.get("action") in {"submitted", "reconciled"}
+                for item in outcomes
+            )
             if result["status"] == "failed" or active:
                 run = ScheduleRun(
                     id=str(uuid4()),
@@ -477,10 +480,16 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                         log_error(f"Failed to disable schedule {schedule_id} after cron failure: {exc}")
 
                 try:
+                    from inspect import signature
+
+                    release_kwargs = {"next_run_at": next_run_at}
+                    # An expired worker must not release a newer worker's claim.
+                    if sched.locked_by is not None and "worker_id" in signature(db.release_schedule).parameters:
+                        release_kwargs["worker_id"] = sched.locked_by
                     if asyncio.iscoroutinefunction(getattr(db, "release_schedule", None)):
-                        await db.release_schedule(schedule_id, next_run_at=next_run_at)
+                        await db.release_schedule(schedule_id, **release_kwargs)
                     else:
-                        db.release_schedule(schedule_id, next_run_at=next_run_at)
+                        db.release_schedule(schedule_id, **release_kwargs)
                 except Exception as exc:
                     log_error(f"Failed to release schedule {schedule_id}: {exc}")
 
@@ -496,7 +505,13 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         token = _automation_deadline.set((schedule.locked_at or time.time()) + _AUTOMATION_TICK_SECONDS)
         try:
             _check_automation_deadline()
-            return {"status": "success", "output": {"tasks": await self._tick()}}
+            outcomes = await self._tick()
+            failures = [item["reason"] for item in outcomes if item.get("status") == "failed"]
+            return {
+                "status": "failed" if failures else "success",
+                "output": {"tasks": outcomes},
+                **({"error": "; ".join(failures)} if failures else {}),
+            }
         finally:
             _automation_deadline.reset(token)
 
@@ -520,6 +535,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         outcomes = []
         for candidate in tasks:
             _check_automation_deadline()
+            dispatching = False
             try:
                 task = await _call(db, "get_task", candidate["id"])
                 if task is None:
@@ -529,6 +545,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                         continue
                     task = await self._accept(task)
                     outcomes.append({"task_id": task["id"], "status": "accepted"})
+                dispatching = task["status"] in {"ready", "in_progress"}
                 if task["status"] == "in_progress":
                     # Only an unfinished reservation with no queue job may resume.
                     # Persisted results survive queue retention and require human retry.
@@ -536,7 +553,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                         continue
                     queue = getattr(self.app.state, "queue_worker", None)
                     if queue is None:
-                        continue
+                        raise ValueError("Company execution requires the durable queue")
                     if task.get("job_id") and await queue.store.get_job(task["job_id"]) is not None:
                         outcomes.append(
                             {"task_id": task["id"], "status": "already_submitted", "run_id": task["job_id"]}
@@ -550,7 +567,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 from fastapi import HTTPException
 
                 reason = str(exc.detail) if isinstance(exc, HTTPException) else str(exc)
-                outcomes.append({"task_id": candidate["id"], "status": "skipped", "reason": reason})
+                outcomes.append(
+                    {"task_id": candidate["id"], "status": "failed" if dispatching else "skipped", "reason": reason}
+                )
         outcomes.extend(await self._complete_projects())
         return outcomes
 
@@ -793,7 +812,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         authority = restore_authorization(self.app, snapshot)
         if authority is None and os.authorization:
             raise ValueError("Task acceptance has no saved caller authority")
-        _executor(os.registry, task.get("executor_type"), task.get("executor_id"))
+        component = _executor(os.registry, task.get("executor_type"), task.get("executor_id"))
         if authority is not None:
             await authority.arequire(task["executor_type"] + "s", "run", task["executor_id"])
             await authority.arequire("tasks", "write")
@@ -821,6 +840,27 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             queue = getattr(self.app.state, "queue_worker", None)
             if queue is not None and await queue.store.get_job(task["job_id"]) is not None:
                 return {"status": "already_submitted", "run_id": task["job_id"]}
+            from agno.company.execution import _reconcile_task_run, _task_run_database
+
+            run_db = _task_run_database(os, task)
+            if run_db is None:
+                raise ValueError("Task run database is unavailable")
+            prior_run = await _call(run_db, "get_run", task["job_id"], deserialize=False)
+            if prior_run is not None:
+                if prior_run["session_id"] != task["session_id"]:
+                    raise ValueError("Run identifier conflicts with another session")
+                repaired = await _reconcile_task_run(
+                    os._company_db,
+                    run_db,
+                    task,
+                    prior_run,
+                    task.get("accepted_by") or getattr(component, "user_id", None),
+                )
+                return {
+                    "status": prior_run["status"],
+                    "run_id": task["job_id"],
+                    "action": "reconciled" if repaired else "observed",
+                }
         # This is the ordinary manual Task route, which reserves the attempt,
         # checks the registry and run scope, and enters the executor's run route.
         headers = {"Authorization": "Bearer " + self.internal_service_token, AUTHORIZATION_HEADER: json.dumps(snapshot)}
@@ -839,7 +879,8 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 )
             if response.status_code != 202:
                 raise ValueError(response.text)
-            return {**response.json(), "status": "submitted"}
+            result = response.json()
+            return {**result, "action": "submitted" if result.get("status") == "PENDING" else "observed"}
         finally:
             _automatic_task.reset(token)
 

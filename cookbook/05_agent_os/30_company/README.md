@@ -396,10 +396,14 @@ timestamp and are not fenced by this comparison.
 
 Each minute it checks Ready Tasks and authorized Routine proposals using the
 scheduler's ordinary claims and release. A tick records history only when it
-accepts, dispatches, or completes work, or raises an execution error. Quiet ticks
-leave no run rows. Recorded output includes skipped Tasks and their reasons,
-readable through `/schedules/{id}/runs`. Failed or cancelled attempts stay for a
-human to retry, even after their queue jobs have been removed by retention.
+accepts, dispatches, completes, or recovers work, or encounters an execution
+error. Dispatch failures, including unavailable queue storage or a missing
+executor, produce failed history with Task-specific reasons, readable through
+`/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
+run rows. A missing queue ticket is recreated only when the reserved attempt
+has no durable run or Task result. If its terminal run exists, the missing Task
+result is recovered without rerunning the executor. Failed or cancelled
+attempts stay for a human to retry, even after queue retention.
 
 Starting AgentOS without Company disables an existing automation schedule with
 `disabled_reason="company_off"`. Enabling Company again re-enables that row;

@@ -625,6 +625,22 @@ class AgentOS:
         from agno.os.manager import OSManager
         from agno.os.manager.manager import _build_manager
 
+        self._product_manager: Optional[Agent] = None
+        self.product_manager_unavailable_reason: Optional[str] = None
+        if self.company is not None:
+            from agno.company.product_manager import _build_product_manager
+
+            company_model = self.company.model
+            if company_model is None and self.registry is not None and self.registry.models:
+                company_model = self.registry.models[0]
+            self._product_manager = _build_product_manager(self, company_model)
+            if self._product_manager is None:
+                self.product_manager_unavailable_reason = (
+                    "Product Manager unavailable: configure CompanyConfig(model=...) or Registry(models=[...])"
+                    if company_model is None
+                    else "Product Manager unavailable: Company requires a database"
+                )
+
         self._manager: Optional["_Manager"] = None
         if manager is not None and not isinstance(manager, (bool, OSManager)):
             raise TypeError("AgentOS.manager must be True, False, None, or OSManager")
@@ -636,6 +652,21 @@ class AgentOS:
             self.agents = list(self.agents or [])
             self.teams = [*(self.teams or []), self._manager.team]
             self._apply_manager_manifest()
+
+        if self._product_manager is not None:
+            if self.registry is None:
+                self.registry = Registry()
+            self.registry.exclude_components([self._product_manager])
+            if self._manager is not None:
+                self._manager.product_manager = self._product_manager
+                assert isinstance(self._manager.team.members, list)
+                self._manager.team.members.append(self._product_manager)
+                assert isinstance(self._manager.team.instructions, list)
+                self._manager.team.instructions.append(
+                    "Delegate Company planning, playbook updates and decisions to Product Manager."
+                )
+            else:
+                self.agents = [*(self.agents or []), self._product_manager]
 
         self._initialize_agents()
         self._initialize_teams()
@@ -670,6 +701,11 @@ class AgentOS:
     def manager(self) -> Optional[Team]:
         """The OS Manager team, or None when disabled. Supports run() and arun()."""
         return self._manager.team if self._manager is not None else None
+
+    @property
+    def product_manager(self) -> Optional[Agent]:
+        """The built-in Product Manager, or None with an unavailable reason."""
+        return self._product_manager
 
     def _owned_by_manager(self, component: Any) -> bool:
         """True for the manager's team and members, which never enter the registry."""
@@ -892,6 +928,7 @@ class AgentOS:
             get_filesystem_router(self, settings=self.settings),
         ]
         if self.company is not None:
+            from agno.os.routers.company.playbook import get_playbook_router
             from agno.os.routers.company.products import get_products_router
             from agno.os.routers.company.projects import get_projects_router
             from agno.os.routers.company.tasks import get_tasks_router
@@ -899,6 +936,7 @@ class AgentOS:
             updated_routers.append(get_products_router(db=self._company_db, settings=self.settings))
             updated_routers.append(get_projects_router(db=self._company_db, settings=self.settings))
             updated_routers.append(get_tasks_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):
@@ -1012,7 +1050,10 @@ class AgentOS:
 
         _raise_if_reserved_ids(
             [*(self.agents or []), *(self.teams or []), *(self.workflows or [])],
-            owned=self._manager.components if self._manager is not None else (),
+            owned=[
+                *(self._manager.components if self._manager is not None else []),
+                *([self._product_manager] if self._product_manager is not None else []),
+            ],
         )
         duplicate_ids: List[str] = []
 
@@ -1714,6 +1755,7 @@ class AgentOS:
             get_filesystem_router(self, settings=self.settings),
         ]
         if self.company is not None:
+            from agno.os.routers.company.playbook import get_playbook_router
             from agno.os.routers.company.products import get_products_router
             from agno.os.routers.company.projects import get_projects_router
             from agno.os.routers.company.tasks import get_tasks_router
@@ -1721,6 +1763,7 @@ class AgentOS:
             routers.append(get_products_router(db=self._company_db, settings=self.settings))
             routers.append(get_projects_router(db=self._company_db, settings=self.settings))
             routers.append(get_tasks_router(db=self._company_db, settings=self.settings))
+            routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
         # Routes that require a database
         if self.db is not None:
             if isinstance(self.db, BaseDb):

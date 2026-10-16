@@ -63,3 +63,48 @@ isolation is enabled, with the existing admin bypass.
 New work can use another owner's Product or Project, with the Task and
 Project still required to belong to the same Product. Manager and storage
 methods retain explicit owner filters for direct callers.
+
+
+## Playbook and Product Manager
+
+| File | Demonstrates |
+| --- | --- |
+| `04_manage_playbook.py` | Sync/async wiki namespaces, atomic page creation, version conflicts and the learning decision log without a model. |
+| `05_product_manager.py` | Model resolution, a standalone Product Manager, bounded Company tools and explicit MCP publication without a model call. |
+
+Each Product has a durable wiki namespace with `brief.md` (human direction) and
+`status.md` (current work). A second namespace holds company context. Default
+pages are created on first access and never reset. GET `/company/products/{id}/wiki`
+lists pages; GET and PUT `/company/products/{id}/wiki/{path}` read and write them.
+The company namespace has the same surface at `/company/wiki`. Writes require the
+filesystem `expected_version` read with the page; zero means create only. Conflicts
+return 409. Pages are Markdown and paths must be relative and normalized.
+
+Wiki reads require `wiki:read`; writes require `wiki:write`. Product ownership
+controls writes under isolation. Company pages are unowned shared documents, so
+only unscoped callers (admins, or isolation disabled) can change them. Every caller
+with read permission can read both namespaces. Company services use FileSystem;
+its existing backend owns storage and version checks.
+
+GET and POST `/company/decisions` use `decisions:read` and `decisions:write`.
+Decisions are learning log entries in the `company` namespace, never a file.
+Listings support text, agent, session and age filters plus standard paging.
+The server stamps human identity; agents get identity from injected run context.
+Automatic learning recall includes human and agent decisions across the company;
+explicit searches can still filter by agent. The learning machine binds the agent
+ID when supplying decision tools. Standalone CompanyTools and direct MCP calls
+leave agent attribution unset. The log is append-only: later outcomes are new
+entries that reference the original decision.
+
+Product Manager uses `CompanyConfig(model=...)`, otherwise the first declared
+registry model. If neither exists, its unavailable reason appears in diagnostics
+and manual APIs still work. With OS Manager enabled it is an internal member;
+otherwise it is a standalone agent. Its id is reserved and its tools stay out of
+the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
+updates `status.md` with a version check, and logs decisions through its learning
+machine. It has no acceptance, completion, owner, Sources or scheduler tools.
+
+CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, following
+the existing MCP toolkit convention. Direct MCP calls have the same write fence.
+The examples make no provider calls; they do not demonstrate live model quality.
+Execution, attention, Routines and Sources are outside this delivery.

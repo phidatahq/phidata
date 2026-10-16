@@ -123,11 +123,15 @@ class CompanyManager:
             status=status,
         )
 
-    def update_project(self, project_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
+    def update_project(
+        self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
+    ) -> Optional[Dict[str, Any]]:
         """Update the name, outcome or target date of a visible Project."""
         from agno.db.schemas.projects import validate_project_fields
 
         validate_project_fields(fields)
+        if expected_status is not None:
+            fields["expected_status"] = expected_status
         return self.db.update_project(project_id, user_id=user_id, **fields)
 
     def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
@@ -267,6 +271,93 @@ class CompanyManager:
             executor_id=executor_id,
         )
 
+    def get_wiki(self, product_id: Optional[str] = None):
+        """Return a Product or company wiki; reads are company-wide.
+
+        Default pages are created atomically on first access and never reset.
+        """
+        from agno.company.playbook import _seed, _wiki
+
+        product = self.get(product_id) if product_id is not None else None
+        if product_id is not None and product is None:
+            raise LookupError("Product not found")
+        provider = _wiki(self.db, product)
+        _seed(provider, product)
+        return provider
+
+    def list_wiki(self, product_id: Optional[str] = None, limit: int = 20, page: int = 1):
+        """List wiki pages with the standard Company pagination."""
+        if limit < 1 or page < 1:
+            raise ValueError("limit and page must be positive")
+        provider = self.get_wiki(product_id)
+        pages = provider.backend.filesystem.list()
+        return pages[(page - 1) * limit : page * limit], len(pages)
+
+    def read_wiki(self, product_id: Optional[str], path: str):
+        """Read a Markdown page and its filesystem version."""
+        from agno.company.playbook import _page_path
+
+        provider = self.get_wiki(product_id)
+        result = provider.backend.filesystem.read_with_meta(_page_path(path))
+        if result is None:
+            raise LookupError("Wiki page not found")
+        return result
+
+    def write_wiki(
+        self, product_id: Optional[str], path: str, content: str, expected_version: int, user_id: Optional[str] = None
+    ):
+        """Write with a filesystem version check; a scoped caller must own the Product.
+
+        Company-wide pages are unowned, like shared components, and therefore
+        editable only by unscoped callers. Version zero means create only.
+        """
+        from agno.company.playbook import _page_path, _require_owner
+
+        if expected_version < 0:
+            raise ValueError("expected_version must be nonnegative")
+        product = self.get(product_id) if product_id is not None else {}
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, user_id)
+        provider = self.get_wiki(product_id)
+        return provider.backend.filesystem.write(_page_path(path), content, expected_version=expected_version)
+
+    def log_decision(
+        self,
+        decision: str,
+        reasoning: Optional[str] = None,
+        context: Optional[str] = None,
+        outcome: Optional[str] = None,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+    ):
+        """Append an owned entry to the learning decision log, never a wiki page."""
+        from agno.company.decisions import CompanyDecisionLogStore, _new_decision
+
+        entry = _new_decision(decision, reasoning, context, outcome, user_id, session_id, agent_id)
+        CompanyDecisionLogStore(self.db).save(entry)
+        return entry
+
+    def list_decisions(
+        self,
+        query: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        days: Optional[int] = None,
+        limit: int = 20,
+        page: int = 1,
+    ):
+        """Search Company decisions across owners using the learning store's filters."""
+        from agno.company.decisions import CompanyDecisionLogStore
+
+        if limit < 1 or page < 1 or (days is not None and days < 1):
+            raise ValueError("limit, page and days must be positive")
+        entries = CompanyDecisionLogStore(self.db).search(
+            query=query, agent_id=agent_id, session_id=session_id, days=days, limit=None
+        )
+        return entries[(page - 1) * limit : page * limit], len(entries)
+
 
 class AsyncCompanyManager:
     """Manage Products through an asynchronous database.
@@ -384,12 +475,14 @@ class AsyncCompanyManager:
         )
 
     async def update_project(
-        self, project_id: str, user_id: Optional[str] = None, **fields: Any
+        self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
     ) -> Optional[Dict[str, Any]]:
         """Update the name, outcome or target date of a visible Project."""
         from agno.db.schemas.projects import validate_project_fields
 
         validate_project_fields(fields)
+        if expected_status is not None:
+            fields["expected_status"] = expected_status
         return await self.db.update_project(project_id, user_id=user_id, **fields)
 
     async def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
@@ -528,3 +621,90 @@ class AsyncCompanyManager:
             executor_type=executor_type,
             executor_id=executor_id,
         )
+
+    async def get_wiki(self, product_id: Optional[str] = None):
+        """Return a Product or company wiki; reads are company-wide.
+
+        Default pages are created atomically on first access and never reset.
+        """
+        from agno.company.playbook import _aseed, _wiki
+
+        product = await self.get(product_id) if product_id is not None else None
+        if product_id is not None and product is None:
+            raise LookupError("Product not found")
+        provider = _wiki(self.db, product)
+        await _aseed(provider, product)
+        return provider
+
+    async def list_wiki(self, product_id: Optional[str] = None, limit: int = 20, page: int = 1):
+        """List wiki pages with the standard Company pagination."""
+        if limit < 1 or page < 1:
+            raise ValueError("limit and page must be positive")
+        provider = await self.get_wiki(product_id)
+        pages = await provider.backend.filesystem.alist()
+        return pages[(page - 1) * limit : page * limit], len(pages)
+
+    async def read_wiki(self, product_id: Optional[str], path: str):
+        """Read a Markdown page and its filesystem version."""
+        from agno.company.playbook import _page_path
+
+        provider = await self.get_wiki(product_id)
+        result = await provider.backend.filesystem.aread_with_meta(_page_path(path))
+        if result is None:
+            raise LookupError("Wiki page not found")
+        return result
+
+    async def write_wiki(
+        self, product_id: Optional[str], path: str, content: str, expected_version: int, user_id: Optional[str] = None
+    ):
+        """Write with a filesystem version check; a scoped caller must own the Product.
+
+        Company-wide pages are unowned, like shared components, and therefore
+        editable only by unscoped callers. Version zero means create only.
+        """
+        from agno.company.playbook import _page_path, _require_owner
+
+        if expected_version < 0:
+            raise ValueError("expected_version must be nonnegative")
+        product = await self.get(product_id) if product_id is not None else {}
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, user_id)
+        provider = await self.get_wiki(product_id)
+        return await provider.backend.filesystem.awrite(_page_path(path), content, expected_version=expected_version)
+
+    async def log_decision(
+        self,
+        decision: str,
+        reasoning: Optional[str] = None,
+        context: Optional[str] = None,
+        outcome: Optional[str] = None,
+        user_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        agent_id: Optional[str] = None,
+    ):
+        """Append an owned entry to the learning decision log, never a wiki page."""
+        from agno.company.decisions import CompanyDecisionLogStore, _new_decision
+
+        entry = _new_decision(decision, reasoning, context, outcome, user_id, session_id, agent_id)
+        await CompanyDecisionLogStore(self.db).asave(entry)
+        return entry
+
+    async def list_decisions(
+        self,
+        query: Optional[str] = None,
+        agent_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+        days: Optional[int] = None,
+        limit: int = 20,
+        page: int = 1,
+    ):
+        """Search Company decisions across owners using the learning store's filters."""
+        from agno.company.decisions import CompanyDecisionLogStore
+
+        if limit < 1 or page < 1 or (days is not None and days < 1):
+            raise ValueError("limit, page and days must be positive")
+        entries = await CompanyDecisionLogStore(self.db).asearch(
+            query=query, agent_id=agent_id, session_id=session_id, days=days, limit=None
+        )
+        return entries[(page - 1) * limit : page * limit], len(entries)

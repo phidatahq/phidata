@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar, Union
@@ -824,10 +825,57 @@ class RunSchema(BaseModel):
         )
 
 
+_RUN_PREVIEW_CHARS = 280
+
+
+class SessionRunPreviewSchema(BaseModel):
+    """Lightweight session-run listing entry: the shape a queue tray or
+    session sidebar polls for. Deliberately excludes messages, events, media,
+    metrics and step results - the full shapes stay on the default listing
+    and the single-run endpoint. Previews are truncated to 280 characters."""
+
+    run_id: str = Field(..., description="Unique identifier for the run")
+    parent_run_id: Optional[str] = Field(None, description="Parent run ID if this is a nested run")
+    agent_id: Optional[str] = Field(None, description="Agent ID, when this is an agent run")
+    team_id: Optional[str] = Field(None, description="Team ID, when this is a team run")
+    workflow_id: Optional[str] = Field(None, description="Workflow ID, when this is a workflow run")
+    user_id: Optional[str] = Field(None, description="User ID associated with the run")
+    status: Optional[str] = Field(
+        None, description="Run status (PENDING, RUNNING, PAUSED, COMPLETED, CANCELLED, ERROR, REGENERATED)"
+    )
+    run_input: Optional[str] = Field(None, description="Input preview, truncated")
+    content_preview: Optional[str] = Field(None, description="Output content preview, truncated")
+    created_at: Optional[datetime] = Field(None, description="Run creation timestamp")
+
+    @classmethod
+    def _preview(cls, value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        # Structured output (output_schema) previews as JSON, matching the full listing's content.
+        text = value if isinstance(value, str) else json.dumps(value, default=str)
+        return text[:_RUN_PREVIEW_CHARS]
+
+    @classmethod
+    def from_run(cls, run: Any) -> "SessionRunPreviewSchema":
+        return cls(
+            run_id=run.run_id,
+            parent_run_id=getattr(run, "parent_run_id", None),
+            agent_id=getattr(run, "agent_id", None),
+            team_id=getattr(run, "team_id", None),
+            workflow_id=getattr(run, "workflow_id", None),
+            user_id=getattr(run, "user_id", None),
+            status=getattr(run, "status", None),
+            run_input=cls._preview(getattr(run, "run_input", None)),
+            content_preview=cls._preview(getattr(run, "content", None)),
+            created_at=getattr(run, "created_at", None),
+        )
+
+
 class TeamRunSchema(BaseModel):
     run_id: str = Field(..., description="Unique identifier for the team run")
     parent_run_id: Optional[str] = Field(None, description="Parent run ID if this is a nested run")
     team_id: Optional[str] = Field(None, description="Team ID that executed this run")
+    user_id: Optional[str] = Field(None, description="User ID associated with the run")
     status: Optional[str] = Field(None, description="Run status (PENDING, RUNNING, COMPLETED, ERROR, etc.)")
     cancellation_stage: Optional[str] = Field(None, description=CANCELLATION_STAGE_DESCRIPTION)
     content: Optional[Union[str, dict]] = Field(None, description="Output content from the team run")
@@ -880,6 +928,7 @@ class TeamRunSchema(BaseModel):
             run_id=run_dict.get("run_id", ""),
             parent_run_id=run_dict.get("parent_run_id", ""),
             team_id=run_dict.get("team_id", ""),
+            user_id=run_dict.get("user_id"),
             status=run_dict.get("status"),
             cancellation_stage=run_dict.get("cancellation_stage"),
             run_input=run_input,

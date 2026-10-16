@@ -618,3 +618,65 @@ Company integrations and execution/Task routes on all four adapters. The two
 separate-process restart tests pass through both ordinary session history and
 Company history/individual-run routes. Format and validation passed with output
 read; mypy checked 1,146 framework and 21 CLI files without errors.
+
+## Cascading archive and counts — October 16, 2026
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Temporary local SQLite databases only.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Ran `cookbook/05_agent_os/30_company/07_cascading_archive.py` with the cascading archive and grouped counts changes.
+
+**Result:** All assertions passed without model calls. Both SQLite and `--postgres` modes passed, each exercising sync and async managers: active-work refusal, Backlog move, cascade provenance, hidden children, counts, and exact restore.
+
+---

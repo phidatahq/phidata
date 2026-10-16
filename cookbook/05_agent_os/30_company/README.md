@@ -181,3 +181,40 @@ clears it from failed attention while preserving the result as history. Starting
 a new attempt clears the previous result. `failed=false`
 includes all other Tasks, including those with no result. The Task table is
 created with its execution, evidence and result columns in the initial schema.
+
+## Cascading archive
+
+| File | Demonstrates |
+| --- | --- |
+| `07_cascading_archive.py` | Active-work refusal, moving a Backlog Task, cascading archive, hidden children, and exact restore with sync and async managers. Add `--postgres` for PostgreSQL. |
+
+Archiving a Product archives all its active Projects and Tasks. Archiving a
+Project archives its active Tasks. Every cascaded child's `transitions` history
+records an `action: "archive"` event with `archived_by: {type, id}` naming the
+parent. Lifecycle status stays unchanged. Restore brings back only those
+children; records archived separately or before the parent stay archived.
+Restore the parent before restoring individual children.
+
+A Product or Project with Ready, In progress, or In review Tasks refuses archive,
+even if an active Task was separately archived.
+The API returns 409 with `detail.message` and `detail.tasks`, an array of `{id,
+title}` objects. Managers raise `ValueError` with the same detail dictionary.
+Finish or cancel that work first. Backlog Tasks may move to another active
+Project in the same Product using `PATCH /company/tasks/{id}` with `project_id`;
+Product membership is immutable.
+
+Project and Task lists always hide children of archived parents, including when
+`include_deleted=true`. Totals and pagination follow the same visibility rule.
+Use `include_deleted=true` on the parent's own list to find it, or read an
+individual archived record with that flag. Cascades and restores run in one
+database transaction; refusal leaves the entire hierarchy unchanged.
+
+Product and Project reads also carry `counts`. A Product has `counts.projects`
+(the number of proposed or active Projects) and `counts.tasks` with integer
+`backlog`, `ready`, `in_progress`, `in_review`, `done`, and `cancelled` fields.
+A Project has the same `counts.tasks` object. Missing statuses are zero.
+Archived children and children of archived parents contribute nothing, even
+when the parent's own read includes archived records. Managers and HTTP use
+`BaseDb.get_product_counts(ids)` or `get_project_counts(ids)` and their async
+twins, issuing one grouped query for the entire returned page. A warmed list
+page uses three SQL statements in total, regardless of the number of cards.

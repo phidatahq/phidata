@@ -54,7 +54,10 @@ def get_tasks_router(
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc))
         except ValueError as exc:
-            conflict = method == "transition_task" or str(exc) == "Accepted task scope requires a return to Backlog"
+            conflict = (
+                method in {"transition_task", "restore_task", "delete_task"}
+                or str(exc) == "Accepted task scope requires a return to Backlog"
+            )
             raise HTTPException(status_code=409 if conflict else 422, detail=str(exc))
 
     async def _writable(task_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:

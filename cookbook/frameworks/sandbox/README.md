@@ -136,15 +136,18 @@ Set `REPOSITORY_URL`, optionally `REPOSITORY_BRANCH`, `ENGINEER_SESSION_ID`,
 Public GitHub repositories need no token. For a private repository, set
 `env={"GITHUB_READ_TOKEN": ...}` on the sandbox using a short-lived, single-repository
 read token. It is read only from the sandbox environment; the host environment is not
-forwarded automatically. `GITHUB_TOKEN` is refused. Git receives authentication through
-its child environment, with redirects and interactive prompting disabled, and never
-stores the token in the checkout or checkpoint. Model/tools running inside the sandbox
-can access its environment; never put a publishing credential there.
+forwarded automatically. `GITHUB_TOKEN` is refused once a repository is configured. Git
+receives authentication through its child environment, with redirects and interactive
+prompting disabled, and never stores the token in the checkout or checkpoint. Model/tools
+running inside the sandbox can access its environment; never put a publishing credential
+there.
 
 The completed run exposes `{url, branch, commit}` at
 `run.metadata["sandbox"]["repository"]`, alongside its checkpoint and resumed status.
 Git preparation has a 120-second timeout per command; a preparation failure is retryable
-and removes the partial checkout before the model starts.
+and removes the partial checkout before the model starts. Run attachments are staged under
+`.agno/uploads/` inside the checkout; the checkout's `.git/info/exclude` keeps them out of
+`git status` and `git add`.
 
 Sandboxed agents require PostgreSQL and an explicit checkpoint store. AgentOS durable
 queue deployments also require Redis. Docker needs `network="isolated"` (or another

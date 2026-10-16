@@ -179,8 +179,11 @@ def test_agent_configuration_and_run_rejection(sdk, monkeypatch):
                 method("inspect", repository=None, stream=stream)
     with pytest.raises(ValueError, match="agent.repository"):
         submission(agent, "inspect", {"repository": SPEC})
+    # GITHUB_TOKEN only matters once Git runs against a configured repository.
+    publishing = DockerSandbox(image="fixture", env={"GITHUB_TOKEN": "publishing-secret"})
+    assert cls(sandbox=publishing).repository is None
     with pytest.raises(ValueError, match="GITHUB_READ_TOKEN"):
-        cls(sandbox=DockerSandbox(image="fixture", env={"GITHUB_TOKEN": "publishing-secret"}))
+        cls(sandbox=publishing, repository=configured)
 
 
 def test_token_only_in_child_environment(tmp_path, monkeypatch, local_repository):
@@ -281,6 +284,39 @@ async def test_runtime_guards_before_model(tmp_path, monkeypatch):
         await runtime._execute(directory, {"sdk": "fixture", "config": {}})
     with pytest.raises(ValueError, match="pinned source"):
         await runtime._execute(directory, {"sdk": "fixture", "config": {"repository": {**SPEC, "branch": "other"}}})
+
+
+@pytest.mark.asyncio
+async def test_runtime_refuses_github_token_only_with_a_repository(tmp_path, monkeypatch):
+    from agno.sandbox import runtime
+
+    monkeypatch.setenv("GITHUB_TOKEN", "publishing-secret")
+    directory = tmp_path / "jobs/run"
+    directory.mkdir(parents=True)
+    started = []
+
+    async def harness(*args):
+        started.append(args)
+        return {"run": {}}
+
+    monkeypatch.setattr(runtime, "_execute_harness", harness)
+    assert await runtime._execute(directory, {"sdk": "fixture", "config": {}}) == {"run": {}}
+    assert len(started) == 1
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: pytest.fail("Git called"))
+    with pytest.raises(ValueError, match="GITHUB_READ_TOKEN"):
+        await runtime._execute(directory, {"sdk": "fixture", "config": {"repository": SPEC}})
+    assert len(started) == 1
+
+
+def test_uploads_stay_out_of_the_checkout_index(tmp_path, local_repository):
+    _, _, _, git = local_repository
+    target = repository._prepare(SPEC, tmp_path / "workspace", tmp_path / "runtime/native", resume=False)
+    upload = target / ".agno/uploads/run-1/brief.pdf"
+    upload.parent.mkdir(parents=True)
+    upload.write_bytes(b"%PDF")
+    (target / "notes.txt").write_text("tracked")
+    git("add", ".", cwd=target)
+    assert git("status", "--porcelain", "--untracked-files=all", cwd=target).splitlines() == ["A  notes.txt"]
 
 
 @pytest.mark.parametrize("sdk", ["claude", "codex"])

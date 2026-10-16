@@ -270,9 +270,8 @@ async def _login_codex(agent: Any, api_key: str) -> None:
 
 
 async def _execute(directory: Path, request: Dict[str, Any]) -> Dict[str, Any]:
-    from agno.sandbox.repository import _aprepare, _check_env, _read_pin, _repository_override
+    from agno.sandbox.repository import _aprepare, _read_pin, _repository_override
 
-    _check_env()
     native = directory.parent.parent / "native"
     repository = request.get("config", {}).get("repository")
     override = _repository_override(request.get("metadata"), repository)

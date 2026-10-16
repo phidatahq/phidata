@@ -168,6 +168,11 @@ def _prepare(
         git("checkout", "--detach", commit)
         if git("rev-parse", "HEAD") != commit:
             raise RepositoryPreparationError("Repository preparation failed; checkout does not match the pinned commit")
+        # Attachments are staged under the checkout's .agno/; keep them out of git status and git add.
+        exclude = staging / ".git" / "info" / "exclude"
+        exclude.parent.mkdir(exist_ok=True)
+        with exclude.open("a") as handle:
+            handle.write("/.agno/\n")
         staging.rename(target)
         moved = True
         native.mkdir(parents=True, exist_ok=True)

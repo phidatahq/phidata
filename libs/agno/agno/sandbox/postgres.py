@@ -193,29 +193,34 @@ class _SandboxStore:
             # Reflection can leave a same-schema reference unqualified.
             return (table.schema or self.db.db_schema) + "." + table.name
 
+        def refuse(reason: str) -> None:
+            # A table from another build of this package or a different session table: say what to do.
+            raise SandboxError(
+                f"Sandbox table {qualified(self.bindings)} {reason}; drop or rename that table, "
+                "or pass PostgresDb(sandbox_table=...) to create a new one"
+            )
+
         owners = {qualified(key.column.table) for key in self.bindings.c.session_id.foreign_keys}
         if owners != {qualified(self.sessions)}:
-            raise SandboxError(
-                f"Sandbox table {self.bindings.name} belongs to session table {', '.join(sorted(owners)) or 'none'}, "
-                f"not {qualified(self.sessions)}; give each session table its own sandbox_table"
+            refuse(
+                f"belongs to session table {', '.join(sorted(owners)) or 'none'}, not {qualified(self.sessions)}; "
+                "give each session table its own sandbox_table"
             )
         if {qualified(key.column.table) for key in self.bindings.c.run_id.foreign_keys} != {qualified(self.runs)}:
-            raise SandboxError(
-                f"Sandbox table {self.bindings.name} does not reference run table {qualified(self.runs)}"
-            )
+            refuse(f"does not reference run table {qualified(self.runs)}")
         # Without cascade, deleting the run an active turn holds is refused instead of dropping its binding.
         if {(key.ondelete or "NO ACTION").upper() for key in self.bindings.c.run_id.foreign_keys} - {
             "NO ACTION",
             "RESTRICT",
         }:
-            raise SandboxError(f"Sandbox table {self.bindings.name} must not cascade deletes from the run table")
+            refuse("must not cascade deletes from the run table")
         # Deleting a session must remove its binding with it: an idle binding outlives every turn, and a
         # recreated session must start from a fresh one.
         if {(key.ondelete or "").upper() for key in self.bindings.c.session_id.foreign_keys} != {"CASCADE"}:
-            raise SandboxError(f"Sandbox table {self.bindings.name} must cascade deletes from the session table")
+            refuse("must cascade deletes from the session table")
         # The claim's ON CONFLICT relies on this key; without it two first claims could both own a session.
         if {column.name for column in self.bindings.primary_key.columns} != {"namespace", "session_id"}:
-            raise SandboxError(f"Sandbox table {self.bindings.name} must have the primary key (namespace, session_id)")
+            refuse("must have the primary key (namespace, session_id)")
         self._tables_ready = True
 
     async def _transaction(

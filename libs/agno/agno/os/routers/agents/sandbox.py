@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.db.schemas.jobs import QueuedJob
 from agno.os.job_queue import aprepare_accepted_or_abort, normalize_idempotency_key
+from agno.sandbox.base import SandboxError
 
 
 async def enqueue_sandbox_run(
@@ -42,6 +43,8 @@ async def enqueue_sandbox_run(
     payload = {"input": input, "kwargs": options, "stream": True, "serialize_session": True}
     if len(json.dumps(payload, allow_nan=False).encode()) > 1024 * 1024:
         raise ValueError("Sandbox submission exceeds 1 MiB")
+    # Before the ticket exists: a bindings table from another build would otherwise fail only inside the worker.
+    await _harness.acheck_tables(agent)
     job = QueuedJob(
         id=run_id or str(uuid4()),
         component_type="agent",
@@ -134,6 +137,8 @@ async def sandbox_run_response(
         )
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
+    except SandboxError as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
     if stream:
         # Existing resume machinery chooses retained events or database replay,
         # including for an idempotent submission whose live keys have expired.
@@ -165,6 +170,9 @@ async def sandbox_run_response(
             )
         if current["status"] in ("completed", "failed", "cancelled"):
             result = await agent.aget_run_output(job["id"], job["session_id"], user_id=user_id)
+            if result is None and current["status"] == "failed" and current.get("error"):
+                # The job failed before its run row could be written; the ticket's error is all there is.
+                raise HTTPException(status_code=500, detail=current["error"])
             if result is None:
                 raise HTTPException(
                     status_code=503, detail="Sandbox result is temporarily unavailable; reconnect using its run ID"

@@ -20,7 +20,7 @@ from agno.models.message import Message
 from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError
-from agno.utils.log import log_warning
+from agno.utils.log import log_error, log_warning
 
 if TYPE_CHECKING:
     from agno.agents.base import BaseExternalAgent
@@ -82,6 +82,23 @@ def _check_db(agent: "BaseExternalAgent") -> None:
 
     if not isinstance(agent.db, (PostgresDb, AsyncPostgresDb)):
         raise ValueError("A sandboxed agent requires a PostgresDb or AsyncPostgresDb, on the agent or its AgentOS")
+
+
+async def acheck_tables(agent: "BaseExternalAgent") -> None:
+    """Create or validate the sandbox tables on the agent's database.
+
+    A bindings table left by another build fails every turn inside the queue worker, where
+    only the log sees it; checking at startup and at submission puts the error and its
+    remedy in front of the operator instead.
+    """
+    from agno.sandbox.postgres import _SandboxStore
+
+    _check_db(agent)
+    for db, existing in _coordinators.get(_sandbox(agent), []):
+        if db is agent.db:
+            await existing.store._ensure_tables()
+            return
+    await _SandboxStore(agent.db)._ensure_tables()  # type: ignore[arg-type]
 
 
 def validate(agent: "BaseExternalAgent") -> None:
@@ -378,7 +395,30 @@ async def acancel_unowned_row(agent: "BaseExternalAgent", run_id: str) -> None:
 async def apersist_queue_terminal(
     agent: "BaseExternalAgent", job: Dict[str, Any], error: str, status: str, cancellation_stage: Any
 ) -> Any:
-    return await coordinator(agent)._aterminate(
+    runner = coordinator(agent)
+    try:
+        await runner.store._ensure_tables()
+    except SandboxError as schema_error:
+        # No turn can have run through an unusable bindings table, so there is no compute to retire:
+        # stamp the run row directly so the ticket can still settle instead of staying claimed forever.
+        from agno.run.status_persist import apersist_run_status
+
+        log_error(f"Sandbox terminal persist for run {job['id']} bypassed its bindings table: {schema_error}")
+        fields: Dict[str, Any] = {"status": "CANCELLED" if status == "cancelled" else "ERROR"}
+        stage = getattr(cancellation_stage, "value", cancellation_stage)
+        if fields["status"] == "CANCELLED" and stage is not None:
+            fields["cancellation_stage"] = stage
+        return await apersist_run_status(
+            agent,
+            "agent",
+            session_id=job["session_id"],
+            run_id=job["id"],
+            fields=fields,
+            user_id=job.get("user_id"),
+            expected_attempt=job.get("attempt"),
+            content_if_absent=error[:8192],
+        )
+    return await runner._aterminate(
         job["session_id"],
         agent_id=agent.get_id(),
         run_id=job["id"],

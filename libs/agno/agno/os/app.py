@@ -199,6 +199,7 @@ async def db_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if agent_os.auto_provision_dbs:
         agent_os._initialize_sync_databases()
         await agent_os._initialize_async_databases()
+    await agent_os._acheck_sandbox_tables()
 
     yield
 
@@ -1044,6 +1045,14 @@ class AgentOS:
             openapi_url="/openapi.json" if self.settings.docs_enabled else None,
             lifespan=lifespan,
         )
+
+    async def _acheck_sandbox_tables(self) -> None:
+        """Fail startup, with the remedy, when a sandboxed agent's bindings table is from another build."""
+        for entry in self.agents or []:
+            if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None and entry.db is not None:
+                from agno.sandbox import _harness
+
+                await _harness.acheck_tables(entry)
 
     def _initialize_agents(self) -> None:
         """Initialize and configure all agents for AgentOS usage."""

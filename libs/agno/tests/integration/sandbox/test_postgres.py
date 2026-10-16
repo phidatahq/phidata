@@ -850,6 +850,37 @@ async def test_bindings_table_not_cascading_session_deletes_is_refused(store):
         store.db._invalidate_table_cache(b)
 
 
+async def test_bindings_table_from_an_earlier_build_names_its_remedy(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # The shape an earlier build of this package created: no foreign key from run_id to the run table.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                "user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar, queue_attempt bigint, "
+                "expires_at timestamptz, record jsonb NOT NULL, PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError) as refused:
+            await store._ensure_tables()
+        message = str(refused.value)
+        assert f"{home}.{b} does not reference run table {home}.{store.db.runs_table_name}" in message
+        assert "drop or rename that table, or pass PostgresDb(sandbox_table=...)" in message
+        # Every later call refuses again; nothing was cached as ready.
+        with pytest.raises(SandboxError, match="sandbox_table"):
+            await store.aprepare({"run_id": "r", "session_id": "s", "agent_id": "agent", "status": "PENDING"})
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)
+
+
 async def test_cancelled_duplicate_claim_keeps_the_live_lease(store, monkeypatch):
     if isinstance(store.db, AsyncPostgresDb):
         pytest.skip("AsyncPostgresDb runs the claim on the event loop; a cancel cannot land mid-transaction")

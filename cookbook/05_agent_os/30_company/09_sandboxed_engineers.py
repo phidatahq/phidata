@@ -7,6 +7,7 @@ Try: Repeat with --executor claude. Use --config-only to inspect setup without m
 """
 
 import argparse
+import hashlib
 import json
 import os
 import time
@@ -129,7 +130,14 @@ def run(executor: str) -> None:
                 break
             time.sleep(1)
         assert task["status"] == "in_review", task.get("result")
-        print(task["result"]["content"])
+        patch = client.get(path + "/patch")
+        patch.raise_for_status()
+        assert (
+            hashlib.sha256(patch.content).hexdigest() == task["result"]["patch_sha256"]
+        )
+        print(task["result"]["summary"])
+        print(json.dumps(task["result"]["changed_files"], indent=2))
+        print("Patch bytes:", len(patch.content))
         print(json.dumps(task["metadata"]["checkout"], indent=2))
         print("Task awaits human review")
 

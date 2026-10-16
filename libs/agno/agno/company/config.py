@@ -14,9 +14,9 @@ class CompanyConfig:
 
     db: Optional[Union[BaseDb, AsyncBaseDb]] = None
     model: Optional[Model] = None
-    max_patch_bytes: int = 2 * 1024 * 1024
     products: List["Product"] = field(default_factory=list)
     acceptance_checks: Dict[str, Callable[[Dict[str, Any], Any], Any]] = field(default_factory=dict)
+    max_patch_bytes: int = 2 * 1024 * 1024
 
     def __post_init__(self) -> None:
         if type(self.max_patch_bytes) is not int or self.max_patch_bytes < 1:

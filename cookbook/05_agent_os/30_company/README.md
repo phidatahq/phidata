@@ -815,3 +815,28 @@ Deployment requirements:
 Set `SANDBOX_IMAGE`, `SANDBOX_CHECKPOINTS`, `DATABASE_URL`, and `REDIS_URL` for your
 deployment, plus the selected harness's model API key. Running the example
 without `--config-only` makes a real model call and leaves its Task for review.
+
+
+### Reviewing sandbox outputs
+
+A completed sandboxed attempt opens its committed checkpoint on the host and
+compares `workspace/repository` against the Task's checkout commit. The host
+stages tracked and untracked changes in a temporary copy. The Product filesystem
+stores `patches/<task id>/<attempt>.patch` before the Task enters In review.
+An unchanged checkout stores an empty file and still reaches In review.
+
+Task results expose `patch_path`, `patch_sha256`, `changed_files` (path, Git
+status, added and removed lines), and `summary`. Binary files have null line
+counts. Download the bytes with `GET /company/tasks/<id>/patch?attempt=1` using
+`tasks:read`; omit `attempt` for the latest attempt. Missing artifacts return
+404. Patch content is never embedded in Task JSON. The example verifies the
+returned bytes against the recorded hash.
+
+`CompanyConfig(max_patch_bytes=2 * 1024 * 1024)` sets the default patch cap.
+Oversized patches, missing checkpoints, and checkpoint HEAD mismatches fail the
+attempt with a reason. Request another attempt after correcting the cause.
+
+Sandboxed executors receive Product wiki pages as file attachments, smallest
+first, up to 16 files and 512 KiB total. Whole pages that do not fit are omitted
+and named in the message. The brief and Source evidence remain in the message.
+Ordinary executors retain their existing message and result shapes.

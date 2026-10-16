@@ -455,3 +455,14 @@ def test_collaborators_complete_or_cancel_backlog_work(make_client, targets):
         assert response.status_code == 200, response.text
         assert response.json()["user_id"] == "alice"
         assert response.json()["transitions"][-1]["user_id"] == "bob"
+
+
+@pytest.mark.parametrize("isolation", [False, True])
+def test_patch_download_requires_tasks_read(make_client, isolation):
+    client = make_client(isolation)
+    task_id = create(client, "alice")
+    path = "/company/tasks/" + task_id + "/patch?attempt=1"
+    # Authorized readers reach the missing-artifact check; write alone never does.
+    assert client.get(path, headers=headers("bob", ["tasks:read"])).status_code == 404
+    assert client.get(path, headers=headers("bob", ["tasks:write"])).status_code == 403
+    assert client.get(path).status_code == 401

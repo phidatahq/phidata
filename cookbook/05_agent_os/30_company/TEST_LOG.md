@@ -3124,3 +3124,31 @@ These are local results. GitHub CI and independent review remain separate.
 **Result:** 1,751 affected unit tests passed (35 conditional skips), all 12 Company Docker cases passed, and the focused review suite passed 170 tests. The broad Company integration run passed 1,368 cases with eight conditional Mongo skips; its 16 failures exposed executor validation occurring after endpoint construction in the permission cleanup. That order was corrected, and all 16 failed cases passed on rerun, giving 1,384 distinct passing Company cases. A further final-source focused route run passed all 88 cases. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 recovery integration remains deferred until it merges.
 
 ---
+
+
+### PR 8 — checkpoint outputs and bounded attachments (2026-10-16)
+
+**Status:** PASS
+
+**Description:** Validated `09_sandboxed_engineers.py` configuration for Claude
+and Codex without model calls. Completed sandbox runs produce durable patches
+before review, including empty and binary patches, untracked files and patches
+larger than the ordinary filesystem's 1 MB default. Verified pin and size
+failures, missing-attempt 404s, tasks:read authorization, interrupted-projection
+recovery, attachment count/byte limits and unchanged ordinary-executor results.
+
+**Result:** 39 patch integration tests passed across SQLite, AsyncSqlite,
+Postgres and AsyncPostgres; 270 combined affected tests passed; 56 recovery
+regressions passed after correcting the non-sandbox compatibility case. The
+broader Company sweep covered 1,365 cases (1,361 passed initially; its four
+stale-recovery failures were corrected and are included in the passing recovery
+rerun), with eight conditional skips. All 12 Docker/Redis/Postgres Company
+fixture cases passed, including byte-identical empty patch downloads after
+container replacement; the local repository fixture separately verifies
+nonempty replacement patches. The full database/AgentOS unit rerun is still in progress at publication,
+as requested so testing can proceed in parallel. Its initial 17 queue
+compatibility failures were corrected and all 17 passed on rerun. Full format and clean Python 3.10 validation passed. Python tests
+used the existing Python 3.12 development environment. No paid model turns or
+hosted-provider deployment were run.
+
+---

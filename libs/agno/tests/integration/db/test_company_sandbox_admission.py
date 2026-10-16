@@ -11,6 +11,7 @@ from agno.sandbox import Repository
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.fixture import FixtureAgent
 from tests.integration.db.test_company_execution_parity import accepted, system  # noqa: F401, F811
+from tests.integration.db.test_company_patches import checkpoint, local_repository  # noqa: F401
 
 URL = "https://github.com/octocat/Hello-World"
 PIN = {"url": URL, "branch": "master", "commit": "a" * 40}
@@ -54,8 +55,12 @@ async def engineering_task(client, db):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("first_status", ["failed", "cancelled"])
-async def test_successful_retry_establishes_missing_pin(sandbox_system, first_status):
+async def test_successful_retry_establishes_missing_pin(sandbox_system, first_status, checkpoint):  # noqa: F811
     client, db, worker, _, agent = sandbox_system
+    fixture_agent, _, commit, capture, _ = checkpoint
+    agent.sandbox = fixture_agent.sandbox
+    pin = {**PIN, "commit": commit}
+    reference = capture()
     task = await engineering_task(client, db)
     path = "/company/tasks/" + task["id"]
     first = await client.post(path + "/runs")
@@ -76,7 +81,8 @@ async def test_successful_retry_establishes_missing_pin(sandbox_system, first_st
                 "run_id": second_job["id"],
                 "status": "COMPLETED",
                 "content": "Successful retry",
-                "metadata": {"sandbox": {"repository": PIN}},
+                "agent_id": agent.id,
+                "metadata": {"sandbox": {"repository": pin, "checkpoint": reference}},
             },
         )
 
@@ -85,7 +91,7 @@ async def test_successful_retry_establishes_missing_pin(sandbox_system, first_st
     result = await _call(db, "get_task", task["id"])
     assert result["status"] == "in_review"
     assert result["result"]["status"] == "COMPLETED"
-    assert result["metadata"]["checkout"] == {"source_id": task["id"], **PIN}
+    assert result["metadata"]["checkout"] == {"source_id": task["id"], **pin}
     assert result["session_id"] == failed["session_id"]
 
 

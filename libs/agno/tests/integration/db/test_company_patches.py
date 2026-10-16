@@ -253,3 +253,74 @@ async def test_checkpoint_git_configuration_never_executes(checkpoint, tmp_path)
     assert not marker.exists()
     assert "x-access-token:exact@" in patch
     assert {row["path"] for row in changed} == {".gitattributes", "new.txt"}
+
+
+@pytest.mark.asyncio
+async def test_lost_projection_recovers_the_same_patch(db, checkpoint, monkeypatch):
+    from agno.company.execution import _reconcile_task_run
+
+    agent, checkout, commit, capture, _ = checkpoint
+    _, task, worker, job = await prepare(db, checkpoint)
+    (checkout / "recovered.txt").write_text("durable\n")
+    run = output(agent, task, commit, capture())
+    from agno.session import AgentSession
+
+    await _call(db, "upsert_session", AgentSession(session_id=task["session_id"], agent_id=agent.id, created_at=1))
+    await _call(db, "upsert_run", run, session_id=task["session_id"])
+    agent.aget_run_output = AsyncMock(return_value=run)
+
+    def unavailable(*args, **kwargs):
+        raise RuntimeError("projection interrupted")
+
+    with monkeypatch.context() as failure:
+        failure.setattr(db, "complete_task_run", unavailable)
+        with pytest.raises(RuntimeError, match="projection interrupted"):
+            await _project_run(worker, job, "completed")
+    patch = await aread_task_patch(db, task, 1)
+    assert patch and (await _call(db, "get_task", task["id"]))["status"] == "in_progress"
+    row = await _call(db, "get_run", run.run_id, deserialize=False)
+    assert await _reconcile_task_run(db, db, task, row, None, worker=worker)
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_review"
+    assert saved["result"]["patch_sha256"] == hashlib.sha256(patch.encode()).hexdigest()
+    assert await aread_task_patch(db, task, 1) == patch
+
+
+@pytest.mark.asyncio
+async def test_plain_executor_has_no_patch_fields(db, checkpoint):
+    from agno.agent import Agent
+
+    _, task, worker, job = await prepare(db, checkpoint)
+    agent = Agent(id="engineer", db=db)
+    agent.aget_run_output = AsyncMock(
+        return_value=RunOutput(run_id=task["job_id"], agent_id=agent.id, status=RunStatus.completed, content="plain")
+    )
+    worker._aresolve_job_component = AsyncMock(return_value=agent)
+    await _project_run(worker, job, "completed")
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_review"
+    assert not {"patch_path", "patch_sha256", "changed_files", "summary"}.intersection(saved["result"])
+    assert await aread_task_patch(db, task, 1) is None
+
+
+@pytest.mark.asyncio
+async def test_binary_and_large_patch_survive_filesystem_roundtrip(db, checkpoint):
+    agent, checkout, commit, capture, git = checkpoint
+    _, task, worker, job = await prepare(db, checkpoint)
+    binary = bytes(range(256))
+    (checkout / "binary.dat").write_bytes(binary)
+    (checkout / "large.txt").write_text("x" * 1_100_000 + "\n")
+    agent.aget_run_output = AsyncMock(return_value=output(agent, task, commit, capture()))
+    await _project_run(worker, job, "completed")
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_review", saved["result"]
+    patch = await aread_task_patch(db, task, 1)
+    assert 1_000_000 < len(patch.encode()) < 2 * 1024 * 1024
+    assert saved["result"]["changed_files"][0] == {"path": "binary.dat", "status": "A", "added": None, "removed": None}
+    (checkout / "binary.dat").unlink()
+    (checkout / "large.txt").unlink()
+    patch_file = checkout.parent / "apply.patch"
+    patch_file.write_bytes(patch.encode())
+    git("apply", str(patch_file), cwd=checkout)
+    assert (checkout / "binary.dat").read_bytes() == binary
+    assert (checkout / "large.txt").stat().st_size == 1_100_001

@@ -197,6 +197,12 @@ async def test_checkout_session_reuse_and_concurrent_start(service, tmp_path):
     assert second.status_code == 202, second.text
     final = await settled(client, task)
     assert final["status"] == "in_review", final
+    first_patch = await client.get("/company/tasks/" + task["id"] + "/patch?attempt=1")
+    second_patch = await client.get("/company/tasks/" + task["id"] + "/patch?attempt=2")
+    assert first_patch.status_code == second_patch.status_code == 200
+    assert first_patch.content == second_patch.content == b""
+    assert first["result"]["patch_sha256"] == final["result"]["patch_sha256"]
+    assert final["result"]["changed_files"] == []
     assert final["metadata"]["checkout"] == checkout
     assert final["session_id"] == first["session_id"]
     run = run_db.get_run(final["job_id"], deserialize=False)

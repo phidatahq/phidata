@@ -202,9 +202,13 @@ async def _reconcile_task_run(
         "content_type": data.get("content_type"),
     }
     checkout = None
-    if run["status"] == "COMPLETED":
-        if worker is None:
-            raise ValueError("Task executor is unavailable while recovering results")
+    if (
+        run["status"] == "COMPLETED"
+        and worker is None
+        and ((data.get("metadata") or {}).get("sandbox") or (task.get("metadata") or {}).get("checkout"))
+    ):
+        raise ValueError("Task executor is unavailable while recovering sandbox results")
+    if run["status"] == "COMPLETED" and worker is not None:
         component = await worker._aresolve_job_component(
             {
                 "component_type": task["executor_type"],

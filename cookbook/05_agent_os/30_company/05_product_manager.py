@@ -1,6 +1,6 @@
 """Configure Product Manager and exercise its bounded tools without a model call.
 
-Prerequisites: Install agno, sqlalchemy, openai and fastmcp.
+Prerequisites: Install agno, sqlalchemy, openai, fastapi, httpx and fastmcp.
 Run: .venv/bin/python cookbook/05_agent_os/30_company/05_product_manager.py
 Try: With provider credentials, call agent_os.product_manager.print_response(...).
      Add manager=OSManager() to compose Product Manager as an OS Manager member.
@@ -16,6 +16,7 @@ from agno.os import AgentOS, CompanyConfig, MCPConfig
 from agno.registry import Registry
 from agno.run import RunContext
 from agno.tools.company import CompanyTools
+from fastapi.testclient import TestClient
 
 if __name__ == "__main__":
     with TemporaryDirectory() as directory:
@@ -41,6 +42,8 @@ if __name__ == "__main__":
                 product["id"],
                 "Draft release notes",
                 brief="Summarize reviewed changes",
+                # Empty optional values from a model are treated as omitted.
+                project_id="",
                 _agno_run_context=context,
             )
         )
@@ -56,6 +59,9 @@ if __name__ == "__main__":
             reasoning="Human approval required",
             _agno_run_context=context,
         )
+        with TestClient(agent_os.get_app()) as client:
+            response = client.get("/agents/product-manager-internal")
+            assert response.status_code == 200
         assert agent_os.product_manager is not None
         assert agent_os.product_manager not in agent_os.registry.agents
         assert not any(

@@ -58,7 +58,7 @@ from agno.run.team import TeamRunOutput
 from agno.run.workflow import WorkflowRunOutput
 from agno.session import AgentSession, Session, TeamSession, WorkflowSession
 from agno.utils.log import log_debug, log_error, log_info, log_warning
-from agno.utils.string import sanitize_postgres_string, sanitize_postgres_strings
+from agno.utils.string import generate_id, sanitize_postgres_string, sanitize_postgres_strings
 
 try:
     from sqlalchemy import (
@@ -180,6 +180,24 @@ class AsyncPostgresDb(AsyncBaseDb):
             ValueError: If neither db_url nor db_engine is provided.
             ValueError: If none of the tables are provided.
         """
+        _engine: Optional[AsyncEngine] = db_engine
+        if _engine is None and db_url is not None:
+            _engine = create_async_engine(
+                db_url,
+                **_engine_options(),
+            )
+        if _engine is None:
+            raise ValueError("One of db_url or db_engine must be provided")
+
+        self.db_url: Optional[str] = db_url
+        self.db_engine: AsyncEngine = _engine
+        if id is None:
+            # Match the synchronous adapter so persisted references survive a
+            # restart or resolve on another replica using the same connection.
+            base_seed = db_url or str(self.db_engine.url)
+            schema_suffix = db_schema if db_schema is not None else "ai"
+            id = generate_id(f"{base_seed}#{schema_suffix}")
+
         super().__init__(
             id=id,
             session_table=session_table,
@@ -204,17 +222,6 @@ class AsyncPostgresDb(AsyncBaseDb):
             service_accounts_table=service_accounts_table,
         )
 
-        _engine: Optional[AsyncEngine] = db_engine
-        if _engine is None and db_url is not None:
-            _engine = create_async_engine(
-                db_url,
-                **_engine_options(),
-            )
-        if _engine is None:
-            raise ValueError("One of db_url or db_engine must be provided")
-
-        self.db_url: Optional[str] = db_url
-        self.db_engine: AsyncEngine = _engine
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema

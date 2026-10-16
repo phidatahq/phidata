@@ -234,3 +234,53 @@ verified on file-backed SQLite and PostgreSQL.
 Final full-suite rerun after this fix: **6,085 passed, 15 skipped** across
 `libs/agno/tests/unit/db` and `libs/agno/tests/unit/os`. The temporary MongoDB
 container was removed after the run; existing PostgreSQL services were retained.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/01_manage_products.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/02_manage_projects.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/03_manage_tasks.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Re-ran `cookbook/05_agent_os/30_company/05_product_manager.py` in the isolated development environment for the October 16 release fixes.
+
+**Result:** Exit 0; completed all assertions without model calls.
+
+---

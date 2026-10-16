@@ -7,13 +7,28 @@ reassign ownership, edit a Product brief, change Sources, or schedule work.
 import asyncio
 import json
 from dataclasses import asdict
-from typing import Any, Optional
+from typing import Annotated, Any, Literal, Optional, Union
+
+from pydantic import BeforeValidator
 
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.company.playbook import _require_owner
 from agno.db.base import AsyncBaseDb
 from agno.run.authorization import current_authorization, requires_permission
 from agno.tools import Toolkit
+
+
+def _empty_to_none(value: Any) -> Any:
+    """Treat a model's empty optional argument as omitted, preserving other values."""
+    return None if value == "" else value
+
+
+# Explicitly describe legacy empty-string arguments as well as null. The
+# three-way union preserves null in the tool schema on Python 3.9 too; plain
+# Optional[T] is flattened to T by the schema builder.
+_OptionalString = Union[str, Literal[""], None]
+# Normalize before Pydantic checks numeric arguments on processed tool calls.
+_OptionalInt = Annotated[Union[int, Literal[""], None], BeforeValidator(_empty_to_none)]
 
 
 def _authority(run_context):
@@ -109,8 +124,19 @@ class CompanyTools(Toolkit):
         return _AsyncSyncManager(CompanyManager(self.db))
 
     @requires_permission()
-    def list_company_products(self, limit: int = 20, page: int = 1, _agno_run_context: Optional[Any] = None) -> str:
-        """List every Product in the company."""
+    def list_company_products(
+        self, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
+    ) -> str:
+        """List every Product in the company.
+
+        Args:
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         _permission("products", "read", _agno_run_context)
         return _page(self._sync().list(limit=limit, page=page), limit, page)
 
@@ -125,30 +151,63 @@ class CompanyTools(Toolkit):
 
     @requires_permission()
     def list_company_projects(
-        self, product_id: Optional[str] = None, limit: int = 20, page: int = 1, _agno_run_context: Optional[Any] = None
+        self,
+        product_id: _OptionalString = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
+        _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """List proposed and active Projects across owners."""
+        """List proposed and active Projects across owners.
+
+        Args:
+            product_id: Product ID; null includes all Products.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        product_id = _empty_to_none(product_id)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         _permission("projects", "read", _agno_run_context)
         return _page(self._sync().list_projects(product_id=product_id, limit=limit, page=page), limit, page)
 
     @requires_permission()
     def list_company_tasks(
         self,
-        product_id: Optional[str] = None,
-        status: Optional[str] = None,
-        limit: int = 20,
-        page: int = 1,
+        product_id: _OptionalString = None,
+        status: _OptionalString = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """List Tasks across owners, optionally filtered by status."""
+        """List Tasks across owners, optionally filtered by status.
+
+        Args:
+            product_id: Product ID; null includes all Products.
+            status: Task status to filter by; null includes all statuses.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        product_id = _empty_to_none(product_id)
+        status = _empty_to_none(status)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         _permission("tasks", "read", _agno_run_context)
         return _page(self._sync().list_tasks(product_id=product_id, status=status, limit=limit, page=page), limit, page)
 
     @requires_permission()
     def propose_company_project(
-        self, product_id: str, name: str, outcome: Optional[str] = None, _agno_run_context: Optional[Any] = None
+        self, product_id: str, name: str, outcome: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Propose a Project for human review; never activate or complete it."""
+        """Propose a Project for human review; never activate or complete it.
+
+        Args:
+            outcome: Expected or observed outcome; null leaves it unspecified.
+        """
+        outcome = _empty_to_none(outcome)
         _permission("projects", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -160,11 +219,18 @@ class CompanyTools(Toolkit):
         self,
         product_id: str,
         title: str,
-        brief: Optional[str] = None,
-        project_id: Optional[str] = None,
+        brief: _OptionalString = None,
+        project_id: _OptionalString = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Create Backlog work for a human to accept and choose an executor."""
+        """Create Backlog work for a human to accept and choose an executor.
+
+        Args:
+            brief: Task brief; null leaves it unspecified.
+            project_id: Project ID within the Product; null proposes work without a Project.
+        """
+        brief = _empty_to_none(brief)
+        project_id = _empty_to_none(project_id)
         _permission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -205,18 +271,38 @@ class CompanyTools(Toolkit):
 
     @requires_permission()
     def list_company_wiki(
-        self, product_id: Optional[str] = None, limit: int = 20, page: int = 1, _agno_run_context: Optional[Any] = None
+        self,
+        product_id: _OptionalString = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
+        _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """List the Product playbook, or the company playbook when product_id is omitted."""
+        """List the Product playbook, or the company playbook when product_id is omitted.
+
+        Args:
+            product_id: Product ID; null selects the company playbook.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        product_id = _empty_to_none(product_id)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         _permission("wiki", "read", _agno_run_context)
         rows, total = self._sync().list_wiki(product_id, limit=limit, page=page)
         return _page(([asdict(row) for row in rows], total), limit, page)
 
     @requires_permission()
     def read_company_wiki(
-        self, path: str, product_id: Optional[str] = None, _agno_run_context: Optional[Any] = None
+        self, path: str, product_id: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Read a playbook page and its version before planning or editing."""
+        """Read a playbook page and its version before planning or editing.
+
+        Args:
+            product_id: Product ID; null selects the company playbook.
+        """
+        product_id = _empty_to_none(product_id)
         _permission("wiki", "read", _agno_run_context)
         return json.dumps(asdict(self._sync().read_wiki(product_id, path)))
 
@@ -238,12 +324,21 @@ class CompanyTools(Toolkit):
     def log_company_decision(
         self,
         decision: str,
-        reasoning: Optional[str] = None,
-        context: Optional[str] = None,
-        outcome: Optional[str] = None,
+        reasoning: _OptionalString = None,
+        context: _OptionalString = None,
+        outcome: _OptionalString = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Append a decision with reasoning, context and observed outcome to the learning log."""
+        """Append a decision with reasoning, context and observed outcome to the learning log.
+
+        Args:
+            reasoning: Reason for the decision; null leaves it unspecified.
+            context: Decision context; null leaves it unspecified.
+            outcome: Expected or observed outcome; null leaves it unspecified.
+        """
+        reasoning = _empty_to_none(reasoning)
+        context = _empty_to_none(context)
+        outcome = _empty_to_none(outcome)
         _permission("decisions", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -263,24 +358,50 @@ class CompanyTools(Toolkit):
     @requires_permission()
     def search_company_decisions(
         self,
-        query: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        days: Optional[int] = None,
-        limit: int = 20,
-        page: int = 1,
+        query: _OptionalString = None,
+        agent_id: _OptionalString = None,
+        session_id: _OptionalString = None,
+        days: _OptionalInt = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Search the company decision log by text, agent, session or age."""
+        """Search the company decision log by text, agent, session or age.
+
+        Args:
+            query: Text to search for; null includes all decision text.
+            agent_id: Agent ID to filter by; null includes all agents.
+            session_id: Session ID to filter by; null includes all sessions.
+            days: Maximum age in days; null applies no age filter.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        query = _empty_to_none(query)
+        agent_id = _empty_to_none(agent_id)
+        session_id = _empty_to_none(session_id)
+        days = _empty_to_none(days)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         _permission("decisions", "read", _agno_run_context)
         rows, total = self._sync().list_decisions(query, agent_id, session_id, days, limit, page)
         return _page(([asdict(row) for row in rows], total), limit, page)
 
     @requires_permission()
     async def alist_company_products(
-        self, limit: int = 20, page: int = 1, _agno_run_context: Optional[Any] = None
+        self, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """List every Product in the company."""
+        """List every Product in the company.
+
+        Args:
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         await _apermission("products", "read", _agno_run_context)
         return _page(await self._async().list(limit=limit, page=page), limit, page)
 
@@ -295,22 +416,50 @@ class CompanyTools(Toolkit):
 
     @requires_permission()
     async def alist_company_projects(
-        self, product_id: Optional[str] = None, limit: int = 20, page: int = 1, _agno_run_context: Optional[Any] = None
+        self,
+        product_id: _OptionalString = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
+        _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """List proposed and active Projects across owners."""
+        """List proposed and active Projects across owners.
+
+        Args:
+            product_id: Product ID; null includes all Products.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        product_id = _empty_to_none(product_id)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         await _apermission("projects", "read", _agno_run_context)
         return _page(await self._async().list_projects(product_id=product_id, limit=limit, page=page), limit, page)
 
     @requires_permission()
     async def alist_company_tasks(
         self,
-        product_id: Optional[str] = None,
-        status: Optional[str] = None,
-        limit: int = 20,
-        page: int = 1,
+        product_id: _OptionalString = None,
+        status: _OptionalString = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """List Tasks across owners, optionally filtered by status."""
+        """List Tasks across owners, optionally filtered by status.
+
+        Args:
+            product_id: Product ID; null includes all Products.
+            status: Task status to filter by; null includes all statuses.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        product_id = _empty_to_none(product_id)
+        status = _empty_to_none(status)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         await _apermission("tasks", "read", _agno_run_context)
         return _page(
             await self._async().list_tasks(product_id=product_id, status=status, limit=limit, page=page), limit, page
@@ -318,9 +467,14 @@ class CompanyTools(Toolkit):
 
     @requires_permission()
     async def apropose_company_project(
-        self, product_id: str, name: str, outcome: Optional[str] = None, _agno_run_context: Optional[Any] = None
+        self, product_id: str, name: str, outcome: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Propose a Project for human review; never activate or complete it."""
+        """Propose a Project for human review; never activate or complete it.
+
+        Args:
+            outcome: Expected or observed outcome; null leaves it unspecified.
+        """
+        outcome = _empty_to_none(outcome)
         await _apermission("projects", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -332,11 +486,18 @@ class CompanyTools(Toolkit):
         self,
         product_id: str,
         title: str,
-        brief: Optional[str] = None,
-        project_id: Optional[str] = None,
+        brief: _OptionalString = None,
+        project_id: _OptionalString = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Create Backlog work for a human to accept and choose an executor."""
+        """Create Backlog work for a human to accept and choose an executor.
+
+        Args:
+            brief: Task brief; null leaves it unspecified.
+            project_id: Project ID within the Product; null proposes work without a Project.
+        """
+        brief = _empty_to_none(brief)
+        project_id = _empty_to_none(project_id)
         await _apermission("tasks", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -381,18 +542,38 @@ class CompanyTools(Toolkit):
 
     @requires_permission()
     async def alist_company_wiki(
-        self, product_id: Optional[str] = None, limit: int = 20, page: int = 1, _agno_run_context: Optional[Any] = None
+        self,
+        product_id: _OptionalString = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
+        _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """List the Product playbook, or the company playbook when product_id is omitted."""
+        """List the Product playbook, or the company playbook when product_id is omitted.
+
+        Args:
+            product_id: Product ID; null selects the company playbook.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        product_id = _empty_to_none(product_id)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         await _apermission("wiki", "read", _agno_run_context)
         rows, total = await self._async().list_wiki(product_id, limit=limit, page=page)
         return _page(([asdict(row) for row in rows], total), limit, page)
 
     @requires_permission()
     async def aread_company_wiki(
-        self, path: str, product_id: Optional[str] = None, _agno_run_context: Optional[Any] = None
+        self, path: str, product_id: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Read a playbook page and its version before planning or editing."""
+        """Read a playbook page and its version before planning or editing.
+
+        Args:
+            product_id: Product ID; null selects the company playbook.
+        """
+        product_id = _empty_to_none(product_id)
         await _apermission("wiki", "read", _agno_run_context)
         return json.dumps(asdict(await self._async().read_wiki(product_id, path)))
 
@@ -414,12 +595,21 @@ class CompanyTools(Toolkit):
     async def alog_company_decision(
         self,
         decision: str,
-        reasoning: Optional[str] = None,
-        context: Optional[str] = None,
-        outcome: Optional[str] = None,
+        reasoning: _OptionalString = None,
+        context: _OptionalString = None,
+        outcome: _OptionalString = None,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Append a decision with reasoning, context and observed outcome to the learning log."""
+        """Append a decision with reasoning, context and observed outcome to the learning log.
+
+        Args:
+            reasoning: Reason for the decision; null leaves it unspecified.
+            context: Decision context; null leaves it unspecified.
+            outcome: Expected or observed outcome; null leaves it unspecified.
+        """
+        reasoning = _empty_to_none(reasoning)
+        context = _empty_to_none(context)
+        outcome = _empty_to_none(outcome)
         await _apermission("decisions", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
         return json.dumps(
@@ -439,15 +629,32 @@ class CompanyTools(Toolkit):
     @requires_permission()
     async def asearch_company_decisions(
         self,
-        query: Optional[str] = None,
-        agent_id: Optional[str] = None,
-        session_id: Optional[str] = None,
-        days: Optional[int] = None,
-        limit: int = 20,
-        page: int = 1,
+        query: _OptionalString = None,
+        agent_id: _OptionalString = None,
+        session_id: _OptionalString = None,
+        days: _OptionalInt = None,
+        limit: _OptionalInt = 20,
+        page: _OptionalInt = 1,
         _agno_run_context: Optional[Any] = None,
     ) -> str:
-        """Search the company decision log by text, agent, session or age."""
+        """Search the company decision log by text, agent, session or age.
+
+        Args:
+            query: Text to search for; null includes all decision text.
+            agent_id: Agent ID to filter by; null includes all agents.
+            session_id: Session ID to filter by; null includes all sessions.
+            days: Maximum age in days; null applies no age filter.
+            limit: Maximum results per page; null uses 20.
+            page: One-based page number; null uses 1.
+        """
+        query = _empty_to_none(query)
+        agent_id = _empty_to_none(agent_id)
+        session_id = _empty_to_none(session_id)
+        days = _empty_to_none(days)
+        limit = _empty_to_none(limit)
+        limit = 20 if limit is None else limit
+        page = _empty_to_none(page)
+        page = 1 if page is None else page
         await _apermission("decisions", "read", _agno_run_context)
         rows, total = await self._async().list_decisions(query, agent_id, session_id, days, limit, page)
         return _page(([asdict(row) for row in rows], total), limit, page)

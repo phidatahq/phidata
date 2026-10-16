@@ -99,7 +99,8 @@ entries that reference the original decision.
 Product Manager uses `CompanyConfig(model=...)`, otherwise the first declared
 registry model. If neither exists, its unavailable reason appears in diagnostics
 and manual APIs still work. With OS Manager enabled it is an internal member;
-otherwise it is a standalone agent. Its id is reserved and its tools stay out of
+otherwise it is a standalone agent, available at `GET /agents/product-manager-internal`
+and `POST /agents/product-manager-internal/runs`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
 updates `status.md` with a version check, and logs decisions through its learning
 machine. It has no acceptance, completion, owner, Sources or scheduler tools.
@@ -108,3 +109,14 @@ CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, followin
 the existing MCP toolkit convention. Direct MCP calls have the same write fence.
 The examples make no provider calls; they do not demonstrate live model quality.
 Execution, attention, Routines and Sources are outside this delivery.
+
+Optional Company tool arguments accept `null` for omission. Empty strings are
+normalized to omission as well; omitted pagination uses 20 results on page 1.
+Required identifiers and titles still require valid values.
+
+Async PostgreSQL derives its default database ID from the connection URL and
+schema, like synchronous PostgreSQL. Async SQLite already derives a stable ID
+from its connection details. Reuse those details (or an explicit stable `id`)
+after restart and across replicas so saved run database references resolve.
+This does not rewrite references saved with older randomly generated IDs;
+retaining a known old ID explicitly is necessary for those references.

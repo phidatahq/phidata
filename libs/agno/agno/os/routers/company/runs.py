@@ -11,7 +11,7 @@ from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb
 from agno.db.schemas.tasks import task_run_id
 from agno.os.auth import get_authentication_dependency
-from agno.os.job_queue import ticket_status_to_api
+from agno.os.job_queue import ticket_status_to_api, validate_seam_input
 from agno.os.middleware.user_scope import get_scoped_user_id
 from agno.os.routers.company.schema import TaskRunCreate
 from agno.os.routers.run_permissions import _require_endpoint_permission
@@ -184,6 +184,9 @@ def get_company_runs_router(os: Any) -> APIRouter:
             raise HTTPException(409, str(exc))
         except NotImplementedError:
             raise HTTPException(503, "Company wiki is not supported by the configured database")
+        # Apply the ordinary run route's schema check before mutating the Task.
+        # Rejected input must not consume an attempt or leave phantom active work.
+        validate_seam_input(component, message)
         if value.get("job_id") != run_id:
             try:
                 reserved = await _call(

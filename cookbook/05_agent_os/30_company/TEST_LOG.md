@@ -337,3 +337,27 @@ checks, and all validation output was read. Validation used the clean Python
 3.10 environment; tests and cookbooks used the Python 3.12 development environment.
 
 ---
+
+### Execution review fixes — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Reproduced rejected input consuming a Task attempt and
+`failed=false` omitting pending Tasks whose result is JSON null. All 16 new
+regression cases failed before the fix across sync/async SQLite and PostgreSQL;
+input rejection was checked for agents, teams and workflows. The existing run
+validator now checks input before reservation, and nonfailed filters include
+null extracted result statuses.
+
+**Result:** Execution, Task router/isolation and Task storage regressions passed
+**197 tests**, including all 16 new cases. Rejected input leaves Ready and its
+transition history intact; correcting the executor schema allows attempt 1 to
+complete. Pending and unstarted Tasks both appear in nonfailed counts before
+pagination; failed Tasks appear only in the failed filter. Reran
+`cookbook/05_agent_os/30_company/06_execute_tasks.py` with SQLite and with
+`COMPANY_DB=postgres`: both passed through the real durable worker, returning
+the first run on duplicate start and reporting one Task In review. No provider
+calls were made. Format and validation passed and their output was read.
+The full unit-suite result above predates these focused review fixes.
+
+---

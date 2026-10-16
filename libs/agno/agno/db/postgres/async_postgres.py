@@ -6479,9 +6479,9 @@ class AsyncPostgresDb(AsyncBaseDb):
             return [], 0
         stmt = select(table)
         if failed is not None:
-            predicate = table.c.result["status"].as_string() == "ERROR"
+            result_status = table.c.result["status"].as_string()
             stmt = stmt.where(
-                predicate if failed else or_(table.c.result.is_(None), table.c.result["status"].as_string() != "ERROR")
+                result_status == "ERROR" if failed else or_(result_status.is_(None), result_status != "ERROR")
             )
         if session_id is not None:
             stmt = stmt.where(table.c.session_id == session_id)

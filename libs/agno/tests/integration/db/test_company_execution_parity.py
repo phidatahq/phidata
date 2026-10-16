@@ -356,3 +356,60 @@ async def test_run_history_and_duplicate_survive_ticket_retention(system):
     assert revision.json()["run_id"] != run_id
     os.registry.agents.clear()
     assert (await client.get(path + "/runs")).json()["meta"]["total_count"] == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("kind,id", [("agent", "writer"), ("team", "editors"), ("workflow", "draft")])
+async def test_invalid_executor_input_does_not_reserve_attempt(system, kind, id):
+    from pydantic import BaseModel
+
+    from agno.db.schemas.tasks import task_run_id
+
+    class TopicInput(BaseModel):
+        topic: str
+
+    client, db, worker, os, components = system
+    component = components[id]
+    component.input_schema = TopicInput
+    value = await accepted(client, kind, id)
+    path = f"/company/tasks/{value['id']}"
+    response = await client.post(path + "/runs")
+    assert response.status_code == 400, response.text
+    saved = (await client.get(path)).json()
+    assert saved["status"] == "ready"
+    assert saved["job_id"] is None
+    assert saved["transitions"] == value["transitions"]
+    assert await worker.store.get_job(task_run_id(value["id"], 1)) is None
+    assert (await client.get(path + "/runs")).json()["meta"]["total_count"] == 0
+
+    # A rejected input has not consumed the attempt. Correcting the executor's
+    # schema permits the same first attempt to enter the ordinary durable route.
+    component.input_schema = None
+    retried = await client.post(path + "/runs")
+    assert retried.status_code == 202, retried.text
+    assert (await execute(worker))["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_nonfailed_filter_includes_sql_and_json_null_results(system):
+    from agno.company.execution import _call
+
+    client, db, worker, os, _ = system
+    unstarted = await accepted(client)
+    pending = await accepted(client)
+    response = await client.post(f"/company/tasks/{pending['id']}/runs")
+    assert response.status_code == 202, response.text
+    nonfailed = (await client.get("/company/tasks", params={"failed": "false", "limit": 1})).json()
+    assert nonfailed["meta"]["total_count"] == 2
+    assert len(nonfailed["data"]) == 1
+    assert (await client.get("/company/tasks", params={"failed": "true"})).json()["meta"]["total_count"] == 0
+
+    await _call(
+        db, "complete_task_run", pending["id"], response.json()["run_id"], {"status": "ERROR", "content": "Failure"}
+    )
+    nonfailed = (await client.get("/company/tasks", params={"failed": "false"})).json()
+    failed = (await client.get("/company/tasks", params={"failed": "true"})).json()
+    assert nonfailed["meta"]["total_count"] == 1
+    assert [row["id"] for row in nonfailed["data"]] == [unstarted["id"]]
+    assert failed["meta"]["total_count"] == 1
+    assert [row["id"] for row in failed["data"]] == [pending["id"]]

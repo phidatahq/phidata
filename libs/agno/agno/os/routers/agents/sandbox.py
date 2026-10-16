@@ -35,10 +35,16 @@ def _attachment(item: Any, kind: str, index: int) -> Any:
         content = item.get("content")
         if not isinstance(content, str) or not content:
             raise ValueError(f"The {label} needs non-empty base64 content")
-        try:
-            data = base64.b64decode(content, validate=True)
-        except ValueError as error:
-            raise ValueError(f"The {label} content is not valid base64") from error
+        mime_type = item.get("mime_type")
+        if kind == "files" and isinstance(mime_type, str) and mime_type.startswith("text/"):
+            # As File.from_base64 and File.to_dict do: text/* content travels as raw UTF-8, never base64, so
+            # decoding it would reject ordinary text or change text that happens to be valid base64.
+            data = content.encode()
+        else:
+            try:
+                data = base64.b64decode(content, validate=True)
+            except ValueError as error:
+                raise ValueError(f"The {label} content is not valid base64") from error
         fields: Dict[str, Any] = {"format": item.get("format"), "mime_type": item.get("mime_type")}
         if kind == "files":
             name, filename = item.get("name"), item.get("filename")

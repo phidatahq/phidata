@@ -19,17 +19,38 @@ def b64(data: bytes) -> str:
 def test_json_items_become_image_and_file_objects_with_their_bytes_and_metadata():
     media = sandbox_attachments(
         images=[{"content": b64(b"png"), "format": "png", "mime_type": "image/png"}],
-        files=[{"content": b64(b"a,b\n"), "filename": "data.csv", "mime_type": "text/csv"}],
+        files=[{"content": b64(b'{"a": 1}'), "filename": "data.json", "mime_type": "application/json"}],
     )
     (image,), (file,) = media["images"], media["files"]
     assert isinstance(image, Image) and image.content == b"png" and image.mime_type == "image/png"
-    assert isinstance(file, File) and file.content == b"a,b\n" and file.filename == "data.csv"
+    assert isinstance(file, File) and file.content == b'{"a": 1}' and file.filename == "data.json"
 
 
 def test_uploaded_objects_pass_through_and_mix_with_json_items():
     upload = File(content=b"uploaded", filename="u.txt", mime_type="text/plain")
     media = sandbox_attachments(files=[upload, {"content": b64(b"json"), "filename": "j.txt"}])
     assert [file.content for file in media["files"]] == [b"uploaded", b"json"]
+
+
+@pytest.mark.parametrize("text", ["hello", "TestData", "a,b\n", "caf\u00e9"])
+def test_text_files_as_the_client_serializes_them_keep_their_exact_bytes(text):
+    # File.to_dict sends text/* content as raw UTF-8 (never base64), so decoding it would reject "hello" and
+    # silently turn "TestData", which is also valid base64, into different bytes.
+    sent = File(content=text.encode(), filename="t.txt", mime_type="text/plain").to_dict()
+    assert sent["content"] == text
+    (file,) = sandbox_attachments(files=[sent])["files"]
+    assert file.content == text.encode() and file.filename == "t.txt"
+
+
+def test_non_text_files_and_images_must_still_be_valid_base64():
+    (pdf,) = sandbox_attachments(files=[File(content=b"%PDF-1.4", mime_type="application/pdf").to_dict()])["files"]
+    assert pdf.content == b"%PDF-1.4"
+    with pytest.raises(ValueError, match="base64"):
+        sandbox_attachments(files=[{"content": "not base64!", "mime_type": "application/pdf"}])
+    with pytest.raises(ValueError, match="base64"):
+        sandbox_attachments(files=[{"content": "not base64!"}])
+    with pytest.raises(ValueError, match="base64"):
+        sandbox_attachments(images=[{"content": "not base64!", "format": "png"}])
 
 
 def test_no_attachments_is_no_media():

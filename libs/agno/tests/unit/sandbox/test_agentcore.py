@@ -22,8 +22,7 @@ pytest.importorskip("boto3")
 from botocore.exceptions import ClientError, EndpointConnectionError
 
 import agno.sandbox.agentcore.sandbox as agentcore_sandbox
-from agno.sandbox.agentcore import server
-from agno.sandbox.agentcore import AgentCoreCheckpointTransfer, AgentCoreSandbox
+from agno.sandbox.agentcore import AgentCoreCheckpointTransfer, AgentCoreSandbox, server
 from agno.sandbox.base import SandboxError
 from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
 

@@ -69,8 +69,9 @@ async def _reserve_task(db: Any, job: Dict[str, Any]) -> Optional[Dict[str, Any]
             task["id"],
             payload["company_task_attempt"],
             task["transitions"],
-            user_id=job.get("user_id"),
+            user_id=payload.get("company_started_by", job.get("user_id")),
             run_db_id=payload["company_run_db_id"],
+            session_user_id=job.get("user_id"),
         )
         task = reserved or await _call(db, "get_task", task["id"])
     if (
@@ -111,6 +112,88 @@ def _task_run_database(os: Any, task: Dict[str, Any]) -> Any:
     return getattr(_executor(os.registry, task["executor_type"], task["executor_id"]), "db", None)
 
 
+def _reservation_owner(task: Dict[str, Any], run: Dict[str, Any]) -> Optional[str]:
+    """Use the recorded starter only for reservations predating stable ownership."""
+    for entry in task.get("transitions") or []:
+        attempt = entry.get("attempt")
+        if attempt and task_run_id(task["id"], attempt) == run["run_id"]:
+            owner = entry.get("session_user_id", task.get("user_id") if "started_by" in entry else entry.get("user_id"))
+            if run.get("user_id") != owner:
+                raise ValueError("Task run owner does not match its reservation")
+            return owner
+    raise ValueError("Task run has no recorded reservation")
+
+
+async def _prepare_task_session(run_db: Any, task: Dict[str, Any]) -> None:
+    """Adopt an idle legacy session only with its original reservation's ownership proof."""
+    from agno.db.base import SessionType
+    from agno.os.middleware.user_scope import assert_session_writable
+
+    kind = SessionType(task["executor_type"])
+    session = await _call(run_db, "get_session", task["session_id"], session_type=kind, deserialize=False)
+    owner = task.get("user_id")
+    if session and session.get("user_id") not in {None, owner}:
+        entries = [entry for entry in task["transitions"] if entry.get("attempt")]
+        first = entries[0] if entries else {}
+        legacy_owner = first.get("session_user_id", first.get("user_id") if "started_by" not in first else owner)
+        if first and legacy_owner == session["user_id"]:
+            run = await _call(run_db, "get_run", task_run_id(task["id"], first["attempt"]), deserialize=False)
+            if run and run["session_id"] == task["session_id"] and _reservation_owner(task, run) == session["user_id"]:
+                await _call(
+                    run_db,
+                    "reassign_session_owner",
+                    task["session_id"],
+                    previous_user_id=session["user_id"],
+                    user_id=owner,
+                )
+    await assert_session_writable(run_db, task["session_id"], owner, session_type=kind)
+
+
+async def _recover_task(os: Any, worker: Any, task: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Reconcile reserved work independently of current dispatch authority; never enqueue."""
+    if not task.get("job_id"):
+        return None
+    run_db = _task_run_database(os, task)
+    if run_db is None:
+        raise ValueError("Task run database is unavailable")
+    run = await _call(run_db, "get_run", task["job_id"], deserialize=False)
+    ticket = await worker.store.get_job(task["job_id"])
+    pending = _pending_task_attempt(task) is not None
+    if run is not None:
+        if run["session_id"] != task["session_id"]:
+            raise ValueError("Run identifier conflicts with another session")
+        owner = _reservation_owner(task, run)
+        if not pending:
+            await _cancel_ticketless_pending_run(run_db, task, run, owner, worker)
+        repaired = await _reconcile_task_run(os._company_db, run_db, task, run, owner, worker=worker)
+        if pending:
+            if ticket is not None and run["status"] not in {"COMPLETED", "ERROR", "CANCELLED"}:
+                return {"status": "already_submitted", "run_id": task["job_id"]}
+            return {
+                "status": run["status"],
+                "run_id": run["run_id"],
+                "action": "reconciled" if repaired else "observed",
+            }
+    elif pending:
+        if ticket is not None:
+            return {"status": "already_submitted", "run_id": task["job_id"]}
+        result = {
+            "run_id": task["job_id"],
+            "status": "CANCELLED",
+            "content": "Reserved attempt lost its queue ticket and run; start the next attempt to retry.",
+        }
+        updated = await _call(
+            os._company_db,
+            "complete_task_run",
+            task["id"],
+            task["job_id"],
+            result,
+            expected_transitions=task["transitions"],
+        )
+        return {"status": "CANCELLED", "run_id": task["job_id"], "action": "reconciled" if updated else "observed"}
+    return None
+
+
 async def _cancel_ticketless_pending_run(
     run_db: Any,
     task: Dict[str, Any],
@@ -119,10 +202,10 @@ async def _cancel_ticketless_pending_run(
     worker: Any,
     is_admin: bool = False,
 ) -> None:
-    """Close an orphaned Pending attempt even after its Task was returned to Backlog."""
+    """Close an orphaned Pending or untracked Running attempt, including after replanning."""
     if (
         worker is None
-        or run["status"] != "PENDING"
+        or run["status"] not in {"PENDING", "RUNNING"}
         or run["run_id"] != task.get("job_id")
         or run["session_id"] != task.get("session_id")
     ):
@@ -138,9 +221,18 @@ async def _cancel_ticketless_pending_run(
     current = await _call(run_db, "get_run", run["run_id"], deserialize=False)
     if current is None or current["session_id"] != task["session_id"]:
         raise ValueError("Task run changed during recovery")
-    if current["status"] == "PENDING":
+    if current["status"] != run["status"]:
+        run.update(current)
+        return
+    if current["status"] in {"PENDING", "RUNNING"}:
         # A missing ticket cannot prove that no worker started. Cancel this
         # attempt instead of replaying its possibly executed side effects.
+        if current["status"] == "RUNNING":
+            from agno.run.cancel import aget_active_runs
+
+            if run["run_id"] in await aget_active_runs():
+                run.update(current)
+                return
         kind = current["run_type"]
         job = {
             "id": run["run_id"],
@@ -161,6 +253,7 @@ async def _cancel_ticketless_pending_run(
             session_id=task["session_id"],
             reason=reason,
             user_id=current.get("user_id"),
+            expected_status=current["status"],
         )
         if cancelled:
             await component.acancel_run(run["run_id"])
@@ -186,7 +279,7 @@ async def _reconcile_task_run(
         _pending_task_attempt(task) is None
         or run["run_id"] != task["job_id"]
         or run["session_id"] != task["session_id"]
-        or run["status"] not in {"COMPLETED", "ERROR", "CANCELLED", "PENDING"}
+        or run["status"] not in {"COMPLETED", "ERROR", "CANCELLED", "PENDING", "RUNNING"}
     ):
         return False
     from agno.db.base import SessionType
@@ -217,10 +310,8 @@ async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
         return await worker.store.enqueue_job(job, max_depth=worker.config.max_queue_depth)
     task = submission["task"]
     history = task["transitions"]
-    if _pending_task_attempt(task) == submission["attempt"]:
-        # Recreate the missing ticket against the acceptance preceding its
-        # existing reservation. The worker verifies that exact history again.
-        history = history[:-1]
+    if _pending_task_attempt(task) is not None:
+        raise ValueError("An existing Task reservation cannot enqueue new work")
     job = {
         **job,
         "payload": {
@@ -229,6 +320,7 @@ async def _enqueue_ticket(worker: Any, job: Dict[str, Any]) -> Dict[str, Any]:
             "company_task_transitions": history,
             "company_task_attempt": submission["attempt"],
             "company_run_db_id": submission["run_db_id"],
+            "company_started_by": submission.get("started_by"),
         },
     }
     try:

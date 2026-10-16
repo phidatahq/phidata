@@ -175,8 +175,15 @@ POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route
 Start rechecks the registry, `tasks:write`, `wiki:read` and the executor's run
 permission. Registry-only executors receive their ordinary routes when Company
 is enabled. Each executor needs a run database, and execution requires
-`QueueConfig(durable=True)`. An existing session retains the normal run route's
-ownership checks. Engineering executors cannot be started yet. Framework-reserved executors,
+`QueueConfig(durable=True)`. Every attempt runs as the Task's accountable owner,
+`task.user_id`. Company checks the starting human's current executor run permission
+first, then uses the internal service transport with the Task owner header. The
+attempt transition records that human as `started_by`; automatic starts record the
+policy's accepting human. Revisions by another authorized collaborator keep the
+same session and owner in both isolation modes. The ordinary session ownership
+check still rejects unrelated sessions. For a legacy session created by a starter,
+Company recovers with the recorded reservation identity and transfers an idle
+session to the Task owner only after matching its original reservation and run. Engineering executors cannot be started yet. Framework-reserved executors,
 including Product Manager and OS Manager, cannot be accepted or started as
 Task executors.
 
@@ -420,18 +427,32 @@ expected skips. If a Ready Task's accepting human loses permission, the Task
 returns to Backlog with the refusal reason and appears in attention; the failed
 tick is recorded once instead of repeating every minute.
 
-A missing queue ticket is recreated only when the reserved attempt
-has no durable run or Task result. If its terminal run exists, the missing Task
-result is recovered without rerunning the executor. If a ticket disappears while
-its durable run is still Pending, reconciliation cancels that attempt and records
-the lost-ticket reason in the Task result. Return the Task to Backlog and accept
-it again to start the next attempt. Cancellation and next-attempt starts also
-recover this state when the Task has already returned to Backlog or Ready.
-The cancellation is conditional on the stored run still being Pending in the
-same database update. If the worker advances or settles first, recovery preserves
-that status and result. A Running row is never automatically replayed: its worker
-may still be executing. Failed or cancelled attempts stay for a human
-to retry, even after queue retention.
+Recovery runs before current Routine pause, policy and permission checks. It only
+reconciles existing reservations and never enqueues work. A terminal durable run
+repairs a missing Task result, including after its Routine is paused or its policy
+is revoked. A ticketless Pending row is cancelled. A ticketless Running row is
+observed while the cancellation manager tracks it, and cancelled when it is no
+longer tracked. A cancellation-manager lookup failure leaves recovery retryable.
+The conditional database update preserves a concurrent worker's status change.
+Task result projection checks the reservation history and writes only while the
+attempt has no result, so the first terminal outcome wins. A
+reservation with neither a queue ticket nor a run is cancelled on the Task.
+Failed or cancelled attempts require a human retry; new dispatch still checks
+current actor permissions and the policy fingerprint.
+
+Consecutive dispatch failures for the same Task state and reason update one failed
+schedule-history row. `/company/attention` includes an `automation_failures` list
+when actionable failures exist, with `task_id`, `reason` and `count`; `failed`
+counts each active streak once. A changed reason, Task move or successful check
+ends that streak. Refresh deletes completed automation history after
+`CompanyConfig(automation_history_retention_days=30)` days, measured from the most
+recent occurrence. The setting must be a positive integer. Routine history and
+ordinary executor runs are unaffected.
+
+`09_task_session_ownership.py` demonstrates Alice starting attempt 1 and Bob
+starting attempt 2, with both runs owned by Alice and distinct `started_by` entries.
+Run it with SQLite or `COMPANY_DB=postgres`; it uses a local workflow and the durable
+PostgreSQL queue without a model call.
 
 Starting AgentOS without Company disables an existing automation schedule with
 `disabled_reason="company_off"`. Enabling Company again re-enables that row;

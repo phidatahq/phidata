@@ -2062,6 +2062,9 @@ async def test_all_task_and_project_writes_stamp_updated_at(system, monkeypatch)
     running = await write("start_task_run", task["id"], 1, ready["transitions"])
     failed = await write("complete_task_run", task["id"], running["job_id"], {"status": "ERROR"})
     assert failed["status"] == "in_progress"
+    assert await _call(db, "complete_task_run", task["id"], running["job_id"], {"status": "COMPLETED"}) is None
+    assert await _call(db, "get_task", task["id"]) == failed
+    running = await write("start_task_run", task["id"], 2, failed["transitions"])
     completed = await write("complete_task_run", task["id"], running["job_id"], {"status": "COMPLETED"})
     assert completed["status"] == "in_review"
     await write("transition_task", task["id"], "done", "Review accepted")
@@ -3012,7 +3015,9 @@ async def test_automatic_acceptance_requires_wiki_read(system, tmp_path, isolati
             await _call(db, "update_schedule", schedule["id"], next_run_at=0)
             await tick(executor, db)
             assert (await execute(worker))["status"] == "completed"
-            assert (await _call(db, "get_task", task["id"]))["status"] == "in_review"
+            saved = await _call(db, "get_task", task["id"])
+            assert saved["status"] == "in_review"
+            assert saved["transitions"][-2]["started_by"] == "alice"
             assert await _call(db, "count_company_acceptances", routine["id"], fingerprint, "") == 1
     finally:
         auth_db.close()
@@ -3219,7 +3224,7 @@ async def test_routine_endpoint_edit_rejects_nonrun_target(system):
 
 
 @pytest.mark.asyncio
-async def test_automation_resumes_reserved_attempt_without_job_or_result(system):
+async def test_automation_cancels_reserved_attempt_without_job_or_result(system):
     from agno.company.execution import _call
 
     client, db, worker, _, _ = system
@@ -3230,12 +3235,15 @@ async def test_automation_resumes_reserved_attempt_without_job_or_result(system)
     assert await worker.store.get_job(reserved["job_id"]) is None
     executor, schedule = await automation(system)
     result = await tick(executor, db)
-    assert result["output"]["tasks"][0]["status"] == "PENDING"
-    assert result["output"]["tasks"][0]["action"] == "submitted"
-    assert await worker.store.get_job(reserved["job_id"]) is not None
+    assert result["output"]["tasks"][0]["status"] == "CANCELLED"
+    assert result["output"]["tasks"][0]["action"] == "reconciled"
+    assert await worker.store.get_job(reserved["job_id"]) is None
     assert (await _call(db, "get_task", task["id"]))["transitions"] == reserved["transitions"]
-    assert (await execute(worker))["status"] == "completed"
+    assert (await _call(db, "get_task", task["id"]))["result"]["status"] == "CANCELLED"
     assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 1
+    retry = await client.post(f"/company/tasks/{task['id']}/runs", json={"attempt": 2})
+    assert retry.status_code == 202, retry.text
+    assert (await execute(worker))["status"] == "completed"
 
 
 @pytest.mark.asyncio
@@ -3350,7 +3358,8 @@ async def test_automation_dispatch_failures_remain_visible(system, monkeypatch, 
         assert reason in result["error"]
         assert result["output"]["tasks"][0]["status"] == "failed"
     rows, total = await _call(db, "get_schedule_runs", schedule["id"])
-    assert total == 3 and all(reason in row["error"] for row in rows)
+    assert total == 1 and reason in rows[0]["error"]
+    assert rows[0]["output"]["automation_failure"]["count"] == 3
     assert (await _call(db, "get_task", task["id"]))["status"] == "ready"
 
 
@@ -3387,6 +3396,8 @@ async def test_automation_reconciles_durable_run_without_resubmission(system, mo
         session.execute(table.delete().where(table.c.id == reserved["job_id"]))
     enqueue = AsyncMock(side_effect=AssertionError("An existing durable run must not be resubmitted"))
     monkeypatch.setattr(worker.store, "enqueue_job", enqueue)
+    if status == "RUNNING":
+        status = "CANCELLED"
     if recovery == "http":
         response = await client.post(f"/company/tasks/{task['id']}/runs")
         assert response.status_code == 202, response.text

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncGenerator, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from agno.exceptions import InputCheckError
 from agno.models.message import Message
 from agno.run.agent import RunInput, RunOutput
 from agno.run.base import RunStatus
@@ -262,11 +263,19 @@ def _media_wire(media: Any) -> List[Dict[str, Any]]:
 
 def _execution(agent: "BaseExternalAgent", input: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
     from agno.run.concurrency import get_worker_ownership
-    from agno.sandbox.media import decode_media
+    from agno.sandbox.media import decode_media, validate_media
 
-    options = submission(agent, input, kwargs)
     run_id = kwargs.get("run_id") or str(uuid4())
     owner = get_worker_ownership(run_id)
+    media = kwargs.get("media")
+    if owner is not None and isinstance(media, list):
+        # A queue worker replaying the wire its ticket holds: if it no longer validates, running the turn
+        # again cannot cure it, so fail it as a permanent input error instead of retrying.
+        try:
+            validate_media(media)
+        except ValueError as error:
+            raise InputCheckError(f"The accepted attachments can no longer be replayed: {error}") from error
+    options = submission(agent, input, kwargs)
     return dict(
         agent_id=agent.get_id(),
         run_id=run_id,

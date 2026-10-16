@@ -10,8 +10,9 @@ import pytest
 
 from agno.agents.claude import ClaudeAgent
 from agno.agents.codex import CodexAgent
-from agno.exceptions import UnsupportedMediaError
+from agno.exceptions import InputCheckError, UnsupportedMediaError
 from agno.media import Audio, File, Image
+from agno.run.concurrency import worker_managed_execution
 from agno.sandbox import _harness
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.fixture import FixtureAgent
@@ -168,6 +169,27 @@ def test_the_synchronous_public_run_forwards_attachments_too(monkeypatch, stream
 # --- a ticket that cannot be replayed ---------------------------------------------------------------------------
 # Retrying cannot cure a damaged wire, so the worker must fail it once and write the reason on the run. The
 # claim-time "ensure the run row" step only retries, so the pending-row hook must not raise for such a ticket.
+
+
+@pytest.mark.parametrize(
+    "damage",
+    [
+        lambda wire: wire[0].update(name="../escape"),
+        lambda wire: wire[0].update(content="not base64!"),
+        lambda wire: wire[0].update(host_path="/etc/passwd"),
+        lambda wire: wire.append("not an object"),
+    ],
+)
+def test_a_damaged_wire_is_a_permanent_input_failure_for_the_worker(damage):
+    agent = _agent()
+    wire = encode_media(files=[File(content=b"abc", filename="a.txt")])
+    damage(wire)
+    with worker_managed_execution("r", "w", 1):
+        with pytest.raises(InputCheckError):
+            _harness._execution(agent, "hello", {"media": wire, "run_id": "r"})
+    # Outside a queue worker the same wire is an ordinary caller error, not a replayed ticket.
+    with pytest.raises(ValueError):
+        _harness._execution(agent, "hello", {"media": wire, "run_id": "r"})
 
 
 @pytest.mark.asyncio

@@ -292,6 +292,7 @@ async def _has_source_evidence(task, manager):
     if not evidence:
         return False
     for item in evidence:
+        _check_automation_deadline()
         if not isinstance(item, dict) or not all(
             item.get(key) for key in ("source_id", "content_hash", "link", "run_id")
         ):
@@ -299,7 +300,9 @@ async def _has_source_evidence(task, manager):
         source = await _manager_call(manager, "get_source", item["source_id"])
         if not source or source["product_id"] != task["product_id"]:
             return False
+        _check_automation_deadline()
         current = await _manager_call(manager, "read_source", item["source_id"], item["run_id"], links=[item["link"]])
+        _check_automation_deadline()
         if not any(row["content_hash"] == item["content_hash"] and row["link"] == item["link"] for row in current):
             return False
     return True

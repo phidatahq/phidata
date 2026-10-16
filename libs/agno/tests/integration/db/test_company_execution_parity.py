@@ -2539,6 +2539,8 @@ async def test_automatic_policy_refuses_unrunnable_executor(system, tmp_path, mo
 
 @pytest.mark.asyncio
 async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path, monkeypatch):
+    from unittest.mock import Mock
+
     from agno.company.execution import _call
 
     client, db, worker, os, _ = system
@@ -2558,8 +2560,11 @@ async def test_expired_tick_cannot_accept_or_release_new_claim(system, tmp_path,
     policy = routine["payload"]["metadata"]["auto_accept"]
     policy["required_checks"].append("slow_check")
     assert (await client.patch("/company/routines/" + routine["id"], json={"auto_accept": policy})).status_code == 200
+    read = Mock(side_effect=AssertionError("An expired tick must not start another Source read"))
+    monkeypatch.setattr("agno.company.sources.read_source", read)
     result = await executor.execute(claimed, db)
     assert "claim budget" in str(result)
+    read.assert_not_called()
     assert (await _call(db, "get_task", task["id"]))["status"] == "backlog"
     assert (await _call(db, "get_schedule", schedule["id"]))["locked_by"] == "second"
     assert await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds) is None

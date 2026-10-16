@@ -1927,9 +1927,10 @@ class BaseDb(ABC):
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Project and record the caller and reason.
 
-        Automatic acceptance requires expected_updated_at. Explicit None matches
-        SQL NULL; omission leaves manual transitions without a timestamp guard.
-        Timestamps are epoch seconds, so same-second writes are indistinguishable.
+        Automatic completion requires expected_updated_at, checked Project scope
+        and child Tasks. Explicit None matches SQL NULL; omission leaves manual
+        transitions without a timestamp guard. SQL scope/child predicates also
+        detect changes that share the same epoch-second timestamp.
         """
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -2016,9 +2017,10 @@ class BaseDb(ABC):
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Task and record the caller and reason.
 
-        Automatic acceptance requires expected_updated_at. Explicit None matches
-        SQL NULL; omission leaves manual transitions without a timestamp guard.
-        Timestamps are epoch seconds, so same-second writes are indistinguishable.
+        Automatic acceptance requires expected_updated_at and checked Task scope.
+        Explicit None matches SQL NULL; omission leaves manual transitions without
+        a timestamp guard. SQL scope predicates also detect changes that share the
+        same epoch-second timestamp.
         """
         raise NotImplementedError("Company tasks not supported by the configured database")
 
@@ -2109,7 +2111,7 @@ class BaseDb(ABC):
     def release_schedule(
         self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
     ) -> bool:
-        """Release a claimed schedule and optionally update next_run_at."""
+        """Release a schedule, optionally only if worker_id still owns its claim."""
         raise NotImplementedError
 
     # --- Schedule Runs (Optional) ---
@@ -3872,9 +3874,10 @@ class AsyncBaseDb(ABC):
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Project and record the caller and reason.
 
-        Automatic acceptance requires expected_updated_at. Explicit None matches
-        SQL NULL; omission leaves manual transitions without a timestamp guard.
-        Timestamps are epoch seconds, so same-second writes are indistinguishable.
+        Automatic completion requires expected_updated_at, checked Project scope
+        and child Tasks. Explicit None matches SQL NULL; omission leaves manual
+        transitions without a timestamp guard. SQL scope/child predicates also
+        detect changes that share the same epoch-second timestamp.
         """
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -3963,9 +3966,10 @@ class AsyncBaseDb(ABC):
     ) -> Optional[Dict[str, Any]]:
         """Transition a visible Task and record the caller and reason.
 
-        Automatic acceptance requires expected_updated_at. Explicit None matches
-        SQL NULL; omission leaves manual transitions without a timestamp guard.
-        Timestamps are epoch seconds, so same-second writes are indistinguishable.
+        Automatic acceptance requires expected_updated_at and checked Task scope.
+        Explicit None matches SQL NULL; omission leaves manual transitions without
+        a timestamp guard. SQL scope predicates also detect changes that share the
+        same epoch-second timestamp.
         """
         raise NotImplementedError("Company tasks not supported by the configured database")
 
@@ -4042,7 +4046,7 @@ class AsyncBaseDb(ABC):
     async def release_schedule(
         self, schedule_id: str, next_run_at: Optional[int] = None, *, worker_id: Optional[str] = None
     ) -> bool:
-        """Release a claimed schedule and optionally update next_run_at."""
+        """Release a schedule, optionally only if worker_id still owns its claim."""
         raise NotImplementedError
 
     # --- Schedule Runs (Optional) ---

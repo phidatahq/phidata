@@ -180,3 +180,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** 1,751 affected unit tests passed (35 conditional skips), all 12 Company Docker cases passed, and the focused review suite passed 170 tests. The broad Company integration run passed 1,368 cases with eight conditional Mongo skips; its 16 failures exposed executor validation occurring after endpoint construction in the permission cleanup. That order was corrected, and all 16 failed cases passed on rerun, giving 1,384 distinct passing Company cases. A further final-source focused route run passed all 88 cases. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 recovery integration remains deferred until it merges.
 
 ---
+
+### PR 7.2 second review — admission, retries and migration
+
+**Status:** PASS
+
+**Description:** Settled historical attempts are excluded before resolving retired run stores. Live-ticket enumeration propagates failures for admission, includes untagged jobs claimed by named deployments, and uses the existing quiet-contention response for automatic pickup. Checkout validation errors can retry after their cause is repaired. Acceptance refuses a repository or branch incompatible with an established checkout. Migration diagnostics identify Task upgrades, adapter subclasses migrate correctly, and terminal rows retain their status without invalid transitions.
+
+**Result:** All 96 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Company Docker cases and all 183 queue-store parity cases passed. All 1,428 Company integration cases passed, with eight conditional Mongo skips. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 dispatch and recovery functions remain unchanged; recovery pin integration is deferred until that PR merges.
+
+---

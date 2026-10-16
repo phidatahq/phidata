@@ -23,23 +23,25 @@ def _migrate(connection: Any, table_name: str, schema: Any = None) -> bool:
     rows = connection.execute(select(table).where(table.c.executor_type == "engineering")).mappings().all()
     now = int(time.time())
     for row in rows:
-        history = [
-            *(row["transitions"] or []),
-            {
-                "from": row["status"],
-                "target": "backlog",
-                "reason": "Retired engineering executor; select a registered executor",
-                "user_id": None,
-                "created_at": now,
-            },
-        ]
+        status = row["status"] if row["status"] in {"done", "cancelled"} else "backlog"
+        history = list(row["transitions"] or [])
+        if status != row["status"]:
+            history.append(
+                {
+                    "from": row["status"],
+                    "target": status,
+                    "reason": "Retired engineering executor; select a registered executor",
+                    "user_id": None,
+                    "created_at": now,
+                }
+            )
         connection.execute(
             table.update()
             .where(table.c.id == row["id"], table.c.executor_type == "engineering")
             .values(
                 executor_type=None,
                 executor_id=None,
-                status="backlog",
+                status=status,
                 accepted_by=None,
                 accepted_at=None,
                 transitions=history,
@@ -50,14 +52,20 @@ def _migrate(connection: Any, table_name: str, schema: Any = None) -> bool:
 
 
 def up(db: BaseDb, table_type: str, table_name: str) -> bool:
-    if table_type != "tasks" or type(db).__name__ not in {"PostgresDb", "SqliteDb"}:
+    from agno.db.postgres import PostgresDb
+    from agno.db.sqlite import SqliteDb
+
+    if table_type != "tasks" or not isinstance(db, (PostgresDb, SqliteDb)):
         return False
     with getattr(db, "db_engine").begin() as connection:
         return _migrate(connection, table_name, getattr(db, "db_schema", None))
 
 
 async def async_up(db: AsyncBaseDb, table_type: str, table_name: str) -> bool:
-    if table_type != "tasks" or type(db).__name__ not in {"AsyncPostgresDb", "AsyncSqliteDb"}:
+    from agno.db.postgres import AsyncPostgresDb
+    from agno.db.sqlite import AsyncSqliteDb
+
+    if table_type != "tasks" or not isinstance(db, (AsyncPostgresDb, AsyncSqliteDb)):
         return False
     async with getattr(db, "db_engine").begin() as connection:
         return await connection.run_sync(lambda conn: _migrate(conn, table_name, getattr(db, "db_schema", None)))

@@ -5508,6 +5508,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         *,
         session_id: Optional[Union[str, List[str]]] = None,
         user_id: Optional[str] = None,
+        _raise_on_error: bool = False,
     ) -> Tuple[List[Dict[str, Any]], int]:
         try:
             table = await self._get_table(table_type="jobs")
@@ -5537,6 +5538,8 @@ class AsyncPostgresDb(AsyncBaseDb):
                 f"Job queue store: list_jobs failed (status={status!r}, session_id={session_id!r}, "
                 f"user_id={user_id!r}): {e}"
             )
+            if _raise_on_error:
+                raise
             return [], 0
 
     async def requeue_job(self, job_id: str) -> bool:

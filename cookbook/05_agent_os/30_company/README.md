@@ -817,9 +817,11 @@ The Product has a matching git Source URL and `config.branch` names its default
 branch. The agent's Repository config selects the checkout branch. Acceptance
 checks the URL; the sandbox resolves and publishes the commit on its first turn.
 The first successful completion records the pin, including a successful retry
-after an earlier failed or cancelled attempt. The Task retains `{source_id, url, branch, commit}` in `metadata.checkout` and
-later attempts reuse its session and verify that pin. A second sandboxed Task
-start receives 409 while another has a live job, including after that Task is
+after an earlier failed or cancelled attempt. The Task retains
+`{source_id, url, branch, commit}` in `metadata.checkout` and later attempts reuse its session and verify that pin at completion. A checkout
+validation error can be retried after repairing its cause. Reacceptance cannot
+change an established checkout to another repository or branch; use a new Task.
+A second sandboxed Task start receives 409 while another has a live job, including after that Task is
 returned to Backlog, reassigned or archived. Ordinary agents remain eligible
 and report `sandboxed: false`. This marker is derived from the component and
 cannot be set on a Task.
@@ -830,7 +832,8 @@ Deployment requirements:
   SQLite is supported for local Company records, but sandbox executor state is
   PostgreSQL-backed. Run `await MigrationManager(db).up(table_type="tasks")`
   before serving an existing Company database to add checkout metadata and retire
-  any legacy `engineering` executor rows to Backlog.
+  legacy `engineering` executors. Active work returns to Backlog; Done and
+  Cancelled Tasks retain their terminal status.
 - An explicit checkpoint store on one host, or a shared checkpoint filesystem
   across replicas. Local checkpoint directories are not portable between hosts.
 - Docker with `network="isolated"` (or AgentCore with network access). Egress

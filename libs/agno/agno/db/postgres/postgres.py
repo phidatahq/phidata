@@ -8193,6 +8193,7 @@ class PostgresDb(BaseDb):
         *,
         session_id: Optional[Union[str, List[str]]] = None,
         user_id: Optional[str] = None,
+        _raise_on_error: bool = False,
     ) -> Tuple[List[Dict[str, Any]], int]:
         try:
             table = self._get_table(table_type="jobs")
@@ -8222,6 +8223,8 @@ class PostgresDb(BaseDb):
                 f"Job queue store: list_jobs failed (status={status!r}, session_id={session_id!r}, "
                 f"user_id={user_id!r}): {e}"
             )
+            if _raise_on_error:
+                raise
             return [], 0
 
     def requeue_job(self, job_id: str) -> bool:

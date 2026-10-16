@@ -15,9 +15,11 @@ TASK_TRANSITIONS = {
 
 def validate_task_fields(fields: Dict[str, Any]) -> None:
     """Identity, acceptance and lifecycle are never descriptive edits."""
-    unknown = set(fields) - {"title", "brief", "project_id"}
+    unknown = set(fields) - {"title", "brief", "project_id", "evidence"}
     if unknown:
         raise ValueError(f"Unsupported task fields: {sorted(unknown)}")
+    if fields.get("evidence") is not None and not isinstance(fields["evidence"], list):
+        raise ValueError("evidence must be a list or None")
     if "title" in fields and (not isinstance(fields["title"], str) or not fields["title"].strip()):
         raise ValueError("title must be a non-empty string")
     if fields.get("brief") is not None and not isinstance(fields["brief"], str):
@@ -60,3 +62,48 @@ def task_transition_fields(
         {"from": existing["status"], "target": target, "reason": reason, "user_id": accepted_by, "created_at": now},
     ]
     return fields
+
+
+def task_run_id(task_id: str, attempt: int) -> str:
+    """The same Task attempt always names the same ordinary queued run."""
+    from uuid import NAMESPACE_URL, uuid5
+
+    return str(uuid5(NAMESPACE_URL, f"agno:company:task:{task_id}:attempt:{attempt}"))
+
+
+def task_run_fields(
+    existing: Dict[str, Any], attempt: int, user_id: Optional[str], run_db_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """Reserve execution in the Task lifecycle, retaining the session across attempts."""
+    from uuid import NAMESPACE_URL, uuid5
+
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
+        raise ValueError("attempt must be a positive integer")
+    if existing["status"] not in {"ready", "in_progress"} or not existing.get("executor_id"):
+        raise ValueError("Only accepted work can be started")
+    if existing.get("executor_type") == "engineering":
+        raise ValueError("Engineering executors cannot be started yet")
+    history = existing.get("transitions") or []
+    attempts = [entry["attempt"] for entry in history if "attempt" in entry]
+    if attempt != max(attempts, default=0) + 1:
+        raise ValueError("Start the next Task attempt, or retry the original attempt")
+    now = int(time.time())
+    return {
+        "session_id": existing.get("session_id") or str(uuid5(NAMESPACE_URL, f"agno:company:task:{existing['id']}")),
+        "job_id": task_run_id(existing["id"], attempt),
+        "status": "in_progress",
+        "updated_at": now,
+        "result": None,
+        "transitions": [
+            *history,
+            {
+                "from": existing["status"],
+                "target": "in_progress",
+                "reason": "Task execution requested",
+                "user_id": user_id,
+                "created_at": now,
+                "attempt": attempt,
+                "run_db_id": run_db_id,
+            },
+        ],
+    }

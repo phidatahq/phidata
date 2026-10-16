@@ -49,8 +49,8 @@ The HTTP routes use `/company/projects` and `/company/tasks`, with the same
 CRUD, paging, soft delete and restore conventions as Products, plus
 `POST /{id}/transitions`. Task Ready requests include `executor_type` and
 `executor_id`; the API applies the scheduler's caller run-permission check.
-These examples manage records only and do not execute agents. Registry
-validation and run dispatch arrive with execution support.
+Acceptance also validates the executor against the registry. Direct Python callers
+pass `registry=Registry(...)` to their Company manager.
 
 Project and Task HTTP reads are company-wide for callers with the resource's
 read scope, matching Products. Edits and transitions are collaborative: callers with the resource write
@@ -99,7 +99,8 @@ entries that reference the original decision.
 Product Manager uses `CompanyConfig(model=...)`, otherwise the first declared
 registry model. If neither exists, its unavailable reason appears in diagnostics
 and manual APIs still work. With OS Manager enabled it is an internal member;
-otherwise it is a standalone agent. Its id is reserved and its tools stay out of
+otherwise it is a standalone agent, available at `GET /agents/product-manager-internal`
+and `POST /agents/product-manager-internal/runs`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
 updates `status.md` with a version check, and logs decisions through its learning
 machine. It has no acceptance, completion, owner, Sources or scheduler tools.
@@ -107,4 +108,76 @@ machine. It has no acceptance, completion, owner, Sources or scheduler tools.
 CompanyTools can be published explicitly with `MCPConfig(tools=[...])`, following
 the existing MCP toolkit convention. Direct MCP calls have the same write fence.
 The examples make no provider calls; they do not demonstrate live model quality.
-Execution, attention, Routines and Sources are outside this delivery.
+Routines and Sources are outside this delivery.
+
+Optional Company tool arguments accept `null` for omission. Empty strings are
+normalized to omission as well; omitted pagination uses 20 results on page 1.
+Required identifiers and titles still require valid values.
+
+Async PostgreSQL derives its default database ID from the connection URL and
+schema, like synchronous PostgreSQL. Async SQLite already derives a stable ID
+from its connection details. Reuse those details (or an explicit stable `id`)
+after restart and across replicas so saved run database references resolve.
+This does not rewrite references saved with older randomly generated IDs;
+retaining a known old ID explicitly is necessary for those references.
+
+## Execution and attention
+
+| File | Demonstrates |
+| --- | --- |
+| `06_execute_tasks.py` | Durable execution, duplicate starts, ordinary run history and attention with no model call. |
+
+`06_execute_tasks.py` starts an accepted workflow Task through its ordinary run
+route and the durable queue, waits for In review, reads paged history and checks
+attention. It makes no provider calls. Start PostgreSQL with
+`./cookbook/scripts/run_pgvector.sh`, then run:
+
+```bash
+.venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
+```
+
+The default stores Company records and sessions in temporary SQLite, with a
+PostgreSQL queue. `COMPANY_DB=postgres` uses PostgreSQL for both. The example
+creates and removes its own database schema. `COMPANY_QUEUE_DB_URL` overrides
+the local PostgreSQL URL. SQLite follows the queue's existing development
+fallback; use PostgreSQL session storage for production attempt fencing.
+
+POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
+that attempt returns the first run. A full queue returns 429 without changing
+the Task or consuming the attempt; retry the same attempt when capacity is available.
+The durable ticket is accepted before the Task moves to In progress, and the worker
+can recover that update if the submitting process stops. If acceptance changes
+before the Task can reserve a fresh ticket, the request returns 409 and cancels
+the waiting ticket; an already-claimed ticket is rejected by the worker.
+A new attempt increments the number; after
+success, first transition In review to In progress to request revisions. Each
+Task retains one session. GET on the same route returns ordinary session runs
+with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
+POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
+
+Start rechecks the registry, `tasks:write`, `wiki:read` and the executor's run
+permission. Registry-only executors receive their ordinary routes when Company
+is enabled. Each executor needs a run database, and execution requires
+`QueueConfig(durable=True)`. An existing session retains the normal run route's
+ownership checks. Engineering executors cannot be started yet. Framework-reserved executors,
+including Product Manager and OS Manager, cannot be accepted or started as
+Task executors.
+
+Executor input contains only the Task brief, its evidence and the current
+company and Product wiki pages. Queue retries and restart recovery use the
+existing queue policy. Results are saved on the Task; success moves it to
+`in_review`. Retryable failures remain outside failed attention while the queue
+has attempts left. An exhausted, permanent or cancelled run leaves the Task
+In progress with a visible `ERROR` or `CANCELLED` result. It can start another numbered attempt or return to
+Backlog for replanning. Executors cannot acquire scheduler mutation authority.
+
+GET `/company/attention?product_id=...` returns `proposals`, `in_review` and
+`failed` counts using the Task list filters. Omitting Product counts all work.
+Attention and run reads are company-wide with `tasks:read`; Task lists also
+accept `failed=true`. Failed work means an In progress Task whose latest result
+is `ERROR` or `CANCELLED`. Moving the Task to Cancelled, Backlog, Ready or In review
+clears it from failed attention while preserving the result as history. Starting
+a new attempt clears the previous result. `failed=false`
+includes all other Tasks, including those with no result. The Task table is
+created with its execution, evidence and result columns in the initial schema.

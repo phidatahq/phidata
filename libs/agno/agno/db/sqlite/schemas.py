@@ -281,6 +281,10 @@ TASKS_TABLE_SCHEMA = {
     "executor_id": {"type": String, "nullable": True},
     "accepted_by": {"type": String, "nullable": True},
     "accepted_at": {"type": BigInteger, "nullable": True},
+    "session_id": {"type": String, "nullable": True, "index": True},
+    "job_id": {"type": String, "nullable": True, "index": True},
+    "evidence": {"type": JSON, "nullable": True},
+    "result": {"type": JSON, "nullable": True},
 }
 
 PROJECTS_TABLE_SCHEMA = {

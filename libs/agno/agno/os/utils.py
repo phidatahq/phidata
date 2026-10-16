@@ -1569,10 +1569,6 @@ def get_agent_by_id(
         ComponentRehydrationError: If strict and a db-backed agent's references
             cannot be resolved
     """
-    # Reserved manager IDs cannot identify standalone public agents, including
-    # agents restored from an old catalog row.
-    if agent_id in RESERVED_MANAGER_IDS:
-        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
     if agent_id is None:
         return None
 
@@ -1595,6 +1591,11 @@ def get_agent_by_id(
                     return agent.resolve(ctx, expected_type=Agent)
                 # RemoteAgent or other
                 return agent
+
+    # AgentOS may serve framework-owned agents, but reserved IDs must never
+    # fall back to user-created or legacy catalog components.
+    if agent_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
 
     # Try to get the agent from the database
     if db and isinstance(db, BaseDb):
@@ -1634,8 +1635,6 @@ async def get_agent_by_id_async(
     published_only: bool = True,
 ) -> Optional[Union[Agent, RemoteAgent, AgentProtocol]]:
     """Async variant of get_agent_by_id that supports async factories."""
-    if agent_id in RESERVED_MANAGER_IDS:
-        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
     if agent_id is None:
         return None
 
@@ -1658,6 +1657,11 @@ async def get_agent_by_id_async(
                     return result
                 # RemoteAgent or other
                 return agent
+
+    # AgentOS may serve framework-owned agents, but reserved IDs must never
+    # fall back to user-created or legacy catalog components.
+    if agent_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
 
     if db and isinstance(db, BaseDb):
         from agno.agent.agent import get_agent_by_id as get_agent_by_id_db

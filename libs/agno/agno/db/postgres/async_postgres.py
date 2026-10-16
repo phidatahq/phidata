@@ -59,7 +59,7 @@ from agno.run.team import TeamRunOutput
 from agno.run.workflow import WorkflowRunOutput
 from agno.session import AgentSession, Session, TeamSession, WorkflowSession
 from agno.utils.log import log_debug, log_error, log_info, log_warning
-from agno.utils.string import sanitize_postgres_string, sanitize_postgres_strings
+from agno.utils.string import generate_id, sanitize_postgres_string, sanitize_postgres_strings
 
 try:
     from sqlalchemy import (
@@ -184,6 +184,24 @@ class AsyncPostgresDb(AsyncBaseDb):
             ValueError: If neither db_url nor db_engine is provided.
             ValueError: If none of the tables are provided.
         """
+        _engine: Optional[AsyncEngine] = db_engine
+        if _engine is None and db_url is not None:
+            _engine = create_async_engine(
+                db_url,
+                **_engine_options(),
+            )
+        if _engine is None:
+            raise ValueError("One of db_url or db_engine must be provided")
+
+        self.db_url: Optional[str] = db_url
+        self.db_engine: AsyncEngine = _engine
+        if id is None:
+            # Match the synchronous adapter so persisted references survive a
+            # restart or resolve on another replica using the same connection.
+            base_seed = db_url or str(self.db_engine.url)
+            schema_suffix = db_schema if db_schema is not None else "ai"
+            id = generate_id(f"{base_seed}#{schema_suffix}")
+
         super().__init__(
             id=id,
             session_table=session_table,
@@ -208,17 +226,6 @@ class AsyncPostgresDb(AsyncBaseDb):
             service_accounts_table=service_accounts_table,
         )
 
-        _engine: Optional[AsyncEngine] = db_engine
-        if _engine is None and db_url is not None:
-            _engine = create_async_engine(
-                db_url,
-                **_engine_options(),
-            )
-        if _engine is None:
-            raise ValueError("One of db_url or db_engine must be provided")
-
-        self.db_url: Optional[str] = db_url
-        self.db_engine: AsyncEngine = _engine
         self.db_schema: str = db_schema if db_schema is not None else "ai"
         self.metadata: MetaData = MetaData(schema=self.db_schema)
         self.create_schema: bool = create_schema
@@ -6486,6 +6493,8 @@ class AsyncPostgresDb(AsyncBaseDb):
         product_id: Optional[str] = None,
         status: Optional[str] = None,
         project_id: Optional[str] = None,
+        failed: Optional[bool] = None,
+        session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
@@ -6493,6 +6502,19 @@ class AsyncPostgresDb(AsyncBaseDb):
         if table is None:
             return [], 0
         stmt = select(table)
+        if failed is not None:
+            result_status = table.c.result["status"].as_string()
+            stmt = stmt.where(
+                and_(table.c.status == "in_progress", result_status.in_(["ERROR", "CANCELLED"]))
+                if failed
+                else or_(
+                    table.c.status != "in_progress",
+                    result_status.is_(None),
+                    result_status.not_in(["ERROR", "CANCELLED"]),
+                )
+            )
+        if session_id is not None:
+            stmt = stmt.where(table.c.session_id == session_id)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if status is not None:
@@ -6549,6 +6571,91 @@ class AsyncPostgresDb(AsyncBaseDb):
                 await sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table))
             ).fetchone()
             return dict(result._mapping) if result else None
+
+    async def start_task_run(
+        self,
+        task_id: str,
+        attempt: int,
+        expected_transitions: List[Dict[str, Any]],
+        user_id: Optional[str] = None,
+        run_db_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.tasks import task_run_fields
+
+        table = await self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        async with self.async_session_factory() as sess, sess.begin():
+            row = (
+                await sess.execute(select(table).where(table.c.id == task_id, table.c.deleted_at.is_(None)))
+            ).fetchone()
+            if row is None:
+                return None
+            existing = dict(row._mapping)
+            if existing["transitions"] != expected_transitions:
+                return None
+            fields = task_run_fields(existing, attempt, user_id, run_db_id)
+            stmt = (
+                table.update()
+                .where(
+                    table.c.id == task_id,
+                    table.c.deleted_at.is_(None),
+                    table.c.transitions == expected_transitions,
+                    table.c.status == existing["status"],
+                )
+                .values(**fields)
+                .returning(table)
+            )
+            row = (await sess.execute(stmt)).fetchone()
+            return dict(row._mapping) if row else None
+
+    async def complete_task_run(
+        self,
+        task_id: str,
+        job_id: str,
+        result: Dict[str, Any],
+        expected_transitions: Optional[List[Dict[str, Any]]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        from agno.db.schemas.tasks import task_transition_fields
+
+        table = await self._get_table(table_type="tasks")
+        if table is None:
+            return None
+        async with self.async_session_factory() as sess, sess.begin():
+            row = (
+                await sess.execute(
+                    select(table).where(
+                        table.c.id == task_id,
+                        table.c.job_id == job_id,
+                        table.c.deleted_at.is_(None),
+                        table.c.status == "in_progress",
+                    )
+                )
+            ).fetchone()
+            if row is None:
+                return None
+            existing = dict(row._mapping)
+            if expected_transitions is not None and existing["transitions"] != expected_transitions:
+                return None
+            fields = (
+                task_transition_fields(existing, "in_review", "Execution completed; human review required")
+                if result.get("status") == "COMPLETED"
+                else {"updated_at": int(time.time())}
+            )
+            stmt = (
+                table.update()
+                .where(
+                    table.c.id == task_id,
+                    table.c.job_id == job_id,
+                    table.c.deleted_at.is_(None),
+                    table.c.status == "in_progress",
+                    table.c.transitions == existing["transitions"],
+                )
+                .values(**fields, result=result)
+                .returning(table)
+            )
+            row = (await sess.execute(stmt)).fetchone()
+            return dict(row._mapping) if row else None
 
     async def transition_task(
         self,

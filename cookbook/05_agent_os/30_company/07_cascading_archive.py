@@ -57,6 +57,11 @@ async def exercise(db):
         executor_type="agent",
         executor_id="writer",
     )
+    accepted = await call(manager.get_task, task["id"])
+    await call(manager.delete_task, task["id"])
+    restored = await call(manager.restore_task, task["id"])
+    assert restored["transitions"] == accepted["transitions"]
+    print("Task archive and restore preserved acceptance history")
     try:
         await call(manager.delete, product["id"])
     except ValueError as exc:

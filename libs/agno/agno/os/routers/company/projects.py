@@ -68,7 +68,7 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             raise HTTPException(status_code=404, detail=str(exc))
         except ValueError as exc:
             conflict = method in {"transition_project", "delete_project", "restore_project"}
-            raise HTTPException(status_code=409 if conflict else 422, detail=exc.args[0])
+            raise HTTPException(status_code=409 if conflict else 422, detail=exc.args[0] if exc.args else str(exc))
 
     async def _writable(project_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
         existing = await _call("get_project", project_id, user_id=None, include_deleted=include_deleted)

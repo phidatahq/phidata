@@ -60,7 +60,9 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         except NotImplementedError:
             raise HTTPException(status_code=503, detail="Company products not supported by the configured database")
         except ValueError as exc:
-            raise HTTPException(status_code=409 if method == "delete" else 422, detail=exc.args[0])
+            raise HTTPException(
+                status_code=409 if method == "delete" else 422, detail=exc.args[0] if exc.args else str(exc)
+            )
 
     async def _writable(product_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
         # Company-wide read first, then the ownership check against the scoped caller.

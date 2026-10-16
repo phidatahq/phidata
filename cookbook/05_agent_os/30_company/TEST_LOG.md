@@ -702,3 +702,15 @@ read; mypy checked 1,146 framework and 21 CLI files without errors.
 **Result:** SQLite and `--postgres` both passed, exercising both manager variants, active-work refusal, same-Product moves, cascade provenance, hidden children, grouped counts and exact restore.
 
 ---
+
+## Archive review corrections — October 16, 2026
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Added a standalone Task archive/restore round trip after acceptance and asserted that its lifecycle history is unchanged.
+
+**Result:** SQLite and `--postgres` passed with both sync and async managers, including the existing active-work refusal, cascade, counts and exact-restore checks. No model calls.
+
+---

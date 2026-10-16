@@ -8365,7 +8365,7 @@ class SqliteDb(BaseDb):
             return result is not None
 
     def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        from agno.db.sql.company import _event, lock_child
+        from agno.db.sql.company import lock_child, task_restore_fields
 
         table = self._get_table(table_type="tasks")
         if table is None:
@@ -8380,13 +8380,7 @@ class SqliteDb(BaseDb):
             existing = sess.execute(select(table).where(table.c.id == task_id)).mappings().first()
             if existing is None:
                 return None
-            result = sess.execute(
-                stmt.values(
-                    deleted_at=None,
-                    updated_at=int(time.time()),
-                    transitions=_event(dict(existing), "restore", int(time.time())),
-                ).returning(table)
-            ).fetchone()
+            result = sess.execute(stmt.values(**task_restore_fields(dict(existing))).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
     def start_task_run(

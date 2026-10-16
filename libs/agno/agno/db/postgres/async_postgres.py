@@ -6593,7 +6593,7 @@ class AsyncPostgresDb(AsyncBaseDb):
             return result is not None
 
     async def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
-        from agno.db.sql.company import _event, lock_child
+        from agno.db.sql.company import lock_child, task_restore_fields
 
         table = await self._get_table(table_type="tasks")
         if table is None:
@@ -6609,13 +6609,7 @@ class AsyncPostgresDb(AsyncBaseDb):
             if existing is None:
                 return None
             result = (
-                await sess.execute(
-                    stmt.values(
-                        deleted_at=None,
-                        updated_at=int(time.time()),
-                        transitions=_event(dict(existing), "restore", int(time.time())),
-                    ).returning(table)
-                )
+                await sess.execute(stmt.values(**task_restore_fields(dict(existing))).returning(table))
             ).fetchone()
             return dict(result._mapping) if result else None
 

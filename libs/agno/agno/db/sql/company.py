@@ -78,6 +78,20 @@ def _event(record: Dict[str, Any], action: str, now: int, parent: Optional[Dict[
     ]
 
 
+def task_restore_fields(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Close a cascade event without changing standalone Task acceptance history.
+
+    Ordinary Task archive only changes deleted_at. Its restore must also leave
+    lifecycle history intact because queued execution fences against that history.
+    """
+    now = int(time.time())
+    fields: Dict[str, Any] = {"deleted_at": None, "updated_at": now}
+    history = record.get("transitions") or []
+    if history and history[-1].get("action") == "archive":
+        fields["transitions"] = _event(record, "restore", now)
+    return fields
+
+
 def _archive_children(sess: Any, table: Any, condition: Any, parent: Dict[str, str], now: int) -> None:
     rows = sess.execute(select(table).where(condition, table.c.deleted_at.is_(None))).mappings().all()
     for row in rows:

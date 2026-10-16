@@ -252,32 +252,109 @@ async def test_cascade_failure_rolls_back_parent_children_and_provenance(db, mon
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("parent_type", ["product", "project"])
-async def test_acceptance_racing_archive_never_hides_active_work(db, parent_type):
+@pytest.mark.parametrize("winner", ["archive", "accept"])
+async def test_acceptance_racing_archive_never_hides_active_work(db, parent_type, winner, monkeypatch):
     import asyncio
+    from contextvars import ContextVar
+    from threading import Event
+
+    from sqlalchemy import event
+    from sqlalchemy.util import await_only
 
     m = manager(db)
-    app = AgentOS(db=db, company=CompanyConfig(), telemetry=False).get_app()
+    app = AgentOS(
+        db=db, agents=[Agent(id="writer", telemetry=False)], company=CompanyConfig(), telemetry=False
+    ).get_app()
+    product = await call(m.create, "SDK")
+    project = await call(m.create_project, product["id"], "Release")
+    task = await call(m.create_task, product["id"], "Race", project_id=project["id"])
+    parent = product if parent_type == "product" else project
+    path = "/company/tasks/" + task["id"]
+    payload = {"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": "writer"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        for _ in range(3):
-            product = await call(m.create, "SDK")
-            project = await call(m.create_project, product["id"], "Release")
-            task = await call(m.create_task, product["id"], "Race", project_id=project["id"])
-            parent = product if parent_type == "product" else project
-            archived, accepted = await asyncio.gather(
-                client.delete("/company/" + parent_type + "s/" + parent["id"]),
-                client.post(
-                    "/company/tasks/" + task["id"] + "/transitions",
-                    json={"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": "writer"},
-                ),
+        # The same HTTP app must accept valid work before the concurrency probe.
+        response = await client.post(path + "/transitions", json=payload)
+        assert response.status_code == 200, response.text
+        response = await client.post(path + "/transitions", json={"target": "backlog", "reason": "Replan"})
+        assert response.status_code == 200, response.text
+
+        actor = ContextVar("archive_race_actor", default=None)
+        winner_locked, loser_at_lock = Event(), Event()
+
+        def wrap(method, name):
+            if isinstance(db, AsyncBaseDb):
+
+                async def asynchronous(*args, **kwargs):
+                    token = actor.set(name)
+                    try:
+                        return await method(*args, **kwargs)
+                    finally:
+                        actor.reset(token)
+
+                return asynchronous
+
+            def synchronous(*args, **kwargs):
+                token = actor.set(name)
+                try:
+                    return method(*args, **kwargs)
+                finally:
+                    actor.reset(token)
+
+            return synchronous
+
+        archive_method = "delete_product" if parent_type == "product" else "delete_project"
+        monkeypatch.setattr(db, archive_method, wrap(getattr(db, archive_method), "archive"))
+        monkeypatch.setattr(db, "transition_task", wrap(db.transition_task, "accept"))
+        engine = db.db_engine.sync_engine if isinstance(db, AsyncBaseDb) else db.db_engine
+
+        def product_write(context):
+            stmt = context.compiled.statement if context.compiled is not None else None
+            return (
+                actor.get() is not None
+                and getattr(stmt, "is_update", False)
+                and stmt.table.name == db.products_table_name
             )
-            saved = await call(m.get_task, task["id"], include_deleted=True)
-            if archived.status_code == 204:
-                assert accepted.status_code in [404, 409], accepted.text
-                assert saved["deleted_at"] is not None and saved["status"] == "backlog"
-            else:
-                assert archived.status_code == 409, archived.text
-                assert accepted.status_code == 200, accepted.text
-                assert saved["deleted_at"] is None and saved["status"] == "ready"
+
+        def wait(signal):
+            # Async SQL events run inside the driver's greenlet: yield the loop while holding the lock.
+            ready = await_only(asyncio.to_thread(signal.wait, 10)) if isinstance(db, AsyncBaseDb) else signal.wait(10)
+            assert ready, "Both mutations must reach the Product lock"
+
+        def before(conn, cursor, statement, parameters, context, executemany):
+            if product_write(context) and actor.get() != winner:
+                loser_at_lock.set()
+                wait(winner_locked)
+
+        def after(conn, cursor, statement, parameters, context, executemany):
+            if product_write(context) and actor.get() == winner:
+                winner_locked.set()
+                wait(loser_at_lock)
+
+        event.listen(engine, "before_cursor_execute", before)
+        event.listen(engine, "after_cursor_execute", after)
+        try:
+            archived, accepted = await asyncio.wait_for(
+                asyncio.gather(
+                    client.delete("/company/" + parent_type + "s/" + parent["id"]),
+                    client.post(path + "/transitions", json=payload),
+                ),
+                timeout=30,
+            )
+        finally:
+            event.remove(engine, "before_cursor_execute", before)
+            event.remove(engine, "after_cursor_execute", after)
+        assert winner_locked.is_set() and loser_at_lock.is_set()
+        saved = await call(m.get_task, task["id"], include_deleted=True)
+        if winner == "archive":
+            assert archived.status_code == 204, archived.text
+            assert accepted.status_code in [404, 409], accepted.text
+            assert "missing from the registry" not in accepted.text
+            assert saved["deleted_at"] is not None and saved["status"] == "backlog"
+        else:
+            assert accepted.status_code == 200, accepted.text
+            assert archived.status_code == 409, archived.text
+            assert archived.json()["detail"]["tasks"] == [{"id": task["id"], "title": task["title"]}]
+            assert saved["deleted_at"] is None and saved["status"] == "ready"
 
 
 @pytest.mark.asyncio
@@ -535,3 +612,29 @@ async def test_attention_excludes_archived_ancestors_with_execution_results(db, 
             assert response.json()["data"] == []
         assert not any((await call(m.get, product["id"], include_deleted=True))["counts"]["tasks"].values())
         assert not any((await call(m.get_project, project["id"], include_deleted=True))["counts"]["tasks"].values())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "resource,method,payload",
+    [
+        ("products", "create_product", {"name": "SDK"}),
+        ("projects", "create_project", {"name": "Release"}),
+    ],
+)
+async def test_argless_storage_value_error_remains_validation_error(db, monkeypatch, resource, method, payload):
+    product = await call(manager(db).create, "SDK")
+    if resource == "projects":
+        payload = {**payload, "product_id": product["id"]}
+
+    def fail(*args, **kwargs):
+        raise ValueError()
+
+    async def afail(*args, **kwargs):
+        raise ValueError()
+
+    monkeypatch.setattr(db, method, afail if isinstance(db, AsyncBaseDb) else fail)
+    app = AgentOS(db=db, company=CompanyConfig(), telemetry=False).get_app()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/company/" + resource, json=payload)
+        assert response.status_code == 422, response.text

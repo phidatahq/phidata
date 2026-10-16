@@ -209,6 +209,18 @@ Use `include_deleted=true` on the parent's own list to find it, or read an
 individual archived record with that flag. Cascades and restores run in one
 database transaction; refusal leaves the entire hierarchy unchanged.
 
+Standalone Task archive and restore change visibility without adding lifecycle
+transitions, preserving acceptance for an existing queued run. Restore closes an
+archive history event only when one was recorded by a cascade. Returning to
+Backlog or otherwise changing acceptance still invalidates an old queue ticket.
+For records archived by older versions that left live children behind, restore
+the parent before editing or restoring those children; individual reads remain
+available with `include_deleted=true`.
+
+Cascade writes currently update each child inside one transaction. Large archives
+hold the Product lock until all child updates finish; bulk-update optimization is
+a separate follow-up. The list-page query bound is independent of archive size.
+
 Product and Project reads also carry `counts`. A Product has `counts.projects`
 (the number of proposed or active Projects) and `counts.tasks` with integer
 `backlog`, `ready`, `in_progress`, `in_review`, `done`, and `cancelled` fields.

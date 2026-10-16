@@ -2764,3 +2764,33 @@ hosted validation. CI and automated review are separate from these local results
 
 The parent remains PR 6 at `0c0983de9216293df8221cc3af1f5b0adb7eda46`.
 The review fixes are a normal follow-up commit, with no history rewrite.
+
+
+### PR 6.5 item 7 and revision starts — October 16, 2026
+
+**Status:** Focused checks passed before the final rebase; full suites pending at publication.
+
+**Description:** Direct HTTP transitions to In progress return 409 and name the
+Task runs endpoint. Ready starts attempt 1; In review starts the next attempt
+on the same executor/session, and the reservation clears the previous result.
+Stale review attempts and revisions from Backlog or Ready return 409. Current
+executor run permission is rechecked. Active attempt replay and failed-run
+retry remain supported. No feedback field was added. TASK_TRANSITIONS and the
+storage transition method remain unchanged.
+
+**Result:** The focused revision/transition/queue-capacity matrix passed all 60
+cases on SQLite/PostgreSQL, sync and async, before the final parent rebase.
+At the user's request, rebased onto PR 6 head `2575b2013a` and publishing after
+format/validation, ahead of the complete unit/integration results. Pre-rebase
+broad runs were stopped; fresh runs will verify the published tree. Earlier
+full-suite counts above describe their recorded heads, not this publication.
+
+The rebase preserves the parent's timestamp-only acceptance contract, generic
+Company-schedule mutation refusal, deadline/claim ownership guards, and archived
+Product checks, alongside PR 6.5's history and recovery changes. Unrelated
+formatter-only changes are excluded. No live model calls are involved.
+
+`./scripts/format.sh` and `./scripts/validate.sh` passed before publication.
+Validation used the clean Python 3.10 environment and checked 1,178 framework
+and 21 CLI files. `git diff --check` passed. Full runtime suites use development
+Python 3.12 and will be recorded after completion.

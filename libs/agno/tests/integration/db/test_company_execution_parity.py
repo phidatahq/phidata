@@ -2306,14 +2306,14 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
         runs.append(result["run_id"])
     sources, count = await _call(db, "get_sources", product_id=product["id"])
     assert count == 1
-    assert sources[0]["config"]["metadata"] == {"agent_id": executor_id, "run_id": runs[0]}
+    assert sources[0]["config"]["metadata"] == {executor_type + "_id": executor_id, "run_id": runs[0]}
     tasks, count = await _call(db, "get_tasks", product_id=product["id"])
     assert count == 1 and tasks[0]["status"] == "backlog"
     assert tasks[0]["evidence"][0]["run_id"] == runs[0]
     assert tasks[0]["evidence"][0]["link"] == url and tasks[0]["evidence"][0]["content_hash"]
     assert tasks[0]["routine_id"] == routine["id"]
     listed = (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"]
-    assert listed[0]["config"]["metadata"]["agent_id"] == executor_id
+    assert listed[0]["config"]["metadata"][executor_type + "_id"] == executor_id
     # Discovered websites use the same bounded acceptance checks as human-added Sources.
     policy = dict(
         executor_type=executor_type,
@@ -3117,7 +3117,6 @@ async def test_unmanaged_schedule_endpoint_updates_target_columns(system):
             await _call(db, "update_schedule", schedule_id, **updates)
 
 
-
 @pytest.mark.asyncio
 async def test_routine_endpoint_edit_rejects_nonrun_target(system):
     from agno.company.execution import _call
@@ -3152,7 +3151,6 @@ async def test_routine_endpoint_edit_rejects_nonrun_target(system):
     assert (await _call(db, "get_schedule", schedule_id))["endpoint"] == saved["endpoint"]
 
 
-
 @pytest.mark.asyncio
 async def test_automation_resumes_reserved_attempt_without_job_or_result(system):
     from agno.company.execution import _call
@@ -3171,7 +3169,6 @@ async def test_automation_resumes_reserved_attempt_without_job_or_result(system)
     assert (await _call(db, "get_task", task["id"]))["transitions"] == reserved["transitions"]
     assert (await execute(worker))["status"] == "completed"
     assert (await _call(db, "get_schedule_runs", schedule["id"]))[1] == 1
-
 
 
 @pytest.mark.asyncio

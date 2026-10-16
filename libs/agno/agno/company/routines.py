@@ -482,7 +482,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                 try:
                     from inspect import signature
 
-                    release_kwargs = {"next_run_at": next_run_at}
+                    release_kwargs: Dict[str, Any] = {"next_run_at": next_run_at}
                     # An expired worker must not release a newer worker's claim.
                     if sched.locked_by is not None and "worker_id" in signature(db.release_schedule).parameters:
                         release_kwargs["worker_id"] = sched.locked_by

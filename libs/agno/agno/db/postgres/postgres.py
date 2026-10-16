@@ -9024,36 +9024,52 @@ class PostgresDb(BaseDb):
             result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
+    def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        from agno.db.sql.company import product_counts
+
+        if not product_ids:
+            return {}
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
+        with self.Session() as sess:
+            return product_counts(sess, products, projects, tasks, product_ids)
+
     def delete_product(self, product_id: str, user_id: Optional[str] = None) -> bool:
+        from agno.db.sql.company import archive_product
+
         table = self._get_table(table_type="products")
         if table is None:
             return False
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
-        now = int(time.time())
+        products = table
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
-            return result is not None
+            return archive_product(sess, products, projects, tasks, product_id, user_id)
 
     def restore_product(self, product_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from agno.db.sql.company import restore_product
+
         table = self._get_table(table_type="products")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_not(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
+        products = table
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
-            return dict(result._mapping) if result else None
+            return restore_product(sess, products, projects, tasks, product_id, user_id)
 
     # --- Projects ---
 
     def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+        from agno.db.sql.company import lock_product
+
         table = self._get_table(table_type="projects", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create projects table")
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            lock_product(sess, products, project_data["product_id"])
             result = sess.execute(table.insert().values(**project_data).returning(table)).one()
             return dict(result._mapping)
 
@@ -9081,12 +9097,15 @@ class PostgresDb(BaseDb):
         product_id: Optional[str] = None,
         status: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.sql.company import active_parents
+
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = self._get_table(table_type="projects")
         if table is None:
             return [], 0
-        stmt = select(table)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if status is not None:
@@ -9105,6 +9124,7 @@ class PostgresDb(BaseDb):
         self, project_id: str, user_id: Optional[str] = None, expected_status: Optional[str] = None, **fields: Any
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.projects import validate_project_fields
+        from agno.db.sql.company import lock_child
 
         validate_project_fields(fields)
         table = self._get_table(table_type="projects")
@@ -9115,32 +9135,47 @@ class PostgresDb(BaseDb):
             stmt = stmt.where(table.c.status == expected_status)
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            lock_child(sess, products, projects, table, project_id)
             result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
+    def get_project_counts(self, project_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        from agno.db.sql.company import project_counts
+
+        if not project_ids:
+            return {}
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
+        tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
+        with self.Session() as sess:
+            return project_counts(sess, products, projects, tasks, project_ids)
+
     def delete_project(self, project_id: str, user_id: Optional[str] = None) -> bool:
+        from agno.db.sql.company import archive_project
+
         table = self._get_table(table_type="projects")
         if table is None:
             return False
-        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
-        now = int(time.time())
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = table
+        tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
-            return result is not None
+            return archive_project(sess, products, projects, tasks, project_id, user_id)
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from agno.db.sql.company import restore_project
+
         table = self._get_table(table_type="projects")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == project_id, table.c.deleted_at.is_not(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = table
+        tasks = self._get_table(table_type="tasks", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
-            return dict(result._mapping) if result else None
+            return restore_project(sess, products, projects, tasks, project_id, user_id)
 
     def transition_project(
         self,
@@ -9152,6 +9187,7 @@ class PostgresDb(BaseDb):
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.projects import project_transition_fields
+        from agno.db.sql.company import lock_child
 
         table = self._get_table(table_type="projects")
         if table is None:
@@ -9159,7 +9195,10 @@ class PostgresDb(BaseDb):
         stmt = select(table).where(table.c.id == project_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            lock_child(sess, products, projects, table, project_id)
             row = sess.execute(stmt).fetchone()
             if row is None:
                 return None
@@ -9179,10 +9218,16 @@ class PostgresDb(BaseDb):
     # --- Tasks ---
 
     def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
+        from agno.db.sql.company import lock_product, require_project
+
         table = self._get_table(table_type="tasks", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create tasks table")
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            lock_product(sess, products, task_data["product_id"])
+            require_project(sess, projects, task_data.get("project_id"), task_data["product_id"])
             result = sess.execute(table.insert().values(**task_data).returning(table)).one()
             return dict(result._mapping)
 
@@ -9213,12 +9258,16 @@ class PostgresDb(BaseDb):
         failed: Optional[bool] = None,
         session_id: Optional[str] = None,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        from agno.db.sql.company import active_parents
+
         if limit < 1 or page < 1:
             raise ValueError("limit and page must be positive")
         table = self._get_table(table_type="tasks")
         if table is None:
             return [], 0
-        stmt = select(table)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products, projects)
         if failed is not None:
             result_status = table.c.result["status"].as_string()
             stmt = stmt.where(
@@ -9250,6 +9299,7 @@ class PostgresDb(BaseDb):
 
     def update_task(self, task_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.tasks import validate_task_fields
+        from agno.db.sql.company import lock_child, require_project
 
         validate_task_fields(fields)
         table = self._get_table(table_type="tasks")
@@ -9258,11 +9308,19 @@ class PostgresDb(BaseDb):
         stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_(None), table.c.status == "backlog")
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            lock_child(sess, products, projects, table, task_id)
+            product_id = sess.execute(select(table.c.product_id).where(table.c.id == task_id)).scalar()
+            if product_id is not None and fields.get("project_id") is not None:
+                require_project(sess, projects, fields["project_id"], product_id)
             result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
     def delete_task(self, task_id: str, user_id: Optional[str] = None) -> bool:
+        from agno.db.sql.company import lock_child
+
         table = self._get_table(table_type="tasks")
         if table is None:
             return False
@@ -9270,19 +9328,30 @@ class PostgresDb(BaseDb):
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
         now = int(time.time())
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
+            lock_child(sess, products, projects, table, task_id)
             result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
             return result is not None
 
     def restore_task(self, task_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        from agno.db.sql.company import lock_child, task_restore_fields
+
         table = self._get_table(table_type="tasks")
         if table is None:
             return None
         stmt = table.update().where(table.c.id == task_id, table.c.deleted_at.is_not(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(deleted_at=None, updated_at=int(time.time())).returning(table)).fetchone()
+            lock_child(sess, products, projects, table, task_id)
+            existing = sess.execute(select(table).where(table.c.id == task_id)).mappings().first()
+            if existing is None:
+                return None
+            result = sess.execute(stmt.values(**task_restore_fields(dict(existing))).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 
     def start_task_run(
@@ -9380,6 +9449,7 @@ class PostgresDb(BaseDb):
     ) -> Optional[Dict[str, Any]]:
         """Apply a lifecycle transition only if the observed state still matches."""
         from agno.db.schemas.tasks import task_transition_fields
+        from agno.db.sql.company import lock_child
 
         table = self._get_table(table_type="tasks")
         if table is None:
@@ -9387,12 +9457,15 @@ class PostgresDb(BaseDb):
         stmt = select(table).where(table.c.id == task_id, table.c.deleted_at.is_(None))
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
             row = sess.execute(stmt).fetchone()
             if row is None:
                 return None
             existing = dict(row._mapping)
             fields = task_transition_fields(existing, target, reason, accepted_by, executor_type, executor_id)
+            lock_child(sess, products, projects, table, task_id)
             update = table.update().where(
                 table.c.id == task_id,
                 table.c.deleted_at.is_(None),

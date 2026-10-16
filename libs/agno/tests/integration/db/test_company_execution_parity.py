@@ -546,7 +546,7 @@ async def test_rejected_duplicate_cannot_undo_accepted_submission(system, monkey
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("recovery", ["worker", "duplicate", "cancel", "revoke"])
+@pytest.mark.parametrize("recovery", ["worker", "duplicate", "cancel", "revoke", "archive_restore"])
 async def test_worker_recovers_task_projection_after_committed_enqueue(system, monkeypatch, recovery):
     import agno.company.execution as execution
     from agno.db.schemas.tasks import task_run_id
@@ -576,6 +576,11 @@ async def test_worker_recovers_task_projection_after_committed_enqueue(system, m
         assert (
             await client.post(path + "/transitions", json={"target": "backlog", "reason": "Withdraw"})
         ).status_code == 200
+    elif recovery == "archive_restore":
+        assert (await client.delete(path)).status_code == 204
+        restored = await client.post(path + "/restore")
+        assert restored.status_code == 200, restored.text
+        assert restored.json()["transitions"] == value["transitions"]
     result = await execute(worker)
     saved = (await client.get(path)).json()
     assert result["status"] == ("failed" if recovery == "revoke" else "completed")
@@ -734,3 +739,50 @@ async def test_worker_completion_before_submitter_reservation_still_returns_acce
     saved = (await client.get(path)).json()
     assert saved["status"] == "in_review" and saved["result"]["status"] == "COMPLETED"
     assert (await worker.store.get_job(response.json()["run_id"]))["status"] == "completed"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["queued", "running", "revoked"])
+async def test_task_archive_restore_preserves_queued_acceptance(system, monkeypatch, phase):
+    client, db, worker, os, components = system
+    task = await accepted(client)
+    path = "/company/tasks/" + task["id"]
+    started = await client.post(path + "/runs")
+    assert started.status_code == 202, started.text
+    run_id = started.json()["run_id"]
+    before = (await client.get(path)).json()
+    entered, release = asyncio.Event(), asyncio.Event()
+    original = components["writer"].arun
+
+    async def paused(*args, **kwargs):
+        entered.set()
+        await release.wait()
+        return await original(*args, **kwargs)
+
+    running = None
+    if phase == "running":
+        monkeypatch.setattr(components["writer"], "arun", paused)
+        running = asyncio.create_task(execute(worker))
+    try:
+        if running is not None:
+            await asyncio.wait_for(entered.wait(), timeout=10)
+        assert (await client.delete(path)).status_code == 204
+        restored = await client.post(path + "/restore")
+        assert restored.status_code == 200, restored.text
+        for key in ["transitions", "session_id", "job_id", "evidence", "result", "accepted_at", "accepted_by"]:
+            assert restored.json()[key] == before[key]
+        if phase == "revoked":
+            response = await client.post(path + "/transitions", json={"target": "backlog", "reason": "Withdraw"})
+            assert response.status_code == 200, response.text
+    finally:
+        release.set()
+    result = await asyncio.wait_for(running if running is not None else execute(worker), timeout=30)
+    saved = (await client.get(path)).json()
+    if phase == "revoked":
+        assert result["status"] == "failed"
+        assert saved["status"] == "backlog" and saved["result"] is None
+    else:
+        assert result["status"] == "completed"
+        assert saved["status"] == "in_review" and saved["result"]["status"] == "COMPLETED"
+        assert saved["result"]["run_id"] == run_id
+        assert (await client.get("/company/attention")).json()["in_review"] == 1

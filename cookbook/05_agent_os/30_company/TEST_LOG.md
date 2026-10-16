@@ -2509,3 +2509,52 @@ record follows as a normal commit without rewriting history.
 **Result:** All 11 invocations succeeded with deterministic local models. No live model calls, live website fetches or outbound messages. Website security tests use mocked transport/DNS. Delivery tests use mocked interface sends.
 
 ---
+
+
+### PR 6 guarded acceptance review fixes — October 16, 2026
+
+**Status:** PASS for focused regressions and cookbook runs below.
+
+**Description:** Merged Heartbeat through `bbae4d88e2` using normal commits, preserving the published branch for the stacked follow-up. Automatic acceptance now checks observed editable Task scope inside the SQL UPDATE, and completion checks Project scope plus the complete child Task set (including archived Tasks). Tests cover same-second edits and terminal-child additions without relying on timestamp precision. Python ScheduleManager create/upsert/update strips supplied acceptance grants, while the human Routine API validates and stamps them. PR 5's generic Company schedule mutation guard remains intact.
+
+Revoked, unchanged Ready work returns to Backlog with a reason. Cheap checks precede Source IO; expired policies and remote/database-less automatic executors are refused. A claimed tick stops admitting work before the default stale-lock threshold and checks the budget around each Source read; stale workers cannot release newer claims. Task-only policies skip completion scans. Automation run history is unchanged here: quiet history belongs to stacked PR #11118. No execute override or schedule-row diagnostic storage was added for quiet history.
+
+**Result:** The latest focused guard/parent compatibility selection passed 84 cases across SQLite, async SQLite, PostgreSQL and async PostgreSQL. The final Source/deadline selection passed 28 cases. Parent lifecycle and scheduler parity passed 104 cases with PostgreSQL and Mongo scheduler backends enabled. Managed-role isolation, exhausted budgets, policy revocation, refused completion and archive assertions remain in the full suites.
+
+---
+
+### Company cookbook regression after review fixes
+
+**Status:** PASS
+
+**Description:** Ran `01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`, `04_manage_playbook.py`, `05_product_manager.py`, `06_execute_tasks.py`, `07_cascading_archive.py`, `07_heartbeat.py`, and `08_custom_routines.py`. Also ran `06_execute_tasks.py` in PostgreSQL manual mode and SQLite/PostgreSQL automation modes, and `07_cascading_archive.py --postgres`.
+
+**Result:** All 13 invocations passed. Execution used deterministic offline models and the real PostgreSQL durable queue. No live-model or outbound-delivery claim is made.
+
+---
+
+### Supplied release probes on the current review-fix implementation
+
+**Status:** MIXED; all incompatibilities and remaining assertions are listed below.
+
+**Description:** Ran unchanged copies of the original behavioral probes, then documented compatibility copies against this implementation. Environment matches the original wrapper with AGNO_DEBUG/AGNO_MONITOR unset, PostgreSQL at localhost:5532/ai_claude and the authority capture server on port 8161. Copies add required expiry, explicit Intake proposal/hash arguments and the existing scheduler cron argument; E/E2 use expected_updated_at instead of the removed expected_task parameter. The original scripts and overnight evidence were preserved.
+
+**Result:** E passed 14/14 concurrency checks; E2 passed 6/6 async checks. C passed all 55 isolation checks. G preserved all three fingerprint comparisons and refused setup over existing Products. F2 refused executor/Routine schedule writes. Product Manager GET succeeded. A passed 221/225: two assertions expect the old generic schedule mutation behavior (now 409), and two omit the required executor run permission. D passed 15/16; its intentionally unavailable MongoDB target at port 1 cannot connect. F passed 20/22; the two remaining assertions concern existing payload shape (metadata/top-level data keys), not a demonstrated authority grant. These are reported as non-passes, not silently normalized.
+
+Unmodified G cannot create a policy without the now-required expiry. Original E/E2 and F use obsolete argument forms. Original D/D2 import removed v3_1_4/v3_1_5 migration modules; the standalone D2 probe remains inapplicable. Current-signature copies retain the original race and authority assertions, including A and F's reported mismatches. Performance/live-model probes were not rerun in this follow-up.
+
+---
+
+### Final complete review-fix validation
+
+**Status:** PASS (clean validation environment; development typing baseline noted below).
+
+**Description:** Ran the complete `tests/unit/db`, `tests/unit/os`, `tests/unit/scheduler` and Company tool suites with development Python 3.12. Reran the entire execution/automation parity file and the remaining Company, SQLite scheduler and parent/scheduler lifecycle integrations on the merged tree, using all four SQL adapters and real durable queues. Existing generic schedule tests now assert PR 5's 409 boundary and retain Company-route 403/422 authorization checks. The inherited RunStatus enum assertion fix is included.
+
+**Result:** 6,492 unit tests passed, five conditional skips. The integration runs passed 512 execution/automation cases, 351 remaining Company/scheduler cases, and 104 parent/scheduler lifecycle cases: **967 passed, no skips**. The final Source-budget change separately passed all 28 affected cases. Initial integration failures used the old RunStatus string assertion; PR 5's enum correction and the full rerun resolved them. Initial unit failures expected generic Company schedule mutation to succeed or validate payloads; the updated tests retain stronger 409 refusal plus unchanged human-route authorization assertions.
+
+`./scripts/format.sh` passed. `./scripts/validate.sh` passed in the clean Python 3.10 environment, with its complete output read (1,178 framework and 21 CLI files checked by mypy). The exact intended tree was revalidated after removing unrelated formatter-only changes. Development Python 3.12 validation was also run and its output read: both this head and exact Heartbeat base `bbae4d88e2`, under identical installed dependencies, report the same 35 diagnostics in 12 files; normalized comparison shows zero introduced or resolved diagnostics. No new typing errors remain. `git diff --check` passed.
+
+Warnings include existing short JWT fixture keys, duplicate OpenAPI operation IDs and async SQLite event-loop cleanup warnings. Tests and cookbooks make no live-provider or hosted-performance claim. Published history was preserved through normal merge/fix commits; quiet automation run history remains exclusively in #11118.
+
+---

@@ -3033,3 +3033,13 @@ results are separate from GitHub CI; no paid-model or hosted checks are claimed.
 **Result:** 124 focused integration checks passed (68 new cases plus 56 existing terminal reconciliation and authorization cases). The initial 60-case run also passed; it is not additive to the 124. Full formatter, validator (1,179 framework and 21 CLI files), and diff whitespace checks passed. These are local results; full-suite and CI results are not yet claimed.
 
 ---
+
+### Lost ticket after withdrawal and reacceptance
+
+**Status:** PASS
+
+**Description:** Extended the recovery to close a Pending run after its Task has already returned to Backlog or Ready. Cancellation uses the run row's original executor identity. Both manual and automatic next attempts can proceed without replaying the lost attempt.
+
+**Result:** All 84 failure-state cases passed across the four SQL adapters and both Mongo variants, including 16 additional Backlog/Ready cases. Full format and validation passed again. The complete integration suite is being rerun on this correction; previous-head totals are not claimed for this change.
+
+---

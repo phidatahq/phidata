@@ -8,6 +8,7 @@ from starlette.responses import JSONResponse, Response
 
 from agno.company.execution import (
     _call,
+    _cancel_ticketless_pending_run,
     _executor,
     _pending_task_attempt,
     _reconcile_task_run,
@@ -221,6 +222,14 @@ def get_company_runs_router(os: Any) -> APIRouter:
             if previous is None:
                 previous_run = await _call(run_db, "get_run", value["job_id"], deserialize=False)
                 if previous_run:
+                    await _cancel_ticketless_pending_run(
+                        run_db,
+                        value,
+                        previous_run,
+                        caller or getattr(component, "user_id", None),
+                        queue,
+                        is_admin=caller_is_admin(request),
+                    )
                     previous_status = {"ERROR": "failed", "CANCELLED": "cancelled", "COMPLETED": "completed"}.get(
                         previous_run["status"]
                     )
@@ -347,16 +356,23 @@ def get_company_runs_router(os: Any) -> APIRouter:
             original_db = run_database(_task)
             run = await _call(original_db, "get_run", run_id, deserialize=False)
             if run is not None:
+                caller = (
+                    get_scoped_user_id(request)
+                    or getattr(request.state, "user_id", None)
+                    or getattr(component, "user_id", None)
+                )
+                queue = getattr(request.app.state, "queue_worker", None)
+                await _cancel_ticketless_pending_run(
+                    original_db, _task, run, caller, queue, is_admin=caller_is_admin(request)
+                )
                 await _reconcile_task_run(
                     db,
                     original_db,
                     _task,
                     run,
-                    get_scoped_user_id(request)
-                    or getattr(request.state, "user_id", None)
-                    or getattr(component, "user_id", None),
+                    caller,
                     is_admin=caller_is_admin(request),
-                    worker=getattr(request.app.state, "queue_worker", None),
+                    worker=queue,
                 )
         return response
 

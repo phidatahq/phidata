@@ -281,3 +281,44 @@ async def test_pending_observation_does_not_cancel_a_run_that_started(system):
     assert observed["status"] == "RUNNING"
     assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "RUNNING"
     assert (await _call(db, "get_task", task["id"]))["result"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("recovery", ["backlog_cancel", "ready_cancel", "ready_http", "ready_automation"])
+async def test_ticket_lost_before_withdrawal_and_reacceptance(system, recovery):
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    path = f"/company/tasks/{task['id']}"
+    started = await client.post(path + "/runs")
+    assert started.status_code == 202, started.text
+    run_id = started.json()["run_id"]
+    delete_ticket(worker, run_id)
+    assert (
+        await client.post(path + "/transitions", json={"target": "backlog", "reason": "Revise brief"})
+    ).status_code == 200
+    if recovery == "backlog_cancel":
+        cancelled = await client.post(f"/company/runs/{run_id}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "CANCELLED"
+    ready = await client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Accept again", "executor_type": "agent", "executor_id": "writer"},
+    )
+    assert ready.status_code == 200, ready.text
+    if recovery == "ready_cancel":
+        cancelled = await client.post(f"/company/runs/{run_id}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "CANCELLED"
+    if recovery == "ready_automation":
+        executor, _ = await automation(system)
+        result = await tick(executor, db)
+        assert result["status"] == "success", result
+        assert result["output"]["tasks"][0]["action"] == "submitted", result
+    else:
+        retry = await client.post(path + "/runs", json={"attempt": 2})
+        assert retry.status_code == 202, retry.text
+    assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "CANCELLED"
+    assert (await execute(worker))["status"] == "completed"
+    saved = await _call(db, "get_task", task["id"])
+    assert saved["status"] == "in_review" and saved["session_id"] == task["session_id"]
+    assert saved["transitions"][-2]["attempt"] == 2

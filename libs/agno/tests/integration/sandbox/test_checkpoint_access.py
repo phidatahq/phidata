@@ -97,8 +97,13 @@ async def test_completed_run_checkpoint_opens_and_restores(system):
         with agent.open_run_checkpoint("first") as archive:
             return CheckpointArchive().restore(archive, root / "sync")
 
-    assert (await asyncio.to_thread(sync_path))["binding"]["run_id"] == "first"
-    assert effects(root / "sync") == ["first"]
+    if isinstance(agent.db, AsyncPostgresDb):
+        # The sync form never runs an async engine on a loop of its own.
+        with pytest.raises(ValueError, match="Use aopen_run_checkpoint"):
+            await asyncio.to_thread(sync_path)
+    else:
+        assert (await asyncio.to_thread(sync_path))["binding"]["run_id"] == "first"
+        assert effects(root / "sync") == ["first"]
 
 
 async def test_each_turn_opens_its_own_checkpoint(system):

@@ -156,11 +156,12 @@ async def test_async_open_reads_a_sync_database(committed, monkeypatch):
         assert archive.stat().st_size == reference.size
 
 
-def test_sync_open_bridges_an_async_database(committed, monkeypatch):
+def test_sync_open_refuses_an_async_database(committed, monkeypatch):
     store, reference = committed
     agent = agent_with(async_db(monkeypatch, run_row(reference)), store)
-    with agent.open_run_checkpoint("run-1") as archive:
-        assert archive.stat().st_size == reference.size
+    with pytest.raises(ValueError, match="Use aopen_run_checkpoint with an async database"):
+        with agent.open_run_checkpoint("run-1"):
+            pass
 
 
 @pytest.mark.parametrize(

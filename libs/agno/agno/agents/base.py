@@ -1389,7 +1389,7 @@ class BaseExternalAgent:
 
     @contextmanager
     def open_run_checkpoint(self, run_id: str) -> Iterator[Path]:
-        """Sync ``aopen_run_checkpoint``."""
+        """Sync ``aopen_run_checkpoint``; an async database must use the async form, as with ``get_session``."""
         store = self.checkpoint_store
         reference = self._run_checkpoint_ref(run_id, self._read_run_row(run_id))
         with store.open_archive(reference) as archive:
@@ -1399,7 +1399,9 @@ class BaseExternalAgent:
         if self.db is None:
             raise ValueError(f"{type(self).__name__} has no database to read run {run_id} from")
         if isinstance(self.db, AsyncBaseDb):
-            return run_coroutine_sync(self.db.get_run(run_id, deserialize=False))
+            # An async engine's pooled connections belong to the loop that first used them, and a
+            # query on another loop fails inside get_run, which would then look like a missing run.
+            raise ValueError("Use aopen_run_checkpoint with an async database")
         return self.db.get_run(run_id, deserialize=False)
 
     async def _aread_run_row(self, run_id: str) -> Any:

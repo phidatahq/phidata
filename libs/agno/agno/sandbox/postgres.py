@@ -551,6 +551,7 @@ class _SandboxStore:
                     staged_checkpoint=None,
                     staged_identity=None,
                     request_hash=None,
+                    run_metadata=None,
                     retryable_failure=None,
                 )
             if active and str(run["status"]).upper() in _FINISHED:
@@ -775,6 +776,7 @@ class _SandboxStore:
             native_metadata = result["run"].get("metadata") or {}
             run["metadata"] = {
                 **(previous_run["run_data"].get("metadata") or {}),
+                **(record.get("run_metadata") or {}),
                 **{
                     key: native_metadata[key]
                     for key in ("warnings", "attempts", "retryable", "error_type")
@@ -899,6 +901,7 @@ class _SandboxStore:
                     sandbox["runtime_content"] = staged["content"]
                 run["metadata"] = {
                     **(run.get("metadata") or {}),
+                    **(record.get("run_metadata") or {}),
                     "retryable": record.get("stop_retryable", False),
                     "sandbox": sandbox,
                 }

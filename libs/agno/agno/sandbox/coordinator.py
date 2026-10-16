@@ -459,6 +459,13 @@ class SandboxCoordinator:
                 if record["phase"] != "executing":
                     return record
                 record["request_hash"] = fingerprint
+                # Keep caller metadata on the service side. Runtime output cannot replace it,
+                # and caller values cannot control execution status or recovery decisions.
+                record["run_metadata"] = {
+                    key: value
+                    for key, value in (metadata or {}).items()
+                    if key not in ("sandbox", "warnings", "attempts", "retryable", "error_type")
+                }
                 native = record.get("native") or {}
                 if native and NATIVE_SESSION_KEYS[sdk] not in native:
                     # Starting the other SDK fresh would fork the conversation.

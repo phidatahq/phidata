@@ -51,7 +51,7 @@ def validate_repository(value: Any) -> Dict[str, str]:
     return dict(value)
 
 
-def _repository_override(metadata: Any, repository: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
+def validate_repository_override(metadata: Any, repository: Optional[Dict[str, str]]) -> Optional[Dict[str, str]]:
     """Validate an optional first-turn pin, including on turns where the marker wins."""
     if metadata is None:
         return None
@@ -108,7 +108,7 @@ def _prepare(
     override: Optional[Dict[str, str]] = None,
 ) -> Path:
     repository = validate_repository(repository)
-    override = _repository_override({"repository": override} if override is not None else None, repository)
+    override = validate_repository_override({"repository": override} if override is not None else None, repository)
     _check_env()
     target = workspace / "repository"
     marker = native / "repository.json"
@@ -121,10 +121,12 @@ def _prepare(
         if marker.exists():
             _read_pin(native, repository)
             if not (target / ".git").is_dir():
-                raise ValueError("Repository checkpoint is missing its checkout")
+                raise RepositoryPreparationError("Repository checkpoint is missing its checkout")
             # Preserve the engineer's commits and uncommitted files on later turns.
             return target
-        if resume or target.exists():
+        if resume:
+            raise RepositoryPreparationError("Repository checkpoint is missing its source identity")
+        if target.exists():
             raise ValueError("Repository checkpoint is missing its source identity")
         staging.mkdir(parents=True)
         # Discard inherited Git overrides, helpers and tracing. Authentication exists only

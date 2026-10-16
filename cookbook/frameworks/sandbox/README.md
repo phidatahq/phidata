@@ -177,3 +177,8 @@ The published pin has `url`, `branch`, and `commit`. For a commit override, `bra
 remains the agent's configured branch; for a branch override, it is the effective
 branch. In the latter case the marker also retains `configured_branch` internally
 so changing the agent's configuration mid-session is still refused.
+
+Other inbound metadata is retained in the service run record. The `sandbox`,
+`warnings`, `attempts`, `retryable`, and `error_type` keys are reserved for execution
+and recovery results. Preparation deadlines and missing restored repository state
+are retryable before the harness starts; timeouts after it starts remain terminal.

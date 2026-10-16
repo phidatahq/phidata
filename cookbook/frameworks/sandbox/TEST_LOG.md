@@ -63,3 +63,31 @@
 **Result:** Both passed; `git diff --check` passed. Unrelated baseline formatter edits were removed. The earlier development-environment baseline comparison above belongs to the initial revision and was not rerun for this addition.
 
 ---
+
+## October 16, 2026: repository review fixes
+
+### Preparation and execution boundaries
+
+**Status:** PASS
+
+**Description:** Reproduced the execution-deadline failure with a delayed local Git fetch, missing native/marker/checkout state, and the non-repository token compatibility regression before applying fixes. Verified that preparation cancellation drains filesystem work and reports a retryable preparation failure, while timeouts or marker deletion after the harness starts remain terminal. Repository agents still reject publishing tokens before Git starts; other sandboxed agents retain their existing token support.
+
+**Result:** The full sandbox unit suite passed 517 cases. A subsequent focused repository run passed 77 cases, including two additional boundary regressions (519 distinct unit cases total). No live models were used.
+
+### Metadata and restore integration
+
+**Status:** PASS
+
+**Description:** Ran repository integration tests against PostgreSQL, Redis, and a rebuilt Docker fixture runtime, including public GitHub fetches. Verified missing native root, marker, and checkout recovery across both PostgreSQL adapters, pin publication, preserved engineer edits, and the AgentOS request-state metadata path.
+
+**Result:** All 19 selected integration cases passed. Inbound metadata persists on successful and failed runs without overriding reserved runtime fields or leaking into later turns. Missing state before execution remains retryable and the following turn restores the last committed checkpoint without repeating the failed turn's tools.
+
+### Review format and validation
+
+**Status:** PASS
+
+**Description:** Ran the full format and clean Python 3.10 validation scripts after the review fixes. Checked the diff for whitespace errors.
+
+**Result:** Format, validation, and diff checks passed. Unrelated baseline formatter changes were removed. The earlier development-environment diagnostic comparison was not rerun. No live-model calls or private GitHub requests were made.
+
+---

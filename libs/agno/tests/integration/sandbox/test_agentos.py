@@ -630,7 +630,7 @@ async def test_request_state_repository_override_reaches_runtime(service, tmp_pa
     agent.repository = Repository("https://github.com/octocat/Hello-World", branch="configured-branch-not-present")
     agent.sandbox.network = "isolated"
     commit = "7fd1a60b01f91b314f59955a4e4d4e80d8edf11d"
-    metadata = {"repository": {"commit": commit}}
+    metadata = {"repository": {"commit": commit}, "trace_id": "middleware-trace"}
 
     async def with_request_metadata(scope, receive, send):
         scope.setdefault("state", {})["metadata"] = metadata
@@ -644,6 +644,8 @@ async def test_request_state_repository_override_reaches_runtime(service, tmp_pa
         assert first.status_code == 200, first.text
         body = first.json()
         assert body["status"] == "COMPLETED", body
+        assert body["metadata"]["trace_id"] == "middleware-trace"
+        assert body["metadata"]["repository"] == metadata["repository"]
         pin = body["metadata"]["sandbox"]["repository"]
         assert pin == {"url": agent.repository.url, "branch": agent.repository.branch, "commit": commit}
         job = await app.state.queue_worker.store.get_job(body["run_id"])

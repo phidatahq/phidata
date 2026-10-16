@@ -106,12 +106,16 @@ def task_run_fields(
 
     if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
         raise ValueError("attempt must be a positive integer")
-    if existing["status"] not in {"ready", "in_progress"} or not existing.get("executor_id"):
+    if existing["status"] not in {"ready", "in_progress", "in_review"} or not existing.get("executor_id"):
         raise ValueError("Only accepted work can be started")
     if existing.get("executor_type") == "engineering":
         raise ValueError("Engineering executors cannot be started yet")
     history = existing.get("transitions") or []
     attempts = [entry["attempt"] for entry in history if "attempt" in entry]
+    if existing["status"] == "ready" and attempt != 1:
+        raise ValueError("Ready Tasks can only start attempt 1")
+    if existing["status"] == "in_review" and not attempts:
+        raise ValueError("A revision requires a previous Task attempt")
     if attempt != max(attempts, default=0) + 1:
         raise ValueError("Start the next Task attempt, or retry the original attempt")
     now = int(time.time())

@@ -13,6 +13,7 @@ from agno.os import AgentOS, CompanyConfig
 from agno.os.config import AuthorizationConfig
 from agno.team import Team
 from agno.workflow import Workflow
+from tests.unit.os.routers.test_tasks_router import reserve_run
 
 SECRET = "company-tasks-isolation-tests"
 OS_ID = "company-tasks-tests"
@@ -42,7 +43,7 @@ def make_client(request, tmp_path):
         cls = AsyncSqliteDb if request.param else SqliteDb
         db = cls(db_file=str(tmp_path / (str(len(dbs)) + ".db")))
         dbs.append(db)
-        return TestClient(
+        client = TestClient(
             AgentOS(
                 agents=[Agent(id="writer")],
                 teams=[Team(id="writer", members=[])],
@@ -57,6 +58,8 @@ def make_client(request, tmp_path):
                 ),
             ).get_app()
         )
+        client.app.state.task_test_db = db
+        return client
 
     yield make
     for db in dbs:
@@ -390,6 +393,9 @@ def test_collaborators_return_or_cancel_accepted_tasks(make_client, start, targe
     assert accepted.json()["user_id"] == "alice"
     progress = {"ready": [], "in_progress": ["in_progress"], "in_review": ["in_progress", "in_review"]}
     for next_state in progress[start]:
+        if next_state == "in_progress":
+            reserve_run(c, path, user_id="bob")
+            continue
         advanced = c.post(path + "/transitions", json={"target": next_state, "reason": "Progress"}, headers=writer)
         assert advanced.status_code == 200, advanced.text
     assert c.patch(path, json={"brief": "Changed"}, headers=writer).status_code == 409
@@ -418,6 +424,11 @@ def test_collaborators_complete_or_cancel_backlog_work(make_client, targets):
     c = make_client(True)
     path = "/company/tasks/" + create(c, "alice")
     for target in targets:
+        if target == "in_progress":
+            running = reserve_run(c, path, user_id="bob")
+            assert running["user_id"] == "alice"
+            assert running["transitions"][-1]["user_id"] == "bob"
+            continue
         body = {"target": target, "reason": "Team decision"}
         if target == "ready":
             body.update(executor_type="agent", executor_id="writer")

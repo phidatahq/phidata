@@ -26,6 +26,7 @@ def client(request, tmp_path):
             telemetry=False,
         ).get_app()
     ) as client:
+        client.app.state.task_test_db = db
         yield client
     if request.param:
         asyncio.run(db.close())
@@ -47,6 +48,20 @@ def transition(client, path, target):
     return client.post(path + "/transitions", json=body)
 
 
+def reserve_run(client, path, user_id=None):
+    """Seed a committed run reservation for route tests without a queue worker."""
+    from agno.company.execution import _call
+
+    async def reserve():
+        db = client.app.state.task_test_db
+        task_id = path.rsplit("/", 1)[-1]
+        task = await _call(db, "get_task", task_id)
+        attempt = max((entry.get("attempt", 0) for entry in task["transitions"]), default=0) + 1
+        return await _call(db, "start_task_run", task_id, attempt, task["transitions"], user_id=user_id)
+
+    return asyncio.run(reserve())
+
+
 def test_lifecycle(client):
     record = create(client)
     path = "/company/tasks/" + record["id"]
@@ -55,11 +70,16 @@ def test_lifecycle(client):
     assert transition(client, path, "done").status_code == 409
     states = ["ready", "in_progress", "in_review", "done"]
     for state in states:
+        if state == "in_progress":
+            assert transition(client, path, state).status_code == 409
+            assert reserve_run(client, path)["status"] == state
+            continue
         response = transition(client, path, state)
         assert response.status_code == 200, response.text
         assert response.json()["status"] == state
     assert [x["target"] for x in response.json()["transitions"]] == states
-    assert all(x["reason"] == "Reviewed" for x in response.json()["transitions"])
+    assert all(x["reason"] == "Reviewed" for x in response.json()["transitions"] if "attempt" not in x)
+    assert response.json()["transitions"][1]["attempt"] == 1
     assert transition(client, path, "cancelled").status_code == 409
     assert client.post(path + "/restore").status_code == 409
     assert client.delete(path).status_code == 204
@@ -75,6 +95,9 @@ def test_lifecycle(client):
 def test_cancel_from_every_nonterminal_state(client, states):
     path = "/company/tasks/" + create(client)["id"]
     for state in states:
+        if state == "in_progress":
+            reserve_run(client, path)
+            continue
         assert transition(client, path, state).status_code == 200
     assert transition(client, path, "cancelled").status_code == 200
     assert transition(client, path, "ready").status_code == 409
@@ -153,9 +176,10 @@ def test_acceptance_freezes_scope_and_backlog_clears_it(client):
     assert all(backlog[key] is None for key in ["executor_type", "executor_id", "accepted_by", "accepted_at"])
     assert client.patch(path, json={"brief": "Changed"}).status_code == 200
     assert transition(client, path, "ready").status_code == 200
-    assert transition(client, path, "in_progress").status_code == 200
+    assert transition(client, path, "in_progress").status_code == 409
+    reserve_run(client, path)
     assert transition(client, path, "in_review").status_code == 200
-    assert transition(client, path, "in_progress").status_code == 200
+    assert transition(client, path, "in_progress").status_code == 409
 
 
 def test_task_project_must_belong_to_same_product(client):

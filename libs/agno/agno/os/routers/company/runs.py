@@ -155,6 +155,13 @@ def get_company_runs_router(os: Any) -> APIRouter:
         caller = get_scoped_user_id(request) or getattr(request.state, "user_id", None)
         if observed is not None:
             caller = value.get("accepted_by")
+        # Review requests start the next attempt; an old attempt is not a revision.
+        # Validate before looking up tickets so retained runs cannot bypass this gate.
+        if value["status"] in {"ready", "in_review"} or (value["status"] == "backlog" and body.attempt > 1):
+            try:
+                task_run_fields(value, body.attempt, caller)
+            except ValueError as exc:
+                raise HTTPException(409, str(exc)) from exc
         run_id = task_run_id(task_id, body.attempt)
         existing = await queue.store.get_job(run_id)
         if existing is not None:
@@ -189,7 +196,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     {"run_id": run_id, "session_id": value["session_id"], "status": prior_run["status"]},
                     status_code=202,
                 )
-        if value["status"] not in {"ready", "in_progress"} or not value.get("executor_id"):
+        if value["status"] not in {"ready", "in_progress", "in_review"} or not value.get("executor_id"):
             raise HTTPException(409, "Only accepted work can be started")
         run_db = getattr(component, "db", None)
         if run_db is None:
@@ -218,10 +225,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     )
             if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
-            if previous_status == "completed" and not any(
-                entry.get("from") == "in_review" and entry.get("target") == "in_progress"
-                for entry in value["transitions"]
-            ):
+            if previous_status == "completed" and value["status"] != "in_review":
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         try:
             message = await _task_input(manager, value)

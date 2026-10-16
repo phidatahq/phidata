@@ -43,7 +43,8 @@ Projects start `proposed` and move to `active`, then `done`. Tasks start
 Either can be `cancelled` from any non-terminal state. Each transition takes
 `target` and a non-empty `reason`; history is returned on the record. Tasks
 may return to Backlog to clear acceptance and change scope, and In review may
-return to In progress for revisions. Terminal states cannot transition.
+return to In progress for revisions by starting the next run attempt. Direct HTTP
+transitions to In progress return 409 and name the runs endpoint. Terminal states cannot transition.
 
 The HTTP routes use `/company/projects` and `/company/tasks`, with the same
 CRUD, paging, soft delete and restore conventions as Products, plus
@@ -146,15 +147,19 @@ the local PostgreSQL URL. SQLite follows the queue's existing development
 fallback; use PostgreSQL session storage for production attempt fencing.
 
 POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
-that attempt returns the first run. A full queue returns 429 without changing
+an active attempt returns the first run. In review, a stale attempt returns 409. A full queue returns 429 without changing
 the Task or consuming the attempt; retry the same attempt when capacity is available.
 The durable ticket is accepted before the Task moves to In progress, and the worker
 can recover that update if the submitting process stops. If acceptance changes
 before the Task can reserve a fresh ticket, the request returns 409 and cancels
 the waiting ticket; an already-claimed ticket is rejected by the worker.
-A new attempt increments the number; after
-success, first transition In review to In progress to request revisions. Each
-Task retains one session. GET on the same route returns ordinary session runs
+To request a revision from In review, POST to the runs route with `attempt` equal
+to the highest recorded attempt plus one. The reservation writes the In review
+to In progress transition and clears the previous result, retaining the same
+session and executor. A rejected submission leaves the result and lifecycle unchanged.
+Ready can start only attempt 1; Backlog and Ready cannot start revisions. Failed
+or cancelled runs can still be retried while the Task remains In progress. No
+revision feedback field is accepted by this request. Each Task retains one session. GET on the same route returns ordinary session runs
 with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
 POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
 

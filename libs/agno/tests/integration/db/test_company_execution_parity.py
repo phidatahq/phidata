@@ -129,6 +129,30 @@ async def execute(worker):
 
 
 @pytest.mark.asyncio
+async def test_in_progress_requires_run_start(system):
+    from agno.company.execution import _call
+
+    client, db, worker, _, _ = system
+    task = await accepted(client)
+    path = f"/company/tasks/{task['id']}"
+    for state in ("ready", "in_review"):
+        before = await _call(db, "get_task", task["id"])
+        assert before["status"] == state
+        refused = await client.post(path + "/transitions", json={"target": "in_progress", "reason": "Start work"})
+        assert refused.status_code == 409, refused.text
+        assert "POST " + path + "/runs" in refused.json()["detail"]
+        assert await _call(db, "get_task", task["id"]) == before
+        if state == "ready":
+            started = await client.post(path + "/runs")
+            assert started.status_code == 202, started.text
+            running = await _call(db, "get_task", task["id"])
+            assert running["status"] == "in_progress"
+            assert running["job_id"] == started.json()["run_id"]
+            assert running["transitions"][-1]["attempt"] == 1
+            assert (await execute(worker))["status"] == "completed"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("kind,id", [("agent", "writer"), ("team", "editors"), ("workflow", "draft")])
 async def test_execution_duplicate_context_history_and_attention(system, kind, id):
     client, db, worker, os, _ = system
@@ -149,7 +173,7 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
     assert saved["status"] == "in_review" and "draft" in saved["result"]["content"]
     assert saved["session_id"] == value["session_id"]
     duplicate = await client.post(path + "/runs")
-    assert duplicate.status_code == 202 and duplicate.json()["run_id"] == run_id
+    assert duplicate.status_code == 409, duplicate.text
     history = (await client.get(path + "/runs", params={"limit": 1, "page": 1})).json()
     assert history["meta"]["total_count"] == 1
     assert (await client.get("/company/attention", params={"product_id": value["product_id"]})).json() == {
@@ -157,15 +181,53 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
         "in_review": 1,
         "failed": 0,
     }
-    assert (await client.post(path + "/runs", json={"attempt": 2})).status_code == 409
+    assert (await client.post(path + "/runs", json={"attempt": 3})).status_code == 409
     assert (
         await client.post(path + "/transitions", json={"target": "in_progress", "reason": "Revise"})
-    ).status_code == 200
-    revision = await client.post(path + "/runs", json={"attempt": 2})
-    assert revision.status_code == 202, revision.text
+    ).status_code == 409
+    revisions = await asyncio.gather(
+        client.post(path + "/runs", json={"attempt": 2}), client.post(path + "/runs", json={"attempt": 2})
+    )
+    assert all(response.status_code == 202 for response in revisions), [r.text for r in revisions]
+    revision = revisions[0]
+    assert revision.json()["run_id"] == revisions[1].json()["run_id"]
     assert revision.json()["session_id"] == value["session_id"] and revision.json()["run_id"] != run_id
+    running = (await client.get(path)).json()
+    assert running["status"] == "in_progress" and running["result"] is None
+    assert (running["executor_type"], running["executor_id"]) == (kind, id)
+    assert len([entry for entry in running["transitions"] if entry.get("attempt") == 2]) == 1
+    assert running["transitions"][-1]["from"] == "in_review"
+    assert running["transitions"][-1]["target"] == "in_progress"
     assert (await execute(worker))["status"] == "completed"
     assert (await client.get(path + "/runs", params={"limit": 1, "page": 2})).json()["meta"]["total_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_revisions_refuse_backlog_and_ready(system):
+    from agno.company.execution import _call
+    from agno.db.schemas.tasks import task_run_id
+
+    client, db, worker, _, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    # Ready cannot skip its first attempt, even before any run exists.
+    before = await _call(db, "get_task", value["id"])
+    assert (await client.post(path + "/runs", json={"attempt": 2})).status_code == 409
+    assert await _call(db, "get_task", value["id"]) == before
+    assert (await client.post(path + "/runs")).status_code == 202
+    assert (await execute(worker))["status"] == "completed"
+    for state in ("backlog", "ready"):
+        body = {"target": state, "reason": "Rescope"}
+        if state == "ready":
+            body.update(executor_type="agent", executor_id="writer")
+        response = await client.post(path + "/transitions", json=body)
+        assert response.status_code == 200, response.text
+        before = await _call(db, "get_task", value["id"])
+        assert before["status"] == state
+        response = await client.post(path + "/runs", json={"attempt": 2})
+        assert response.status_code == 409, response.text
+        assert await _call(db, "get_task", value["id"]) == before
+        assert await worker.store.get_job(task_run_id(value["id"], 2)) is None
 
 
 @pytest.mark.asyncio
@@ -318,7 +380,7 @@ async def test_results_cannot_cross_revoked_acceptance(system):
 
 
 @pytest.mark.asyncio
-async def test_run_history_and_duplicate_survive_ticket_retention(system):
+async def test_run_history_and_revision_survive_ticket_retention(system):
     client, db, worker, os, _ = system
     value = await accepted(client)
     path = f"/company/tasks/{value['id']}"
@@ -328,12 +390,12 @@ async def test_run_history_and_duplicate_survive_ticket_retention(system):
     table = worker.config.db._get_table("jobs")
     with worker.config.db.Session() as session, session.begin():
         session.execute(table.delete().where(table.c.id == run_id))
-    assert (await client.post(path + "/runs")).json()["run_id"] == run_id
+    assert (await client.post(path + "/runs")).status_code == 409
     response = await client.get(f"/company/runs/{run_id}")
     assert response.status_code == 200 and response.json()["status"] == "COMPLETED", response.text
     assert (
         await client.post(path + "/transitions", json={"target": "in_progress", "reason": "Revise draft"})
-    ).status_code == 200
+    ).status_code == 409
     revision = await client.post(path + "/runs", json={"attempt": 2})
     assert revision.status_code == 202, revision.text
     assert revision.json()["run_id"] != run_id
@@ -630,8 +692,8 @@ async def test_all_framework_executor_ids_are_rejected(system, monkeypatch, kind
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("kind,id", [("agent", "writer"), ("team", "editors"), ("workflow", "draft")])
-@pytest.mark.parametrize("attempt", [1, 2])
-async def test_full_queue_leaves_task_and_attempt_unchanged(system, kind, id, attempt):
+@pytest.mark.parametrize("attempt,previous_status", [(1, None), (2, "ERROR"), (2, "COMPLETED")])
+async def test_full_queue_leaves_task_and_attempt_unchanged(system, kind, id, attempt, previous_status):
     from agno.company.execution import _call
     from agno.db.schemas.tasks import task_run_id
 
@@ -640,10 +702,15 @@ async def test_full_queue_leaves_task_and_attempt_unchanged(system, kind, id, at
     path = f"/company/tasks/{value['id']}"
     if attempt == 2:
         response = await client.post(path + "/runs")
-        job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
-        assert job["id"] == response.json()["run_id"]
-        await _call(db, "complete_task_run", value["id"], job["id"], {"status": "ERROR", "content": "Previous failure"})
-        assert await worker.store.complete_job(job["id"], worker.worker_id, job["attempt"], "failed")
+        if previous_status == "COMPLETED":
+            assert (await execute(worker))["status"] == "completed"
+        else:
+            job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+            assert job["id"] == response.json()["run_id"]
+            await _call(
+                db, "complete_task_run", value["id"], job["id"], {"status": "ERROR", "content": "Previous failure"}
+            )
+            assert await worker.store.complete_job(job["id"], worker.worker_id, job["attempt"], "failed")
     filler = await accepted(client)
     filler_run = await client.post(f"/company/tasks/{filler['id']}/runs")
     worker.config.max_queue_depth = 1
@@ -3071,9 +3138,9 @@ async def test_routine_endpoint_edit_rejects_nonrun_target(system):
     assert response.status_code == 201, response.text
     schedule_id = response.json()["id"]
     patched = await client.patch("/schedules/" + schedule_id, json={"endpoint": "/teams/editors/runs"})
-    assert patched.status_code == 200, patched.text
+    assert patched.status_code == 409, patched.text
     saved = await _call(db, "get_schedule", schedule_id)
-    assert (saved["target_type"], saved["target_id"]) == ("team", "editors")
+    assert (saved["target_type"], saved["target_id"]) == ("agent", "writer")
     changed = await client.patch(
         "/company/routines/" + schedule_id, json={"executor_type": "team", "executor_id": "editors"}
     )
@@ -3081,7 +3148,7 @@ async def test_routine_endpoint_edit_rejects_nonrun_target(system):
     saved = await _call(db, "get_schedule", schedule_id)
     assert (saved["target_type"], saved["target_id"]) == ("team", "editors")
     refused = await client.patch("/schedules/" + schedule_id, json={"endpoint": "/health"})
-    assert refused.status_code == 422, refused.text
+    assert refused.status_code == 409, refused.text
     assert (await _call(db, "get_schedule", schedule_id))["endpoint"] == saved["endpoint"]
 
 

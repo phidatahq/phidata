@@ -92,15 +92,32 @@ def test_missing_executor_at_acceptance_and_registry_only_mount(system):
     assert client.get(f"/company/tasks/{other['id']}", headers=headers()).json()["status"] == "backlog"
 
 
-def test_start_requires_current_run_and_wiki_permissions(system):
+@pytest.mark.parametrize("revision", [False, True])
+def test_start_requires_current_run_and_wiki_permissions(system, revision):
     client, db, os, queue = system
     path, task = accepted(client)
+    if revision:
+        started = client.post(path + "/runs", headers=headers())
+        assert started.status_code == 202, started.text
+
+        async def finish():
+            job = await queue.store.claim_job(queue.worker_id, queue.config.lock_grace_seconds)
+            assert job["id"] == started.json()["run_id"]
+            assert await queue.store.complete_job(job["id"], queue.worker_id, job["attempt"], "completed")
+
+        asyncio.run(finish())
+        db.complete_task_run(task["id"], started.json()["run_id"], {"status": "COMPLETED", "content": "Draft"})
+    before = db.get_task(task["id"])
+    body = {"attempt": 2 if revision else 1}
     for omitted in ("agents:writer:run", "wiki:read", "tasks:write"):
-        response = client.post(path + "/runs", headers=headers(scopes=[scope for scope in SCOPES if scope != omitted]))
+        response = client.post(
+            path + "/runs", json=body, headers=headers(scopes=[scope for scope in SCOPES if scope != omitted])
+        )
         assert response.status_code == 403, response.text
-    assert client.get(path, headers=headers()).json()["status"] == "ready"
+        assert db.get_task(task["id"]) == before
+    assert before["status"] == ("in_review" if revision else "ready")
     os.registry.agents.clear()
-    assert client.post(path + "/runs", headers=headers()).status_code == 409
+    assert client.post(path + "/runs", json=body, headers=headers()).status_code == 409
 
 
 def test_attention_history_and_duplicates_are_shared(system):

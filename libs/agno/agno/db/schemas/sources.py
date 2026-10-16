@@ -20,6 +20,10 @@ def validate_source_fields(fields: Dict[str, Any]) -> None:
             raise ValueError("Source references cannot contain credentials, query strings or fragments")
         if fields.get("type") == "website" and url.scheme not in {"http", "https"}:
             raise ValueError("Website sources require an HTTP or HTTPS URL")
+        if fields.get("type") == "website":
+            from agno.knowledge.reader.utils.public_fetch import public_url
+
+            public_url(reference)
     credential = fields.get("credential_ref")
     if credential is not None and (
         not isinstance(credential, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", credential)

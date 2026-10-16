@@ -280,6 +280,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         updates = body.model_dump(exclude_unset=True)
         if not updates:
@@ -367,6 +369,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
         deleted = await _db_call("delete_schedule", schedule_id, user_id=scoped_user_id)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete schedule")
@@ -381,6 +385,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         # Re-arming puts the endpoint back on the poller, so it needs the same permission as creating it.
         await _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
@@ -446,6 +452,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         updates: Dict[str, Any] = {"enabled": False}
         if defer_activation and pending_key in (existing.get("payload") or {}):
@@ -466,6 +474,8 @@ def get_schedule_router(
         existing = await _db_call("get_schedule", schedule_id, user_id=get_scoped_user_id(request))
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
+        if existing.get("managed_by") == "company" and managed_by != "company":
+            raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
 
         if not existing.get("enabled", True):
             raise HTTPException(status_code=409, detail="Schedule is disabled")

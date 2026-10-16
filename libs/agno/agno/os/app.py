@@ -223,10 +223,18 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if internal_token is None:
         raise ValueError("internal_service_token must be set when scheduler is enabled")
 
-    executor = ScheduleExecutor(
-        base_url=base_url,
-        internal_service_token=internal_token,
-    )
+    executor: ScheduleExecutor
+    if agent_os.company is not None:
+        from agno.company.scheduler import CompanyScheduleExecutor
+
+        executor = CompanyScheduleExecutor(
+            base_url=base_url,
+            internal_service_token=internal_token,
+            company_db=agent_os._company_db,
+            schedule_db=agent_os.db,
+        )
+    else:
+        executor = ScheduleExecutor(base_url=base_url, internal_service_token=internal_token)
     poller = SchedulePoller(
         db=agent_os.db,
         executor=executor,
@@ -460,10 +468,23 @@ class AgentOS:
         self.version = version
         self.description = description
         self.db = db
-        if company is None and self.config is not None and self.config.company is not None:
+        if (
+            company is not None
+            and company.products
+            and self.config is not None
+            and self.config.company is not None
+            and self.config.company.products
+        ):
+            raise ValueError("Declare Company Products in code or config.yaml, not both")
+        if self.config is not None and self.config.company is not None and (company is None or not company.products):
             from agno.company.config import CompanyConfig
 
-            company = CompanyConfig(products=self.config.company.products)
+            if company is None:
+                company = CompanyConfig(products=self.config.company.products)
+            else:
+                from dataclasses import replace
+
+                company = replace(company, products=self.config.company.products)
         self.company = company
         self._company_db = (company.db if company.db is not None else db) if company is not None else None
         self.checkpoint = checkpoint

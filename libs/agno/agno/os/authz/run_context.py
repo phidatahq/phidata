@@ -31,6 +31,7 @@ def restore_authorization(app: Any, snapshot: Optional[Dict[str, Any]]) -> Optio
         routine_authority = _RoutineAuthorization(
             None if snapshot.get("company_routine_unscoped") else authority,
             routine_id=snapshot.get("company_routine_id"),
+            product_id=snapshot.get("company_product_id"),
         )
         routine_authority.context = authority.context
         return routine_authority

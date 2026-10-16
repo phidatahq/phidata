@@ -1865,7 +1865,7 @@ class BaseDb(ABC):
 
     # --- Projects (Optional) ---
 
-    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         """Create a Project; project_data carries its owner and timestamps."""
         raise NotImplementedError("Company projects not supported by the configured database")
 
@@ -3785,7 +3785,7 @@ class AsyncBaseDb(ABC):
 
     # --- Projects (Optional) ---
 
-    async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         """Create a Project; project_data carries its owner and timestamps."""
         raise NotImplementedError("Company projects not supported by the configured database")
 

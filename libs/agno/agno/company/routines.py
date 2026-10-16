@@ -146,9 +146,10 @@ def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[s
 class _RoutineAuthorization(_ExecutorAuthorization):
     """Routine authority permits proposals, never acceptance or schedule edits."""
 
-    def __init__(self, original: Any, routine_id: Optional[str] = None):
+    def __init__(self, original: Any, routine_id: Optional[str] = None, product_id: Optional[str] = None):
         super().__init__(original)
         self.routine_id = routine_id
+        self.product_id = product_id
 
     def snapshot(self) -> Dict[str, Any]:
         return {
@@ -156,4 +157,24 @@ class _RoutineAuthorization(_ExecutorAuthorization):
             "company_routine": True,
             "company_routine_unscoped": self.original is None,
             "company_routine_id": self.routine_id,
+            "company_product_id": self.product_id,
         }
+
+
+def _require_routine_product(product_id: Optional[str], authority: Any = None) -> None:
+    from agno.run.authorization import current_authorization
+
+    authority = authority or current_authorization()
+    if (
+        isinstance(authority, _RoutineAuthorization)
+        and authority.product_id is not None
+        and authority.product_id != product_id
+    ):
+        raise PermissionError("Routine authority is restricted to its configured Product")
+
+
+async def _require_active_routine_product(db: Any, product_id: Optional[str]) -> None:
+    from agno.company.execution import _call
+
+    if db is None or not product_id or await _call(db, "get_product", product_id) is None:
+        raise ValueError("Routine Product is missing or archived")

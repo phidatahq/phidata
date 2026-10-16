@@ -1010,7 +1010,8 @@ async def test_template_free_routine_quiet_run_and_edited_executor(system):
 
 
 @pytest.mark.asyncio
-async def test_search_routine_adds_website_and_deduplicates_three_runs(system, monkeypatch):
+@pytest.mark.parametrize("executor_type,executor_id", [("agent", "writer"), ("team", "editors")])
+async def test_search_routine_adds_website_and_deduplicates_three_runs(system, monkeypatch, executor_type, executor_id):
     from agno.company.execution import _call
     from agno.knowledge.document import Document
     from agno.tools.company import CompanyTools
@@ -1054,8 +1055,8 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
                 response_usage=MessageMetrics(),
             )
 
-    components["writer"].model = SearchModel()
-    components["writer"].tools = [CompanyTools(db)]
+    components[executor_id].model = SearchModel()
+    components[executor_id].tools = [CompanyTools(db)]
     os.resync(worker.authorization_app)
     created = await client.post(
         "/company/routines",
@@ -1063,8 +1064,8 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
             product_id=product["id"],
             name="search",
             instructions="Discover useful pages, save website Sources, and propose evidence-backed work.",
-            executor_type="agent",
-            executor_id="writer",
+            executor_type=executor_type,
+            executor_id=executor_id,
             cron_expr="0 * * * *",
         ),
     )
@@ -1078,13 +1079,13 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
         runs.append(result["run_id"])
     sources, count = await _call(db, "get_sources", product_id=product["id"])
     assert count == 1
-    assert sources[0]["config"]["metadata"] == {"agent_id": "writer", "run_id": runs[0]}
+    assert sources[0]["config"]["metadata"] == {"agent_id": executor_id, "run_id": runs[0]}
     tasks, count = await _call(db, "get_tasks", product_id=product["id"])
     assert count == 1 and tasks[0]["status"] == "backlog"
     assert tasks[0]["evidence"][0]["run_id"] == runs[0]
     assert tasks[0]["evidence"][0]["link"] == url and tasks[0]["evidence"][0]["content_hash"]
     assert tasks[0]["routine_id"] == routine["id"]
     listed = (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"]
-    assert listed[0]["config"]["metadata"]["agent_id"] == "writer"
+    assert listed[0]["config"]["metadata"]["agent_id"] == executor_id
     assert (await client.delete("/company/sources/" + sources[0]["id"])).status_code == 204
     assert (await client.get("/company/sources", params={"product_id": product["id"]})).json()["data"] == []

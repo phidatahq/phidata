@@ -941,3 +941,114 @@ def test_summary_failure_predicate_matches_attention(task_status, run_status):
     )
     unresolved = task_status == "in_progress" and run_status in {"ERROR", "CANCELLED"}
     assert ("No failed Tasks." not in report) == unresolved
+
+
+def test_managed_schedule_mutations_use_company_routes(system):
+    client, os, db = system
+    product = client.post("/company/products", json={"name": "SDK"}).json()
+    created = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"],
+            name="check",
+            instructions="Check",
+            executor_type="agent",
+            executor_id="reader",
+            cron_expr="0 * * * *",
+        ),
+    )
+    assert created.status_code == 201
+    identifier = created.json()["id"]
+    assert client.patch("/schedules/" + identifier, json={"payload": {"message": "Break metadata"}}).status_code == 409
+    assert client.delete("/schedules/" + identifier).status_code == 409
+    assert client.post("/schedules/" + identifier + "/enable").status_code == 409
+    assert client.delete("/company/products/" + product["id"]).status_code == 204
+    assert client.post("/company/routines/" + identifier + "/pause").status_code == 200
+    assert client.post("/company/routines/" + identifier + "/resume").status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_archived_product_prevents_executor_dispatch(tmp_path, monkeypatch):
+    from agno.company.scheduler import CompanyScheduleExecutor
+    from agno.scheduler import ScheduleManager
+
+    db = SqliteDb(db_file=str(tmp_path / "archive-dispatch.db"))
+    manager = CompanyManager(db)
+    product = manager.create("SDK")
+    schedule = ScheduleManager(db).create(
+        name="check",
+        cron="0 * * * *",
+        endpoint="/agents/reader/runs",
+        payload={"message": "check", "metadata": {"product_id": product["id"]}},
+        provenance={"managed_by": "company", "target_type": "agent", "target_id": "reader"},
+    )
+    manager.delete(product["id"])
+    dispatch = AsyncMock()
+    monkeypatch.setattr(ScheduleExecutor, "_call_endpoint", dispatch)
+    executor = CompanyScheduleExecutor(
+        company_db=db, schedule_db=db, base_url="http://test", internal_service_token="internal"
+    )
+    result = await executor.execute(schedule, db)
+    assert result["status"] == "failed" and "archived" in result["error"]
+    dispatch.assert_not_awaited()
+    assert db.get_schedule(schedule.id)["enabled"] is False
+    db.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("async_tools", [False, True])
+async def test_team_source_uses_injected_team_identity(tmp_path, async_tools):
+    from types import SimpleNamespace
+
+    from agno.run.base import RunContext
+    from agno.tools.company import CompanyTools
+
+    db = SqliteDb(db_file=str(tmp_path / "team.db"))
+    product = CompanyManager(db).create("SDK")
+    toolkit = CompanyTools(db)
+    fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
+    kwargs = dict(
+        product_id=product["id"],
+        type="website",
+        reference="https://example.com",
+        _agno_team=SimpleNamespace(id="team-finder"),
+        _agno_run_context=RunContext(run_id="team-run", session_id="session"),
+    )
+    first = json.loads(await fn(**kwargs) if async_tools else fn(**kwargs))
+    again = json.loads(await fn(**kwargs) if async_tools else fn(**kwargs))
+    assert again["id"] == first["id"]
+    assert first["config"]["metadata"] == {"agent_id": "team-finder", "run_id": "team-run"}
+    db.close()
+
+
+def test_internal_scheduler_owner_is_provisioned_without_company(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from agno.os.middleware.user_scope import sync_directory_from_request
+
+    provision = Mock()
+    monkeypatch.setattr("agno.os.auth.provision_user_with_default_role", provision)
+    store = object()
+    request = SimpleNamespace(
+        state=SimpleNamespace(authenticated=True, is_internal_service=True),
+        app=SimpleNamespace(state=SimpleNamespace(user_store=store, user_auto_provision=True)),
+    )
+    sync_directory_from_request(request, "schedule-owner")
+    assert provision.call_args.args[2] == "schedule-owner"
+    request.state.is_internal_service = False
+    sync_directory_from_request(request, "jwt-user")
+    assert provision.call_count == 1
+
+
+def test_yaml_products_with_runtime_config_are_not_silently_discarded(tmp_path):
+    db = SqliteDb(db_file=str(tmp_path / "yaml-runtime.db"))
+    config = tmp_path / "config.yaml"
+    config.write_text("company:\n  products:\n    - name: YAML product\n")
+    os = AgentOS(db=db, config=str(config), company=CompanyConfig(db=db), telemetry=False)
+    assert os.company.db is db and os.company.products[0].name == "YAML product"
+    with pytest.raises(ValueError, match="not both"):
+        AgentOS(
+            db=db, config=str(config), company=CompanyConfig(products=[Product(name="Code product")]), telemetry=False
+        )
+    db.close()

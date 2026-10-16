@@ -41,7 +41,9 @@ def lock_product(sess: Any, products: Any, product_id: str) -> None:
         raise ValueError("Product is missing or archived")
 
 
-def require_project(sess: Any, projects: Any, project_id: Optional[str], product_id: str) -> None:
+def require_project(
+    sess: Any, projects: Any, project_id: Optional[str], product_id: str, task_status: Optional[str] = None
+) -> None:
     if project_id is None:
         return
     row = sess.execute(select(projects).where(projects.c.id == project_id)).first()
@@ -49,6 +51,22 @@ def require_project(sess: Any, projects: Any, project_id: Optional[str], product
         raise ValueError("Project is missing or archived")
     if row._mapping["product_id"] != product_id:
         raise ValueError("Task and Project must belong to the same Product")
+    if (
+        task_status is not None
+        and task_status not in {"done", "cancelled"}
+        and row._mapping["status"] in {"done", "cancelled"}
+    ):
+        raise ValueError("Cannot add open work to a completed or cancelled Project")
+
+
+def existing_task_proposal(sess: Any, tasks: Any, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """A completed proposal remains idempotent even after its Project is completed."""
+    if data.get("dedupe_key") is None:
+        return None
+    row = sess.execute(
+        select(tasks).where(tasks.c.product_id == data["product_id"], tasks.c.dedupe_key == data["dedupe_key"])
+    ).first()
+    return dict(row._mapping) if row is not None else None
 
 
 def lock_child(sess: Any, products: Any, projects: Any, table: Any, record_id: str) -> None:
@@ -184,6 +202,14 @@ def archive_project(
     if row is None:
         return False
     _refuse_open_tasks(sess, tasks, tasks.c.project_id == project_id)
+    if (
+        updated_before is not None
+        and sess.execute(
+            select(tasks.c.id).where(tasks.c.project_id == project_id, tasks.c.status.not_in(["done", "cancelled"]))
+        ).first()
+        is not None
+    ):
+        return False
     now = int(time.time())
     sess.execute(
         projects.update()
@@ -304,3 +330,22 @@ def create_company_source(
         if rows:
             return dict(rows[0]._mapping)
     return dict(sess.execute(table.insert().values(**source_data).returning(table)).one()._mapping)
+
+
+def link_product_routine(sess: Any, products: Any, product_id: str, schedule_id: str) -> Dict[str, Any]:
+    """Serialize metadata appends without comparing database-specific JSON encodings."""
+    from agno.db.schemas.products import product_metadata
+
+    lock_product(sess, products, product_id)
+    row = sess.execute(select(products).where(products.c.id == product_id)).one()
+    metadata = product_metadata(dict(row._mapping["metadata"] or {}))
+    ids = list(metadata.get("routine_ids") or [])
+    if schedule_id not in ids:
+        metadata["routine_ids"] = [*ids, schedule_id]
+        row = sess.execute(
+            products.update()
+            .where(products.c.id == product_id)
+            .values(metadata=metadata, updated_at=int(time.time()))
+            .returning(products)
+        ).one()
+    return dict(row._mapping)

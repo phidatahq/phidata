@@ -81,8 +81,8 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(422, str(exc))
 
-    async def product(product_id, request):
-        row = await call(manager.get, product_id)
+    async def product(product_id, request, include_deleted=False):
+        row = await call(manager.get, product_id, include_deleted=include_deleted)
         if row is None:
             raise HTTPException(404, "Product not found")
         _require_write_ownership(row, get_scoped_user_id(request))
@@ -92,6 +92,8 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         row = await call(handlers["get_schedule"], routine_id, request)
         if row.get("managed_by") != "company":
             raise HTTPException(404, "Routine not found")
+        if not (row.get("payload") or {}).get("metadata", {}).get("product_id"):
+            raise HTTPException(409, "Routine is missing its Product metadata")
         if request.method != "GET":
             _require_write_ownership(row, get_scoped_user_id(request))
         return row
@@ -199,7 +201,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
     @router.post("/routines/{routine_id}/pause", response_model=ScheduleStateResponse)
     async def pause_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request)
-        await product(row["payload"]["metadata"]["product_id"], request)
+        await product(row["payload"]["metadata"]["product_id"], request, include_deleted=True)
         return await call(handlers["disable_schedule"], routine_id, request)
 
     @router.post("/routines/{routine_id}/resume", response_model=ScheduleStateResponse)

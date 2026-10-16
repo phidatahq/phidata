@@ -9025,7 +9025,10 @@ class PostgresDb(BaseDb):
         table = self._get_table(table_type="sources")
         if table is None:
             return [], 0
-        stmt = select(table)
+        from agno.db.sql.company import active_parents
+
+        products = self._get_table(table_type="products", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if user_id is not None:
@@ -9189,7 +9192,7 @@ class PostgresDb(BaseDb):
 
     # --- Projects ---
 
-    def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         from agno.db.sql.company import lock_product
 
         table = self._get_table(table_type="projects", create_table_if_not_found=True)
@@ -9198,6 +9201,12 @@ class PostgresDb(BaseDb):
         products = self._get_table(table_type="products", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
             lock_product(sess, products, project_data["product_id"])
+            if reuse:
+                existing = sess.execute(select(table).where(table.c.id == project_data["id"])).first()
+                if existing is not None:
+                    if existing._mapping["product_id"] != project_data["product_id"]:
+                        raise ValueError("Project identity belongs to another Product")
+                    return dict(existing._mapping)
             result = sess.execute(table.insert().values(**project_data).returning(table)).one()
             return dict(result._mapping)
 
@@ -9365,40 +9374,19 @@ class PostgresDb(BaseDb):
             return dict(result._mapping) if result else None
 
     def add_product_routine(self, product_id: str, schedule_id: str) -> Dict[str, Any]:
-        """Append a schedule id with compare-and-swap, preserving concurrent metadata edits."""
+        """Append a schedule id under the existing hierarchy write lock."""
+        from agno.db.sql.company import link_product_routine
+
         table = self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Products table unavailable")
-        from sqlalchemy import JSON
-
-        for _ in range(20):
-            existing = self.get_product(product_id)
-            if existing is None:
-                raise LookupError("Product not found")
-            metadata = dict(existing.get("metadata") or {})
-            ids = list(metadata.get("routine_ids") or [])
-            if schedule_id in ids:
-                return existing
-            metadata["routine_ids"] = [*ids, schedule_id]
-            stmt = (
-                table.update()
-                .where(
-                    table.c.id == product_id,
-                    table.c.deleted_at.is_(None),
-                    table.c.metadata == (existing["metadata"] if existing.get("metadata") is not None else JSON.NULL),
-                )
-                .values(metadata=metadata, updated_at=int(time.time()))
-            )
-            with self.Session() as sess, sess.begin():
-                result = sess.execute(stmt.returning(table)).fetchone()
-                if result is not None:
-                    return dict(result._mapping)
-        raise ValueError("Product metadata changed concurrently; retry")
+        with self.Session() as sess, sess.begin():
+            return link_product_routine(sess, table, product_id, schedule_id)
 
     # --- Tasks ---
 
     def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        from agno.db.sql.company import lock_product, require_project
+        from agno.db.sql.company import existing_task_proposal, lock_product, require_project
 
         table = self._get_table(table_type="tasks", create_table_if_not_found=True)
         if table is None:
@@ -9408,6 +9396,12 @@ class PostgresDb(BaseDb):
         with self.Session() as sess, sess.begin():
             lock_product(sess, products, task_data["product_id"])
             require_project(sess, projects, task_data.get("project_id"), task_data["product_id"])
+            proposal = existing_task_proposal(sess, table, task_data)
+            if proposal is not None:
+                return proposal
+            require_project(
+                sess, projects, task_data.get("project_id"), task_data["product_id"], task_data.get("status", "backlog")
+            )
             if task_data.get("dedupe_key") is not None:
                 from sqlalchemy.dialects.postgresql import insert
 
@@ -9520,7 +9514,7 @@ class PostgresDb(BaseDb):
             lock_child(sess, products, projects, table, task_id)
             product_id = sess.execute(select(table.c.product_id).where(table.c.id == task_id)).scalar()
             if product_id is not None and fields.get("project_id") is not None:
-                require_project(sess, projects, fields["project_id"], product_id)
+                require_project(sess, projects, fields["project_id"], product_id, "backlog")
             result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
             return dict(result._mapping) if result else None
 

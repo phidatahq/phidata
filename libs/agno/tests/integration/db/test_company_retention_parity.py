@@ -179,7 +179,7 @@ async def test_archive_window_paging_pages_context_and_restore(archive, monkeypa
     status_page = await call(manager, "read_wiki", product["id"], "status.md")
     monkeypatch.setattr(time, "time", lambda: now)
     result = await call(manager, "refresh", product["id"])
-    assert len(result["archived_tasks"]) == 105 and result["archived_projects"] == [project["id"]]
+    assert len(result["archived_tasks"]) == 0 and result["archived_projects"] == [project["id"]]
     assert result["deleted_pages"] == ["summary.md"]
     assert (await call(manager, "list_tasks", product_id=product["id"]))[1] == 2
     assert (await call(manager, "list_projects", product_id=product["id"]))[1] == 0
@@ -198,7 +198,7 @@ async def test_archive_window_paging_pages_context_and_restore(archive, monkeypa
     assert (await call(manager, "read_wiki", product["id"], "status.md")).content == status_page.content
     assert (await call(manager, "read_wiki", product["id"], "notes.md")).content == "Keep human notes"
     await call(manager, "restore_project", project["id"])
-    await call(manager, "restore_task", "0")
+    assert (await call(manager, "list_tasks", project_id=project["id"], limit=200))[1] == 105
     again = await call(manager, "refresh", product["id"])
     assert not again["archived_tasks"] and not again["archived_projects"]
     assert not await call(manager, "delete_task", "open", updated_before=now)
@@ -256,7 +256,7 @@ async def test_retention_reuses_cascade_counts_and_exact_restore(archive):
 
 
 @pytest.mark.asyncio
-async def test_retention_keeps_active_work_refusal(archive):
+async def test_retention_keeps_active_work_refusal(archive, monkeypatch):
     db, manager, call = archive
     old = int(time.time()) - 15 * 86400
     product = await call(manager, "create", "SDK")
@@ -267,7 +267,7 @@ async def test_retention_keeps_active_work_refusal(archive):
             id="cancelled-project",
             product_id=product["id"],
             name="Cancelled",
-            status="cancelled",
+            status="active",
             created_at=old,
             updated_at=old,
             transitions=[],
@@ -286,6 +286,9 @@ async def test_retention_keeps_active_work_refusal(archive):
             transitions=[],
         ),
     )
+    monkeypatch.setattr(time, "time", lambda: old)
+    await call(manager, "transition_project", project["id"], "cancelled", "Stop project")
+    monkeypatch.setattr(time, "time", lambda: old + 16 * 86400)
     with pytest.raises(ValueError) as refusal:
         await call(manager, "refresh", product["id"])
     assert refusal.value.args[0]["tasks"] == [{"id": "active-child", "title": "Still running"}]
@@ -412,3 +415,131 @@ async def test_completion_proposal_does_not_reintroduce_archived_task_context(ar
     context = await _task_input(manager, current)
     assert "archived-task-private-detail" not in context
     assert "Old Task detail" not in context
+
+
+@pytest.mark.asyncio
+async def test_terminal_project_rejects_new_and_moved_open_work(archive):
+    db, manager, call = archive
+    product = await call(manager, "create", "SDK")
+    project = await call(manager, "create_project", product["id"], "Ship")
+    await call(manager, "transition_project", project["id"], "active", "Start")
+    await call(manager, "transition_project", project["id"], "done", "Complete")
+    with pytest.raises(ValueError, match="open work"):
+        await call(manager, "create_task", product["id"], "Late proposal", project_id=project["id"])
+    task = await call(manager, "create_task", product["id"], "Unassigned")
+    with pytest.raises(ValueError, match="open work"):
+        await call(manager, "update_task", task["id"], project_id=project["id"])
+    assert (await call(manager, "get_task", task["id"]))["project_id"] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("stale_proposal", [False, True])
+async def test_refresh_never_deletes_a_replaced_page(archive, monkeypatch, stale_proposal):
+    from agno.fs import FileSystem
+
+    db, manager, call = archive
+    product = await call(manager, "create", "SDK")
+    path = "project-completion/old.md" if stale_proposal else "summary.md"
+    content = (
+        "<!-- Company completion proposal -->\nOld" if stale_proposal else "<!-- Company summary snapshot: e30= -->"
+    )
+    now = int(time.time())
+    monkeypatch.setattr(time, "time", lambda: now - 15 * 86400)
+    await call(manager, "write_wiki", product["id"], path, content, 0)
+    monkeypatch.setattr(time, "time", lambda: now)
+    original = FileSystem.adelete
+
+    async def replaced(self, candidate, **kwargs):
+        if candidate == path:
+            await self.awrite(path, "Fresh human replacement", expected_version=1)
+        return await original(self, candidate, **kwargs)
+
+    monkeypatch.setattr(FileSystem, "adelete", replaced)
+    result = await call(manager, "refresh", product["id"])
+    assert path not in result["deleted_pages"]
+    assert (await call(manager, "read_wiki", product["id"], path)).content == "Fresh human replacement"
+
+
+@pytest.mark.asyncio
+async def test_routine_mutations_are_bound_and_project_proposals_reuse(archive, tmp_path):
+    db, manager, call = archive
+    product = await call(manager, "create", "Own")
+    other = await call(manager, "create", "Other")
+    source = await call(manager, "create_source", other["id"], "website", "https://example.com")
+    authority = _RoutineAuthorization(None, "routine", product_id=product["id"])
+    with authorization_scope(lambda: authority):
+        for method, args in [
+            ("create_project", (other["id"], "Intrusion")),
+            ("refresh", (other["id"],)),
+            ("write_wiki", (other["id"], "status.md", "Intrusion", 0)),
+            ("read_source", (source["id"], "scan")),
+            ("add_source", (other["id"], "website", "https://example.org", "finder", "scan")),
+        ]:
+            with pytest.raises(PermissionError, match="configured Product"):
+                await call(manager, method, *args)
+        proposals = await asyncio.gather(
+            *[call(manager, "create_project", product["id"], "One proposal") for _ in range(3)]
+        )
+        assert len({row["id"] for row in proposals}) == 1
+    await call(manager, "update_project", proposals[0]["id"], outcome="Human edit")
+    await call(manager, "delete_project", proposals[0]["id"])
+    with authorization_scope(lambda: authority):
+        repeated = await call(manager, "create_project", product["id"], "One proposal")
+    assert repeated["deleted_at"] is not None and repeated["outcome"] == "Human edit"
+
+
+@pytest.mark.asyncio
+async def test_sources_hide_archived_parent_and_routine_links_preserve_metadata(archive):
+    db, manager, call = archive
+    product = await call(manager, "create", "SDK", metadata={"archive_window_days": 30, "custom": "kept"})
+    await call(manager, "create_source", product["id"], "website", "https://example.com")
+    await asyncio.gather(*[call(db, "add_product_routine", product["id"], str(i)) for i in range(4)])
+    linked = await call(manager, "get", product["id"])
+    assert set(linked["metadata"]["routine_ids"]) == {"0", "1", "2", "3"}
+    assert linked["metadata"]["custom"] == "kept" and linked["metadata"]["archive_window_days"] == 30
+    await call(manager, "delete", product["id"])
+    assert (await call(manager, "list_sources", product_id=product["id"]))[1] == 0
+    await call(manager, "restore", product["id"])
+    assert (await call(manager, "list_sources", product_id=product["id"]))[1] == 1
+
+
+@pytest.mark.asyncio
+async def test_routine_link_repairs_sql_null_metadata(archive):
+    from sqlalchemy import null
+
+    db, manager, call = archive
+    product = await call(manager, "create", "Legacy")
+    table = await call(db, "_get_table", table_type="products")
+    statement = table.update().where(table.c.id == product["id"]).values(metadata=null())
+    if isinstance(db, AsyncBaseDb):
+        async with db.db_engine.begin() as connection:
+            await connection.execute(statement)
+    else:
+        with db.db_engine.begin() as connection:
+            connection.execute(statement)
+    linked = await call(db, "add_product_routine", product["id"], "routine")
+    assert linked["metadata"] == {"archive_window_days": 14, "routine_ids": ["routine"]}
+
+
+@pytest.mark.asyncio
+async def test_completed_project_preserves_intake_dedupe(archive):
+    db, manager, call = archive
+    product = await call(manager, "create", "SDK")
+    project = await call(manager, "create_project", product["id"], "Ship")
+    await call(manager, "transition_project", project["id"], "active", "Start")
+    fields = dict(
+        id="proposal",
+        title="Issue",
+        product_id=product["id"],
+        project_id=project["id"],
+        dedupe_key="issue",
+        status="backlog",
+        created_at=int(time.time()),
+        transitions=[],
+    )
+    await call(db, "create_task", fields)
+    await call(manager, "transition_task", "proposal", "cancelled", "Resolved")
+    await call(manager, "transition_project", project["id"], "done", "Complete")
+    assert (await call(db, "create_task", {**fields, "id": "repeat"}))["id"] == "proposal"
+    with pytest.raises(ValueError, match="open work"):
+        await call(db, "create_task", {**fields, "id": "new", "dedupe_key": "different"})

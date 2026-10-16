@@ -5542,7 +5542,10 @@ class AsyncSqliteDb(AsyncBaseDb):
         table = await self._get_table(table_type="sources")
         if table is None:
             return [], 0
-        stmt = select(table)
+        from agno.db.sql.company import active_parents
+
+        products = await self._get_table(table_type="products", create_table_if_not_found=True)
+        stmt = active_parents(select(table), table, products)
         if product_id is not None:
             stmt = stmt.where(table.c.product_id == product_id)
         if user_id is not None:
@@ -5716,7 +5719,7 @@ class AsyncSqliteDb(AsyncBaseDb):
 
     # --- Projects ---
 
-    async def create_project(self, project_data: Dict[str, Any]) -> Dict[str, Any]:
+    async def create_project(self, project_data: Dict[str, Any], reuse: bool = False) -> Dict[str, Any]:
         from agno.db.sql.company import lock_product
 
         table = await self._get_table(table_type="projects", create_table_if_not_found=True)
@@ -5725,6 +5728,12 @@ class AsyncSqliteDb(AsyncBaseDb):
         products = await self._get_table(table_type="products", create_table_if_not_found=True)
         async with self.async_session_factory() as sess, sess.begin():
             await sess.run_sync(lock_product, products, project_data["product_id"])
+            if reuse:
+                existing = (await sess.execute(select(table).where(table.c.id == project_data["id"]))).first()
+                if existing is not None:
+                    if existing._mapping["product_id"] != project_data["product_id"]:
+                        raise ValueError("Project identity belongs to another Product")
+                    return dict(existing._mapping)
             result = (await sess.execute(table.insert().values(**project_data).returning(table))).one()
             return dict(result._mapping)
 
@@ -5894,40 +5903,19 @@ class AsyncSqliteDb(AsyncBaseDb):
             return dict(result._mapping) if result else None
 
     async def add_product_routine(self, product_id: str, schedule_id: str) -> Dict[str, Any]:
-        """Append a schedule id with compare-and-swap, preserving concurrent metadata edits."""
+        """Append a schedule id under the existing hierarchy write lock."""
+        from agno.db.sql.company import link_product_routine
+
         table = await self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Products table unavailable")
-        from sqlalchemy import JSON
-
-        for _ in range(20):
-            existing = await self.get_product(product_id)
-            if existing is None:
-                raise LookupError("Product not found")
-            metadata = dict(existing.get("metadata") or {})
-            ids = list(metadata.get("routine_ids") or [])
-            if schedule_id in ids:
-                return existing
-            metadata["routine_ids"] = [*ids, schedule_id]
-            stmt = (
-                table.update()
-                .where(
-                    table.c.id == product_id,
-                    table.c.deleted_at.is_(None),
-                    table.c.metadata == (existing["metadata"] if existing.get("metadata") is not None else JSON.NULL),
-                )
-                .values(metadata=metadata, updated_at=int(time.time()))
-            )
-            async with self.async_session_factory() as sess, sess.begin():
-                result = (await sess.execute(stmt.returning(table))).fetchone()
-                if result is not None:
-                    return dict(result._mapping)
-        raise ValueError("Product metadata changed concurrently; retry")
+        async with self.async_session_factory() as sess, sess.begin():
+            return await sess.run_sync(link_product_routine, table, product_id, schedule_id)
 
     # --- Tasks ---
 
     async def create_task(self, task_data: Dict[str, Any]) -> Dict[str, Any]:
-        from agno.db.sql.company import lock_product, require_project
+        from agno.db.sql.company import existing_task_proposal, lock_product, require_project
 
         table = await self._get_table(table_type="tasks", create_table_if_not_found=True)
         if table is None:
@@ -5937,6 +5925,16 @@ class AsyncSqliteDb(AsyncBaseDb):
         async with self.async_session_factory() as sess, sess.begin():
             await sess.run_sync(lock_product, products, task_data["product_id"])
             await sess.run_sync(require_project, projects, task_data.get("project_id"), task_data["product_id"])
+            proposal = await sess.run_sync(existing_task_proposal, table, task_data)
+            if proposal is not None:
+                return proposal
+            await sess.run_sync(
+                require_project,
+                projects,
+                task_data.get("project_id"),
+                task_data["product_id"],
+                task_data.get("status", "backlog"),
+            )
             if task_data.get("dedupe_key") is not None:
                 from sqlalchemy.dialects.sqlite import insert
 
@@ -6049,7 +6047,7 @@ class AsyncSqliteDb(AsyncBaseDb):
             await sess.run_sync(lock_child, products, projects, table, task_id)
             product_id = (await sess.execute(select(table.c.product_id).where(table.c.id == task_id))).scalar()
             if product_id is not None and fields.get("project_id") is not None:
-                await sess.run_sync(require_project, projects, fields["project_id"], product_id)
+                await sess.run_sync(require_project, projects, fields["project_id"], product_id, "backlog")
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))
             ).fetchone()

@@ -1491,3 +1491,21 @@ root-only check, three live-model credential checks and one optional asyncpg
 check. The earlier four new Source-schema failures are resolved. Implementation
 commit `dfaf0a59d7` was pushed for review while this final run completed; this
 record follows as a normal commit without rewriting history.
+# Independent review fixes — October 16, 2026
+
+**Status:** Focused validation PASS; final broad integration rerun in progress at the implementation push.
+
+**Description:** Checked the supplied reviews against the current implementation. Fixed public website transport bounds and DNS/redirect confinement, Team Source identity, Product-bound Routine mutations, managed-schedule mutation guards, archived Product dispatch/pause, version-guarded retention deletion, Project-first cascade retention, incoming open-work validation, repeat Project proposals, JSON-independent Routine linking, archived-parent Source lists, concurrent Summary delivery, YAML declaration conflicts, non-Company scheduler-owner provisioning and Gemini schema expectations.
+
+**Result:** 287 focused Company/router/network/retention tests passed across SQLite, async SQLite, PostgreSQL and async PostgreSQL. Another 589 filesystem/reader/execution checks passed, including real Agent and Team website-discovery runs through the durable scheduler queue. Three final configuration/dispatch/directory checks passed. Format and validation passed with full output inspected. Broad unit and final integration results will be recorded in a normal follow-up commit.
+
+### Company cookbooks
+
+**Status:** PASS
+
+**Description:** Ran `01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`, `04_manage_playbook.py`, `05_product_manager.py`, `06_execute_tasks.py`, `07_cascading_archive.py`, `07_heartbeat.py` and `08_custom_routines.py`; also ran `06_execute_tasks.py` with `COMPANY_DB=postgres` and `07_cascading_archive.py --postgres`.
+
+**Result:** All 11 invocations succeeded with deterministic local models. No live model calls, live website fetches or outbound messages. Website security tests use mocked transport/DNS. Delivery tests use mocked interface sends.
+
+---
+

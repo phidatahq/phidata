@@ -4,8 +4,21 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+from agno.company.summary import _serialized_summary
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.schemas.products import validate_product_fields
+
+
+def _project_proposal_id(product_id: str, name: str) -> Optional[str]:
+    from uuid import NAMESPACE_URL, uuid5
+
+    from agno.company.routines import _RoutineAuthorization
+    from agno.run.authorization import current_authorization
+
+    authority = current_authorization()
+    if isinstance(authority, _RoutineAuthorization):
+        return str(uuid5(NAMESPACE_URL, f"company-project/{product_id}/{authority.routine_id}/{name}"))
+    return None
 
 
 class CompanyManager:
@@ -96,24 +109,32 @@ class CompanyManager:
         scoped_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create project work; scoped_user_id filters parents while user_id records the creator."""
+        from agno.company.routines import _require_routine_product
         from agno.db.schemas.projects import validate_project_fields
 
+        _require_routine_product(product_id)
         fields = {"name": name, "outcome": outcome, "target_date": target_date}
         validate_project_fields(fields)
         if self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
+        proposal_id = _project_proposal_id(product_id, name)
+        if proposal_id is not None:
+            existing = self.db.get_project(proposal_id, include_deleted=True)
+            if existing is not None:
+                return existing
         return self.db.create_project(
             {
                 **fields,
                 "product_id": product_id,
-                "id": str(uuid4()),
+                "id": proposal_id or str(uuid4()),
                 "status": "proposed",
                 "user_id": user_id,
                 "transitions": [],
                 "created_at": int(time.time()),
                 "updated_at": None,
                 "deleted_at": None,
-            }
+            },
+            reuse=proposal_id is not None,
         )
 
     def get_project(
@@ -167,6 +188,11 @@ class CompanyManager:
         self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
     ) -> bool:
         """Archive a Project and its Tasks atomically; active Tasks raise ValueError."""
+        from agno.company.routines import _require_routine_product
+
+        record = self.db.get_project(project_id)
+        if record is not None:
+            _require_routine_product(record["product_id"])
         return self.db.delete_project(project_id, user_id=user_id, updated_before=updated_before)
 
     def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -557,6 +583,10 @@ class CompanyManager:
         from agno.company.playbook import _require_owner
 
         source = self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None:
             return False
         product = self.get(source["product_id"])
@@ -583,6 +613,10 @@ class CompanyManager:
         from agno.company.sources import read_source
 
         source = self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None or self.get(source["product_id"]) is None:
             raise LookupError("Source not found")
         return read_source(source, run_id, links=links)
@@ -602,6 +636,10 @@ class CompanyManager:
         from agno.company.sources import browse_source
 
         source = self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None or self.get(source["product_id"]) is None:
             raise LookupError("Source not found")
         return browse_source(source, run_id, path, pattern, offset, limit, content_offset, max_chars)
@@ -619,6 +657,10 @@ class CompanyManager:
         from agno.company.sources import _proposal_fields
 
         source = self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None:
             raise LookupError("Source not found")
         proposal = IntakeProposal.model_validate(proposal)
@@ -647,6 +689,7 @@ class CompanyManager:
 
         return refresh_product(self, product_id, user_id)
 
+    @_serialized_summary
     def summarize(self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None):
         """Write the observed report to the wiki and deliver using Product configuration."""
         from agno.company.playbook import _require_owner
@@ -789,24 +832,32 @@ class AsyncCompanyManager:
         scoped_user_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create project work; scoped_user_id filters parents while user_id records the creator."""
+        from agno.company.routines import _require_routine_product
         from agno.db.schemas.projects import validate_project_fields
 
+        _require_routine_product(product_id)
         fields = {"name": name, "outcome": outcome, "target_date": target_date}
         validate_project_fields(fields)
         if await self.db.get_product(product_id, user_id=scoped_user_id) is None:
             raise LookupError("Product not found")
+        proposal_id = _project_proposal_id(product_id, name)
+        if proposal_id is not None:
+            existing = await self.db.get_project(proposal_id, include_deleted=True)
+            if existing is not None:
+                return existing
         return await self.db.create_project(
             {
                 **fields,
                 "product_id": product_id,
-                "id": str(uuid4()),
+                "id": proposal_id or str(uuid4()),
                 "status": "proposed",
                 "user_id": user_id,
                 "transitions": [],
                 "created_at": int(time.time()),
                 "updated_at": None,
                 "deleted_at": None,
-            }
+            },
+            reuse=proposal_id is not None,
         )
 
     async def get_project(
@@ -860,6 +911,11 @@ class AsyncCompanyManager:
         self, project_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None
     ) -> bool:
         """Archive a Project and its Tasks atomically; active Tasks raise ValueError."""
+        from agno.company.routines import _require_routine_product
+
+        record = await self.db.get_project(project_id)
+        if record is not None:
+            _require_routine_product(record["product_id"])
         return await self.db.delete_project(project_id, user_id=user_id, updated_before=updated_before)
 
     async def restore_project(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -1254,6 +1310,10 @@ class AsyncCompanyManager:
         from agno.company.playbook import _require_owner
 
         source = await self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None:
             return False
         product = await self.get(source["product_id"])
@@ -1280,6 +1340,10 @@ class AsyncCompanyManager:
         from agno.company.sources import aread_source
 
         source = await self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None or await self.get(source["product_id"]) is None:
             raise LookupError("Source not found")
         return await aread_source(source, run_id, links=links)
@@ -1299,6 +1363,10 @@ class AsyncCompanyManager:
         from agno.company.sources import abrowse_source
 
         source = await self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None or await self.get(source["product_id"]) is None:
             raise LookupError("Source not found")
         return await abrowse_source(source, run_id, path, pattern, offset, limit, content_offset, max_chars)
@@ -1316,6 +1384,10 @@ class AsyncCompanyManager:
         from agno.company.sources import _proposal_fields
 
         source = await self.get_source(source_id)
+        from agno.company.routines import _require_routine_product
+
+        if source is not None:
+            _require_routine_product(source["product_id"])
         if source is None:
             raise LookupError("Source not found")
         proposal = IntakeProposal.model_validate(proposal)
@@ -1344,6 +1416,7 @@ class AsyncCompanyManager:
 
         return await arefresh_product(self, product_id, user_id)
 
+    @_serialized_summary
     async def summarize(
         self, product_id: str, run_id: str, interfaces: Any, narrative: str, user_id: Optional[str] = None
     ):

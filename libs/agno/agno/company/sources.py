@@ -192,7 +192,7 @@ def _documents(source: Dict[str, Any], paths: Optional[List[str]] = None) -> Lis
     if source["type"] == "website":
         from agno.knowledge.reader.website_reader import WebsiteReader
 
-        return WebsiteReader(chunk=False, max_depth=0, max_links=1).read(reference)
+        return WebsiteReader(chunk=False, max_depth=0, max_links=1, public_only=True).read(reference)
     from agno.knowledge.reader.markdown_reader import MarkdownReader
 
     provider, workspace, paths, explicit = _local_files(source, paths=paths)

@@ -107,6 +107,8 @@ served = DockerSandbox(
     image=IMAGE,
     namespace="resilience-" + uuid4().hex,
     network="isolated",
+    # A host whose networks overlap the default range sets AGNO_SANDBOX_SUBNET to a free one.
+    subnet=os.environ.get("AGNO_SANDBOX_SUBNET", "172.30.0.0/22"),
     memory_mb=512,
     runtime_port=8765,
 )

@@ -23,6 +23,8 @@ def create_agent_os() -> AgentOS:
         os.environ["SANDBOX_RUNTIME_IMAGE"],
         namespace="agentos-sandbox-example",
         network="none" if harness == "fixture" else "isolated",
+        # A host whose networks overlap the default range sets AGNO_SANDBOX_SUBNET to a free one.
+        subnet=os.environ.get("AGNO_SANDBOX_SUBNET", "172.30.0.0/22"),
         checkpoints=FileCheckpointStore(
             Path(os.environ["SANDBOX_CHECKPOINT_DIRECTORY"])
         ),

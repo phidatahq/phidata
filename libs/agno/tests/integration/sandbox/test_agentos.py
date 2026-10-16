@@ -10,7 +10,7 @@ from uuid import uuid4
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from agno.db.postgres import PostgresDb
 from agno.job_queue.config import QueueConfig, RedisCoordination
@@ -30,7 +30,7 @@ pytestmark = [
 
 
 @pytest_asyncio.fixture
-async def service(tmp_path):
+async def service(tmp_path, request):
     import redis
     import redis.asyncio
 
@@ -82,6 +82,8 @@ async def service(tmp_path):
         max_attempts=2,
         retry_delay_seconds=0,
         stop_timeout_seconds=1,
+        # Indirect parametrization overrides queue settings for one test.
+        **getattr(request, "param", {}),
     )
     app = AgentOS(id=prefix, agents=[agent], db=db, queue=config, telemetry=False).get_app()
     try:
@@ -326,6 +328,122 @@ async def test_missing_durable_queue_rejects_before_allocating(service):
         )
     assert response.status_code == 400 and "durable queue" in response.text
     assert not handles
+
+
+def _earlier_build_bindings_table(db):
+    """Replace the bindings table with the shape an earlier build created: no run_id foreign key."""
+    sessions, home, name = db.session_table_name, db.db_schema, db.sandbox_table_name
+    with db.db_engine.begin() as connection:
+        connection.execute(text(f'DROP TABLE IF EXISTS "{home}"."{name}"'))
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{name}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                "user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar, queue_attempt bigint, "
+                "expires_at timestamptz, record jsonb NOT NULL, PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    db._invalidate_table_cache(name)
+
+
+async def test_outdated_bindings_table_fails_startup_with_its_remedy(service):
+    _, agent, _, _ = service
+    from agno.sandbox.base import SandboxError
+    from agno.sandbox.postgres import _SandboxStore
+
+    suffix = uuid4().hex[:12]
+    db = PostgresDb(
+        db_url=URL,
+        session_table="startup_sessions_" + suffix,
+        runs_table="startup_runs_" + suffix,
+        sandbox_table="startup_bindings_" + suffix,
+    )
+    stale = FixtureAgent(id="stale", sandbox=agent.sandbox)
+    try:
+        await _SandboxStore(db)._ensure_tables()
+        _earlier_build_bindings_table(db)
+        for auto_provision_dbs in (True, False):
+            app = AgentOS(
+                id="stale-" + suffix, agents=[stale], db=db, telemetry=False, auto_provision_dbs=auto_provision_dbs
+            ).get_app()
+            with pytest.raises(SandboxError) as refused:
+                async with app.router.lifespan_context(app):
+                    pass
+            assert "does not reference run table" in str(refused.value)
+            assert "pass PostgresDb(sandbox_table=...)" in str(refused.value)
+        # A deployment that provisions its own tables is validated, never provisioned, at startup.
+        with db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{db.db_schema}"."{db.sandbox_table_name}"'))
+        db._invalidate_table_cache(db.sandbox_table_name)
+        app = AgentOS(id="unprovisioned-" + suffix, agents=[stale], db=db, telemetry=False, auto_provision_dbs=False)
+        app = app.get_app()
+        async with app.router.lifespan_context(app):
+            pass
+        assert not db.table_exists(db.sandbox_table_name), "startup did not create the bindings table"
+    finally:
+        with db.db_engine.begin() as connection:
+            for table in ("startup_bindings_", "startup_runs_", "startup_sessions_"):
+                connection.execute(text(f'DROP TABLE IF EXISTS "{db.db_schema}"."{table + suffix}"'))
+        db.db_engine.dispose()
+
+
+@pytest.mark.parametrize("service", [{"lock_grace_seconds": 3}], indirect=True)
+async def test_outdated_bindings_table_refuses_submissions_and_fails_claimed_tickets(service):
+    client, agent, app, handles = service
+    worker = app.state.queue_worker
+    _earlier_build_bindings_table(agent.db)
+    for _, built in _harness._coordinators.get(agent.sandbox, []):
+        built.store._tables_ready = False
+
+    # A submission is refused before any ticket exists, with the remedy in the response.
+    response = await client.post(
+        "/agents/coder/runs", data={"message": "stale", "session_id": "session", "stream": "false"}
+    )
+    assert response.status_code == 500, response.text
+    assert "does not reference run table" in response.text and "sandbox_table" in response.text
+    assert await worker.store.count_queued_jobs() == 0 and not handles
+
+    # A ticket that reached the queue anyway (a replica without the check) must still settle as
+    # failed: the terminal persist cannot go through the bindings table it cannot use.
+    from agno.db.schemas.jobs import QueuedJob
+
+    job = QueuedJob(
+        id="stale-" + uuid4().hex[:8],
+        component_type="agent",
+        component_id="coder",
+        session_id="session",
+        payload={"input": "stale", "kwargs": {}, "stream": True, "serialize_session": True},
+        max_attempts=worker.config.max_attempts,
+    ).to_dict()
+    assert (await worker.store.enqueue_job(job, max_depth=10))["accepted"] is True
+    settled_job = await settled(app, job["id"])
+    assert settled_job["status"] == "failed", settled_job
+    assert not handles, "no computer was ever created for the turn"
+
+
+@pytest.mark.parametrize(("first_user", "second_user"), [(None, "someone"), ("owner", None), ("owner", "someone")])
+async def test_submission_on_a_session_another_user_holds_is_refused_before_any_ticket(
+    service, first_user, second_user
+):
+    client, agent, app, handles = service
+    worker = app.state.queue_worker
+    data = {"message": "mine", "session_id": "held", "stream": "false", "background": "true"}
+    if first_user is not None:
+        data["user_id"] = first_user
+    first = await client.post("/agents/coder/runs", data=data)
+    assert first.status_code == 202, first.text
+    assert (await settled(app, first.json()["run_id"]))["status"] == "completed"
+    created = len(handles)
+
+    data["message"] = "theirs"
+    data.pop("user_id", None)
+    if second_user is not None:
+        data["user_id"] = second_user
+    second = await client.post("/agents/coder/runs", data=data)
+    assert second.status_code == 404 and second.json()["detail"] == "Session not found", second.text
+    assert len(handles) == created, "no computer was created for the refused turn"
+    jobs, total = await worker.store.list_jobs(limit=50)
+    assert total == 1 and jobs[0]["id"] == first.json()["run_id"], "the refused submission left no ticket"
 
 
 async def test_cancel_detached_direct_sdk_run_retires_computer(service):

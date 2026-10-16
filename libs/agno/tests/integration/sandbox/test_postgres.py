@@ -13,6 +13,7 @@ import pytest_asyncio
 from sqlalchemy import create_engine, delete, event, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 
+from agno.db.base import SessionType
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.sandbox.base import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointRef
@@ -267,6 +268,67 @@ async def test_staging_is_not_completion_and_commit_is_atomic(store):
     with pytest.raises(SandboxRunFinished) as caught:
         await claim(store)
     assert caught.value.run == run["run_data"]  # lost commit acknowledgement
+
+
+async def test_durable_completion_walkthrough(store):
+    """One session, two turns, the way the coordinator drives the store.
+
+    Turn 1 finishes in the sandbox, but its run stays RUNNING until the checkpoint is staged
+    and the computer is confirmed stopped; one transaction then completes the run and points
+    the session at the checkpoint. During turn 2 the session is renamed mid-turn (what the
+    AgentOS session PATCH does) without touching the lease, the coordinator stops renewing,
+    a second coordinator takes the turn over and the first one's late write is refused, and
+    cancelling the turn keeps turn 1's checkpoint as the recovery point.
+    """
+    await seed(store)
+    state = await claim(store, owner="first")
+    await store.aset_computer(state.lease, computer(state))
+    state = await store.astage_result(state.lease, result(state.lease))
+    run, session, _ = await rows(store)
+    assert run["status"] == "RUNNING" and "sandbox" not in session["session_data"], "staged is not completed"
+    state = await store.astage_checkpoint(state.lease, REF)
+    state = await store.aconfirm_stopped(state.lease, "ref")
+    assert (await store.acommit(state.lease))["status"] == "COMPLETED"
+    run, session, binding = await rows(store)
+    assert run["status"] == "COMPLETED"
+    assert session["session_data"]["sandbox"]["checkpoint"]["sha256"] == REF.sha256
+    assert binding["record"]["checkpoint"]["sha256"] == REF.sha256
+
+    await seed(store, run_id="run-2")
+    stalled = await claim(store, run_id="run-2", owner="stalled")
+    # The session PATCH route reads the session, edits it and upserts the whole row back.
+    if isinstance(store.db, AsyncPostgresDb):
+        renamed = await store.db.get_session(session_id="session", session_type=SessionType.AGENT)
+    else:
+        renamed = await asyncio.to_thread(store.db.get_session, session_id="session", session_type=SessionType.AGENT)
+    renamed.session_data = {**(renamed.session_data or {}), "session_name": "renamed"}
+    if isinstance(store.db, AsyncPostgresDb):
+        await store.db.upsert_session(renamed)
+    else:
+        await asyncio.to_thread(store.db.upsert_session, renamed)
+    assert (await store.aget(stalled.lease)).lease == stalled.lease, "a session edit mid-turn keeps the lease"
+    await store._transaction(
+        lambda c: c.execute(update(store.bindings).values(expires_at=func.clock_timestamp() - timedelta(seconds=1)))
+    )
+    takeover = await claim(store, run_id="run-2", owner="second")
+    assert takeover.lease.epoch == stalled.lease.epoch + 1
+    with pytest.raises(SandboxLeaseLost):
+        await store.aset_computer(stalled.lease, computer(stalled))
+
+    state = await store.abegin_stop(takeover.lease, status="CANCELLED", reason="Cancelled by the user")
+    assert state.record["phase"] == "stopping", "the stop intent is recorded before compute is touched"
+    assert (await store.afinish_stop(state.lease))["status"] == "CANCELLED"
+    statuses, session, binding = await store._transaction(
+        lambda c: (
+            dict(c.execute(select(store.runs.c.run_id, store.runs.c.status)).all()),
+            dict(c.execute(select(store.sessions)).mappings().one()),
+            dict(c.execute(select(store.bindings)).mappings().one()),
+        )
+    )
+    assert statuses == {"run": "COMPLETED", "run-2": "CANCELLED"}
+    assert session["session_data"]["session_name"] == "renamed"
+    assert session["session_data"]["sandbox"]["checkpoint"]["sha256"] == REF.sha256, "turn 1 stays the recovery point"
+    assert binding["record"]["checkpoint"]["sha256"] == REF.sha256 and binding["record"]["phase"] == "idle"
 
 
 async def test_write_failure_rolls_back_run_and_checkpoint_publication(store):
@@ -844,6 +906,63 @@ async def test_bindings_table_not_cascading_session_deletes_is_refused(store):
     try:
         with pytest.raises(SandboxError, match="cascade"):
             await store._ensure_tables()
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)
+
+
+async def test_bindings_table_from_an_earlier_build_names_its_remedy(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # The shape an earlier build of this package created: no foreign key from run_id to the run table.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                "user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar, queue_attempt bigint, "
+                "expires_at timestamptz, record jsonb NOT NULL, PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError) as refused:
+            await store._ensure_tables()
+        message = str(refused.value)
+        assert f"{home}.{b} does not reference run table {home}.{store.db.runs_table_name}" in message
+        assert "drop or rename that table, or pass PostgresDb(sandbox_table=...)" in message
+        # Every later call refuses again; nothing was cached as ready.
+        with pytest.raises(SandboxError, match="sandbox_table"):
+            await store.aprepare({"run_id": "r", "session_id": "s", "agent_id": "agent", "status": "PENDING"})
+    finally:
+        with store.db.db_engine.begin() as connection:
+            connection.execute(text(f'DROP TABLE "{home}"."{b}"'))
+        store.db._invalidate_table_cache(b)
+
+
+async def test_bindings_table_missing_a_column_names_the_same_remedy(store):
+    if isinstance(store.db, AsyncPostgresDb):
+        pytest.skip("Table setup uses the sync engine")
+    sessions = await store._table("sessions", store.db.session_table_name)
+    runs = await store._table("runs", store.db.runs_table_name)
+    b, home = store.db.sandbox_table_name, store.db.db_schema
+    # Right keys, but no queue_attempt column: the adapter's own schema check refuses it.
+    with store.db.db_engine.begin() as connection:
+        connection.execute(
+            text(
+                f'CREATE TABLE "{home}"."{b}" (namespace varchar NOT NULL, session_id varchar NOT NULL '
+                f'REFERENCES "{home}"."{sessions.name}" (session_id) ON DELETE CASCADE, agent_id varchar NOT NULL, '
+                f'user_id varchar, epoch bigint NOT NULL, owner varchar, run_id varchar REFERENCES "{home}"."{runs.name}" '
+                "(run_id), expires_at timestamptz, record jsonb NOT NULL, PRIMARY KEY (namespace, session_id))"
+            )
+        )
+    try:
+        with pytest.raises(SandboxError, match="does not have the columns") as refused:
+            await store._ensure_tables()
+        assert "pass PostgresDb(sandbox_table=...)" in str(refused.value)
     finally:
         with store.db.db_engine.begin() as connection:
             connection.execute(text(f'DROP TABLE "{home}"."{b}"'))

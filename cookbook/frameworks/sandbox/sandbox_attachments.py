@@ -38,6 +38,8 @@ agent = ClaudeAgent(
     sandbox=DockerSandbox(
         os.getenv("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
         network="isolated",
+        # A host whose networks overlap the default range sets AGNO_SANDBOX_SUBNET to a free one.
+        subnet=os.environ.get("AGNO_SANDBOX_SUBNET", "172.30.0.0/22"),
         memory_mb=1024,
     ),
 )

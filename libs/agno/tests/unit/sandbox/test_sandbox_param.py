@@ -251,6 +251,36 @@ def test_queue_terminal_writer_exists_only_with_a_sandbox(sandbox):
     assert queue_terminal_writer(ClaudeAgent(id="coder", sandbox=sandbox)) is not None
 
 
+@pytest.mark.asyncio
+async def test_queue_terminal_bypasses_an_unusable_bindings_table(sandbox, monkeypatch):
+    from agno.db.postgres import PostgresDb
+    from agno.run.status_persist import RunPersistOutcome
+    from agno.sandbox.base import SandboxError
+
+    db = MagicMock(spec=PostgresDb)
+    db.update_run_in_session.return_value = RunPersistOutcome.MISSING
+    agent = ClaudeAgent(id="coder", db=db, sandbox=sandbox)
+    fake = MagicMock()
+
+    async def refuse():
+        raise SandboxError("Sandbox table ai.bindings does not reference run table ai.runs; drop or rename")
+
+    fake.store._ensure_tables = refuse
+    fake._aterminate = MagicMock(side_effect=AssertionError("no compute to retire"))
+    monkeypatch.setattr(_harness, "coordinator", lambda agent: fake)
+    job = {"id": "run-1", "session_id": "s", "user_id": "u", "attempt": 2}
+    outcome = await _harness.apersist_queue_terminal(agent, job, "boom", "error", None)
+    assert outcome is RunPersistOutcome.MISSING
+    db.update_run_in_session.assert_called_once_with(
+        session_id="s",
+        run_id="run-1",
+        fields={"status": "ERROR"},
+        expected_attempt=2,
+        user_id="u",
+        content_if_absent="boom",
+    )
+
+
 def test_coordinator_is_built_once_per_sandbox_and_database(tmp_path, monkeypatch):
     from agno.db.postgres import PostgresDb
     from agno.sandbox.checkpoint import FileCheckpointStore

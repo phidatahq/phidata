@@ -40,6 +40,8 @@ sandbox = DockerSandbox(
     image=os.environ.get("AGNO_SANDBOX_IMAGE", "agno-sandbox:local"),
     namespace="claude-runtime-" + uuid4().hex,
     network="isolated",
+    # A host whose networks overlap the default range sets AGNO_SANDBOX_SUBNET to a free one.
+    subnet=os.environ.get("AGNO_SANDBOX_SUBNET", "172.30.0.0/22"),
     memory_mb=1024,
     # The container serves the runtime over HTTP on a loopback-published port, so start and
     # poll are pooled requests instead of a docker exec each.

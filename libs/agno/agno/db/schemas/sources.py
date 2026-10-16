@@ -31,8 +31,21 @@ def validate_source_fields(fields: Dict[str, Any]) -> None:
         raise ValueError("credential_ref must name an environment variable")
     config = fields.get("config")
     if config is not None:
-        if not isinstance(config, dict) or set(config) - {"paths"}:
-            raise ValueError("Source config supports only paths; credentials belong in the environment")
+        if not isinstance(config, dict) or set(config) - (
+            {"paths", "branch"} if fields.get("type") == "git" else {"paths"}
+        ):
+            raise ValueError("Source config supports paths and a git branch; credentials belong in the environment")
         paths = config.get("paths", [])
         if not isinstance(paths, list) or not all(isinstance(path, str) and path.strip() for path in paths):
             raise ValueError("paths must be a list of non-empty relative file paths")
+
+    if fields.get("type") == "git":
+        from agno.sandbox.repository import Repository
+
+        reference = fields.get("reference", "")
+        branch = (config or {}).get("branch", "main")
+        # A URL must satisfy Repository's exact GitHub HTTPS rule. Local paths remain read-only.
+        if urlsplit(reference).scheme or reference.startswith(("//", "git@")):
+            Repository(reference, branch)
+        elif config is not None and "branch" in config:
+            Repository("https://github.com/validation/repository", branch)

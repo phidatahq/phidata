@@ -269,6 +269,7 @@ def _builtin_component_metadata(component: Any) -> Optional[Dict[str, Any]]:
 
 
 class AgentSummaryResponse(BaseModel):
+    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the agent")
     name: Optional[str] = Field(None, description="Name of the agent")
     description: Optional[str] = Field(None, description="Description of the agent")
@@ -278,6 +279,8 @@ class AgentSummaryResponse(BaseModel):
 
     @classmethod
     def from_agent(cls, agent: Union[Agent, AgentProtocol, RemoteAgent, AgentFactory]) -> "AgentSummaryResponse":
+        from agno.agents.base import BaseExternalAgent
+
         agent_db = getattr(agent, "db", None)
         # Built-in adapters expose sdk. The framework fallback is only for third-party adapters that
         # satisfy AgentProtocol structurally and predate the rename; drop it with the framework alias.
@@ -300,10 +303,12 @@ class AgentSummaryResponse(BaseModel):
             db_id=agent_db.id if agent_db else None,
             model=_extract_model(agent),
             metadata=metadata,
+            sandboxed=isinstance(agent, BaseExternalAgent) and agent.sandbox is not None,
         )
 
 
 class TeamSummaryResponse(BaseModel):
+    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the team")
     name: Optional[str] = Field(None, description="Name of the team")
     description: Optional[str] = Field(None, description="Description of the team")
@@ -337,6 +342,7 @@ class TeamSummaryResponse(BaseModel):
 
 
 class WorkflowSummaryResponse(BaseModel):
+    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the workflow")
     name: Optional[str] = Field(None, description="Name of the workflow")
     description: Optional[str] = Field(None, description="Description of the workflow")
@@ -1320,6 +1326,7 @@ RegistryMetadata = Union[
 
 
 class RegistryContentResponse(BaseModel):
+    sandboxed: bool = False
     name: str
     type: RegistryResourceType
     id: Optional[str] = None

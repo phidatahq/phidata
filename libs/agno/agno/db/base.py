@@ -1998,6 +1998,7 @@ class BaseDb(ABC):
         job_id: str,
         result: Dict[str, Any],
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
+        checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
@@ -3962,6 +3963,7 @@ class AsyncBaseDb(ABC):
         job_id: str,
         result: Dict[str, Any],
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
+        checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")

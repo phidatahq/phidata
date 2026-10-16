@@ -386,7 +386,22 @@ class CompanyManager:
         if target == "ready":
             from agno.company.execution import _executor
 
-            _executor(self.registry, executor_type, executor_id, accepting=True)
+            component = _executor(self.registry, executor_type, executor_id, accepting=True)
+            from agno.company.sandbox import _accept_sandbox, _is_sandboxed
+
+            if _is_sandboxed(component):
+                existing = self.db.get_task(task_id, user_id=user_id)
+                if existing is None:
+                    return None
+                sources = []
+                page = 1
+                while True:
+                    rows, total = self.db.get_sources(product_id=existing["product_id"], limit=100, page=page)
+                    sources.extend(rows)
+                    if page * 100 >= total:
+                        break
+                    page += 1
+                _accept_sandbox(component, sources)
         return self.db.transition_task(
             task_id,
             target,
@@ -1177,7 +1192,22 @@ class AsyncCompanyManager:
         if target == "ready":
             from agno.company.execution import _executor
 
-            _executor(self.registry, executor_type, executor_id, accepting=True)
+            component = _executor(self.registry, executor_type, executor_id, accepting=True)
+            from agno.company.sandbox import _accept_sandbox, _is_sandboxed
+
+            if _is_sandboxed(component):
+                existing = await self.db.get_task(task_id, user_id=user_id)
+                if existing is None:
+                    return None
+                sources = []
+                page = 1
+                while True:
+                    rows, total = await self.db.get_sources(product_id=existing["product_id"], limit=100, page=page)
+                    sources.extend(rows)
+                    if page * 100 >= total:
+                        break
+                    page += 1
+                _accept_sandbox(component, sources)
         return await self.db.transition_task(
             task_id,
             target,

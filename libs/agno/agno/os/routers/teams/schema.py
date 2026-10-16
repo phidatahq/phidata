@@ -22,6 +22,7 @@ from agno.utils.agent import aexecute_instructions, aexecute_system_message
 
 
 class TeamResponse(BaseModel):
+    sandboxed: bool = False
     id: Optional[str] = None
     name: Optional[str] = None
     db_id: Optional[str] = None

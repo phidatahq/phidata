@@ -79,6 +79,7 @@ def get_workflow_input_schema_dict(workflow: Workflow) -> Optional[Dict[str, Any
 
 
 class WorkflowResponse(BaseModel):
+    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the workflow")
     name: Optional[str] = Field(None, description="Name of the workflow")
     db_id: Optional[str] = Field(None, description="Database identifier")

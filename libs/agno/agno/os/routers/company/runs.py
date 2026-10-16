@@ -1,5 +1,6 @@
 """Task run routes: authorize, then enter the existing executor route and queue."""
 
+import asyncio
 from typing import Any, Dict, Optional
 from urllib.parse import quote, urlencode
 
@@ -35,6 +36,7 @@ async def _run_route(
     form: Optional[Dict[str, str]] = None,
     key: Optional[str] = None,
     session_id: Optional[str] = None,
+    checkout: Optional[Dict[str, Any]] = None,
 ) -> Response:
     """Enter the real FastAPI route with its dependencies and trusted caller state.
 
@@ -57,6 +59,8 @@ async def _run_route(
     state = dict(request.scope.get("state") or {})
     for name in ("session_id", "session_state", "dependencies", "metadata"):
         state.pop(name, None)
+    if checkout is not None:
+        state["metadata"] = {"repository": {"commit": checkout["commit"]}}
     scope = {
         **request.scope,
         "method": method,
@@ -130,6 +134,32 @@ def get_company_runs_router(os: Any) -> APIRouter:
     @router.post("/tasks/{task_id}/runs", status_code=202)
     async def start(task_id: str, request: Request, body: TaskRunCreate = TaskRunCreate(), _: bool = Depends(auth)):
         value = await task(task_id)
+        from agno.company.sandbox import _is_sandboxed
+        from agno.os.routers.company.sandbox import _sandbox_start_gate
+
+        if _is_sandboxed(executor(value)):
+            from agno.company.execution import _automatic_task
+
+            if _automatic_task.get() is None:
+                await _require_endpoint_permission(request, endpoint(value), "POST", action="accept")
+
+            async def admit():
+                async with _sandbox_start_gate(os, value, worker(request)):
+                    return await dispatch(task_id, request, body, value)
+
+            # A disconnected caller must not release admission while an off-thread
+            # queue INSERT can still commit. Finish submission under the same lock.
+            pending = asyncio.create_task(admit())
+            try:
+                return await asyncio.shield(pending)
+            except asyncio.CancelledError:
+                try:
+                    await asyncio.shield(pending)
+                finally:
+                    raise
+        return await dispatch(task_id, request, body, value)
+
+    async def dispatch(task_id: str, request: Request, body: TaskRunCreate, value: Dict[str, Any]):
         from agno.company.execution import _automatic_task
 
         observed = _automatic_task.get()
@@ -267,6 +297,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     **({"user_id": caller} if caller is not None else {}),
                 },
                 key=f"company:{task_id}:{body.attempt}",
+                checkout=(value.get("metadata") or {}).get("checkout"),
             )
         finally:
             _task_submission.reset(token)

@@ -21,11 +21,19 @@ def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -
         raise HTTPException(status_code=403, detail="Cannot modify task owned by another user")
 
 
-def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
+def get_tasks_router(
+    db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings, registry: Any = None
+) -> APIRouter:
     """Build Task routes using native async storage or off-thread sync calls."""
     router = APIRouter(prefix="/company", tags=["Tasks"])
     auth_dependency = get_authentication_dependency(settings)
-    manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db) if db is not None else None
+    manager = (
+        AsyncCompanyManager(db, registry=registry)
+        if isinstance(db, AsyncBaseDb)
+        else CompanyManager(db, registry=registry)
+        if db is not None
+        else None
+    )
 
     async def _call(
         method: Literal[
@@ -64,6 +72,7 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
         product_id: Optional[str] = Query(None),
         status: Optional[TaskStatus] = Query(None),
         project_id: Optional[str] = Query(None),
+        failed: Optional[bool] = Query(None),
         _: bool = Depends(auth_dependency),
     ) -> PaginatedResponse[TaskResponse]:
         rows, total = await _call(
@@ -75,6 +84,7 @@ def get_tasks_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPI
             product_id=product_id,
             status=status,
             project_id=project_id,
+            failed=failed,
         )
         return PaginatedResponse(
             data=[TaskResponse(**row) for row in rows],

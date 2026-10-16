@@ -7,9 +7,12 @@ import jwt
 import pytest
 from fastapi.testclient import TestClient
 
+from agno.agent import Agent
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.os import AgentOS, CompanyConfig
 from agno.os.config import AuthorizationConfig
+from agno.team import Team
+from agno.workflow import Workflow
 
 SECRET = "company-tasks-isolation-tests"
 OS_ID = "company-tasks-tests"
@@ -41,6 +44,9 @@ def make_client(request, tmp_path):
         dbs.append(db)
         return TestClient(
             AgentOS(
+                agents=[Agent(id="writer")],
+                teams=[Team(id="writer", members=[])],
+                workflows=[Workflow(id="writer", steps=[])],
                 id=OS_ID,
                 db=db,
                 company=CompanyConfig(),
@@ -175,6 +181,9 @@ def test_service_account_scopes_on_company_routes(tmp_path, authorization):
         }
     )
     app = AgentOS(
+        agents=[Agent(id="writer")],
+        teams=[Team(id="writer", members=[])],
+        workflows=[Workflow(id="writer", steps=[])],
         id=OS_ID,
         db=db,
         company=CompanyConfig(),
@@ -204,7 +213,14 @@ def test_task_scopes_catalog_is_opt_in(enabled, tmp_path):
 
     router = get_roles_router(MagicMock())
     db = SqliteDb(db_file=str(tmp_path / "catalog.db"))
-    app = AgentOS(db=db, company=CompanyConfig() if enabled else None, telemetry=False).get_app()
+    app = AgentOS(
+        agents=[Agent(id="writer")],
+        teams=[Team(id="writer", members=[])],
+        workflows=[Workflow(id="writer", steps=[])],
+        db=db,
+        company=CompanyConfig() if enabled else None,
+        telemetry=False,
+    ).get_app()
     app.dependency_overrides[router.dependencies[0].dependency] = lambda: "admin"
     app.include_router(router)
     with TestClient(app) as client:
@@ -315,6 +331,9 @@ async def test_run_target_permission_with_async_managed_roles(tmp_path, resource
     await engine.aset_role_scopes("editor", [(scope, "allow") for scope in scopes])
     await engine.aassign("alice", "editor")
     app = AgentOS(
+        agents=[Agent(id="writer")],
+        teams=[Team(id="writer", members=[])],
+        workflows=[Workflow(id="writer", steps=[])],
         id=OS_ID,
         db=db,
         company=CompanyConfig(),

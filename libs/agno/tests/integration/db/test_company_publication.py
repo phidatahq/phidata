@@ -504,3 +504,25 @@ async def test_concurrent_publications_create_one_pr(db, remote, api):
     assert api.creates == 1
     await apublish_task(db, task["id"])
     assert api.creates == 1
+
+
+@pytest.mark.asyncio
+async def test_policy_checks_inspect_the_selected_attempt(db, remote, api, monkeypatch):
+    import agno.company.publish as publisher
+
+    _, task = await prepare(db, remote)
+    original_run = task["result"]["run_id"]
+    await complete(db, remote, task, 2)
+
+    async def policy(*args):
+        return {"required_checks": ["selected_run"]}
+
+    def selected_run(candidate, manager):
+        return candidate["result"]["run_id"] == original_run
+
+    monkeypatch.setattr(publisher, "_policy", policy)
+    with pytest.raises(ValueError, match="Required publication check failed"):
+        await apublish_task(db, task["id"], checks={"selected_run": selected_run})
+    assert not remote.calls
+    await apublish_task(db, task["id"], attempt=1, checks={"selected_run": selected_run})
+    assert api.creates == 1

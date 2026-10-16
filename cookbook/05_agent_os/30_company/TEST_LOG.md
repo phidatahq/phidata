@@ -3201,3 +3201,13 @@ passed. PR 7.2 head `b53e7f51f1` was integrated with a normal merge commit.
 **Result:** Follow-up assertions pass; production code is unchanged from the first PR publication. The wider sweeps remain in progress.
 
 ---
+
+### Selected-attempt policy checks
+
+**Status:** PASS
+
+**Description:** Four SQLite/PostgreSQL sync/async cases verify that registered publication checks inspect the explicitly requested attempt's stored result. A check that approves attempt 1 refuses latest attempt 2 and permits an explicit publication of attempt 1.
+
+**Result:** All four cases passed. This corrects the check input for older-attempt publication; GitHub check runs continue to target the exact generated head.
+
+---

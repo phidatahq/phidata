@@ -264,7 +264,7 @@ async def apublish_task(
 
             manager = (AsyncCompanyManager if isinstance(db, AsyncBaseDb) else CompanyManager)(db)
         policy = await _policy(db, task, schedule_db)
-        required = await _checks(policy, manager, task, checks)
+        required = await _checks(policy, manager, {**task, "result": artifact}, checks)
         github = _github(token)
         repo = url.removeprefix("https://github.com/").removesuffix(".git")
         env = _git_env(url, token)

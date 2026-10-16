@@ -150,3 +150,19 @@ def test_company_executor_cannot_acquire_schedule_mutation_authority():
         with pytest.raises(PermissionError, match="schedules"):
             asyncio.run(authority.arequire("schedules", action))
     authority.require("schedules", "read")
+
+
+def test_run_routes_without_company_database():
+    app = AgentOS(company=CompanyConfig(), telemetry=False).get_app()
+    with TestClient(app) as client:
+        assert client.get("/company/runs/missing").status_code == 503
+        assert client.post("/company/runs/missing/cancel").status_code == 503
+
+
+def test_missing_product_context_does_not_reserve_execution(system):
+    client, db, os, queue = system
+    path, task = accepted(client)
+    assert db.delete_product(task["product_id"])
+    response = client.post(path + "/runs", headers=headers())
+    assert response.status_code == 404, response.text
+    assert db.get_task(task["id"])["job_id"] is None

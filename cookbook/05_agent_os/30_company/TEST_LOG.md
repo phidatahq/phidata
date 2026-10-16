@@ -318,3 +318,22 @@ existing warning that its session fallback does not provide PostgreSQL's
 attempt fencing. No provider calls were made.
 
 ---
+
+### Execution regression checks — October 16, 2026
+
+**Status:** PASS
+
+**Description:** Ran the complete `libs/agno/tests/unit/db` and
+`libs/agno/tests/unit/os` suites, all Company database integrations, and the
+final execution authorization/error-handling tests. Tests use temporary SQLite
+files and isolated PostgreSQL schemas with offline model fixtures.
+
+**Result:** Full unit suites: **6,095 passed, 15 skipped**. Company integrations:
+**175 passed**, no skips, across sync/async SQLite and PostgreSQL. Final execution
+route tests: **13 passed** (10 overlap the full suite). These include the final
+503 response when Company storage is absent and 404 for deleted Product context
+without reserving a run. Format and validation passed, including both mypy
+checks, and all validation output was read. Validation used the clean Python
+3.10 environment; tests and cookbooks used the Python 3.12 development environment.
+
+---

@@ -176,7 +176,14 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 for entry in value["transitions"]
             ):
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
-        message = await _task_input(manager, value)
+        try:
+            message = await _task_input(manager, value)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc))
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        except NotImplementedError:
+            raise HTTPException(503, "Company wiki is not supported by the configured database")
         if value.get("job_id") != run_id:
             try:
                 reserved = await _call(
@@ -190,6 +197,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 )
             except ValueError as exc:
                 raise HTTPException(409, str(exc))
+            except NotImplementedError:
+                raise HTTPException(503, "Company execution is not supported by the configured database")
             if reserved is None:
                 value = await task(task_id)
                 if value.get("job_id") != run_id:
@@ -236,6 +245,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
         )
 
     async def company_run(run_id: str, request: Request):
+        if db is None:
+            raise HTTPException(503, "Company requires a database")
         queue = getattr(request.app.state, "queue_worker", None)
         job = await queue.store.get_job(run_id) if queue is not None else None
         task_id = (job.get("payload") or {}).get("company_task_id") if job else None

@@ -125,6 +125,10 @@ retaining a known old ID explicitly is necessary for those references.
 
 ## Execution and attention
 
+| File | Demonstrates |
+| --- | --- |
+| `06_execute_tasks.py` | Durable execution, duplicate starts, ordinary run history and attention with no model call. |
+
 `06_execute_tasks.py` starts an accepted workflow Task through its ordinary run
 route and the durable queue, waits for In review, reads paged history and checks
 attention. It makes no provider calls. Start PostgreSQL with

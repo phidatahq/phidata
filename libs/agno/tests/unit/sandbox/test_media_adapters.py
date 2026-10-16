@@ -37,6 +37,7 @@ async def test_claude_prompt_names_staged_files_that_exist_with_the_attached_byt
 
     queried: List[Any] = []
     existed: List[bool] = []
+    inline: List[str] = []
 
     class Recorder:
         def __init__(self, options=None):
@@ -46,6 +47,11 @@ async def test_claude_prompt_names_staged_files_that_exist_with_the_attached_byt
             pass
 
         async def query(self, prompt):
+            if not isinstance(prompt, str):
+                [message] = [m async for m in prompt]
+                text, *blocks = message["message"]["content"]
+                prompt = text["text"]
+                inline.extend(block["type"] for block in blocks)
             queried.append(prompt)
             existed.extend(path.is_file() for path in _named_paths(prompt))
 
@@ -67,6 +73,7 @@ async def test_claude_prompt_names_staged_files_that_exist_with_the_attached_byt
     assert prompt.startswith("read them") and "Attached files" in prompt
     paths = _named_paths(prompt)
     assert sorted(path.name for path in paths) == ["data.csv", "image-1.png"] and all(existed)
+    assert inline == ["image"], "the image is a content block; the csv stays a file for the Read tool"
     assert all(path.is_relative_to(tmp_path / ".agno/uploads/run-1") for path in paths)
     assert {path.name: path.read_bytes() for path in paths} == {"data.csv": b"a,b\n1,2\n", "image-1.png": PNG}
     assert "text/csv" in prompt and "image/png" in prompt

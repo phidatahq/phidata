@@ -7,12 +7,15 @@
 **Base:** `2dec52a7e7bf202c3913b1d442220227525ce73a`
 
 **Validated tree:** the implementation, tests, README and examples in the commit
-containing this record. The PR reports its full commit SHA. This single record
+containing this record. The implementation was published for parallel review as
+`29185faf7a514ef2ad85f0df7a3c6c307aa2c39e`; the final follow-up changes this validation
+record only. The PR reports the final full commit SHA. This single record
 supersedes the historical entries; Git retains their previous versions.
 
 ## Integration validation
 
-**Status:** PASS — all 128 review-fix regression cases; wider rerun in progress.
+**Status:** PASS — 1,682 distinct integration cases, including all 128 review-fix
+regressions. Twelve optional MongoDB cases were skipped.
 
 The review fixes separate actor authorization from session ownership for start
 and cancel, persist executor defaults for unowned Tasks, and return controlled
@@ -23,9 +26,10 @@ unauthorized cancellation without ticket mutation, automatic pickup, retained
 default identity after configuration changes, and ordinary scheduler owner checks.
 The 32 supplied offline review probes also passed.
 
-The previous head `09b7d735b7` passed 1,554 distinct integration cases with 12
-optional MongoDB skips. That result is superseded by the wider rerun in progress
-for these fixes; it is not claimed as validation of the updated source.
+**Result:** All four disjoint partitions passed: 421, 421, 420 and 420 cases.
+Each partition skipped three optional MongoDB cases. PostgreSQL was explicitly
+enabled for the schedule lifecycle suite; no selected SQLite/PostgreSQL case
+was skipped or failed. These results supersede the earlier PR-head validation.
 
 The full Company integration tree was collected once and partitioned into four
 disjoint runs. It includes every `test_company_*.py`, Product/Project/Task and
@@ -72,11 +76,12 @@ lifecycle suite. The Company PostgreSQL fixtures already configure that service.
 
 ## Unit validation
 
-**Status:** Full database, OS, scheduler and Company-tool rerun in progress.
+**Status:** PASS — 6,458 tests, 39 conditional skips, no failures.
 
-The prior head passed 1,966 affected unit tests with 35 conditional skips. The
-updated middleware is being checked with the broader OS authorization suites as
-well. The current command is:
+**Description:** Reran the complete database, OS (including authorization),
+scheduler and Company-tool suites on the review-fix implementation.
+
+**Result:** All selected unit suites passed in 459.55 seconds. The command was:
 
 ```bash
 .venv/bin/python -m pytest \
@@ -87,8 +92,7 @@ well. The current command is:
 
 ## Cookbook validation
 
-**Status:** Rerun pending for the review fixes. All 15 invocations below passed
-on the previous head `09b7d735b7`.
+**Status:** PASS — all 15 invocations on the review-fix implementation.
 
 All paths below are relative to `cookbook/05_agent_os/30_company/`. Each example
 was executed using the development Python with this worktree's framework on

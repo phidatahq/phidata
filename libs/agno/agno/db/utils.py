@@ -582,7 +582,6 @@ MIGRATABLE_TABLE_TYPES = frozenset(
         "schedules",
         "schedule_runs",
         "learnings",
-        "tasks",
     }
 )
 

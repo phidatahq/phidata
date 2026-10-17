@@ -833,10 +833,7 @@ Deployment requirements:
 
 - PostgreSQL for executor runs and the durable queue; Redis for queue coordination.
   SQLite is supported for local Company records, but sandbox executor state is
-  PostgreSQL-backed. Run `await MigrationManager(db).up(table_type="tasks")`
-  before serving an existing Company database to add checkout metadata and retire
-  legacy `engineering` executors. Active work returns to Backlog; Done and
-  Cancelled Tasks retain their terminal status.
+  PostgreSQL-backed.
 - An explicit checkpoint store on one host, or a shared checkpoint filesystem
   across replicas. Local checkpoint directories are not portable between hosts.
 - Docker with `network="isolated"` (or AgentCore with network access). Egress

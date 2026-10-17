@@ -1,16 +1,11 @@
-"""Atomic Task checkout projection and legacy migration on all Company SQL adapters."""
+"""Atomic Task checkout projection on all Company SQL adapters."""
 
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import text
 
 from agno.company.execution import _call, _project_run
 from agno.company.sandbox import _project_checkout
-from agno.db.base import AsyncBaseDb
-from agno.db.migrations.manager import MigrationManager
-from agno.db.schemas.tasks import validate_task_fields
-from agno.exceptions import MigrationRequiredError
 from agno.sandbox import Repository
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.fixture import FixtureAgent
@@ -18,53 +13,6 @@ from tests.integration.db.test_company_execution_parity import accepted, system 
 
 URL = "https://github.com/octocat/Hello-World"
 PIN = {"url": URL, "branch": "master", "commit": "a" * 40}
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("subclassed", [False, True])
-async def test_migration_is_idempotent_and_leaves_every_task_valid(system, subclassed):  # noqa: F811
-    client, db, _, _, _ = system
-    task = await accepted(client)
-    if subclassed:
-        cls = type("ApplicationDatabase", (type(db),), {})
-        db = cls(db_engine=db.db_engine, **({"db_schema": db.db_schema} if hasattr(db, "db_schema") else {}))
-
-    ordinary = await accepted(client)
-    ordinary = await _call(db, "get_task", ordinary["id"])
-
-    # Simulate a deployed table without the new column and an inert legacy executor.
-    async def change():
-        if isinstance(db, AsyncBaseDb):
-            table = await db._get_table("tasks")
-            async with db.db_engine.begin() as conn:
-                await conn.execute(table.update().where(table.c.id == task["id"]).values(executor_type="engineering"))
-                await conn.execute(text("ALTER TABLE " + str(table) + " DROP COLUMN metadata"))
-        else:
-            table = db._get_table("tasks")
-            with db.db_engine.begin() as conn:
-                conn.execute(table.update().where(table.c.id == task["id"]).values(executor_type="engineering"))
-                conn.execute(text("ALTER TABLE " + str(table) + " DROP COLUMN metadata"))
-
-    await change()
-    await _call(db, "upsert_schema_version", db.tasks_table_name, "3.0.0")
-    db._invalidate_table_cache(db.tasks_table_name)
-    with pytest.raises(MigrationRequiredError):
-        await _call(db, "get_task", task["id"])
-    await MigrationManager(db).up(table_type="tasks")
-    rows, total = await _call(db, "get_tasks", include_deleted=True)
-    assert total == 2
-    migrated = next(row for row in rows if row["id"] == task["id"])
-    unchanged = next(row for row in rows if row["id"] == ordinary["id"])
-    assert unchanged["status"] == "ready" and unchanged["executor_type"] == "agent"
-    assert unchanged["transitions"] == ordinary["transitions"]
-    assert migrated["status"] == "backlog"
-    assert migrated["executor_type"] is None and migrated["executor_id"] is None
-    assert migrated["accepted_at"] is None and migrated["accepted_by"] is None
-    assert migrated["metadata"] is None
-    for row in rows:
-        validate_task_fields({key: row[key] for key in ("executor_type", "executor_id")})
-    await MigrationManager(db).up(table_type="tasks")
-    assert await _call(db, "get_task", task["id"]) == migrated
 
 
 @pytest.mark.asyncio
@@ -174,33 +122,3 @@ async def test_legacy_git_source_can_be_updated_without_replacing_reference(syst
     with pytest.raises(ValueError):
         await _call(db, "update_source", source["id"], config={"branch": "--invalid"})
     assert await _call(db, "get_source", source["id"]) == updated
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("status", ["backlog", "cancelled", "done"])
-async def test_migration_preserves_terminal_tasks_and_valid_history(system, status):  # noqa: F811
-    from tests.integration.db.test_company_execution_parity import execute
-
-    client, db, worker, _, _ = system
-    task = await accepted(client)
-    path = "/company/tasks/" + task["id"]
-    if status == "done":
-        assert (await client.post(path + "/runs")).status_code == 202
-        assert (await execute(worker))["status"] == "completed"
-    response = await client.post(path + "/transitions", json={"target": status, "reason": "Finish prior work"})
-    assert response.status_code == 200, response.text
-    before = await _call(db, "get_task", task["id"])
-    if isinstance(db, AsyncBaseDb):
-        table = await db._get_table("tasks")
-        async with db.db_engine.begin() as connection:
-            await connection.execute(table.update().where(table.c.id == task["id"]).values(executor_type="engineering"))
-    else:
-        table = db._get_table("tasks")
-        with db.db_engine.begin() as connection:
-            connection.execute(table.update().where(table.c.id == task["id"]).values(executor_type="engineering"))
-    await _call(db, "upsert_schema_version", db.tasks_table_name, "3.0.0")
-    await MigrationManager(db).up(table_type="tasks")
-    result = await _call(db, "get_task", task["id"])
-    assert result["status"] == status
-    assert result["executor_type"] is None and result["executor_id"] is None
-    assert result["transitions"] == before["transitions"]

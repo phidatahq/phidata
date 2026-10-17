@@ -269,13 +269,13 @@ def _builtin_component_metadata(component: Any) -> Optional[Dict[str, Any]]:
 
 
 class AgentSummaryResponse(BaseModel):
-    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the agent")
     name: Optional[str] = Field(None, description="Name of the agent")
     description: Optional[str] = Field(None, description="Description of the agent")
     db_id: Optional[str] = Field(None, description="Database identifier")
     model: Optional[Model] = Field(None, description="Model used by the agent")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    sandboxed: bool = False
 
     @classmethod
     def from_agent(cls, agent: Union[Agent, AgentProtocol, RemoteAgent, AgentFactory]) -> "AgentSummaryResponse":
@@ -308,7 +308,6 @@ class AgentSummaryResponse(BaseModel):
 
 
 class TeamSummaryResponse(BaseModel):
-    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the team")
     name: Optional[str] = Field(None, description="Name of the team")
     description: Optional[str] = Field(None, description="Description of the team")
@@ -317,6 +316,7 @@ class TeamSummaryResponse(BaseModel):
     model: Optional[Model] = Field(None, description="Model used by the team leader")
 
     metadata: Optional[Dict[str, Any]] = Field(None, description="Framework component metadata")
+    sandboxed: bool = False
 
     @classmethod
     def from_team(cls, team: Union[Team, RemoteTeam, TeamFactory]) -> "TeamSummaryResponse":
@@ -342,7 +342,6 @@ class TeamSummaryResponse(BaseModel):
 
 
 class WorkflowSummaryResponse(BaseModel):
-    sandboxed: bool = False
     id: Optional[str] = Field(None, description="Unique identifier for the workflow")
     name: Optional[str] = Field(None, description="Name of the workflow")
     description: Optional[str] = Field(None, description="Description of the workflow")
@@ -352,6 +351,7 @@ class WorkflowSummaryResponse(BaseModel):
     is_component: bool = Field(False, description="Whether this workflow was created via Builder")
     current_version: Optional[int] = Field(None, description="Current published version number")
     stage: Optional[str] = Field(None, description="Stage of the loaded config (draft/published)")
+    sandboxed: bool = False
 
     @classmethod
     def from_workflow(
@@ -1326,9 +1326,9 @@ RegistryMetadata = Union[
 
 
 class RegistryContentResponse(BaseModel):
-    sandboxed: bool = False
     name: str
     type: RegistryResourceType
     id: Optional[str] = None
     description: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    sandboxed: bool = False

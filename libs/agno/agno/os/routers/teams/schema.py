@@ -22,7 +22,6 @@ from agno.utils.agent import aexecute_instructions, aexecute_system_message
 
 
 class TeamResponse(BaseModel):
-    sandboxed: bool = False
     id: Optional[str] = None
     name: Optional[str] = None
     db_id: Optional[str] = None
@@ -48,6 +47,7 @@ class TeamResponse(BaseModel):
     is_component: bool = False
     current_version: Optional[int] = None
     stage: Optional[str] = None
+    sandboxed: bool = False
 
     @classmethod
     def from_factory(cls, factory: TeamFactory) -> TeamResponse:

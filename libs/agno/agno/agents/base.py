@@ -1377,7 +1377,7 @@ class BaseExternalAgent:
         """Open the checkpoint a completed sandbox run committed and yield its archive path.
 
         The path holds the archive's stored bytes, verified by the store before it is yielded,
-        and is valid only inside the context. Extract them with
+        read-only, and is valid only inside the context. Extract them with
         ``CheckpointArchive.arestore(path, destination)``, which documents the restored layout.
         Refused when the run is unknown, belongs to another agent, is not COMPLETED or
         committed no checkpoint.

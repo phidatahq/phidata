@@ -1,5 +1,6 @@
 """Opening a run's committed checkpoint on the host through the agent's public surface."""
 
+import os
 from dataclasses import asdict
 
 import pytest
@@ -219,7 +220,24 @@ async def test_a_tampered_object_is_refused_before_it_is_yielded(committed, monk
     store, reference = committed
     agent = agent_with(async_db(monkeypatch, run_row(reference)), store)
     stored = store.root / reference.sha256
+    stored.chmod(0o600)
     stored.write_bytes(bytes(reference.size))
     with pytest.raises(SandboxError, match="checksum"):
         async with agent.aopen_run_checkpoint("run-1"):
             pytest.fail("a tampered archive must not be yielded")
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores the mode this test relies on")
+def test_the_yielded_path_cannot_alter_the_stored_checkpoint(committed, tmp_path, monkeypatch):
+    store, reference = committed
+    agent = agent_with(sync_db(monkeypatch, run_row(reference)), store)
+    with agent.open_run_checkpoint("run-1") as archive:
+        with pytest.raises(PermissionError):
+            archive.open("r+b")
+        with pytest.raises(PermissionError):
+            archive.write_bytes(b"clobbered")
+    # The object the run points at is untouched, so the session can still recover from it.
+    store.verify(reference)
+    with agent.open_run_checkpoint("run-1") as archive:
+        CheckpointArchive().restore(archive, tmp_path / "still-intact")
+    assert (tmp_path / "still-intact/workspace/fixture-effects.txt").read_text() == "first\n"

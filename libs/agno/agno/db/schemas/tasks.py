@@ -22,7 +22,6 @@ def validate_task_fields(fields: Dict[str, Any]) -> None:
         "agent",
         "team",
         "workflow",
-        "engineering",
     }:
         raise ValueError("Invalid proposed executor type")
     if fields.get("executor_id") is not None and (
@@ -58,7 +57,7 @@ def task_transition_fields(
     fields: Dict[str, Any] = {"status": target, "updated_at": now}
     if target == "ready":
         if (
-            executor_type not in {"agent", "team", "workflow", "engineering"}
+            executor_type not in {"agent", "team", "workflow"}
             or not isinstance(executor_id, str)
             or not executor_id.strip()
         ):
@@ -112,8 +111,8 @@ def task_run_fields(
         raise ValueError("attempt must be a positive integer")
     if existing["status"] not in {"ready", "in_progress", "in_review"} or not existing.get("executor_id"):
         raise ValueError("Only accepted work can be started")
-    if existing.get("executor_type") == "engineering":
-        raise ValueError("Engineering executors cannot be started yet")
+    if existing.get("executor_type") not in {"agent", "team", "workflow"}:
+        raise ValueError("Select a registered agent, team or workflow executor")
     history = existing.get("transitions") or []
     attempts = [entry["attempt"] for entry in history if "attempt" in entry]
     if existing["status"] == "in_review" and not attempts:

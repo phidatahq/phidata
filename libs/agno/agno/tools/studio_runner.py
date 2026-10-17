@@ -419,7 +419,13 @@ class StudioRunnerTools(Toolkit):
         agents = (
             self.include_agents if self.include_agents is not None else (self.registry.agents if self.registry else [])
         )
-        return [agent for agent in agents if getattr(agent, "id", None) not in RESERVED_MEMBER_IDS]
+        from agno.agents.base import BaseExternalAgent
+
+        return [
+            agent
+            for agent in agents
+            if not isinstance(agent, BaseExternalAgent) and getattr(agent, "id", None) not in RESERVED_MEMBER_IDS
+        ]
 
     def _iter_teams(self, for_dispatch: bool = False) -> List["Team"]:
         """Code-defined teams: passed-in list, else registry (see _iter_agents)."""

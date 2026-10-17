@@ -1340,9 +1340,10 @@ class AgentOS:
             if existing_index is not None and existing_index > 0:
                 self.registry.dbs.insert(0, self.registry.dbs.pop(existing_index))
 
-        if self._agents:
+        registered_agents = [agent for agent in self.agents or [] if isinstance(agent, (Agent, BaseExternalAgent))]
+        if registered_agents:
             existing_agents = {aid: a for a in self.registry.agents if (aid := getattr(a, "id", None)) is not None}
-            for agent in self._agents:
+            for agent in registered_agents:
                 agent_id = getattr(agent, "id", None)
                 if agent_id is None or self._owned_by_manager(agent):
                     continue

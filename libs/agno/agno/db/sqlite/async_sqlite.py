@@ -5648,7 +5648,6 @@ class AsyncSqliteDb(AsyncBaseDb):
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.sources import validate_source_fields
 
-        validate_source_fields(fields)
         table = await self._get_table(table_type="sources")
         if table is None:
             return None
@@ -5656,6 +5655,18 @@ class AsyncSqliteDb(AsyncBaseDb):
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
         async with self.async_session_factory() as sess, sess.begin():
+            condition = stmt.whereclause
+            assert condition is not None
+            existing = (await sess.execute(select(table).where(condition).with_for_update())).mappings().first()
+            if existing is None:
+                return None
+            candidate = {**{key: existing[key] for key in ("type", "reference", "credential_ref", "config")}, **fields}
+            if "config" not in fields and isinstance(candidate.get("config"), dict):
+                candidate["config"] = {key: value for key, value in candidate["config"].items() if key != "metadata"}
+            # Unchanged legacy references need not satisfy a newly introduced URL rule.
+            if "reference" not in fields and candidate["type"] == existing["type"]:
+                candidate.pop("reference", None)
+            validate_source_fields(candidate)
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))
             ).fetchone()
@@ -6257,6 +6268,7 @@ class AsyncSqliteDb(AsyncBaseDb):
         job_id: str,
         result: Dict[str, Any],
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
+        checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         from sqlalchemy import JSON, or_
 
@@ -6282,11 +6294,13 @@ class AsyncSqliteDb(AsyncBaseDb):
             existing = dict(row._mapping)
             if expected_transitions is not None and existing["transitions"] != expected_transitions:
                 return None
-            fields = (
+            fields: Dict[str, Any] = (
                 task_transition_fields(existing, "in_review", "Execution completed; human review required")
                 if result.get("status") == "COMPLETED"
                 else {"updated_at": int(time.time())}
             )
+            if checkout is not None:
+                fields["metadata"] = {**(existing.get("metadata") or {}), "checkout": checkout}
             stmt = (
                 table.update()
                 .where(

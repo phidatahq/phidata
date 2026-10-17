@@ -2103,6 +2103,7 @@ def get_agent_router(
                             db_id=agent_db.id if agent_db else None,
                             sessions=sessions,
                             metadata=AgentSummaryResponse.from_agent(agent).metadata or {"sdk": "external"},
+                            sandboxed=AgentSummaryResponse.from_agent(agent).sandboxed,
                         )
                     )
 
@@ -2206,6 +2207,7 @@ def get_agent_router(
                 name=agent.name,
                 description=getattr(agent, "description", None),
                 metadata=AgentSummaryResponse.from_agent(agent).metadata or {"sdk": "external"},
+                sandboxed=AgentSummaryResponse.from_agent(agent).sandboxed,
             )
 
     @router.get(

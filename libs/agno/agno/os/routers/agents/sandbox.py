@@ -4,13 +4,12 @@ import asyncio
 import contextlib
 import json
 from typing import Any, Dict, List, Optional, Tuple
-from uuid import uuid4
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from agno.db.schemas.jobs import QueuedJob
-from agno.os.job_queue import aprepare_accepted_or_abort, normalize_idempotency_key
+from agno.os.job_queue import _new_queued_run_id, aenqueue_ticket, aprepare_accepted_or_abort, normalize_idempotency_key
 from agno.sandbox.base import SandboxError
 
 
@@ -52,7 +51,7 @@ async def enqueue_sandbox_run(
         # refuse this turn as a lost lease after the ticket exists. Answer as that rule does.
         raise HTTPException(status_code=404, detail="Session not found")
     job = QueuedJob(
-        id=run_id or str(uuid4()),
+        id=run_id or _new_queued_run_id(),
         component_type="agent",
         component_id=agent.get_id(),
         session_id=session_id,
@@ -62,7 +61,7 @@ async def enqueue_sandbox_run(
         deployment_id=worker.config.deployment_id,
         idempotency_key=normalize_idempotency_key(idempotency_key),
     ).to_dict()
-    accepted = await worker.store.enqueue_job(job, max_depth=worker.config.max_queue_depth)
+    accepted = await aenqueue_ticket(worker, job, agent)
     if accepted["reason"] == "queue_full":
         raise HTTPException(status_code=429, detail="Job queue is full")
     if accepted["reason"] == "duplicate":

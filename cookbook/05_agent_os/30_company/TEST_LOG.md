@@ -149,3 +149,94 @@ checked quickstart files with no violations. `git diff --check` passed.
 
 These are local tests, not CI, independent review or hosted deployment evidence.
 No paid model calls or real outbound notification deliveries were exercised.
+
+
+### 09_sandboxed_engineers.py
+
+**Status:** PASS
+
+**Description:** Ran `PYTHONPATH=libs/agno .venv/bin/python cookbook/05_agent_os/30_company/09_sandboxed_engineers.py --config-only` on October 16, 2026. Both ClaudeAgent and CodexAgent accept the repository, isolated Docker network, explicit checkpoint store, workspace size and execution timeout configuration.
+
+**Result:** Configuration smoke passed without model calls. The credential-free sandbox fixture separately exercised real public GitHub checkout, Task pin projection, container replacement, attempt-two session reuse, concurrent admission and acceptance on sync/async SQLite and PostgreSQL Company stores. The Claude and Codex model turns were not run.
+
+---
+
+### Sandboxed Company executor regression checks
+
+**Status:** PASS
+
+**Description:** October 16, 2026: all 1,344 Company integration cases passed across synchronous and asynchronous SQLite and PostgreSQL (eight conditional Mongo cases skipped). The affected unit suites passed 3,417 tests (35 conditional skips). All 12 Company Docker fixture cases passed, including cancellation during submission, and all 25 existing AgentOS sandbox cases passed, including the opt-in public-repository case. The Docker fixture used PostgreSQL, Redis and `agno-sandbox:pr71-repository`; no Claude or Codex model turn was invoked.
+
+**Result:** Full format and validation scripts passed; validation used the clean Python 3.10 environment. These are local checks, not CI or independent review. PR 6.6 integration remains pending: its recovery completion must share the checkout projection before recovered sandbox completions can be claimed as covered.
+
+---
+
+### PR 7.2 review fixes — retry pins and live execution admission
+
+**Status:** PASS
+
+**Description:** Failed or cancelled first attempts no longer prevent a later successful attempt from storing the checkout pin. Admission reads live queue tickets using their recorded executor, including after Backlog return, reassignment, archival, or a newer Task reservation; a retained run still blocks when its ticket is missing. Added four-adapter regressions for both blockers and for authorization before admission. External agents are refused as team members, Windows/UNC local git paths remain valid, legacy Source references can be edited without replacement, and an explicit read-token Source requires `GITHUB_READ_TOKEN` in the sandbox environment.
+
+**Result:** 1,751 affected unit tests passed (35 conditional skips), all 12 Company Docker cases passed, and the focused review suite passed 170 tests. The broad Company integration run passed 1,368 cases with eight conditional Mongo skips; its 16 failures exposed executor validation occurring after endpoint construction in the permission cleanup. That order was corrected, and all 16 failed cases passed on rerun, giving 1,384 distinct passing Company cases. A further final-source focused route run passed all 88 cases. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 recovery integration remains deferred until it merges.
+
+---
+
+### PR 7.2 second review — admission and retries
+
+**Status:** PASS
+
+**Description:** Settled historical attempts are excluded before resolving retired run stores. Live-ticket enumeration propagates failures for admission, includes untagged jobs claimed by named deployments, and uses the existing quiet-contention response for automatic pickup. Checkout validation errors can retry after their cause is repaired. Acceptance refuses a repository or branch incompatible with an established checkout.
+
+**Result:** All 96 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Company Docker cases and all 183 queue-store parity cases passed. All 1,428 Company integration cases passed, with eight conditional Mongo skips. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 dispatch and recovery functions remain unchanged; recovery pin integration is deferred until that PR merges.
+
+---
+
+### PR 7.2 rebase and overlapping deployment admission
+
+**Status:** PASS
+
+**Description:** Rebased onto the latest PR 6.6 head, `f238e6892a9cfd634363fd0c41dfcb6c668fee3f`. Preserved its authenticated internal transport and passed the trusted checkout metadata through that application path. Admission uses a common advisory lock because named workers can claim untagged jobs. A deterministic two-application regression reproduced two accepted starts in all eight adapter/ordering cases before the fix; all eight now admit one start and refuse the other.
+
+**Result:** All 104 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. The initial combined run passed 1,840 cases and exposed four recovery-test failures caused by this module leaving Redis process defaults attached to a closed test event loop. The fixture now restores those defaults; all 24 ordered concurrent-start/recovery cases pass. A clean 1,844-case combined rerun is in progress at publication; its final results are recorded in the PR. No paid model calls. Recovery checkout projection remains deferred until PR 6.6 merges.
+
+---
+
+### PR 7.2 recovery checkout integration
+
+**Status:** PASS
+
+**Description:** Merged main after PR 6.6 landed, using normal merge commit `4554646f1e`. Recovered completed runs now use the same checkout projection as worker completion. The first successful recovery stores the pin, later attempts verify it, missing or changed pins fail the attempt, and an unavailable sandbox executor leaves recovery retryable. The checkout and result use the existing guarded atomic completion write; a stale recovery cannot replace a settled winner.
+
+**Result:** All 20 recovery regressions passed across sync/async SQLite and PostgreSQL. The complete Company/lifecycle matrix passed 1,864 cases with PostgreSQL and MongoDB enabled and no skips. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. No paid model calls. These are local results; CI and independent review remain separate.
+
+---
+
+### PR 7.2 pinned Task acceptance consistency
+
+**Status:** PASS
+
+**Description:** Sync and async acceptance now reject a pinned Task's reassignment to a non-sandboxed agent, team or workflow with HTTP 409. Unpinned Tasks retain their existing behavior. The four-adapter regression covers refusal without mutation and successful session/pin reuse and recovery after selecting a compatible sandboxed executor. All 12 pinned cases failed before the fix; all 24 pinned/unpinned cases pass afterward.
+
+**Result:** All 148 focused sandbox/checkout tests, 1,751 affected unit tests (35 conditional skips), and 12 Docker cases passed. The broad Company/lifecycle run passed 1,886 cases and exposed two async concurrency fixtures pausing at the new preliminary validation read rather than the intended SQL transition read. The fixture now pauses within the transition transaction; the complete 40-case Task lifecycle suite passed on rerun, yielding 1,888 distinct passing integration cases. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. No paid model calls. Recovery and queue admission production code are unchanged.
+
+---
+
+### PR 7.2 unreleased migration cleanup
+
+**Status:** PASS
+
+**Description:** Removed the unreleased Company Task migration, its version registration, migration-specific tests and upgrade instructions. Task schema mismatches no longer recommend an unavailable migration. PostgreSQL and SQLite initial schemas still include checkout metadata; pin projection, acceptance and recovery behavior are unchanged.
+
+**Result:** All 1,084 affected Company checkout, admission, lifecycle, execution and recovery integration cases passed across sync/async SQLite and PostgreSQL. All seven migration endpoint cases and 12 real Docker Company cases passed. The database/OS unit run passed 6,241 cases with 39 skips; eight Redis cases failed, including teardown, after the shared Redis service disappeared. All 19 cases in that module passed against temporary Redis, yielding 6,249 distinct unit passes. The initial integration run was interrupted after the shared PostgreSQL service disappeared; the complete four-process rerun passed against a disposable database. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. The shared development environment reports 40 mypy diagnostics in untouched files; clean validation reports none. No model calls were made for this cleanup.
+
+---
+
+### PR 7.2 queue listing API cleanup
+
+**Status:** PASS
+
+**Description:** Moved `sandboxed` to the end of `AgentResponse`. Renamed the PostgreSQL queue listing flag to `raise_on_error`, updated Company admission, and accepted the same keyword on Redis and in-memory stores. Explicit error propagation works across all built-in stores; PostgreSQL retains its default fallback, while Redis and in-memory retain their existing error propagation.
+
+**Result:** All 164 focused queue and sandbox unit cases and all 309 queue-store parity/Company admission integration cases passed, with no skips. New coverage checks errors across sync/async PostgreSQL, Redis and in-memory stores, and matching listing results with both flag values on in-memory, fake/real Redis and sync/async PostgreSQL. Full format, clean Python 3.10 validation and whitespace checks passed. No model calls were made.
+
+---

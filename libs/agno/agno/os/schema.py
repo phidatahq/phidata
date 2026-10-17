@@ -275,9 +275,12 @@ class AgentSummaryResponse(BaseModel):
     db_id: Optional[str] = Field(None, description="Database identifier")
     model: Optional[Model] = Field(None, description="Model used by the agent")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+    sandboxed: bool = False
 
     @classmethod
     def from_agent(cls, agent: Union[Agent, AgentProtocol, RemoteAgent, AgentFactory]) -> "AgentSummaryResponse":
+        from agno.agents.base import BaseExternalAgent
+
         agent_db = getattr(agent, "db", None)
         # Built-in adapters expose sdk. The framework fallback is only for third-party adapters that
         # satisfy AgentProtocol structurally and predate the rename; drop it with the framework alias.
@@ -300,6 +303,7 @@ class AgentSummaryResponse(BaseModel):
             db_id=agent_db.id if agent_db else None,
             model=_extract_model(agent),
             metadata=metadata,
+            sandboxed=isinstance(agent, BaseExternalAgent) and agent.sandbox is not None,
         )
 
 
@@ -312,6 +316,7 @@ class TeamSummaryResponse(BaseModel):
     model: Optional[Model] = Field(None, description="Model used by the team leader")
 
     metadata: Optional[Dict[str, Any]] = Field(None, description="Framework component metadata")
+    sandboxed: bool = False
 
     @classmethod
     def from_team(cls, team: Union[Team, RemoteTeam, TeamFactory]) -> "TeamSummaryResponse":
@@ -346,6 +351,7 @@ class WorkflowSummaryResponse(BaseModel):
     is_component: bool = Field(False, description="Whether this workflow was created via Builder")
     current_version: Optional[int] = Field(None, description="Current published version number")
     stage: Optional[str] = Field(None, description="Stage of the loaded config (draft/published)")
+    sandboxed: bool = False
 
     @classmethod
     def from_workflow(
@@ -1325,3 +1331,4 @@ class RegistryContentResponse(BaseModel):
     id: Optional[str] = None
     description: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    sandboxed: bool = False

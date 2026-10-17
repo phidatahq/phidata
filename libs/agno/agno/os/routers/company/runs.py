@@ -1,5 +1,6 @@
 """Task run routes: authorize, then enter the existing executor route and queue."""
 
+import asyncio
 from typing import Any, Dict, Optional
 from urllib.parse import quote, unquote
 
@@ -43,6 +44,7 @@ async def _run_route(
     form: Optional[Dict[str, str]] = None,
     key: Optional[str] = None,
     session_id: Optional[str] = None,
+    checkout: Optional[Dict[str, Any]] = None,
 ) -> Response:
     """Enter the executor route with authorized actor grants and a separate session owner."""
     import json
@@ -61,10 +63,19 @@ async def _run_route(
         headers[SCHEDULE_OWNER_HEADER] = quote(owner, safe="")
     if key:
         headers["Idempotency-Key"] = key
+
+    async def executor_app(scope, receive, send):
+        if checkout is not None:
+            scope = {
+                **scope,
+                "state": {**scope.get("state", {}), "metadata": {"repository": {"commit": checkout["commit"]}}},
+            }
+        await request.app(scope, receive, send)
+
     token = _task_transport.set((method, unquote(path), owner))
     try:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=request.app), base_url="http://company"
+            transport=httpx.ASGITransport(app=executor_app), base_url="http://company"
         ) as client:
             response = await client.request(
                 method, path, data=form, headers=headers, params={"session_id": session_id} if session_id else None
@@ -134,15 +145,40 @@ def get_company_runs_router(os: Any) -> APIRouter:
     async def start_task(task_id: str, request: Request, body: TaskRunCreate):
         value = await task(task_id)
         from agno.company.execution import _automatic_task
+        from agno.company.sandbox import _is_sandboxed
+        from agno.os.routers.company.sandbox import _sandbox_start_gate
+
+        component = executor(value)
+        if _automatic_task.get() is None:
+            await _require_endpoint_permission(request, endpoint(value), "POST", action="accept")
+
+        if _is_sandboxed(component):
+
+            async def admit():
+                async with _sandbox_start_gate(os, value, worker(request)):
+                    return await dispatch(task_id, request, body, value)
+
+            # A disconnected caller must not release admission while an off-thread
+            # queue INSERT can still commit. Finish submission under the same lock.
+            pending = asyncio.create_task(admit())
+            try:
+                return await asyncio.shield(pending)
+            except asyncio.CancelledError:
+                try:
+                    await asyncio.shield(pending)
+                finally:
+                    raise
+        return await dispatch(task_id, request, body, value)
+
+    async def dispatch(task_id: str, request: Request, body: TaskRunCreate, value: Dict[str, Any]):
+        from agno.company.execution import _automatic_task
 
         observed = _automatic_task.get()
         if observed is not None and any(value[key] != observed[key] for key in ("id", "status", "updated_at")):
             raise HTTPException(409, "Task acceptance changed before automatic dispatch")
         component = executor(value)
         path = endpoint(value)
-        if observed is None:
-            await _require_endpoint_permission(request, path, "POST", action="accept")
-        else:
+        if observed is not None:
             from agno.os.authz.run_context import request_authorization
 
             # Recheck the saved accepting authority at the Task route boundary.
@@ -229,7 +265,13 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     )
             if previous_status not in {"failed", "cancelled", "completed"}:
                 raise HTTPException(409, "The previous Task run is still active")
-            if previous_status == "completed" and value["status"] not in {"in_review", "ready"}:
+            result = value.get("result") or {}
+            projection_failed = result.get("run_id") == value["job_id"] and result.get("status") == "ERROR"
+            if (
+                previous_status == "completed"
+                and not projection_failed
+                and value["status"] not in {"in_review", "ready"}
+            ):
                 raise HTTPException(409, "Request revisions before starting another successful attempt")
         if _pending_task_attempt(value) is not None:
             from agno.company.execution import _recover_task
@@ -276,6 +318,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                     **({"user_id": owner} if owner is not None else {}),
                 },
                 key=f"company:{task_id}:{body.attempt}",
+                checkout=(value.get("metadata") or {}).get("checkout"),
             )
         finally:
             _task_submission.reset(token)

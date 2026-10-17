@@ -33,10 +33,6 @@ class _TaskRunUnavailable(ValueError):
 
 
 def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional[str], accepting: bool = False) -> Any:
-    if executor_type == "engineering":
-        if accepting:
-            return None
-        raise ValueError("Engineering executors cannot be started yet")
     if executor_type not in {"agent", "team", "workflow"} or executor_id in RESERVED_MANAGER_IDS:
         raise ValueError("Select a registered agent, team or workflow executor")
     component = getattr(registry, "get_" + executor_type)(executor_id) if registry is not None else None
@@ -320,8 +316,29 @@ async def _reconcile_task_run(
         "content": data.get("content"),
         "content_type": data.get("content_type"),
     }
+    checkout = None
+    if run["status"] == "COMPLETED":
+        from agno.company.sandbox import _is_sandboxed, _project_checkout
+
+        kind = run["run_type"]
+        component = (
+            await worker._aresolve_job_component({"component_type": kind, "component_id": run.get(kind + "_id")})
+            if worker is not None
+            else None
+        )
+        if not _is_sandboxed(component) and (
+            (data.get("metadata") or {}).get("sandbox") or (task.get("metadata") or {}).get("checkout")
+        ):
+            raise _TaskRunUnavailable("Sandboxed Task executor is unavailable while recovering its checkout")
+        checkout, result = await _project_checkout(db, task, component, data, result)
     updated = await _call(
-        db, "complete_task_run", task["id"], run["run_id"], result, expected_transitions=task["transitions"]
+        db,
+        "complete_task_run",
+        task["id"],
+        run["run_id"],
+        result,
+        expected_transitions=task["transitions"],
+        **({"checkout": checkout} if checkout is not None else {}),
     )
     return updated is not None
 
@@ -426,6 +443,7 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         "status": "CANCELLED" if status == "cancelled" else "ERROR",
         "content": error or ("Run cancelled" if status == "cancelled" else None),
     }
+    checkout = None
     if status == "completed":
         component = await worker._aresolve_job_component(job)
         if component is None:
@@ -435,6 +453,9 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
             raise ValueError("Completed Task run is not durably readable")
         data = output.to_dict()
         result = {key: data.get(key) for key in ("run_id", "status", "content", "content_type")}
+        from agno.company.sandbox import _project_checkout
+
+        checkout, result = await _project_checkout(db, task, component, data, result)
     await _call(
         db,
         "complete_task_run",
@@ -442,6 +463,7 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         job["id"],
         result,
         expected_transitions=task["transitions"],
+        **({"checkout": checkout} if checkout is not None else {}),
     )
 
 

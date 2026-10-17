@@ -122,7 +122,7 @@ class ProjectTransition(BaseModel):
 
 
 class TaskCreate(BaseModel):
-    executor_type: Optional[Literal["agent", "team", "workflow", "engineering"]] = None
+    executor_type: Optional[Literal["agent", "team", "workflow"]] = None
     executor_id: Optional[str] = Field(None, min_length=1)
     model_config = ConfigDict(extra="forbid")
     product_id: str = Field(..., min_length=1)
@@ -140,7 +140,7 @@ class TaskCreate(BaseModel):
 
 
 class TaskUpdate(BaseModel):
-    executor_type: Optional[Literal["agent", "team", "workflow", "engineering"]] = None
+    executor_type: Optional[Literal["agent", "team", "workflow"]] = None
     executor_id: Optional[str] = Field(None, min_length=1)
     model_config = ConfigDict(extra="forbid")
     title: Optional[str] = None
@@ -186,6 +186,8 @@ class TaskResponse(BaseModel):
 
     session_id: Optional[str] = None
     job_id: Optional[str] = None
+    sandboxed: bool = False
+    metadata: Optional[Dict[str, Any]] = None
     result: Optional[Dict[str, Any]] = None
 
 
@@ -201,7 +203,7 @@ class TaskTransition(BaseModel):
             raise ValueError("A transition requires a non-empty reason")
         return value
 
-    executor_type: Optional[Literal["agent", "team", "workflow", "engineering"]] = None
+    executor_type: Optional[Literal["agent", "team", "workflow"]] = None
     executor_id: Optional[str] = Field(None, min_length=1)
 
     @model_validator(mode="after")

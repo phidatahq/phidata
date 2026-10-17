@@ -248,9 +248,12 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
 
         async def execute(session, statement, *args, **kwargs):
             nonlocal first
+            # Pause the transition transaction, not preliminary manager validation.
+            in_transition = session.in_transaction()
             result = await original_execute(session, statement, *args, **kwargs)
             if (
                 first
+                and in_transition
                 and statement.is_select
                 and getattr(statement, "selected_columns", None) is not None
                 and "executor_type" in statement.selected_columns

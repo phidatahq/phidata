@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -28,6 +29,7 @@ from uuid import uuid4
 from pydantic import BaseModel
 
 from agno.agent import Agent
+from agno.agent.followup import FollowupConfig, resolve_followup_settings
 from agno.compression.manager import CompressionManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.eval.base import BaseEval
@@ -161,8 +163,8 @@ def __init__(
     metadata: Optional[Dict[str, Any]] = None,
     reasoning_model: Optional[Union[Model, str]] = None,
     reasoning_agent: Optional[Agent] = None,
-    followups: bool = False,
-    num_followups: int = 3,
+    followups: Union[bool, FollowupConfig] = False,
+    num_followups: Optional[int] = None,
     followup_model: Optional[Union[Model, str]] = None,
     stream: Optional[bool] = None,
     stream_events: Optional[bool] = None,
@@ -302,7 +304,16 @@ def __init__(
     elif is_callable_factory(tools, excluded_types=(Toolkit, Function)):
         team.tools = tools  # type: ignore[assignment]
     else:
-        team.tools = list(tools) if tools else []  # type: ignore[arg-type]
+        # A ComponentTool is not a runnable tool, and must fail here,
+        # at construction -- not at the first run.
+        from agno.tools.component import raise_if_component_tool
+
+        init_tools = list(tools) if tools else []  # type: ignore[arg-type]
+        for tool in init_tools:
+            raise_if_component_tool(
+                tool, "Team", "To let this team delegate to the component, add it to members=[...]."
+            )
+        team.tools = init_tools
     team.tool_choice = tool_choice
     team.tool_call_limit = tool_call_limit
     team.tool_hooks = tool_hooks
@@ -351,9 +362,7 @@ def __init__(
     team.reasoning_agent = reasoning_agent
 
     team.followups = followups
-    if num_followups < 1:
-        raise ValueError("num_followups must be at least 1")
-    team.num_followups = num_followups
+    team.num_followups = resolve_followup_settings(followups, num_followups, followup_model)
     team.followup_model = followup_model  # type: ignore[assignment]
 
     team.stream = stream
@@ -810,6 +819,15 @@ def _resolve_models(team: "Team") -> None:
     if team.output_model is not None:
         team.output_model = get_model(team.output_model)
 
+    # Follow-up slots resolve strings like the siblings but keep the instance's
+    # model_type: follow-up metrics are attributed explicitly at the call site, and
+    # the same instance may also serve as the main model.
+    if team.followup_model is not None:
+        team.followup_model = get_model(team.followup_model)
+    if isinstance(team.followups, FollowupConfig) and isinstance(team.followups.model, str):
+        # Resolve on a copy: one config object may be shared across components.
+        team.followups = replace(team.followups, model=get_model(team.followups.model))
+
     if team.fallback_config is not None:
         team.fallback_config.resolve_models()
 
@@ -895,8 +913,10 @@ def initialize_team(team: "Team", debug_mode: Optional[bool] = None) -> None:
 
 
 def add_tool(team: "Team", tool: Union[Toolkit, Callable, Function, Dict]) -> None:
+    from agno.tools.component import raise_if_component_tool
     from agno.utils.callables import is_callable_factory
 
+    raise_if_component_tool(tool, "Team", "To let this team delegate to the component, add it to members=[...].")
     if is_callable_factory(team.tools, excluded_types=(Toolkit, Function)):
         raise RuntimeError(
             "Cannot add_tool() when tools is a callable factory. Use set_tools() to replace the factory."
@@ -907,13 +927,19 @@ def add_tool(team: "Team", tool: Union[Toolkit, Callable, Function, Dict]) -> No
 
 
 def set_tools(team: "Team", tools: Union[List[Union[Toolkit, Callable, Function, Dict]], Callable[..., List]]) -> None:
+    from agno.tools.component import raise_if_component_tool
     from agno.utils.callables import is_callable_factory
 
     if is_callable_factory(tools, excluded_types=(Toolkit, Function)):
         team.tools = tools  # type: ignore[assignment]
         team._callable_tools_cache.clear()
     else:
-        team.tools = list(tools) if tools else []  # type: ignore[arg-type]
+        concrete_tools = list(tools) if tools else []  # type: ignore[arg-type]
+        for tool in concrete_tools:
+            raise_if_component_tool(
+                tool, "Team", "To let this team delegate to the component, add it to members=[...]."
+            )
+        team.tools = concrete_tools
 
 
 async def _connect_mcp_tools(team: "Team") -> None:

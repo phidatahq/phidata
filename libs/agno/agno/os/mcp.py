@@ -896,9 +896,8 @@ async def _require_tool_scopes(method: str, path: str) -> None:
     from fastmcp.server.dependencies import get_http_request
 
     from agno.os.auth import (
-        _default_authorization_provider,
+        _provider_for,
         build_insufficient_permissions_detail,
-        resolve_authorization_provider,
     )
     from agno.os.authz.provider import AuthorizationContext
     from agno.os.scopes import get_required_scopes_for_route, get_resource_context_from_path
@@ -945,7 +944,7 @@ async def _require_tool_scopes(method: str, path: str) -> None:
     # a managed store, so it is evaluated by the scope provider here too -- mirroring the
     # REST per-resource gate. Routing PATs through a configured provider would deny every
     # MCP tool call for a caller the transport already authenticated on scope math.
-    provider = _default_authorization_provider() if is_service_account else resolve_authorization_provider(request)
+    provider = _provider_for(request)
     ctx = AuthorizationContext(
         principal_id=getattr(state, "user_id", None),
         scopes=list(getattr(state, "scopes", None) or []),
@@ -2289,6 +2288,33 @@ def build_mcp_server(
         version=server_version,
         auth=os._get_mcp_auth_provider(),
     )
+    from fastmcp.server.middleware import Middleware
+
+    from agno.os.authz.run_context import request_authorization
+    from agno.run.authorization import authorization_scope
+
+    class CallerAuthorizationMiddleware(Middleware):
+        async def on_call_tool(self, context: Any, call_next: Any) -> Any:
+            from fastmcp.server.dependencies import get_http_request
+
+            try:
+                request = get_http_request()
+            except RuntimeError:
+                request = None
+            # FastMCP can execute a tool on a task created outside the ASGI
+            # request. Bind from its own verified request context for each call.
+            if (
+                request is not None
+                and _mcp_auth_enabled(request)
+                and not getattr(request.state, "authenticated", False)
+            ):
+                raise PermissionError(_MISSING_BRIDGE_DETAIL)
+            authority = request_authorization(request) if request is not None else None
+            with authorization_scope(lambda: authority):
+                return await call_next(context)
+
+    mcp.add_middleware(CallerAuthorizationMiddleware())
+
     if _server_card_enabled(mcp_config):
         # allowed_hosts is the operator declaring the hostnames this deployment answers to; a
         # forwarded host is advertised only if it appears in that list.

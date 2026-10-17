@@ -279,18 +279,13 @@ PRODUCTS_TABLE_SCHEMA = {
 }
 
 TASKS_TABLE_SCHEMA = {
-    "metadata": {"type": JSON, "nullable": True},
     "id": {"type": String, "primary_key": True},
+    "product_id": {"type": String, "nullable": False, "index": True},
+    "project_id": {"type": String, "nullable": True, "index": True},
     "title": {"type": String, "nullable": False, "index": True},
     "brief": {"type": Text, "nullable": True},
-    "user_id": {"type": String, "nullable": True, "index": True},
-    "transitions": {"type": JSON, "nullable": True},
-    "created_at": {"type": BigInteger, "nullable": False, "index": True},
-    "updated_at": {"type": BigInteger, "nullable": True},
-    "deleted_at": {"type": BigInteger, "nullable": True},
-    "product_id": {"type": String, "nullable": False, "index": True},
     "status": {"type": String, "nullable": False, "index": True},
-    "project_id": {"type": String, "nullable": True, "index": True},
+    "user_id": {"type": String, "nullable": True, "index": True},
     "executor_type": {"type": String, "nullable": True},
     "executor_id": {"type": String, "nullable": True},
     "accepted_by": {"type": String, "nullable": True},
@@ -302,6 +297,11 @@ TASKS_TABLE_SCHEMA = {
     "origin": {"type": String, "nullable": True},
     "routine_id": {"type": String, "nullable": True},
     "dedupe_key": {"type": String, "nullable": True},
+    "transitions": {"type": JSON, "nullable": True},
+    "metadata": {"type": JSON, "nullable": True},
+    "created_at": {"type": BigInteger, "nullable": False, "index": True},
+    "updated_at": {"type": BigInteger, "nullable": True},
+    "deleted_at": {"type": BigInteger, "nullable": True},
     "_unique_constraints": [
         {"name": "uq_company_task_evidence", "columns": ["product_id", "dedupe_key"]},
     ],

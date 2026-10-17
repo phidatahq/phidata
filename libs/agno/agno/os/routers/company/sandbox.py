@@ -75,7 +75,7 @@ async def _sandbox_start_gate(os: Any, task: dict, queue: Any):
         while True:
             try:
                 jobs, total = await queue.store.list_jobs(
-                    status=["queued", "running", "paused"], limit=limit, _raise_on_error=True
+                    status=["queued", "running", "paused"], limit=limit, raise_on_error=True
                 )
             except Exception as exc:
                 raise HTTPException(503, "Cannot verify live Task executions; the queue is unavailable") from exc

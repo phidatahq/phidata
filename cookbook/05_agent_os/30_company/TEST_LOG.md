@@ -230,3 +230,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All 1,084 affected Company checkout, admission, lifecycle, execution and recovery integration cases passed across sync/async SQLite and PostgreSQL. All seven migration endpoint cases and 12 real Docker Company cases passed. The database/OS unit run passed 6,241 cases with 39 skips; eight Redis cases failed, including teardown, after the shared Redis service disappeared. All 19 cases in that module passed against temporary Redis, yielding 6,249 distinct unit passes. The initial integration run was interrupted after the shared PostgreSQL service disappeared; the complete four-process rerun passed against a disposable database. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. The shared development environment reports 40 mypy diagnostics in untouched files; clean validation reports none. No model calls were made for this cleanup.
 
 ---
+
+### PR 7.2 queue listing API cleanup
+
+**Status:** PASS
+
+**Description:** Moved `sandboxed` to the end of `AgentResponse`. Renamed the PostgreSQL queue listing flag to `raise_on_error`, updated Company admission, and accepted the same keyword on Redis and in-memory stores. Explicit error propagation works across all built-in stores; PostgreSQL retains its default fallback, while Redis and in-memory retain their existing error propagation.
+
+**Result:** All 164 focused queue and sandbox unit cases and all 309 queue-store parity/Company admission integration cases passed, with no skips. New coverage checks errors across sync/async PostgreSQL, Redis and in-memory stores, and matching listing results with both flag values on in-memory, fake/real Redis and sync/async PostgreSQL. Full format, clean Python 3.10 validation and whitespace checks passed. No model calls were made.
+
+---

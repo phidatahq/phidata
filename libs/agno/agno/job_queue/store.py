@@ -274,8 +274,12 @@ class InMemoryQueueStore:
         *,
         session_id: Optional[Union[str, List[str]]] = None,
         user_id: Optional[str] = None,
+        raise_on_error: bool = False,
     ) -> Tuple[List[Dict[str, Any]], int]:
         """Paginated job listing: (page of jobs, total matching count).
+
+        raise_on_error=True requires read errors to propagate. This store
+        already propagates errors in both modes.
 
         status and session_id accept one value or a list (match any). An unknown sort_by is
         silently ignored (the list-API convention); None-valued sort fields

@@ -1,5 +1,5 @@
 import asyncio
-from inspect import signature
+from inspect import Parameter, signature
 from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -41,6 +41,26 @@ class Reranker(BaseModel):
             return "limit" in signature(self.rerank).parameters
         except (TypeError, ValueError):
             return False
+
+    def accepts_async_limit(self) -> bool:
+        """Whether the bound ``arerank`` accepts ``limit`` as a keyword.
+
+        Older overrides may omit it, while wrappers may accept it through
+        ``**kwargs``. A positional-only parameter or ``*limit`` cannot receive
+        the keyword unless the method also accepts arbitrary keyword arguments.
+        """
+        try:
+            parameters = signature(self.arerank).parameters.values()
+        except (TypeError, ValueError):
+            return False
+        return any(
+            parameter.kind == Parameter.VAR_KEYWORD
+            or (
+                parameter.name == "limit"
+                and parameter.kind in (Parameter.POSITIONAL_OR_KEYWORD, Parameter.KEYWORD_ONLY)
+            )
+            for parameter in parameters
+        )
 
     async def arerank(self, query: str, documents: List[Document], limit: Optional[int] = None) -> List[Document]:
         """Async rerank. Runs the sync implementation off the event loop, since a

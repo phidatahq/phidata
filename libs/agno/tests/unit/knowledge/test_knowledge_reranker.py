@@ -435,6 +435,135 @@ async def test_a_shipped_reranker_with_the_older_signature_survives_arerank():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "signature_kind,expected_limit",
+    [
+        ("legacy", None),
+        ("explicit", 5),
+        ("keyword_only", 5),
+        ("kwargs", 5),
+        ("positional_only", None),
+        ("varargs", ()),
+        ("kwargs_named_limit", 5),
+        ("positional_with_kwargs", 5),
+    ],
+)
+async def test_async_reranker_signatures_preserve_ordering_and_limit(monkeypatch, signature_kind, expected_limit):
+    calls = []
+
+    def reverse(documents, limit):
+        calls.append(limit)
+        return list(reversed(documents))
+
+    async def legacy(self, query, documents):
+        return reverse(documents, None)
+
+    async def explicit(self, query, documents, limit=None):
+        return reverse(documents, limit)
+
+    async def keyword_only(self, query, documents, *, limit=None):
+        return reverse(documents, limit)
+
+    async def kwargs(self, query, documents, **kwargs):
+        return reverse(documents, kwargs.get("limit"))
+
+    async def positional_only(self, limit=None, /, *, query, documents):
+        return reverse(documents, limit)
+
+    async def varargs(self, query, documents, *limit):
+        return reverse(documents, limit)
+
+    async def kwargs_named_limit(self, query, documents, **limit):
+        return reverse(documents, limit.get("limit"))
+
+    async def positional_with_kwargs(self, limit=None, /, *, query, documents, **kwargs):
+        return reverse(documents, kwargs.get("limit"))
+
+    class SignatureReranker(Reranker):
+        def rerank(self, query, documents):
+            return list(reversed(documents))
+
+    implementations = {
+        "legacy": legacy,
+        "explicit": explicit,
+        "keyword_only": keyword_only,
+        "kwargs": kwargs,
+        "positional_only": positional_only,
+        "varargs": varargs,
+        "kwargs_named_limit": kwargs_named_limit,
+        "positional_with_kwargs": positional_with_kwargs,
+    }
+    monkeypatch.setattr(SignatureReranker, "arerank", implementations[signature_kind])
+    knowledge = Knowledge(vector_db=StubVectorDb(), reranker=SignatureReranker())
+
+    sync_results = knowledge.search("q", max_results=5)
+    async_results = await knowledge.asearch("q", max_results=5)
+
+    assert [doc.id for doc in async_results] == [doc.id for doc in sync_results] == ["14", "13", "12", "11", "10"]
+    assert calls == [expected_limit]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("sync_accepts_limit", [False, True])
+async def test_async_limit_check_preserves_inherited_arerank(monkeypatch, sync_accepts_limit):
+    calls = []
+
+    class SyncOnlyReranker(Reranker):
+        def rerank(self, query, documents):
+            calls.append(None)
+            return list(reversed(documents))
+
+    def limit_aware(self, query, documents, limit=None):
+        calls.append(limit)
+        return list(reversed(documents))
+
+    if sync_accepts_limit:
+        monkeypatch.setattr(SyncOnlyReranker, "rerank", limit_aware)
+    reranker = SyncOnlyReranker()
+    assert reranker.accepts_async_limit() is True
+    knowledge = Knowledge(vector_db=StubVectorDb(), reranker=reranker)
+
+    results = await knowledge.asearch("q", max_results=5)
+
+    assert [doc.id for doc in results] == ["14", "13", "12", "11", "10"]
+    assert calls == [5 if sync_accepts_limit else None]
+
+
+@pytest.mark.parametrize("error", [TypeError, ValueError])
+def test_async_limit_check_handles_unavailable_signature(monkeypatch, error):
+    import agno.knowledge.reranker.base as reranker_module
+
+    def unavailable(method):
+        raise error("signature unavailable")
+
+    monkeypatch.setattr(reranker_module, "signature", unavailable)
+
+    assert ReverseReranker().accepts_async_limit() is False
+
+
+@pytest.mark.asyncio
+async def test_async_reranker_internal_type_error_is_not_retried(monkeypatch):
+    import agno.knowledge.knowledge as knowledge_module
+
+    calls = []
+    errors = []
+    monkeypatch.setattr(knowledge_module, "log_error", lambda message: errors.append(message))
+
+    class BrokenAsyncReranker(ReverseReranker):
+        async def arerank(self, query, documents, limit=None):
+            calls.append(limit)
+            raise TypeError("internal reranker error")
+
+    knowledge = Knowledge(vector_db=StubVectorDb(), reranker=BrokenAsyncReranker())
+
+    results = await knowledge.asearch("q", max_results=5)
+
+    assert calls == [5]
+    assert errors == ["Error reranking documents: internal reranker error"]
+    assert [doc.id for doc in results] == ["0", "1", "2", "3", "4"]
+
+
+@pytest.mark.asyncio
 async def test_suspension_does_not_leak_to_another_knowledge_sharing_the_store():
     # One vector db behind two Knowledge instances is a normal setup. Suspending the
     # store's reranker for one search must not hide it from the other. The barrier makes

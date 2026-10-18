@@ -87,34 +87,34 @@ class InfinityReranker(Reranker):
             body = RerankInput.from_dict(rerank_input)
 
             # Make request to Infinity rerank endpoint using the client
-            with self.client as client:
-                result = rerank.sync(client=client, body=body)
+            client = self.client
+            result = rerank.sync(client=client, body=body)
 
-                if result is None:
-                    log_error("Rerank request returned None")
-                    return documents
+            if result is None:
+                log_error("Rerank request returned None")
+                return documents
 
-                # Process the response
-                # Infinity returns results with index and relevance_score
-                if hasattr(result, "results") and result.results:
-                    for item in result.results:
-                        doc_index = item.index
-                        relevance_score = item.relevance_score
+            # Process the response
+            # Infinity returns results with index and relevance_score
+            if hasattr(result, "results") and result.results:
+                for item in result.results:
+                    doc_index = item.index
+                    relevance_score = item.relevance_score
 
-                        if doc_index < len(documents):
-                            doc = documents[doc_index]
-                            doc.reranking_score = relevance_score
-                            compressed_docs.append(doc)
+                    if doc_index < len(documents):
+                        doc = documents[doc_index]
+                        doc.reranking_score = relevance_score
+                        compressed_docs.append(doc)
 
-                # Order by relevance score
-                compressed_docs.sort(
-                    key=lambda x: x.reranking_score if x.reranking_score is not None else float("-inf"),
-                    reverse=True,
-                )
+            # Order by relevance score
+            compressed_docs.sort(
+                key=lambda x: x.reranking_score if x.reranking_score is not None else float("-inf"),
+                reverse=True,
+            )
 
-                # Limit to top_n if specified and not already limited by the API
-                if top_n and len(compressed_docs) > top_n:
-                    compressed_docs = compressed_docs[:top_n]
+            # Limit to top_n if specified and not already limited by the API
+            if top_n and len(compressed_docs) > top_n:
+                compressed_docs = compressed_docs[:top_n]
 
         except Exception:
             logger.exception(f"Error connecting to Infinity server at {self.base_url}")
@@ -159,34 +159,34 @@ class InfinityReranker(Reranker):
             body = RerankInput.from_dict(rerank_input)
 
             # Make async request to Infinity rerank endpoint using the client
-            async with self.client as client:
-                result = await rerank.asyncio(client=client, body=body)
+            client = self.client
+            result = await rerank.asyncio(client=client, body=body)
 
-                if result is None:
-                    log_error("Async rerank request returned None")
-                    return documents
+            if result is None:
+                log_error("Async rerank request returned None")
+                return documents
 
-                # Process the response
-                # Infinity returns results with index and relevance_score
-                if hasattr(result, "results") and result.results:
-                    for item in result.results:
-                        doc_index = item.index
-                        relevance_score = item.relevance_score
+            # Process the response
+            # Infinity returns results with index and relevance_score
+            if hasattr(result, "results") and result.results:
+                for item in result.results:
+                    doc_index = item.index
+                    relevance_score = item.relevance_score
 
-                        if doc_index < len(documents):
-                            doc = documents[doc_index]
-                            doc.reranking_score = relevance_score
-                            compressed_docs.append(doc)
+                    if doc_index < len(documents):
+                        doc = documents[doc_index]
+                        doc.reranking_score = relevance_score
+                        compressed_docs.append(doc)
 
-                # Order by relevance score
-                compressed_docs.sort(
-                    key=lambda x: x.reranking_score if x.reranking_score is not None else float("-inf"),
-                    reverse=True,
-                )
+            # Order by relevance score
+            compressed_docs.sort(
+                key=lambda x: x.reranking_score if x.reranking_score is not None else float("-inf"),
+                reverse=True,
+            )
 
-                # Limit to top_n if specified and not already limited by the API
-                if top_n and len(compressed_docs) > top_n:
-                    compressed_docs = compressed_docs[:top_n]
+            # Limit to top_n if specified and not already limited by the API
+            if top_n and len(compressed_docs) > top_n:
+                compressed_docs = compressed_docs[:top_n]
 
         except Exception:
             logger.exception(f"Error connecting to Infinity server at {self.base_url}")

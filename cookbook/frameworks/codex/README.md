@@ -70,7 +70,7 @@ turn_options: TurnOptions = {"effort": "low"}
 
 agent = CodexAgent(
     model="gpt-5.6-luna",
-    sandbox="read-only",
+    sandbox_mode="read-only",
     approval_mode="deny_all",
     client_options=CodexConfig(client_name="shipping_review"),
     thread_options=thread_options,
@@ -119,7 +119,7 @@ Tool Calls panel, and returns the final `RunOutput` with tool results. Expect fe
 The script checks that at least one tool succeeded; the live test also checks
 fixture contents in the returned tool results. Inspect the final explanation yourself.
 
-The thread uses `sandbox="read-only"` and `approval_mode="deny_all"`.
+The thread uses `sandbox_mode="read-only"` and `approval_mode="deny_all"`.
 Shell reads are translated into Agno tool events. Codex can inherit other local
 configuration; this is a local integration exercise, not a tenant-isolation
 demonstration. We do not use full-access mode or auto-approve escalation.

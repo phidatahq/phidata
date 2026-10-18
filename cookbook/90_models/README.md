@@ -13,6 +13,7 @@ Examples for all supported LLM providers in Agno.
 | **Azure OpenAI** | OpenAI on Azure | `AZURE_*` |
 | **Groq** | Fast Llama, Mixtral | `GROQ_API_KEY` |
 | **DeepSeek** | DeepSeek R1 reasoning | `DEEPSEEK_API_KEY` |
+| **Engy** | OpenAI-compatible API via `OpenAILike` | `ENGY_API_KEY` |
 | **Mistral** | Mistral, Mixtral | `MISTRAL_API_KEY` |
 | **Cohere** | Command R+ | `CO_API_KEY` |
 | **Ollama** | Local models | Local |

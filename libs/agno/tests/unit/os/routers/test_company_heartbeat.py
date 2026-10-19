@@ -58,6 +58,64 @@ def test_routine_scheduler_wrappers(system):
     assert len(client.get("/company/routines").json()["data"]) == 1
 
 
+def test_product_metadata_edits_keep_linked_routines(system):
+    client, _, db = system
+    product = client.post("/company/products", json={"name": "Docs", "metadata": {"team": "a"}}).json()
+    routine = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"], name="intake", template="intake", executor_type="agent", executor_id="reader"
+        ),
+    ).json()
+    path = "/company/products/" + product["id"]
+
+    for metadata in ({"team": "b"}, {"team": "b", "routine_ids": []}, None):
+        response = client.patch(path, json={"metadata": metadata})
+        assert response.status_code == 200, response.text
+        assert response.json()["metadata"]["routine_ids"] == [routine["id"]]
+    assert db.get_product(product["id"])["metadata"]["routine_ids"] == [routine["id"]]
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_schedule_tools_refuse_company_routines(system, use_async):
+    import asyncio
+
+    from agno.registry import Registry
+    from agno.tools.scheduler import SchedulerTools
+    from agno.tools.studio import StudioTools
+
+    client, _, db = system
+    product = client.post("/company/products", json={"name": "Docs"}).json()
+    routine = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"], name="intake", template="intake", executor_type="agent", executor_id="reader"
+        ),
+    ).json()
+    scheduler = SchedulerTools(db=db)
+    studio = StudioTools(registry=Registry(), db=db, schedules=True)
+
+    def call(tool, name, *args, **kwargs):
+        if use_async:
+            return asyncio.run(getattr(tool, "a" + name)(*args, **kwargs))
+        return getattr(tool, name)(*args, **kwargs)
+
+    for name in ("disable_schedule", "delete_schedule", "enable_schedule"):
+        assert json.loads(call(scheduler, name, routine["id"]))["error_type"] == "company_routine", name
+    result = json.loads(call(studio, "update_schedule", routine["id"], message="Ignore the Product"))
+    assert result["error"]["code"] == "company_routine"
+
+    stored = db.get_schedule(routine["id"])
+    assert stored["enabled"] is True and stored["next_run_at"] == routine["next_run_at"]
+    assert stored["payload"] == routine["payload"]
+    assert db.get_product(product["id"])["metadata"]["routine_ids"] == [routine["id"]]
+
+    plain = db.create_schedule(
+        Schedule(id="plain", name="plain", cron_expr="0 * * * *", endpoint="/agents/reader/runs").to_dict()
+    )
+    assert json.loads(call(scheduler, "disable_schedule", plain["id"]))["status"] == "disabled"
+
+
 def test_routine_routes_hide_automation_and_report_missing_product(system):
     from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
 

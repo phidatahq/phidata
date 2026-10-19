@@ -35,6 +35,9 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     assert pm not in registry.agents and not registry.tools
     assert (pm in os.manager.members) if manager else (pm in os._agents)
     assert (pm not in os._agents) if manager else True
+    if manager:
+        delegation = os.manager.instructions[-1]
+        assert "Routines" in delegation and "Tasks" in delegation and "not Platform Builder" in delegation
     os.resync(os.get_app())
     assert pm not in registry.agents and not registry.tools
     tools = pm.tools[0]

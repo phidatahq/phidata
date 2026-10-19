@@ -245,9 +245,11 @@ def handle_agent_run_paused(
         run_response.content = get_paused_content(run_response)
 
     # Stamp approval_id on tools before storing so the DB has the complete data.
-    create_approval_from_pause(
-        db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
-    )
+    # A temporary run is never stored, so an approval row could not be continued: do not create one.
+    if not is_transient(session):
+        create_approval_from_pause(
+            db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
+        )
 
     cleanup_and_store(agent, run_response=run_response, session=session, run_context=run_context, user_id=user_id)
 
@@ -270,9 +272,11 @@ def handle_agent_run_paused_stream(
         run_response.content = get_paused_content(run_response)
 
     # Stamp approval_id on tools before storing so the DB has the complete data.
-    create_approval_from_pause(
-        db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
-    )
+    # A temporary run is never stored, so an approval row could not be continued: do not create one.
+    if not is_transient(session):
+        create_approval_from_pause(
+            db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
+        )
 
     # Create RunPausedEvent and add to run_response.events before storing
     pause_event = handle_event(
@@ -309,9 +313,11 @@ async def ahandle_agent_run_paused(
         run_response.content = get_paused_content(run_response)
 
     # Stamp approval_id on tools before storing so the DB has the complete data.
-    await acreate_approval_from_pause(
-        db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
-    )
+    # A temporary run is never stored, so an approval row could not be continued: do not create one.
+    if not is_transient(session):
+        await acreate_approval_from_pause(
+            db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
+        )
     await acleanup_and_store(
         agent, run_response=run_response, session=session, run_context=run_context, user_id=user_id
     )
@@ -335,9 +341,11 @@ async def ahandle_agent_run_paused_stream(
         run_response.content = get_paused_content(run_response)
 
     # Stamp approval_id on tools before storing so the DB has the complete data.
-    await acreate_approval_from_pause(
-        db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
-    )
+    # A temporary run is never stored, so an approval row could not be continued: do not create one.
+    if not is_transient(session):
+        await acreate_approval_from_pause(
+            db=agent.db, run_response=run_response, agent_id=agent.id, agent_name=agent.name, user_id=user_id
+        )
 
     # Create RunPausedEvent and add to run_response.events before storing
     pause_event = handle_event(

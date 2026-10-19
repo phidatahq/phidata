@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 from agno.agent.agent import Agent
+from agno.approval import approval
 from agno.db.base import SessionType
 from agno.db.sqlite import SqliteDb
 from agno.media import Image
@@ -17,11 +18,14 @@ from agno.media.storage.local import LocalMediaStorage
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
+from agno.run.base import RunStatus
 from agno.session.agent import AgentSession
 from agno.session.team import TeamSession
 from agno.session.workflow import WorkflowSession
 from agno.team.team import Team
+from agno.tools import tool
 from agno.workflow.step import Step
+from agno.workflow.types import StepOutput
 from agno.workflow.workflow import Workflow
 
 
@@ -59,23 +63,26 @@ class RecordingModel(Model):
         return response
 
 
-class DelegatingModel(Model):
-    """A team model that delegates the latest user message to one member, then answers."""
+class ToolCallingModel(Model):
+    """A model that calls one tool until a tool result is in the conversation, then answers."""
 
-    def __init__(self, member_id: str):
-        super().__init__(id="delegating", name="delegating", provider="test")
-        self._member_id = member_id
+    def __init__(self, tool_name: str, arguments: Optional[Dict[str, Any]] = None):
+        super().__init__(id="tool-calling", name="tool-calling", provider="test")
+        self._called_tool = tool_name
+        self._arguments = arguments
         self._calls = 0
+
+    def _tool_arguments(self, messages: List[Any]) -> Dict[str, Any]:
+        return self._arguments or {}
 
     def _resp(self, **kwargs) -> ModelResponse:
         self._calls += 1
-        if self._calls % 2 == 1:
-            task = _user_contents(list(kwargs.get("messages") or []))[-1]
-            arguments = json.dumps({"member_id": self._member_id, "task": task})
+        messages = list(kwargs.get("messages") or [])
+        if not any(getattr(m, "role", None) == "tool" for m in messages):
             call = {
                 "id": f"call-{self._calls}",
                 "type": "function",
-                "function": {"name": "delegate_task_to_member", "arguments": arguments},
+                "function": {"name": self._called_tool, "arguments": json.dumps(self._tool_arguments(messages))},
             }
             return ModelResponse(role="assistant", tool_calls=[call], response_usage=MessageMetrics())
         return ModelResponse(content="team answer", role="assistant", response_usage=MessageMetrics())
@@ -102,9 +109,33 @@ class DelegatingModel(Model):
         return response
 
 
+class DelegatingModel(ToolCallingModel):
+    """A team model that delegates the latest user message to one member, then answers."""
+
+    def __init__(self, member_id: str):
+        super().__init__("delegate_task_to_member")
+        self._member_id = member_id
+
+    def _tool_arguments(self, messages: List[Any]) -> Dict[str, Any]:
+        return {"member_id": self._member_id, "task": _user_contents(messages)[-1]}
+
+
 @pytest.fixture()
 def db(tmp_path) -> SqliteDb:
     return SqliteDb(db_file=str(tmp_path / "store_run.db"))
+
+
+def _approvals(db: SqliteDb) -> int:
+    approvals = db.get_approvals()
+    rows = approvals[0] if isinstance(approvals, tuple) else approvals
+    return len(rows)
+
+
+@approval
+@tool()
+def needs_ok(city: str) -> str:
+    """Return the weather for a city once a human has approved the call."""
+    return f"sunny in {city}"
 
 
 def _runs(db: SqliteDb, session_id: str) -> int:
@@ -187,6 +218,36 @@ class TestAgent:
         with pytest.raises(ValueError, match="store_run=False"):
             agent.arun("hi", session_id="s1", background=True, store_run=False)
 
+    def test_paused_temporary_run_creates_no_approval(self, db: SqliteDb):
+        model = ToolCallingModel("needs_ok", {"city": "Paris"})
+        agent = Agent(id="a", model=model, db=db, tools=[needs_ok])
+
+        output = agent.run("weather?", session_id="s1", store_run=False)
+
+        assert output.is_paused
+        assert _approvals(db) == 0
+        assert _runs(db, "s1") == 0
+
+        # A stored paused run keeps creating its approval row.
+        stored = agent.run("weather?", session_id="s1")
+        assert stored.is_paused
+        assert _approvals(db) == 1
+        assert _runs(db, "s1") == 1
+
+    @pytest.mark.asyncio
+    async def test_paused_async_temporary_run_creates_no_approval(self, db: SqliteDb):
+        model = ToolCallingModel("needs_ok", {"city": "Paris"})
+        agent = Agent(id="a", model=model, db=db, tools=[needs_ok])
+
+        output = await agent.arun("weather?", session_id="s1", store_run=False)
+        assert output.is_paused
+
+        events = [event async for event in agent.arun("weather?", session_id="s1", stream=True, store_run=False)]
+        assert events
+
+        assert _approvals(db) == 0
+        assert _runs(db, "s1") == 0
+
     def test_media_is_not_offloaded_for_a_temporary_run(self, db: SqliteDb, tmp_path):
         media_root = tmp_path / "media"
         agent = Agent(id="a", model=RecordingModel(), db=db, media_storage=LocalMediaStorage(base_path=str(media_root)))
@@ -249,6 +310,26 @@ class TestTeam:
         assert db.get_session(session_id="s1", session_type=SessionType.TEAM) is None
         assert _runs(db, "s1") == 0
 
+    def test_paused_temporary_team_run_creates_no_approval(self, db: SqliteDb):
+        team = Team(
+            id="t",
+            name="T",
+            model=ToolCallingModel("needs_ok", {"city": "Paris"}),
+            members=[Agent(id="member", model=RecordingModel())],
+            tools=[needs_ok],
+            db=db,
+        )
+
+        output = team.run("weather?", session_id="s1", store_run=False)
+
+        assert output.is_paused
+        assert _approvals(db) == 0
+        assert _runs(db, "s1") == 0
+
+        stored = team.run("weather?", session_id="s1")
+        assert stored.is_paused
+        assert _approvals(db) == 1
+
     def test_member_cached_session_is_not_changed_by_a_temporary_run(self, db: SqliteDb):
         member_model = RecordingModel()
         member = Agent(id="member", name="Member", model=member_model, cache_session=True, add_history_to_context=True)
@@ -302,6 +383,79 @@ class TestWorkflow:
 
         events = [event async for event in workflow.arun("hi", session_id="s1", stream=True, store_run=False)]
         assert events
+
+        assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is None
+        assert _runs(db, "s1") == 0
+
+    @staticmethod
+    def _workflow_agent():
+        """A WorkflowAgent whose model call is replaced: it runs the workflow tool once, then answers."""
+        from agno.models.openai import OpenAIResponses
+        from agno.run.agent import RunOutput
+        from agno.run.workflow import WORKFLOW_RUN_OUTPUT_EVENT_TYPES
+        from agno.tools.function import FunctionCall
+        from agno.workflow.agent import WorkflowAgent
+
+        class ScriptedWorkflowAgent(WorkflowAgent):
+            def _events(self):
+                call = FunctionCall(function=self.tools[0], arguments={"query": "go"}, call_id="call-1")
+                for event in self.model.run_function_call(call, []):
+                    if isinstance(event, WORKFLOW_RUN_OUTPUT_EVENT_TYPES):
+                        yield event
+                yield RunOutput(run_id="agent-response", content="agent answer")
+
+            async def _aevents(self):
+                call = FunctionCall(function=self.tools[0], arguments={"query": "go"}, call_id="call-1")
+                async for event in self.model.arun_function_calls([call], []):
+                    if isinstance(event, WORKFLOW_RUN_OUTPUT_EVENT_TYPES):
+                        yield event
+                yield RunOutput(run_id="agent-response", content="agent answer")
+
+            def run(self, *args, stream=False, **kwargs):
+                if stream:
+                    return self._events()
+                return list(self._events())[-1]
+
+            def arun(self, *args, stream=False, **kwargs):
+                if stream:
+                    return self._aevents()
+
+                async def _last():
+                    last = None
+                    async for event in self._aevents():
+                        last = event
+                    return last
+
+                return _last()
+
+        return ScriptedWorkflowAgent(model=OpenAIResponses(id="unused"))
+
+    def _agent_workflow(self, db: SqliteDb) -> Workflow:
+        def step(step_input) -> StepOutput:
+            return StepOutput(content="step done")
+
+        return Workflow(id="w", name="W", agent=self._workflow_agent(), steps=[Step(name="s1", executor=step)], db=db)
+
+    def test_workflow_agent_temporary_run_returns_its_run(self, db: SqliteDb):
+        workflow = self._agent_workflow(db)
+
+        output = workflow.run("go", session_id="s1", store_run=False)
+
+        assert output.status == RunStatus.completed
+        assert output.workflow_agent_run is not None
+        assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is None
+        assert _runs(db, "s1") == 0
+
+    @pytest.mark.asyncio
+    async def test_workflow_agent_async_temporary_run_returns_its_run(self, db: SqliteDb):
+        workflow = self._agent_workflow(db)
+
+        output = await workflow.arun("go", session_id="s1", store_run=False)
+        assert output.status == RunStatus.completed
+        assert output.workflow_agent_run is not None
+
+        events = [event async for event in workflow.arun("go", session_id="s1", stream=True, store_run=False)]
+        assert any(type(event).__name__ == "WorkflowAgentCompletedEvent" for event in events)
 
         assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is None
         assert _runs(db, "s1") == 0

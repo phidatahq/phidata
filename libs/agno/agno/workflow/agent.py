@@ -299,6 +299,10 @@ Guidelines:
                     if isinstance(event, WorkflowCompletedEvent):
                         final_content = str(event.content) if event.content else ""
 
+                # The async execution loads its own session copy; a temporary run's copy is never
+                # stored, so hand the executed run back to the caller's copy where it will be looked up.
+                if session.transient:
+                    session.upsert_run(run=workflow_run_response)
                 yield final_content
             else:
                 result = await workflow._aexecute(
@@ -308,6 +312,8 @@ Guidelines:
                     workflow_run_response=workflow_run_response,
                     run_context=run_context,
                 )
+                if session.transient:
+                    session.upsert_run(run=result)
 
                 if isinstance(result.content, str):
                     yield result.content

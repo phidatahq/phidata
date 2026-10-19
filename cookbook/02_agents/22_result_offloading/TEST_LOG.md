@@ -1,18 +1,5 @@
 # Test Log
 
-### 08_focused_readback.py — 2026-10-19
-
-**Status:** PASS
-
-**Description:** Ran with the development Python and branch source, using a
-temporary SQLite database and no network or model calls.
-
-**Result:** Found both learning passages on the same JSON line, despite 25
-repeated keywords in the first passage. Sync and async reads returned the relevant passage within an 80-character budget. The stored
-payload remained byte-for-byte unchanged.
-
----
-
 Tested 2026-08-20 against `gpt-5.5` (OpenAIResponses), SQLite, with the worktree's Python (agno from this branch).
 
 ### 01_offload_tool_results.py

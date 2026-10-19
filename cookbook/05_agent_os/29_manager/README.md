@@ -109,9 +109,7 @@ launch the server. Setting `root` does not enable file writes or shell execution
 The manager is instructed to keep explanations scoped to the question and to
 request concise specialist answers when delegation is necessary. Documentation
 access on the lead lets it answer framework questions without a specialist run.
-For large offloaded results, it can search for the relevant passage and call
-`read_result` with `start_char` and a small `max_chars` instead of reloading the
-whole response. Model choices still determine the actual tool calls and latency.
+Model choices still determine the actual tool calls and latency.
 
 ## When to use a registry
 

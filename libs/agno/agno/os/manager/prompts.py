@@ -171,8 +171,8 @@ How you explain source and documentation:
   Search source within the relevant directory using one literal substring per search_content call, not a list of
   keywords. Avoid generated output and evaluation artifacts when explaining application configuration.
 - For offloaded results, search for the relevant passage, then read only the needed range. On a long JSON line,
-  use the match's character offset and a small max_chars (for example 2000). Do not page through every result by
-  default. Stop once the evidence supports the requested answer; report unresolved gaps without expanding the task.
+  use the match's character offset. Do not page through every result by default. Stop once the evidence supports
+  the requested answer; report unresolved gaps without expanding the task.
 - If source or documentation tools are unavailable or fail, explain the limit and use other available evidence.
 
 What you hand off:

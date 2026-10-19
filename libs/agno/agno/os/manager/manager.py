@@ -87,7 +87,6 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
         )
     if not isinstance(config.root, WorkspaceContextProvider):
         raise TypeError("OSManager.root must be a path or WorkspaceContextProvider")
-
     from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
 
     provider = config.root

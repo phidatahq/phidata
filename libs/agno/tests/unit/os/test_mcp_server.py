@@ -2318,6 +2318,54 @@ async def test_tool_run_api_times_out_a_tool_that_does_not_finish():
     assert response.json()["error"] == "timeout"
 
 
+class _Tool:
+    """A tool that outlives any budget and records how it ended.
+
+    Unwinding takes a moment, as closing a model's HTTP stream does, so a handler can be
+    cancelled while the tool is still cancelling.
+    """
+
+    def __init__(self) -> None:
+        self.ended: Optional[str] = None
+
+    async def run(self) -> str:
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+            self.ended = "cancelled"
+            raise
+        self.ended = "finished"
+        return "done"
+
+
+async def test_tool_run_budget_cancels_the_tool_and_reports_a_timeout():
+    tool = _Tool()
+    with pytest.raises(asyncio.TimeoutError):
+        await mcp_mod._call_within_the_budget(tool.run(), timeout_seconds=0.01)
+    assert tool.ended == "cancelled"
+
+
+async def test_tool_run_budget_propagates_the_handlers_own_cancellation():
+    """A handler cancelled mid-call (a server shutting down) is cancelled, not timed out.
+
+    Covers both windows: before the budget expires, and after it expired while the tool
+    is still unwinding. The second is where ``work.cancelled()`` cannot tell whose
+    cancellation arrived, because the tool was already cancelled by the budget.
+    """
+    for cancel_after, window in ((0.0, "before the budget expires"), (0.05, "while the tool unwinds")):
+        tool = _Tool()
+        handler = asyncio.ensure_future(mcp_mod._call_within_the_budget(tool.run(), timeout_seconds=0.01))
+        await asyncio.sleep(cancel_after)
+        handler.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await handler
+        assert handler.cancelled(), window
+        # Either way nobody will read the result, so the tool is stopped.
+        await asyncio.sleep(0.2)
+        assert tool.ended == "cancelled", window
+
+
 async def test_tool_run_api_does_not_claim_a_sibling_path():
     """``/mcp/servers`` shares a prefix with ``/mcp/server`` but is a different route.
 

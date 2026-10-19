@@ -868,3 +868,32 @@ def test_result_offloaded_before_partitions_stays_readable_and_deletable(store):
     assert store.delete_for_sessions(["S1"]) == 1
     row_namespace = namespace_for("S1")
     assert FileSystem(backend=store.fs.backend, namespace=row_namespace).list() == []
+
+
+def test_context_lines_are_rendered_once_for_matches_on_the_same_line(store):
+    """Several matches on one line share one context block; repeating it per match spent the
+    whole reply budget on a handful of matches."""
+    before = "\n".join(f"before {i}" for i in range(5))
+    after = "\n".join(f"after {i}" for i in range(5))
+    payload = before + "\n" + ("needle needle" + "x" * 994) * 20 + "\n" + after
+    ref = _offload(store, payload)
+    matches = store.search(ref.result_id, "needle", context_lines=5)
+    assert len(matches) == 20
+    assert all(match.line_number == 6 for match in matches)
+    assert matches[0].line.startswith("1: before 0\n") and "11: after 4" in matches[0].line
+    assert all(match.line.startswith("6: ") and "before" not in match.line for match in matches[1:])
+    assert not matches[-1].more
+
+
+def test_a_truncated_excerpt_reports_more_so_a_skipped_match_is_not_lost(store, monkeypatch):
+    """The scan skips a match the previous excerpt would show; when the budget then cuts that
+    excerpt short, the match is out of view and the reply must say there is more."""
+    from agno.offload import store as store_module
+
+    monkeypatch.setattr(store_module, "SEARCH_MAX_CHARS", 100)
+    payload = "needle" + "x" * 300 + "needle" + "y" * 300
+    ref = _offload(store, payload)
+    matches = store.search(ref.result_id, "needle")
+    assert [match.char_offset for match in matches] == [0], "the second match sat inside the first excerpt"
+    assert len(matches[0].line) <= 100 and "needle" + "x" * 50 in matches[0].line
+    assert matches[0].more is True

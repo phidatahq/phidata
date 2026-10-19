@@ -118,13 +118,18 @@ def _render_matches(
     matches: List[ResultMatch] = []
     budget = SEARCH_MAX_CHARS
     stopped_early = False
+    previous_line = 0
     for line_number, char_offset, match_len in positions:
         if matches and budget <= _MATCH_HEADER_CHARS:
             # This match exists but no longer fits the reply budget.
             stopped_early = True
             break
         index = line_number - 1
-        if context_lines > 0:
+        if context_lines > 0 and line_number == previous_line:
+            # The context block was rendered with the previous match on this line;
+            # repeating it would spend the budget on lines the model already has.
+            text = f"{line_number}: {_clip_around(lines[index], char_offset, match_len)}"
+        elif context_lines > 0:
             start = max(0, index - context_lines)
             end = min(len(lines), index + context_lines + 1)
             # Each row carries its own line number, so the block reads the
@@ -139,8 +144,12 @@ def _render_matches(
         # for it so the reply the model sees stays within one page.
         budget -= _MATCH_HEADER_CHARS
         if len(text) > budget:
+            # The excerpt is cut to fit; a match the scan skipped because this excerpt
+            # would have shown it may now be out of view, so say there is more.
             text = text[:budget]
+            stopped_early = True
         budget -= len(text) + 1
+        previous_line = line_number
         matches.append(ResultMatch(line_number=line_number, line=text, char_offset=char_offset))
     if matches and (more or stopped_early):
         matches[-1].more = True

@@ -10,15 +10,15 @@ import re
 from typing import Any, Dict, Optional
 
 from agno.run import RunContext
+from agno.offload.store import READ_MAX_CHARS
 from agno.tools.function import Function
 
 OFFLOAD_INSTRUCTION = (
     "Large tool results are stored as files and shown to you as a short preview with a "
     "result id. The preview is not the whole result. Use search_result to locate what you "
-    "need and read_result to read that range; do not treat a truncated preview as complete evidence. "
-    "Search with specific terms and use the match's line and character offset with a small "
-    "max_chars (for example 2000) to read a focused excerpt, including on single-line JSON. "
-    "Read more only when needed to answer the question; do not reload entire results by default."
+    "need and read_result to read that range; do not answer from the preview when the "
+    "preview was truncated. Read a focused excerpt with the match's line, start_char and a "
+    "small max_chars instead of reloading the whole result."
 )
 
 
@@ -64,7 +64,7 @@ def get_read_result_function(owner: Any, run_context: RunContext, async_mode: bo
         start_line: int = 1,
         end_line: Optional[int] = None,
         start_char: int = 0,
-        max_chars: int = 16000,
+        max_chars: int = READ_MAX_CHARS,
     ) -> str:
         """Read a stored tool result. Lines are 1-indexed and inclusive.
 
@@ -98,7 +98,7 @@ def get_read_result_function(owner: Any, run_context: RunContext, async_mode: bo
         start_line: int = 1,
         end_line: Optional[int] = None,
         start_char: int = 0,
-        max_chars: int = 16000,
+        max_chars: int = READ_MAX_CHARS,
     ) -> str:
         """Read a stored tool result. Lines are 1-indexed and inclusive.
 

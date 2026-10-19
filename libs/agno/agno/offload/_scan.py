@@ -11,8 +11,10 @@ agno and never the caller's code, and a caller script without an
 ``multiprocessing`` spawn worker would re-execute it.
 
 The request arrives on stdin as one JSON document and the reply leaves on
-stdout as another. Only match positions cross; the caller renders the text,
-with the same code the in-process scan uses.
+stdout as another. Only match positions cross; the caller renders the text.
+ResultStore also imports the position finder and the excerpt window from this
+module, so the in-process scan and the subprocess scan find the same positions
+and skip the same already-visible matches.
 """
 
 import json
@@ -49,6 +51,9 @@ def _find_match_positions(
             match_len = found.end() - found.start()
             positions.append((index + 1, found.start(), match_len))
             _, covered_end = _match_window(line, found.start(), match_len, clip)
+            if covered_end >= len(line):
+                # The excerpt shows the rest of the line; no later match on it can be new.
+                break
     return positions, False
 
 

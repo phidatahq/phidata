@@ -114,7 +114,7 @@ class Case:
     expected: Optional[Any] = None
 
     # Run arguments - the session, user, state, dependencies, metadata and knowledge filters of
-    # the run, forwarded as-is except session_state, which is copied per run. session_id runs the
+    # the run, forwarded as-is except session_state and dependencies, which are copied per run. session_id runs the
     # case in that session instead of a generated one, e.g. to continue the turns its setup ran;
     # the suite never clears it.
     session_id: Optional[str] = None
@@ -263,6 +263,17 @@ _STATUS_ERRORS = {
 }
 
 
+def _copy_dependencies(dependencies: Dict[str, Any]) -> Dict[str, Any]:
+    """Deep copy each value for one run; values deepcopy cannot handle keep the original reference."""
+    copied = {}
+    for key, value in dependencies.items():
+        try:
+            copied[key] = deepcopy(value)
+        except Exception:
+            copied[key] = value
+    return copied
+
+
 def _input_text(case: Case) -> str:
     # The judge takes text: a Message's text parts, joined, with media parts skipped. The
     # content is passed, not the Message, which get_text_from_message would dump as json.
@@ -367,7 +378,7 @@ async def _run_case_body(
             session_id=result.session_id,
             user_id=case.user_id,
             session_state=deepcopy(case.session_state),
-            dependencies=case.dependencies,
+            dependencies=_copy_dependencies(case.dependencies) if case.dependencies is not None else None,
             metadata=case.metadata,
             knowledge_filters=case.knowledge_filters,
         ):

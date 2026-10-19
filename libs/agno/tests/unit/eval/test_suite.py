@@ -1926,6 +1926,33 @@ def test_session_state_is_copied_for_each_run(monkeypatch):
     assert agent.run_arguments[0]["session_state"] is not agent.run_arguments[1]["session_state"]
 
 
+def test_dependencies_are_copied_for_each_run(monkeypatch):
+    # A tool appending to a nested value must not change the case's dict for the next run;
+    # a value deepcopy cannot handle is passed through as the same object.
+    _install_fake_evals(monkeypatch)
+
+    class MutatingAgent(StubAgent):
+        async def arun(self, *, dependencies, **kwargs):
+            async for event in super().arun(dependencies=dependencies, **kwargs):
+                yield event
+            dependencies["notes"].append("hello")
+
+    class Uncopyable:
+        def __deepcopy__(self, memo):
+            raise TypeError("cannot copy")
+
+    agent = MutatingAgent()
+    client = Uncopyable()
+    case = _make_case(agent=agent, dependencies={"notes": [], "client": client})
+
+    run_cases([case])
+    run_cases([case])
+
+    assert case.dependencies == {"notes": [], "client": client}
+    assert [run["dependencies"]["notes"] for run in agent.run_arguments] == [["hello"], ["hello"]]
+    assert agent.run_arguments[0]["dependencies"]["client"] is client
+
+
 def test_team_case_forwards_run_arguments(monkeypatch):
     _install_fake_evals(monkeypatch)
     team = StubAgent(id="research-team")

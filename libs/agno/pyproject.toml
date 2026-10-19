@@ -497,6 +497,7 @@ demo = [
     "langgraph",
     "langchain-openai",
     "dspy",
+    "google-adk",
 ]
 
 [project.scripts]

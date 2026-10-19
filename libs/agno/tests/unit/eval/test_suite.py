@@ -1952,3 +1952,22 @@ def test_message_input_is_passed_to_the_run_and_its_text_to_the_judge(monkeypatc
 
     assert agent.inputs == [message]
     assert judge_instances[0].input == "What colour is this image?"
+
+
+def test_message_input_with_content_parts_gives_the_judge_the_text_parts_only(monkeypatch):
+    # An image-first parts list must not reach the judge as a json dump of the media.
+    from agno.models.message import Message
+
+    judge_instances, _ = _install_fake_evals(monkeypatch)
+    message = Message(
+        role="user",
+        content=[
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,iVBORw0KGgo="}},
+            {"type": "text", "text": "What colour is this image?"},
+            {"type": "text", "text": "One word."},
+        ],
+    )
+
+    run_cases([_make_case(input=message)])
+
+    assert judge_instances[0].input == "What colour is this image?\nOne word."

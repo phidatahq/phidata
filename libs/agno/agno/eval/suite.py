@@ -35,6 +35,7 @@ from agno.run.team import TeamRunOutput
 from agno.run.workflow import WorkflowErrorEvent
 from agno.scorer.base import Score, Scorer
 from agno.team.team import Team
+from agno.utils.message import get_text_from_message
 
 if TYPE_CHECKING:
     from rich.console import Console
@@ -262,7 +263,11 @@ _STATUS_ERRORS = {
 
 
 def _input_text(case: Case) -> str:
-    return case.input if isinstance(case.input, str) else case.input.get_content_string()
+    # The judge takes text: a Message's text parts, joined, with media parts skipped. The
+    # content is passed, not the Message, which get_text_from_message would dump as json.
+    if isinstance(case.input, str):
+        return case.input
+    return get_text_from_message(case.input.content) if case.input.content is not None else ""
 
 
 def _component_id(case: Case) -> str:

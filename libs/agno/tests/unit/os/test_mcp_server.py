@@ -2177,6 +2177,18 @@ async def test_tool_run_endpoint_runs_a_tool_and_returns_its_result():
     assert body["durationMs"] >= 0
 
 
+async def test_tool_run_endpoint_can_be_switched_off():
+    """A protocol-only deployment keeps one write path; the card is unaffected."""
+    app = get_mcp_server(_echo_os(tool_run_endpoint=False))
+    async with _mcp_client(app) as client:
+        run = await client.post("/mcp/server/tools/echo/run", json={"arguments": {"text": "there"}})
+        card = await client.get("/mcp/server-card")
+
+    assert run.status_code == 404
+    assert "echo: there" not in run.text
+    assert card.status_code == 200
+
+
 async def test_tool_run_endpoint_accepts_a_call_without_a_body():
     """A tool whose arguments are all optional is runnable without sending any."""
     app = get_mcp_server(_echo_os())

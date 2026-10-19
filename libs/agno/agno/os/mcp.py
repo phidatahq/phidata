@@ -2083,6 +2083,10 @@ def _server_card_enabled(mcp_config: "Optional[MCPConfig]") -> bool:
     return mcp_config is None or mcp_config.server_card
 
 
+def _tool_run_endpoint_enabled(mcp_config: "Optional[MCPConfig]") -> bool:
+    return mcp_config is None or mcp_config.tool_run_endpoint
+
+
 # Mirrors ``MCPConfig.tool_run_timeout_seconds`` for ``mcp=True``, which has no config object.
 _DEFAULT_TOOL_RUN_TIMEOUT_SECONDS = 120.0
 
@@ -2566,14 +2570,15 @@ def build_mcp_server(
             allowed_hosts=(mcp_config.allowed_hosts if mcp_config is not None else None),
         )
 
-    _register_tool_run_endpoint(
-        mcp,
-        os,
-        timeout_seconds=(
-            mcp_config.tool_run_timeout_seconds if mcp_config is not None else _DEFAULT_TOOL_RUN_TIMEOUT_SECONDS
-        ),
-        mcp_config=mcp_config,
-    )
+    if _tool_run_endpoint_enabled(mcp_config):
+        _register_tool_run_endpoint(
+            mcp,
+            os,
+            timeout_seconds=(
+                mcp_config.tool_run_timeout_seconds if mcp_config is not None else _DEFAULT_TOOL_RUN_TIMEOUT_SECONDS
+            ),
+            mcp_config=mcp_config,
+        )
 
     # Classify the tool surface up front: the enabled default-tool tags depend on
     # whether components are exposed (lifecycle_tools=True adds their lifecycle pair).

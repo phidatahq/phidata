@@ -42,6 +42,8 @@ def _routine_failure(output: Any) -> Optional[str]:
     elif isinstance(output, dict):
         for tool in output.get("tools") or []:
             if tool.get("tool_call_error") and tool.get("tool_name") in {
+                "create_company_product",
+                "create_company_routine",
                 "add_company_source",
                 "read_company_source",
                 "intake_company_source",
@@ -143,6 +145,13 @@ def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[s
 
     ScheduleCreate.model_validate(fields)
     return fields
+
+
+def _declared_schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[str, Any]:
+    """Schedule fields for a declared Routine; automatic acceptance needs the Routine API's authorization."""
+    if routine.auto_accept:
+        raise ValueError("Authorize automatic acceptance through the Routine API")
+    return _schedule_fields(product_id, routine, registry)
 
 
 class _RoutineAuthorization(_ExecutorAuthorization):

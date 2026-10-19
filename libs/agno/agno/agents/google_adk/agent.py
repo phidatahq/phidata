@@ -17,6 +17,8 @@ from agno.run.agent import (
 )
 
 _PROVIDER = "Google"
+# Native session state key: how many stored Agno turns the native session covers.
+_TURNS_KEY = "agno_turns"
 
 
 @agent_dataclass
@@ -120,13 +122,25 @@ class GoogleADKAgent(BaseExternalAgent):
         )
         return self._runner
 
-    async def _aget_or_create_session(self, runner: Any, user_id: str, session_id: str) -> Tuple[Any, bool]:
-        """The ADK session for this Agno session, and whether it already carries a conversation."""
+    async def _aget_or_create_session(self, runner: Any, user_id: str, session_id: str, turns: int) -> Tuple[Any, bool]:
+        """The ADK session for this Agno session, and whether it carries the conversation so far.
+
+        turns is the number of stored Agno turns before this one. Each run records in the
+        native session's state how many turns that session covers, so a native session another
+        worker never saw (an in-memory session service behind several AgentOS workers) is
+        recognised as stale and rebuilt from the stored history instead of resumed.
+        """
         service = runner.session_service
-        session = await service.get_session(app_name=runner.app_name, user_id=user_id, session_id=session_id)
+        ids = dict(app_name=runner.app_name, user_id=user_id, session_id=session_id)
+        session = await service.get_session(**ids)
         if session is not None:
-            return session, bool(session.events)
-        session = await service.create_session(app_name=runner.app_name, user_id=user_id, session_id=session_id)
+            covered = (session.state or {}).get(_TURNS_KEY)
+            if not session.events:
+                return session, False
+            if covered is None or covered >= turns:
+                return session, True
+            await service.delete_session(**ids)
+        session = await service.create_session(**ids)
         return session, False
 
     def _adk_user_id(self, kwargs: Dict[str, Any]) -> str:
@@ -213,14 +227,17 @@ class GoogleADKAgent(BaseExternalAgent):
         run_id = kwargs.get("run_id") or str(uuid4())
         session_id = kwargs["session_id"]
         user_id = self._adk_user_id(kwargs)
-        _, resumed = await self._aget_or_create_session(runner, user_id, session_id)
+        turns = sum(1 for message in history or [] if message.get("role") == "user")
+        _, resumed = await self._aget_or_create_session(runner, user_id, session_id, turns)
 
         prompt = self._build_prompt(input, history, resumed)
         parts: List[Any] = [types.Part.from_text(text=prompt)]
         parts.extend(await abuild_media_parts(kwargs.get("media")))
         new_message = types.Content(role="user", parts=parts)
 
-        run_kwargs: Dict[str, Any] = dict(user_id=user_id, session_id=session_id, new_message=new_message)
+        run_kwargs: Dict[str, Any] = dict(
+            user_id=user_id, session_id=session_id, new_message=new_message, state_delta={_TURNS_KEY: turns + 1}
+        )
         if run_config is not None:
             run_kwargs["run_config"] = run_config
         abort = asyncio.Event()
@@ -235,6 +252,8 @@ class GoogleADKAgent(BaseExternalAgent):
                     yield translated
         finally:
             self._clear_run_handle(run_id)
+        for translated in translator.flush():
+            yield translated
 
         metrics = translator.metrics()
         if metrics is not None:
@@ -246,17 +265,22 @@ class _EventTranslator:
 
     In SSE streaming mode ADK yields partial text chunks and then one complete event that
     repeats the whole text; only what the chunks did not already carry is emitted for it.
-    Text from successive model turns (an agent after its tools ran, the next agent in a tree)
-    is separated by a blank line so the run's content reads the same whether or not it
-    was streamed.
+    A ParallelAgent's sub-agents interleave their chunks, so one source streams live at a
+    time: text from any other source is held and emitted whole, as its own block, once the
+    live source is done. Blocks are separated by a blank line, so the run's content reads
+    the same whether or not it was streamed.
     """
 
     def __init__(self, *, run_id: str, agent_id: str, agent_name: str) -> None:
         self.run_id = run_id
         self.agent_id = agent_id
         self.agent_name = agent_name
-        # Partial text per branch and author: a ParallelAgent's sub-agents interleave their chunks.
-        self.streamed: Dict[Tuple[Any, Any], str] = {}
+        self.live: Optional[Tuple[Any, Any]] = None
+        self.streamed = ""
+        # Text of sources that started while another was live, by (branch, author).
+        self.held: Dict[Tuple[Any, Any], str] = {}
+        # Sources that completed while held, in completion order, with their full text.
+        self.done: List[str] = []
         self.emitted_any = False
         # Tool call ids by name, for providers that return responses without ids.
         self.pending: Dict[str, List[str]] = {}
@@ -277,18 +301,7 @@ class _EventTranslator:
         )
         if text:
             source = (getattr(event, "branch", None), getattr(event, "author", None))
-            streamed = self.streamed.get(source, "")
-            if partial:
-                out.extend(self._content(text, new_turn=not streamed))
-                self.streamed[source] = streamed + text
-            else:
-                if streamed and text.startswith(streamed):
-                    remainder = text[len(streamed) :]
-                    if remainder:
-                        out.extend(self._content(remainder, new_turn=False))
-                else:
-                    out.extend(self._content(text, new_turn=not streamed))
-                self.streamed.pop(source, None)
+            out.extend(self._text(source, text, partial))
 
         if not partial:
             for call in (part.function_call for part in parts if getattr(part, "function_call", None)):
@@ -328,6 +341,57 @@ class _EventTranslator:
         error_code = getattr(event, "error_code", None)
         if error_code and not partial and not parts:
             raise RuntimeError(f"Google ADK run failed: {error_code}: {getattr(event, 'error_message', None) or ''}")
+        return out
+
+    def _text(self, source: Tuple[Any, Any], text: str, partial: bool) -> List[RunOutputEvent]:
+        out: List[RunOutputEvent] = []
+        if partial:
+            if self.live is None:
+                self.live = source
+            if self.live == source:
+                out.extend(self._content(text, new_turn=not self.streamed))
+                self.streamed += text
+            else:
+                self.held[source] = self.held.get(source, "") + text
+            return out
+        if self.live == source:
+            if text.startswith(self.streamed):
+                remainder = text[len(self.streamed) :]
+                if remainder:
+                    out.extend(self._content(remainder, new_turn=False))
+            else:
+                out.extend(self._content(text, new_turn=True))
+            out.extend(self._finish_live())
+        elif self.live is None:
+            out.extend(self._content(text, new_turn=True))
+        else:
+            self.held.pop(source, None)
+            self.done.append(text)
+        return out
+
+    def _finish_live(self) -> List[RunOutputEvent]:
+        """The live source is done: emit the sources that completed meanwhile, then let the
+        next held source stream live from what it has so far."""
+        out: List[RunOutputEvent] = []
+        self.live, self.streamed = None, ""
+        for text in self.done:
+            out.extend(self._content(text, new_turn=True))
+        self.done = []
+        if self.held:
+            source, text = next(iter(self.held.items()))
+            del self.held[source]
+            self.live, self.streamed = source, text
+            out.extend(self._content(text, new_turn=True))
+        return out
+
+    def flush(self) -> List[RunOutputEvent]:
+        """Emit whatever is still held when the invocation ends without completing it."""
+        out: List[RunOutputEvent] = []
+        for text in self.done:
+            out.extend(self._content(text, new_turn=True))
+        for text in self.held.values():
+            out.extend(self._content(text, new_turn=True))
+        self.done, self.held, self.live, self.streamed = [], {}, None, ""
         return out
 
     def _content(self, text: str, *, new_turn: bool) -> List[RunOutputEvent]:

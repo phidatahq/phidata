@@ -311,8 +311,9 @@ def test_parallel_authors_keep_separate_stream_buffers():
     agent, _ = _agent(script)
     events = list(agent.run("go", stream=True))
     content = [event.content for event in events if isinstance(event, RunContentEvent)]
-    assert content == ["Hel", "\n\nWor", "lo", "ld"]
-    assert events[-1].content == "Hel\n\nWorlold"
+    # One source streams live; the other is held and emitted whole once the first is done.
+    assert content == ["Hel", "lo", "\n\nWorld"]
+    assert events[-1].content == "Hello\n\nWorld"
     # Without SSE mode ADK sends only the complete events.
     complete_only, _ = _agent([item for item in script if not item.get("partial")])
     assert complete_only.run("go").content == "Hello\n\nWorld"
@@ -325,3 +326,52 @@ def test_completed_tools_survive_a_failed_non_stream_attempt(tmp_path):
     assert result.status == RunStatus.error
     assert [(tool.tool_name, tool.result) for tool in result.tools or []] == [("get_weather", "sunny")]
     assert agent.db.get_runs(session_id="s")[0].tools[0].tool_name == "get_weather"
+
+
+def test_held_source_that_completes_first_is_emitted_after_the_live_one():
+    script = [
+        {"text": "Hel", "partial": True, "author": "a"},
+        {"text": "Wor", "partial": True, "author": "b"},
+        {"text": "World", "author": "b"},
+        {"text": "lo", "partial": True, "author": "a"},
+        {"text": "Hello", "author": "a"},
+        {"text": "Done", "author": "c"},
+    ]
+    agent, _ = _agent(script)
+    events = list(agent.run("go", stream=True))
+    assert [event.content for event in events if isinstance(event, RunContentEvent)] == [
+        "Hel",
+        "lo",
+        "\n\nWorld",
+        "\n\nDone",
+    ]
+
+
+def test_held_text_is_not_lost_when_the_invocation_ends_early():
+    script = [
+        {"text": "Hel", "partial": True, "author": "a"},
+        {"text": "World", "partial": True, "author": "b"},
+    ]
+    agent, _ = _agent(script)
+    result = list(agent.run("go", stream=True, yield_run_output=True))[-1]
+    assert result.content == "Hel\n\nWorld"
+
+
+def test_stale_native_session_is_rebuilt_from_stored_history(tmp_path):
+    # Two AgentOS workers share the Agno database but each has its own in-memory ADK session service.
+    db = SqliteDb(db_file=str(tmp_path / "runs.db"))
+    worker_a, adk_a = _agent([{"text": "hi"}], db=db)
+    worker_b, adk_b = _agent([{"text": "hi"}], db=db)
+    worker_a.run("first", session_id="s1", user_id="u1")
+    worker_b.run("second", session_id="s1", user_id="u1")
+    assert "user: first" in adk_b.invocations[0].user_content.parts[0].text
+    # Worker A's native session never saw turn 2, so it is rebuilt from the stored history.
+    worker_a.run("third", session_id="s1", user_id="u1")
+    prompt = adk_a.invocations[1].user_content.parts[0].text
+    assert "user: first" in prompt and "user: second" in prompt and prompt.endswith("Current message:\nthird")
+    native = asyncio.run(worker_a.session_service.get_session(app_name="agno", user_id="u1", session_id="s1"))
+    assert native.state["agno_turns"] == 3
+    assert len([event for event in native.events if event.author == "user"]) == 1
+    # Now current again: the next turn on worker A resumes natively.
+    worker_a.run("fourth", session_id="s1", user_id="u1")
+    assert adk_a.invocations[2].user_content.parts[0].text == "fourth"

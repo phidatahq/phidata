@@ -12,6 +12,8 @@ import pytest
 from agno.agent.agent import Agent
 from agno.db.base import SessionType
 from agno.db.sqlite import SqliteDb
+from agno.media import Image
+from agno.media.storage.local import LocalMediaStorage
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
@@ -184,6 +186,27 @@ class TestAgent:
 
         with pytest.raises(ValueError, match="store_run=False"):
             agent.arun("hi", session_id="s1", background=True, store_run=False)
+
+    def test_media_is_not_offloaded_for_a_temporary_run(self, db: SqliteDb, tmp_path):
+        media_root = tmp_path / "media"
+        agent = Agent(id="a", model=RecordingModel(), db=db, media_storage=LocalMediaStorage(base_path=str(media_root)))
+        image = Image(content=b"png-bytes", id="img-1", mime_type="image/png")
+
+        agent.run("look", session_id="s1", images=[image], store_run=False)
+        assert not media_root.exists() or not any(media_root.rglob("*"))
+
+        # A stored run with the same media does offload it.
+        agent.run("look", session_id="s1", images=[image])
+        assert any(path.is_file() for path in media_root.rglob("*"))
+
+    @pytest.mark.asyncio
+    async def test_media_is_not_offloaded_for_an_async_temporary_run(self, db: SqliteDb, tmp_path):
+        media_root = tmp_path / "media"
+        agent = Agent(id="a", model=RecordingModel(), db=db, media_storage=LocalMediaStorage(base_path=str(media_root)))
+        image = Image(content=b"png-bytes", id="img-1", mime_type="image/png")
+
+        await agent.arun("look", session_id="s1", images=[image], store_run=False)
+        assert not media_root.exists() or not any(media_root.rglob("*"))
 
     def test_run_context_carries_the_option(self, db: SqliteDb):
         seen: Dict[str, Any] = {}

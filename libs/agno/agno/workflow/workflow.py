@@ -108,6 +108,7 @@ from agno.run.workflow import (
     WorkflowRunOutputEvent,
     WorkflowStartedEvent,
 )
+from agno.session._utils import is_transient
 from agno.session.workflow import WorkflowChatInteraction, WorkflowSession
 from agno.team.team import Team
 from agno.utils.agent import validate_input
@@ -2342,7 +2343,7 @@ class Workflow:
         from agno.session._utils import resolve_run_index
 
         # A temporary run (store_run=False) keeps its private session copy in memory only.
-        if getattr(session, "transient", False):
+        if is_transient(session):
             return
 
         run_index = resolve_run_index(session, run)
@@ -2390,7 +2391,7 @@ class Workflow:
         from agno.session._utils import resolve_run_index
 
         # A temporary run (store_run=False) keeps its private session copy in memory only.
-        if getattr(session, "transient", False):
+        if is_transient(session):
             return
 
         run_index = resolve_run_index(session, run)

@@ -82,7 +82,7 @@ from agno.run.messages import RunMessages
 from agno.run.requirement import RunRequirement
 from agno.run.status_persist import apersist_run_transition
 from agno.session import AgentSession
-from agno.session._utils import resolve_run_index
+from agno.session._utils import is_transient, resolve_run_index
 from agno.tools.function import Function
 from agno.utils.agent import (
     abuild_full_run_storage_copy,
@@ -6058,7 +6058,10 @@ def persist_run_in_session(
 
     if storage_copy is None:
         # Mid-run checkpoint: offload its media like the terminal write, so the row carries references.
-        offloaded = build_offloaded_storage_copy(agent, run_response, session.session_id)
+        # A temporary run never offloads: no row would reference the uploads.
+        offloaded = (
+            None if is_transient(session) else build_offloaded_storage_copy(agent, run_response, session.session_id)
+        )
         storage_copy = _scrub_and_propagate_session_state(
             agent, run_response, run_context, isolate_inflight=True, storage_copy=offloaded
         )
@@ -6078,7 +6081,7 @@ def persist_run_in_session(
             session.session_data = {"session_state": run_context.session_state}
 
     # A temporary run (store_run=False) keeps its private session copy in memory only.
-    if getattr(session, "transient", False):
+    if is_transient(session):
         return
 
     # Persist the session row and this single run (both O(1))
@@ -6103,7 +6106,11 @@ async def apersist_run_in_session(
     from agno.agent import _session
 
     if storage_copy is None:
-        offloaded = await abuild_offloaded_storage_copy(agent, run_response, session.session_id)
+        offloaded = (
+            None
+            if is_transient(session)
+            else await abuild_offloaded_storage_copy(agent, run_response, session.session_id)
+        )
         storage_copy = _scrub_and_propagate_session_state(
             agent, run_response, run_context, isolate_inflight=True, storage_copy=offloaded
         )
@@ -6119,7 +6126,7 @@ async def apersist_run_in_session(
             session.session_data = {"session_state": run_context.session_state}
 
     # A temporary run (store_run=False) keeps its private session copy in memory only.
-    if getattr(session, "transient", False):
+    if is_transient(session):
         return
 
     await _session.asave_session(agent, session=session)
@@ -6145,8 +6152,11 @@ def cleanup_and_store(
     if run_response.metrics:
         run_response.metrics.stop_timer()
 
-    # None means nothing was offloaded and the run is scrubbed as it stands.
-    storage_copy = build_offloaded_storage_copy(agent, run_response, session.session_id)
+    # None means nothing was offloaded and the run is scrubbed as it stands. A temporary run never
+    # offloads: no row would reference the uploads.
+    storage_copy = (
+        None if is_transient(session) else build_offloaded_storage_copy(agent, run_response, session.session_id)
+    )
 
     storage_copy = _scrub_and_propagate_session_state(agent, run_response, run_context, storage_copy=storage_copy)
 
@@ -6229,8 +6239,11 @@ async def acleanup_and_store(
     if run_response.metrics:
         run_response.metrics.stop_timer()
 
-    # None means nothing was offloaded and the run is scrubbed as it stands.
-    storage_copy = await abuild_offloaded_storage_copy(agent, run_response, session.session_id)
+    # None means nothing was offloaded and the run is scrubbed as it stands. A temporary run never
+    # offloads: no row would reference the uploads.
+    storage_copy = (
+        None if is_transient(session) else await abuild_offloaded_storage_copy(agent, run_response, session.session_id)
+    )
 
     storage_copy = _scrub_and_propagate_session_state(agent, run_response, run_context, storage_copy=storage_copy)
 

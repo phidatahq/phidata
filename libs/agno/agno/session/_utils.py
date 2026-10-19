@@ -17,6 +17,11 @@ HistorySessionT = TypeVar("HistorySessionT", "AgentSession", "TeamSession")
 SessionT = TypeVar("SessionT", "AgentSession", "TeamSession", "WorkflowSession")
 
 
+def is_transient(session: Any) -> bool:
+    """Whether ``session`` is a temporary run's private copy, which is never written or offloaded."""
+    return bool(getattr(session, "transient", False))
+
+
 def transient_copy(session: SessionT) -> SessionT:
     """Return a private, never-persisted copy of a cached session for a temporary run.
 

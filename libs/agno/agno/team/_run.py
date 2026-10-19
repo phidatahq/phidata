@@ -95,7 +95,7 @@ from agno.run.team import (
     TeamRunOutputEvent,
 )
 from agno.session import TeamSession
-from agno.session._utils import continue_history_session, resolve_run_index
+from agno.session._utils import continue_history_session, is_transient, resolve_run_index
 from agno.tools.function import Function
 from agno.utils.agent import (
     abuild_full_run_storage_copy,
@@ -4650,7 +4650,10 @@ def _cleanup_and_store(
 
     # Scrub a copy for storage so the caller always sees full media. The offload helper returns
     # None when there is nothing to offload, and a shallow copy is enough for that case.
-    storage_copy = build_offloaded_storage_copy(team, run_response, session.session_id) or copy.copy(run_response)
+    # A temporary run never offloads: no row would reference the uploads.
+    storage_copy = (
+        None if is_transient(session) else build_offloaded_storage_copy(team, run_response, session.session_id)
+    ) or copy.copy(run_response)
 
     if run_response.run_id:
         cleanup_member_runs(run_response.run_id)
@@ -4691,7 +4694,7 @@ def _cleanup_and_store(
             session.session_data = {"session_state": run_context.session_state}
 
     # A temporary run (store_run=False) keeps its private session copy in memory only.
-    if getattr(session, "transient", False):
+    if is_transient(session):
         return
 
     # Persist the session row and this single run (both O(1))
@@ -4735,9 +4738,10 @@ async def _acleanup_and_store(
 
     # Scrub a copy for storage so the caller always sees full media. The offload helper returns
     # None when there is nothing to offload, and a shallow copy is enough for that case.
-    storage_copy = await abuild_offloaded_storage_copy(team, run_response, session.session_id) or copy.copy(
-        run_response
-    )
+    # A temporary run never offloads: no row would reference the uploads.
+    storage_copy = (
+        None if is_transient(session) else await abuild_offloaded_storage_copy(team, run_response, session.session_id)
+    ) or copy.copy(run_response)
 
     if run_response.run_id:
         await acleanup_member_runs(run_response.run_id)
@@ -4778,7 +4782,7 @@ async def _acleanup_and_store(
             session.session_data = {"session_state": run_context.session_state}
 
     # A temporary run (store_run=False) keeps its private session copy in memory only.
-    if getattr(session, "transient", False):
+    if is_transient(session):
         return
 
     # Persist the session row and this single run (both O(1))
@@ -4895,7 +4899,10 @@ def _persist_team_run_in_session(
     from agno.utils.agent import isolate_media_scrub_targets
 
     # Mid-run checkpoint: offload its media like the terminal write, so the row carries references.
-    storage_copy = build_offloaded_storage_copy(team, run_response, session.session_id) or copy.copy(run_response)
+    # A temporary run never offloads: no row would reference the uploads.
+    storage_copy = (
+        None if is_transient(session) else build_offloaded_storage_copy(team, run_response, session.session_id)
+    ) or copy.copy(run_response)
     # Scrubbing mutates shared objects in place and a shallow copy aliases the live run, so
     # isolate what the scrubs touch.
     if not team.store_media:
@@ -4925,7 +4932,7 @@ def _persist_team_run_in_session(
             session.session_data = {"session_state": run_context.session_state}
 
     # A temporary run (store_run=False) keeps its private session copy in memory only.
-    if getattr(session, "transient", False):
+    if is_transient(session):
         return
 
     # Persist the session row and this single run (both O(1))
@@ -4957,9 +4964,10 @@ async def _apersist_team_run_in_session(
     from agno.utils.agent import isolate_media_scrub_targets
 
     # Mid-run checkpoint: offload its media like the terminal write, so the row carries references.
-    storage_copy = await abuild_offloaded_storage_copy(team, run_response, session.session_id) or copy.copy(
-        run_response
-    )
+    # A temporary run never offloads: no row would reference the uploads.
+    storage_copy = (
+        None if is_transient(session) else await abuild_offloaded_storage_copy(team, run_response, session.session_id)
+    ) or copy.copy(run_response)
     # Scrubbing mutates shared objects in place and a shallow copy aliases the live run, so
     # isolate what the scrubs touch.
     if not team.store_media:
@@ -4989,7 +4997,7 @@ async def _apersist_team_run_in_session(
             session.session_data = {"session_state": run_context.session_state}
 
     # A temporary run (store_run=False) keeps its private session copy in memory only.
-    if getattr(session, "transient", False):
+    if is_transient(session):
         return
 
     # Persist the session row and this single run (both O(1))

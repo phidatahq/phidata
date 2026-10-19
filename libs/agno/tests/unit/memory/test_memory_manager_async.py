@@ -260,3 +260,47 @@ async def test_aupdate_memory_task_refreshes_async_db():
     saved_memories = await manager.aget_user_memories(user_id="user-2")
     assert len(saved_memories) == 1
     assert saved_memories[0].memory == "Task: Sync state"
+
+
+def test_add_user_memory_with_async_db_raises():
+    """Sync add_user_memory must not silently no-op on an async DB."""
+    async_db = DummyAsyncMemoryDb()
+    manager = MemoryManager(db=async_db)
+
+    with pytest.raises(ValueError, match="add_user_memory\\(\\) is not supported with an async DB"):
+        manager.add_user_memory(memory=UserMemory(memory="likes tea", user_id="user-1"))
+
+    assert async_db._memories == {}
+
+
+def test_replace_user_memory_with_async_db_raises():
+    """Sync replace_user_memory must not silently no-op on an async DB."""
+    async_db = DummyAsyncMemoryDb()
+    manager = MemoryManager(db=async_db)
+
+    with pytest.raises(ValueError, match="replace_user_memory\\(\\) is not supported with an async DB"):
+        manager.replace_user_memory(memory_id="mem-1", memory=UserMemory(memory="likes coffee", user_id="user-1"))
+
+    assert async_db._memories == {}
+
+
+def test_delete_user_memory_with_async_db_raises():
+    """Sync delete_user_memory must not silently no-op on an async DB."""
+    async_db = DummyAsyncMemoryDb()
+    manager = MemoryManager(db=async_db)
+
+    with pytest.raises(ValueError, match="delete_user_memory\\(\\) is not supported with an async DB"):
+        manager.delete_user_memory(memory_id="mem-1", user_id="user-1")
+
+    assert async_db._memories == {}
+
+
+def test_clear_with_async_db_raises():
+    """Sync clear() must not silently no-op on an async DB."""
+    async_db = DummyAsyncMemoryDb()
+    manager = MemoryManager(db=async_db)
+
+    with pytest.raises(ValueError, match="clear\\(\\) is not supported with an async DB"):
+        manager.clear()
+
+    assert async_db._memories == {}

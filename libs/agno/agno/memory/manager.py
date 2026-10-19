@@ -230,6 +230,10 @@ class MemoryManager:
             str: The id of the memory
         """
         if self.db:
+            if isinstance(self.db, AsyncBaseDb):
+                raise ValueError(
+                    "add_user_memory() is not supported with an async DB. Please use the async version of this method."
+                )
             if memory.memory_id is None:
                 from uuid import uuid4
 
@@ -265,6 +269,10 @@ class MemoryManager:
             str: The id of the memory
         """
         if self.db:
+            if isinstance(self.db, AsyncBaseDb):
+                raise ValueError(
+                    "replace_user_memory() is not supported with an async DB. Please use the async version of this method."
+                )
             if user_id is None:
                 user_id = "default"
 
@@ -284,6 +292,10 @@ class MemoryManager:
     def clear(self) -> None:
         """Clears the memory."""
         if self.db:
+            if isinstance(self.db, AsyncBaseDb):
+                raise ValueError(
+                    "clear() is not supported with an async DB. Please use the async version of this method."
+                )
             self.db.clear_memories()
 
     def delete_user_memory(
@@ -300,6 +312,10 @@ class MemoryManager:
             user_id = "default"
 
         if self.db:
+            if isinstance(self.db, AsyncBaseDb):
+                raise ValueError(
+                    "delete_user_memory() is not supported with an async DB. Please use the async version of this method."
+                )
             self._delete_db_memory(memory_id=memory_id, user_id=user_id)
         else:
             log_warning("Memory DB not provided.")

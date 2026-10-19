@@ -130,17 +130,6 @@ def test_verify_fails_on_a_truncated_or_tampered_object(tmp_path, roots):
     assert list(scratch.iterdir()) == [], "a failed download leaves no temporary file behind"
 
 
-def test_open_archive_materializes_into_the_scratch_directory(tmp_path, roots):
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
-    s3 = store(scratch=scratch)
-    reference = s3.put(capture(tmp_path / "src", roots))
-    with s3.open_archive(reference) as path:
-        assert path.parent == scratch
-        assert list(scratch.iterdir()) == [path]
-    assert list(scratch.iterdir()) == []
-
-
 def test_put_uploads_when_the_existence_check_is_forbidden(tmp_path, roots, monkeypatch):
     """Without s3:ListBucket, S3 answers HEAD on a missing key with 403; put still stores the object."""
     s3 = store()
@@ -248,3 +237,98 @@ def test_configuration_is_validated():
         S3CheckpointStore(BUCKET, max_bytes=0)
     assert S3CheckpointStore(BUCKET, prefix="/a/b/").prefix == "a/b/"
     assert S3CheckpointStore(BUCKET, prefix="").key(CheckpointRef("f" * 64, 1)) == "f" * 64 + ".tar.gz"
+
+
+def test_an_uncached_open_uses_the_scratch_directory_and_yields_a_read_only_copy(tmp_path, roots):
+    s3 = store(scratch=tmp_path / "scratch")
+    reference = s3.put(capture(tmp_path / "src", roots))
+    with s3.open_archive(reference) as path:
+        assert path.parent == tmp_path / "scratch"
+        assert path.stat().st_mode & 0o777 == 0o400
+        with pytest.raises(PermissionError):
+            path.write_bytes(b"x")
+    assert list((tmp_path / "scratch").iterdir()) == []
+
+
+def test_a_cached_object_is_downloaded_once(tmp_path, roots, monkeypatch):
+    s3 = store(cache_dir=tmp_path / "cache")
+    reference = s3.put(capture(tmp_path / "src", roots))
+    downloads = []
+    real = s3.client.get_object
+
+    def counting(**kwargs):
+        downloads.append(kwargs["Key"])
+        return real(**kwargs)
+
+    monkeypatch.setattr(s3.client, "get_object", counting)
+    for _ in range(3):
+        with s3.open_archive(reference) as path:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+            assert path.stat().st_mode & 0o777 == 0o400
+    assert len(downloads) == 1, "the second and third opens came from the cache"
+    assert (tmp_path / "cache" / reference.sha256).exists()
+    # Another store instance on the same host shares the cache.
+    other = store(cache_dir=tmp_path / "cache")
+    monkeypatch.setattr(other.client, "get_object", lambda **kw: pytest.fail("must not download"))
+    assert other.restore(reference, tmp_path / "restored") == STATE
+
+
+@pytest.mark.asyncio
+async def test_the_cache_serves_async_opens_too(tmp_path, roots, monkeypatch):
+    s3 = store(cache_dir=tmp_path / "cache")
+    reference = await s3.aput(capture(tmp_path / "src", roots))
+    async with s3.aopen_archive(reference) as path:
+        assert path.stat().st_size == reference.size
+    monkeypatch.setattr(s3.client, "get_object", lambda **kw: pytest.fail("must not download"))
+    async with s3.aopen_archive(reference) as path:
+        assert path.stat().st_size == reference.size
+    assert (await s3.arestore(reference, tmp_path / "restored")) == STATE
+
+
+def test_a_corrupt_cache_entry_is_fetched_again(tmp_path, roots):
+    s3 = store(cache_dir=tmp_path / "cache")
+    reference = s3.put(capture(tmp_path / "src", roots))
+    with s3.open_archive(reference):
+        pass
+    cached = tmp_path / "cache" / reference.sha256
+    cached.chmod(0o600)
+    cached.write_bytes(b"corrupt")
+    with s3.open_archive(reference) as path:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+    assert hashlib.sha256(cached.read_bytes()).hexdigest() == reference.sha256, "the entry was replaced"
+
+
+def test_a_cached_copy_does_not_hide_a_deleted_object(tmp_path, roots):
+    s3 = store(cache_dir=tmp_path / "cache")
+    reference = s3.put(capture(tmp_path / "src", roots))
+    with s3.open_archive(reference):
+        pass
+    s3.delete(reference)
+    with pytest.raises(CheckpointObjectNotFound):
+        with s3.open_archive(reference):
+            pass
+
+
+def test_eviction_keeps_the_budget_and_never_pulls_an_open_object_away(tmp_path, roots):
+    references = []
+    for index in range(4):
+        (roots["workspace"] / "data.bin").write_bytes(os.urandom(1500))
+        references.append(
+            S3CheckpointStore(BUCKET, prefix="ckpt", region="us-east-1").put(
+                capture(tmp_path / f"src{index}", roots, compress=False)
+            )
+        )
+    # Room for two objects and a bit, so the third open must evict one.
+    budget = references[0].size * 2 + 100
+    s3 = store(cache_dir=tmp_path / "cache", cache_bytes=budget)
+
+    with s3.open_archive(references[0]) as held:
+        for reference in references[1:]:
+            with s3.open_archive(reference):
+                pass
+        cached = {p.name for p in (tmp_path / "cache").iterdir() if not p.name.startswith(".")}
+        assert references[-1].sha256 in cached, "the most recent object is kept"
+        assert references[0].sha256 not in cached, "the least recently opened was evicted"
+        assert sum(p.stat().st_size for p in (tmp_path / "cache").iterdir() if not p.name.startswith(".")) <= budget
+        assert hashlib.sha256(held.read_bytes()).hexdigest() == references[0].sha256, "the open lease still reads"
+    assert not held.exists()

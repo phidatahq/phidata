@@ -174,7 +174,7 @@ class CodexAgent(BaseExternalAgent):
         model: Codex model id. Defaults to gpt-5.6-luna unless set in thread_options or turn_options.
         instructions: Developer instructions appended to the Codex system prompt.
         base_instructions: Replaces the Codex built-in system prompt entirely.
-        sandbox: "read-only", "workspace-write" or "full-access". Defaults to the Codex default.
+        sandbox_mode: "read-only", "workspace-write" or "full-access". Defaults to the Codex default.
         approval_mode: "auto_review" or "deny_all" for escalated permission requests.
         reasoning_effort: "minimal", "low", "medium", "high" or "xhigh".
         cwd: Working directory for the agent.
@@ -197,6 +197,11 @@ class CodexAgent(BaseExternalAgent):
             that would fail again (context window, authentication, bad requests, policy) are not retried.
         delay_between_retries: Seconds to wait before each retry.
         exponential_backoff: Double the delay after each failed attempt.
+        require_native_resume: Fail the run when the recorded native conversation cannot be resumed,
+            instead of starting a new one with the history pasted into the prompt.
+        strict_persistence: Fail the run when its row cannot be written, instead of logging the failure.
+        sandbox: Run the whole Codex process in a computer from this sandbox each turn,
+            such as DockerSandbox(image). Requires a PostgresDb on the agent or its AgentOS.
 
     Input must be a string. Native SDK input objects (including images, skills and
     external tool messages) are not supported by Agno's text history adapter.
@@ -206,7 +211,7 @@ class CodexAgent(BaseExternalAgent):
 
         agent = CodexAgent(
             name="Codex Coder",
-            sandbox="workspace-write",
+            sandbox_mode="workspace-write",
             cwd=".",
         )
 
@@ -231,7 +236,7 @@ class CodexAgent(BaseExternalAgent):
     cwd: Optional[str] = None
     # Keep attachments staged under cwd/.agno/uploads/<run_id>/ after the run instead of deleting them.
     keep_uploads: bool = False
-    sandbox: Optional[str] = None
+    sandbox_mode: Optional[str] = None
     approval_mode: Optional[str] = None
     ephemeral: Optional[bool] = None
     # Native runtime configuration
@@ -246,6 +251,7 @@ class CodexAgent(BaseExternalAgent):
 
     _supports_output_schema: ClassVar[bool] = True
     _sdk_name: ClassVar[str] = "codex"
+    _sandbox_runtime: ClassVar[Optional[str]] = "codex"
     # Key under which the Codex thread id is stored in the Agno session.
     _THREAD_KEY = "codex_thread_id"
 
@@ -253,11 +259,23 @@ class CodexAgent(BaseExternalAgent):
     _thread_ids: Dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
     def __post_init__(self) -> None:
+        legacy_mode: Any = self.sandbox
+        if isinstance(legacy_mode, str):
+            if self.sandbox_mode is not None:
+                raise ValueError("Use sandbox_mode, not both sandbox and sandbox_mode")
+            warnings.warn(
+                "CodexAgent(sandbox=<str>) is deprecated; use sandbox_mode. sandbox= now takes a Sandbox.",
+                DeprecationWarning,
+                stacklevel=4,
+            )
+            self.sandbox_mode, self.sandbox = legacy_mode, None
         super().__post_init__()
         self._validate_options()
         if self._effective_model()[0] is None:
             # Like a native model's default id: the default is what the thread runs and the run records.
             self.model = "gpt-5.6-luna"
+        if self.require_native_resume and self._resolved_thread_options().get("ephemeral"):
+            raise ValueError("Native resume requires persistent Codex threads; ephemeral mode is incompatible")
         for name in ("thread", "turn"):
             if getattr(self, f"{name}_kwargs"):
                 warnings.warn(
@@ -285,14 +303,25 @@ class CodexAgent(BaseExternalAgent):
                 "use the native SDK for images, skills or external tool messages."
             )
 
+    def _refuse_host_operation(self, operation: str) -> None:
+        if self.sandbox is not None:
+            raise ValueError(
+                f"{operation} acts on this host, not the sandbox where Codex runs; "
+                "pass OPENAI_API_KEY in the sandbox's env instead"
+                if operation == "login_api_key"
+                else f"{operation} acts on this host, not the sandbox where the Codex thread lives"
+            )
+
     def login_api_key(self, api_key: str) -> None:
         """Store an API key in the Codex CLI auth so future runs are authenticated."""
+        self._refuse_host_operation("login_api_key")
         sdk = _sdk()
         with sdk.Codex(self._codex_config(sdk)) as codex:
             codex.login_api_key(api_key)
 
     async def alogin_api_key(self, api_key: str) -> None:
         """Async version of login_api_key."""
+        self._refuse_host_operation("login_api_key")
         sdk = _sdk()
         async with sdk.AsyncCodex(self._codex_config(sdk)) as codex:
             await codex.login_api_key(api_key)
@@ -303,6 +332,7 @@ class CodexAgent(BaseExternalAgent):
 
     def compact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> bool:
         """Sync version of acompact."""
+        self._refuse_host_operation("compact")
         return run_coroutine_sync(self.acompact(session_id, user_id=user_id, timeout=timeout))
 
     async def acompact(self, session_id: str, user_id: Optional[str] = None, timeout: float = 120.0) -> bool:
@@ -321,6 +351,7 @@ class CodexAgent(BaseExternalAgent):
         same session: two processes would append to one rollout. A run recorded as pending or
         running for the session raises RuntimeError.
         """
+        self._refuse_host_operation("acompact")
         sdk = _sdk()
         session = await self.aget_session(session_id, user_id)
         thread_id = self._get_thread_id(session, session_id)
@@ -334,7 +365,7 @@ class CodexAgent(BaseExternalAgent):
             try:
                 thread = await codex.thread_resume(thread_id, **self._thread_kwargs(sdk, resume=True))
             except Exception as e:
-                if not self._is_missing_thread(e):
+                if self.require_native_resume or not self._is_missing_thread(e):
                     raise
                 log_warning(f"Codex: cannot compact thread {thread_id} for session {session_id}: {e}. Forgetting it.")
                 self._forget_thread(session, session_id)
@@ -455,7 +486,7 @@ class CodexAgent(BaseExternalAgent):
             "model_provider": self.model_provider,
             "developer_instructions": self.instructions,
             "base_instructions": self.base_instructions,
-            "sandbox": self.sandbox,
+            "sandbox": self.sandbox_mode,
             "approval_mode": self.approval_mode,
             "cwd": self.cwd,
             "config": self.config,
@@ -507,7 +538,7 @@ class CodexAgent(BaseExternalAgent):
         for key, value in {
             "model": self.model,
             "cwd": self.cwd,
-            "sandbox": self.sandbox,
+            "sandbox": self.sandbox_mode,
             "approval_mode": self.approval_mode,
             "service_tier": self.service_tier,
             "effort": self.reasoning_effort,
@@ -582,6 +613,7 @@ class CodexAgent(BaseExternalAgent):
         if self._resolved_thread_options().get("ephemeral"):
             self._forget_thread(session, session_id)
         thread_id = self._get_thread_id(session, session_id)
+        self._check_native_resume(thread_id, session)
         if thread_id:
             try:
                 thread = await codex.thread_resume(thread_id, **self._thread_kwargs(sdk, resume=True))
@@ -595,7 +627,7 @@ class CodexAgent(BaseExternalAgent):
                         f"Session {session_id} already has a turn in flight on Codex thread {thread_id}: {e}",
                         session_id=session_id,
                     ) from e
-                if not self._is_missing_thread(e):
+                if self.require_native_resume or not self._is_missing_thread(e):
                     raise
                 log_warning(
                     f"Codex: could not resume thread {thread_id} for session {session_id}: {e}. Starting a new one."

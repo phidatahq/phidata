@@ -28,6 +28,21 @@ if TYPE_CHECKING:
     RegisteredComponent = Union[QueueableComponent, AgentFactory, TeamFactory, WorkflowFactory]
 
 
+class UnbuildableComponent:
+    """A ticket's component exists but cannot be built (its factory raised).
+
+    ``row_handle`` reaches the run rows without building the component, so the
+    worker and the sweep can still terminalize the run instead of leaving it
+    PENDING. ``permanent`` failures (FactoryError: bad input, refused claims,
+    a read of ctx.request) fail the run now; others take the retry budget.
+    """
+
+    def __init__(self, reason: str, row_handle: "QueueableComponent", permanent: bool):
+        self.reason = reason
+        self.row_handle = row_handle
+        self.permanent = permanent
+
+
 class ComponentResolver(Protocol):
     """Resolves the component a ticket names. ``scope`` is passed only for
     tickets that carry one (see ``queue_scope``); the result may be sync or
@@ -35,7 +50,10 @@ class ComponentResolver(Protocol):
 
     def __call__(
         self, component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = ...
-    ) -> Union[Optional["QueueableComponent"], Awaitable[Optional["QueueableComponent"]]]: ...
+    ) -> Union[
+        Optional[Union["QueueableComponent", UnbuildableComponent]],
+        Awaitable[Optional[Union["QueueableComponent", UnbuildableComponent]]],
+    ]: ...
 
 
 def apply_queue_config(config: QueueConfig) -> None:
@@ -295,6 +313,49 @@ def payload_is_queueable(payload: Any) -> bool:
         return False
 
 
+def store_serializes_sessions(store: Any) -> bool:
+    """True when the queue store runs a session's marked tickets one at a time, in order."""
+    return getattr(store, "serializes_sessions", False) is True
+
+
+def _new_queued_run_id() -> str:
+    """Allocate an ordinary run id, preserving a trusted Task attempt identity."""
+    from agno.company.execution import _queued_run_id
+
+    return _queued_run_id()
+
+
+async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any = None) -> Dict[str, Any]:
+    """Accept a ticket, marking it for per-session order when queue_per_session is on.
+
+    A component that sets one_turn_per_session is always marked: a second concurrent turn
+    on its session fails instead of waiting, so its order cannot depend on the flag."""
+    from agno.run.authorization import stamp_authorization
+
+    job = {**job, "payload": stamp_authorization(job.get("payload"), include_trusted=True)}
+    from agno.company.execution import _enqueue_ticket
+
+    config = queue_worker.config
+    if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
+        job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}
+    return await _enqueue_ticket(queue_worker, job)
+
+
+async def aattach_waiting_on(queue_worker: Any, run_id: str, body: Dict[str, Any]) -> Dict[str, Any]:
+    """Name the run a PENDING run waits behind in its session, when the store can tell."""
+    lookup = getattr(queue_worker.store, "session_blocker", None) if queue_worker is not None else None
+    if lookup is None or body.get("status") != "PENDING":
+        return body
+    try:
+        waiting_on = await lookup(run_id)
+    except Exception as e:
+        log_debug(f"Could not resolve the session blocker of queued run {run_id}: {e}")
+        return body
+    if waiting_on is not None:
+        body["waiting_on"] = waiting_on
+    return body
+
+
 def _is_component_factory(candidate: "RegisteredComponent") -> bool:
     from agno.agent.factory import AgentFactory
     from agno.team.factory import TeamFactory
@@ -311,10 +372,12 @@ def component_is_queueable(
 ) -> bool:
     """True when the durable worker can re-resolve ``component`` at claim time.
 
-    Two sources exist, mirroring the HTTP resolution order:
-    - a code-registered instance resolves from the registry. Factory entries
-      are never queueable: they need the request context to build the
-      component, which the worker does not have.
+    Three sources exist, mirroring the HTTP resolution order:
+    - a code-registered instance resolves from the registry.
+    - a code-registered factory is invoked again by the worker from the
+      request context the door stamps on the ticket (``factory_queue_scope``):
+      user, session, validated input and trusted claims. The raw request
+      object is the only part of the context that does not ride the ticket.
     - an off-registry component (created through the components API, or a
       version-pinned load) was rehydrated from the AgentOS db at accept
       time. The worker replays that load from the scope stamped on the
@@ -325,7 +388,7 @@ def component_is_queueable(
         return False
     for candidate in registry or []:
         if getattr(candidate, "id", None) == component_id:
-            return not _is_component_factory(candidate)
+            return True
     from agno.db.base import BaseDb
 
     # The db loaders rehydrate only from a sync BaseDb
@@ -336,12 +399,54 @@ def queue_scope(
     user_id: Optional[str], version: Optional[int], pinned: Optional[int] = None, source: str = "db"
 ) -> Dict[str, Any]:
     """The resolution scope a ticket carries so the worker resolves the SAME
-    component the accepting endpoint did: where it came from (``registry`` or
-    ``db``), the owner scope that gated a db-backed component, the version it
-    executes, and the version the caller explicitly pinned (None when
-    unpinned). Authorization (ownership, draft preview) happened at the door;
-    the worker only replays the resolution, never re-decides it."""
+    component the accepting endpoint did: where it came from (``registry``,
+    ``factory`` or ``db``), the owner scope that gated a db-backed component,
+    the version it executes, and the version the caller explicitly pinned
+    (None when unpinned). Authorization (ownership, draft preview) happened at
+    the door; the worker only replays the resolution, never re-decides it."""
     return {"user_id": user_id, "version": version, "pinned": pinned, "source": source}
+
+
+def factory_queue_scope(
+    state: Any,
+    user_id: Optional[str],
+    session_id: Optional[str],
+    factory_input: Any,
+    pinned: Optional[int] = None,
+) -> Dict[str, Any]:
+    """The scope a factory-backed submission carries: the request context the
+    door handed the factory, minus the raw request object, so the worker can
+    invoke the factory again at claim time and build the same component.
+
+    ``state`` is the request state the auth middleware populated, or any
+    object exposing ``claims`` and ``scopes`` the same way (the WebSocket door
+    builds one from its connection context). Claims and scopes are copied from
+    there, never from the client frame, so the rebuilt ``TrustedContext``
+    holds exactly what the door's did. ``factory_input`` is the raw JSON
+    string the door already parsed and validated, or the parsed object
+    itself; an unparsable value is carried as None rather than refusing a
+    submission the door accepted. The context is round-tripped through JSON
+    so every queue store can hold it."""
+    import json as _json
+
+    parsed_input: Any = factory_input
+    if isinstance(factory_input, str):
+        try:
+            parsed_input = _json.loads(factory_input)
+        except (TypeError, ValueError):
+            parsed_input = None
+    claims = getattr(state, "claims", None) or {}
+    scopes = getattr(state, "scopes", None) or ()
+    context = {
+        "user_id": user_id,
+        "session_id": session_id,
+        "input": parsed_input if isinstance(parsed_input, dict) else None,
+        "claims": claims if isinstance(claims, dict) else dict(claims),
+        "scopes": sorted(str(s) for s in scopes),
+    }
+    scope = queue_scope(user_id, None, pinned=pinned, source="factory")
+    scope["context"] = _json.loads(_json.dumps(context, default=str, allow_nan=False))
+    return scope
 
 
 def resolve_queue_scope(
@@ -350,6 +455,11 @@ def resolve_queue_scope(
     db: Optional[Union["BaseDb", "AsyncBaseDb"]],
     user_id: Optional[str],
     version: Optional[int],
+    *,
+    state: Any = None,
+    context_user_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    factory_input: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Build the ticket scope with a CONCRETE version for db-backed components.
 
@@ -361,11 +471,21 @@ def resolve_queue_scope(
     ``None`` (the worker then resolves current, the pre-existing behaviour)
     rather than refusing the submission.
 
+    A factory entry stamps the request context instead (``state``,
+    ``context_user_id``, ``session_id``, ``factory_input``): the worker
+    rebuilds it and invokes the factory again. ``context_user_id`` is the
+    user the door passed to the factory, which may differ from the owner
+    ``user_id`` that scopes db reads.
+
     Call it only on the durable branch, right before the enqueue: it reads the
     component row, and the closer that read is to the door's own resolution,
     the smaller the window for a publish to land between them.
     """
-    if any(getattr(c, "id", None) == component_id for c in registry or []):
+    for candidate in registry or []:
+        if getattr(candidate, "id", None) != component_id:
+            continue
+        if _is_component_factory(candidate):
+            return factory_queue_scope(state, context_user_id, session_id, factory_input, pinned=version)
         return queue_scope(user_id, version, pinned=version, source="registry")
     effective = version
     if effective is None and db is not None:
@@ -380,6 +500,48 @@ def resolve_queue_scope(
             except Exception as e:
                 log_debug(f"Could not pin the current version of {component_id} on the queue ticket: {e}")
     return queue_scope(user_id, effective, pinned=version, source="db")
+
+
+async def aresolve_factory_from_scope(
+    factory: Any, component_type: str, context: Optional[Dict[str, Any]]
+) -> Optional[Union["QueueableComponent", UnbuildableComponent]]:
+    """Invoke a registered factory with the request context a ticket carries.
+
+    Mirrors the HTTP door: the factory sees the same user, session, validated
+    input and trusted claims. No request exists at claim time, so
+    ``ctx.request`` is a QueuedRequest whose attribute reads raise
+    FactoryContextRequired. A factory that cannot build returns an
+    UnbuildableComponent rather than executing a component the door never
+    validated, so the run is terminalized instead of left PENDING."""
+    from agno.agent import Agent
+    from agno.factory import FactoryError, QueuedRequest, RequestContext, TrustedContext
+    from agno.os.utils import factory_row_handle
+    from agno.team import Team
+    from agno.workflow import Workflow
+
+    expected = {"agent": Agent, "team": Team, "workflow": Workflow}.get(component_type)
+    if expected is None:
+        return None
+    if not isinstance(context, dict):
+        reason = "the queued ticket carries no factory request context"
+        log_error(f"Job queue: factory {component_type}/{factory.id}: {reason}")
+        return UnbuildableComponent(reason, factory_row_handle(factory), permanent=True)
+    claims = context.get("claims") or {}
+    ctx = RequestContext(
+        user_id=context.get("user_id"),
+        session_id=context.get("session_id"),
+        request=QueuedRequest(),
+        input=context.get("input"),
+        trusted=TrustedContext(claims=claims, scopes=frozenset(context.get("scopes") or ())),
+    )
+    try:
+        return await factory.resolve_async(ctx, expected_type=expected)
+    except FactoryError as e:
+        log_error(f"Job queue: factory {component_type}/{factory.id} refused the queued request context: {e}")
+        return UnbuildableComponent(f"Factory could not build the component: {e}", factory_row_handle(factory), True)
+    except Exception as e:
+        log_error(f"Job queue: factory {component_type}/{factory.id} failed at claim time: {e}")
+        return UnbuildableComponent(f"Factory failed to build the component: {e}", factory_row_handle(factory), False)
 
 
 def resolve_queue_store(config: QueueConfig, default_db: Any) -> Any:
@@ -464,7 +626,9 @@ class QueueWorker:
       the run row FIRST so pollers never see a stuck RUNNING run,
     - enforces the per-run timeout,
     - drains on stop: in-flight runs get stop_timeout to finish, stragglers
-      are cancelled and requeued/failed via the fenced retry path.
+      are cancelled and requeued/failed via the fenced retry path,
+    - wakes on local enqueue: the replica that accepts a submission claims
+      it on the spot instead of waiting out the poll tick (see wake()).
     """
 
     def __init__(
@@ -475,15 +639,27 @@ class QueueWorker:
         worker_id: Optional[str] = None,
         stop_timeout: int = _DEFAULT_STOP_TIMEOUT,
         auto_provision: bool = True,
+        authorization_app: Any = None,
     ) -> None:
         from uuid import uuid4
 
+        self.authorization_app = authorization_app
+        self._company_db: Any = None
+        self._company_schedule_db: Any = None
         self.store = store
         self.resolve_component = resolve_component
         self.config = config
         self.worker_id = worker_id or f"worker-{uuid4().hex[:8]}"
         self.stop_timeout = stop_timeout
         self.auto_provision = auto_provision
+        # Effective per-session order: a custom store without serializes_sessions claims
+        # marked tickets concurrently, and /config reports the gate as off.
+        self.queue_per_session = config.queue_per_session and store_serializes_sessions(store)
+        if config.queue_per_session and not self.queue_per_session:
+            log_warning(
+                f"Queue store {type(getattr(store, '_store', store)).__name__} does not set serializes_sessions; "
+                "same-session runs will execute concurrently despite QueueConfig(queue_per_session=True)"
+            )
         if stop_timeout >= config.lock_grace_seconds:
             # Hard validation, not a warning: violating this GUARANTEES the
             # drain-sweep race - a draining run's lease can expire mid-drain
@@ -499,6 +675,15 @@ class QueueWorker:
             )
         self._running = False
         self._task: Optional[asyncio.Task] = None
+        # Local wake signal: set by wake() after this replica accepts work,
+        # awaited by the poll loop in place of a blind sleep. Created in
+        # start() so it binds to the running loop (Python 3.9 binds Events
+        # to the loop current at construction).
+        self._wake: Optional[asyncio.Event] = None
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        # Set when a claim pass stopped at the concurrency cap, so the next
+        # finished run wakes the loop instead of leaving the backlog to the tick
+        self._saturated = False
         self._heartbeat_task: Optional[asyncio.Task] = None
         self._heartbeat_thread: Optional[Any] = None
         self._heartbeat_stop: Optional[Any] = None
@@ -509,6 +694,8 @@ class QueueWorker:
             return
         self._running = True
         await self._prepare_store()
+        self._wake = asyncio.Event()
+        self._loop = asyncio.get_running_loop()
         # Lease renewal runs on a DEDICATED THREAD wherever the store allows
         # it: a liveness signal must not depend on the health of the thing
         # whose liveness it certifies. The old loop-task heartbeat died
@@ -725,23 +912,68 @@ class QueueWorker:
     async def _poll_loop(self) -> None:
         import time as _time
 
-        last_cleanup = _time.time()
+        last_cleanup = _time.monotonic()
+        last_sweep: Optional[float] = None
         while self._running:
             try:
-                await self._sweep_exhausted()
+                # The sweep keeps its own cadence (at most once per poll
+                # interval): a local wake exists to claim faster, and under a
+                # submission burst it must not multiply sweep queries too
+                if last_sweep is None or _time.monotonic() - last_sweep >= self.config.poll_interval:
+                    await self._sweep_exhausted()
+                    last_sweep = _time.monotonic()
                 await self._claim_burst()
                 # Retention: delete old terminal jobs about once an hour
-                if _time.time() - last_cleanup > 3600 and callable(getattr(self.store, "cleanup_jobs", None)):
+                if _time.monotonic() - last_cleanup > 3600 and callable(getattr(self.store, "cleanup_jobs", None)):
                     removed = await self.store.cleanup_jobs(self.config.retention_seconds)
                     if removed:
                         log_info(f"Job queue retention: removed {removed} old terminal jobs")
-                    last_cleanup = _time.time()
-                await asyncio.sleep(self.config.poll_interval)
+                    last_cleanup = _time.monotonic()
+                await self._wait_for_work()
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 log_error(f"Job queue poll error: {e}")
                 await asyncio.sleep(self.config.poll_interval)
+
+    def wake(self) -> None:
+        """Nudge the poll loop to claim NOW. Called by the accept seams after
+        a ticket commits on this replica, so the accepting replica starts
+        executing its own submission in milliseconds instead of waiting out
+        the poll tick - the one place the durable path's latency was visible
+        (interactive submissions waiting ~poll_interval/2 before their first
+        event). Durability is untouched: the row is committed before anyone
+        is woken, and peers still pick the job up on their own poll if this
+        replica is at capacity. Wakes coalesce (a level-triggered flag): a
+        burst of submissions costs one extra claim pass, not one per submit.
+        Sync, idempotent, safe from any thread, a no-op before start() or
+        after stop()."""
+        event, loop = self._wake, self._loop
+        if event is None or loop is None or not self._running:
+            return
+        try:
+            on_loop = asyncio.get_running_loop() is loop
+        except RuntimeError:
+            on_loop = False
+        if on_loop:
+            event.set()
+        else:
+            with contextlib.suppress(RuntimeError):
+                loop.call_soon_threadsafe(event.set)
+
+    async def _wait_for_work(self) -> None:
+        """Sleep out the poll interval, or return early on a local wake. A
+        wake that arrived DURING the preceding claim pass is honoured
+        immediately (the flag is checked before waiting), so a submission
+        landing mid-burst is never deferred a full tick."""
+        event = self._wake
+        if event is None:
+            await asyncio.sleep(self.config.poll_interval)
+            return
+        if not event.is_set():
+            with contextlib.suppress(asyncio.TimeoutError):
+                await asyncio.wait_for(event.wait(), timeout=self.config.poll_interval)
+        event.clear()
 
     async def _heartbeat_loop(self) -> None:
         # FALLBACK only (see start()): sync-wrapped stores and clonable async
@@ -781,6 +1013,7 @@ class QueueWorker:
 
                 effective_max = get_background_max_concurrency()
             if effective_max > 0 and len(self._in_flight) >= effective_max:
+                self._saturated = True
                 break
             job = await self.store.claim_job(self.worker_id, self.config.lock_grace_seconds, self.config.deployment_id)
             if job is None:
@@ -791,6 +1024,9 @@ class QueueWorker:
 
             def _discard(_task: asyncio.Task, jid: str = job_id) -> None:
                 self._in_flight.pop(jid, None)
+                if self._saturated:
+                    self._saturated = False
+                    self.wake()
 
             task.add_done_callback(_discard)
 
@@ -874,10 +1110,24 @@ class QueueWorker:
                 )
                 continue
             await self._terminate_stream_view(job)
+            if self._company_db is not None:
+                from agno.company.execution import _project_run
+
+                await _project_run(self, job, "failed", error)
             await self.store.settle_swept_job(job["id"], self.worker_id, "failed", error)
             log_warning(f"Job queue: swept job {job['id']} to failed ({error})")
 
     async def _aresolve_job_component(self, job: Dict[str, Any]) -> Optional["QueueableComponent"]:
+        """The component for run-row reads and writes: an unbuildable factory
+        component resolves to its row handle, so the row stays reachable."""
+        resolved = await self._aresolve_job_target(job)
+        if isinstance(resolved, UnbuildableComponent):
+            return resolved.row_handle
+        return resolved
+
+    async def _aresolve_job_target(
+        self, job: Dict[str, Any]
+    ) -> Optional[Union["QueueableComponent", UnbuildableComponent]]:
         """Resolve the component a ticket names, honoring the resolution
         scope stamped at accept time. Tickets without a scope (registry
         components, pre-scope producers) resolve by type/id alone, so a
@@ -929,6 +1179,10 @@ class QueueWorker:
                     await asyncio.shield(
                         get_event_stream().complete_run(job["id"], terminal, generation=job.get("attempt"))
                     )
+            if self._company_db is not None:
+                from agno.company.execution import _project_run
+
+                await _project_run(self, job, ticket_status)
             settled = await self.store.settle_swept_job(job["id"], self.worker_id, ticket_status)
             if settled:
                 log_warning(
@@ -1015,6 +1269,12 @@ class QueueWorker:
                 f"{prior.get('component_type')}/{prior.get('component_id')} is not resolvable; "
                 "its run row (if any) cannot be terminalized by any path"
             )
+        if self._company_db is not None:
+            from agno.company.execution import _project_run
+
+            # Save the Task result before the ticket becomes terminal; a crash
+            # before this point leaves a live ticket for ordinary recovery.
+            await _project_run(self, prior, "cancelled", reason)
         cancelled = False
         with contextlib.suppress(Exception):
             cancelled = bool(await self.store.cancel_job(run_id))
@@ -1273,7 +1533,17 @@ class QueueWorker:
             )
             return None
         from agno.run.base import RunStatus
-        from agno.run.status_persist import RunPersistOutcome, apersist_run_status, component_hook, fallback_allowed
+        from agno.run.status_persist import (
+            RunPersistOutcome,
+            apersist_run_status,
+            component_hook,
+            fallback_allowed,
+            queue_terminal_writer,
+        )
+
+        terminal_writer = queue_terminal_writer(component)
+        if terminal_writer is not None:
+            return await terminal_writer(job, error, status, cancellation_stage)
 
         fields: Dict[str, Any] = {
             "status": RunStatus.cancelled.value if status == "cancelled" else RunStatus.error.value,
@@ -1639,6 +1909,25 @@ class QueueWorker:
             f"skipped execution and settled the ticket {ticket_status}"
         )
 
+    async def _afail_unbuildable(self, job: Dict[str, Any], target: UnbuildableComponent) -> None:
+        """Terminalize (or retry) a run whose component cannot be built, with
+        the same row-first rule as an execution failure: the run row, reached
+        through the row handle, is written before the ticket settles."""
+        job_id, attempt = job["id"], job["attempt"]
+        if target.permanent or attempt >= job.get("max_attempts", 1):
+            if not await self._persist_run_error(job, target.reason):
+                log_error(
+                    f"Job queue: could not persist run-row error for unbuildable job {job_id}; "
+                    "leaving it stale instead of terminalizing the ticket"
+                )
+                return
+        if target.permanent:
+            await self._asettle_ticket(job_id, attempt, "failed", f"permanent: {target.reason}")
+            with contextlib.suppress(Exception):
+                await self._terminate_stream_view(job)
+        else:
+            await self._aretry_or_fail_ticket(job_id, attempt, target.reason, self._retry_delay(attempt))
+
     async def _asettle_ticket(
         self, job_id: str, attempt: int, status: str, error: Optional[str] = None, shielded: bool = False
     ) -> bool:
@@ -1652,6 +1941,12 @@ class QueueWorker:
         refreshing the lock the moment we return, so the ticket is collected
         once the lease expires - but it must be LOUD, never silent."""
         try:
+            if self._company_db is not None and status in {"completed", "failed", "cancelled"}:
+                from agno.company.execution import _project_run
+
+                job = await self.store.get_job(job_id)
+                if job is not None and job.get("locked_by") == self.worker_id and job.get("attempt") == attempt:
+                    await _project_run(self, job, status, error)
             call = self.store.complete_job(job_id, self.worker_id, attempt, status, error)
             applied = bool(await (asyncio.shield(call) if shielded else call))
         except Exception as e:
@@ -1676,6 +1971,19 @@ class QueueWorker:
         the ticket is left RUNNING for the sweep rather than silently
         assumed requeued."""
         try:
+            if self._company_db is not None:
+                from agno.company.execution import _project_run
+
+                job = await self.store.get_job(job_id)
+                if (
+                    job is not None
+                    and job.get("locked_by") == self.worker_id
+                    and job.get("attempt") == attempt
+                    and attempt >= job.get("max_attempts", 1)
+                ):
+                    # Match the queue's retry budget, preserving write-before-terminal
+                    # ordering without putting retryable work in human attention.
+                    await _project_run(self, job, "failed", error)
             call = self.store.retry_or_fail_job(job_id, self.worker_id, attempt, error, delay)
             outcome = await (asyncio.shield(call) if shielded else call)
         except Exception as e:
@@ -1704,11 +2012,26 @@ class QueueWorker:
             self.worker_id,
             job["attempt"],
             session_serialized=(
-                (job.get("payload") or {}).get("serialize_session") is True
-                and getattr(self.store, "serializes_sessions", False) is True
+                (job.get("payload") or {}).get("serialize_session") is True and store_serializes_sessions(self.store)
             ),
         ) as ownership:
-            await self._execute_claimed_inner(job, ownership)
+            from agno.os.authz.run_context import restore_authorization
+            from agno.run.authorization import AUTHORIZATION_KEY, authorization_scope
+
+            payload = job.get("payload") or {}
+            authority_payload = payload.get("continue") or payload
+            snapshot = authority_payload.get(
+                AUTHORIZATION_KEY, {"context": {}, "service_account": True, "enforce_tools": False}
+            )
+            authority = restore_authorization(self.authorization_app, snapshot)
+            if not (snapshot or {}).get("company_routine") and (
+                payload.get("company_task_id") or (snapshot or {}).get("company_executor")
+            ):
+                from agno.company.execution import _ExecutorAuthorization
+
+                authority = _ExecutorAuthorization(authority)
+            with authorization_scope(lambda: authority):
+                await self._execute_claimed_inner(job, ownership)
 
     async def _await_with_timeout(self, execution: Any, ownership: Any) -> Any:
         """asyncio.wait_for with cause attribution: the cancellation cause is
@@ -1771,6 +2094,7 @@ class QueueWorker:
             # be guaranteed. Continuation legs are excluded - their PAUSED
             # row exists by definition, or acontinue_run fails honestly.
             try:
+                media = (payload.get("kwargs") or {}).get("media")
                 await aprepare_queued_run(
                     component_for_stamp,
                     job.get("component_type", ""),
@@ -1778,6 +2102,8 @@ class QueueWorker:
                     session_id=job["session_id"],
                     user_id=job.get("user_id"),
                     input=payload.get("input"),
+                    # Only a sandboxed agent's pending row records attachments.
+                    **({"media": media} if media and getattr(component_for_stamp, "sandbox", None) is not None else {}),
                 )
             except Exception as e:
                 log_error(
@@ -1814,9 +2140,11 @@ class QueueWorker:
             # has no executor for. Fail it visibly rather than guessing.
             await self._asettle_ticket(job_id, attempt, "failed", f"No executor registered for job type {job_type!r}")
             return
-        component: Any = await self._aresolve_job_component(
-            job
-        )  # runtime dispatch on component_type; the executor body predates the typed resolver
+        target = await self._aresolve_job_target(job)
+        if isinstance(target, UnbuildableComponent):
+            await self._afail_unbuildable(job, target)
+            return
+        component: Any = target  # runtime dispatch on component_type; the executor body predates the typed resolver
         if component is None:
             # Same rule as every terminal path: never terminalize the ticket
             # while the run row (prepared PENDING at accept) cannot be
@@ -1880,12 +2208,14 @@ class QueueWorker:
                         f"attempt={attempt}): {e}"
                     )
                 persist_fallback = component_hook(component, "_apersist_run_fallback")
-                if stamp_outcome in (_RPO.MISSING, _RPO.UNAVAILABLE) and persist_fallback is not None:
+                if stamp_outcome in (_RPO.MISSING, _RPO.UNAVAILABLE) and (
+                    persist_fallback is not None or payload.get("company_task_id")
+                ):
                     # The read fails closed: an unreadable row may be a CANCELLED one this ticket must not run.
                     hook_run = await component.aget_run_output(job_id, job["session_id"], user_id=job.get("user_id"))
                     if hook_run is not None and hook_run.status in (_RS.completed, _RS.cancelled):
                         stamp_outcome = _RPO.TERMINAL_REFUSED
-                    elif hook_run is not None:
+                    elif hook_run is not None and persist_fallback is not None:
                         hook_run.status = _RS.running
                         try:
                             await persist_fallback(job["session_id"], hook_run, job.get("user_id"))
@@ -1907,6 +2237,17 @@ class QueueWorker:
                     # revisits. Honor the row instead.
                     await self._ahonor_terminal_row(component, job)
                     return
+            from agno.company.routines import _RoutineAuthorization
+            from agno.run.authorization import current_authorization
+
+            if isinstance(current_authorization(), _RoutineAuthorization):
+                from agno.company.execution import _validate_executor_tools
+
+                _validate_executor_tools(component)
+            if payload.get("company_task_id"):
+                from agno.company.execution import _check_task
+
+                await _check_task(self, job)
             if is_stream:
                 execution = self._execute_streaming(component, job)
             elif payload.get("continue"):
@@ -1987,10 +2328,13 @@ class QueueWorker:
             # manager): honour it - the ticket tombstones as cancelled
             if ownership is not None:
                 ownership.cancellation_cause = "user_cancel"
-            await self._asettle_ticket(job_id, attempt, "cancelled")
-            # Not gated: honouring the user's cancel on the ticket beats
-            # run-row terminality (leaving the job stale would re-execute a
-            # cancelled run) - but the divergence must be loud, not silent
+            from agno.run.status_persist import queue_terminal_writer
+
+            requires_cleanup = queue_terminal_writer(component) is not None
+            if not requires_cleanup:
+                await self._asettle_ticket(job_id, attempt, "cancelled")
+            # Ordinary components retain immediate ticket cancellation. A
+            # component with external compute must finish its cleanup first.
             from agno.run.base import CancellationStage
 
             # The stage is what the run was doing when cancelled. Before the
@@ -2009,6 +2353,12 @@ class QueueWorker:
                 cancellation_stage=stage,
             ):
                 log_error(f"Job queue: cancelled job {job_id} but its run row could not be terminalized")
+                if requires_cleanup:
+                    # Compute cleanup failed or its acknowledgement is unknown.
+                    # Preserve the claim for reconciliation before settlement.
+                    return
+            if requires_cleanup:
+                await self._asettle_ticket(job_id, attempt, "cancelled")
             await self._terminate_stream_view(job, status="cancelled")
         except asyncio.TimeoutError:
             error = f"Run exceeded timeout_seconds={self.config.timeout_seconds}"
@@ -2058,6 +2408,23 @@ class QueueWorker:
             if slot_acquired:
                 with contextlib.suppress(Exception):
                     await slot_cm.__aexit__(None, None, None)
+
+
+def wake_queue_worker(queue_worker: Any) -> None:
+    """Best-effort nudge of the replica's worker after a ticket became
+    claimable here (accepted submission, continuation CAS, operator requeue).
+    Duck-typed and tolerant on purpose: a wake is a latency optimization and
+    must never be able to fail the request that triggered it - a worker
+    double without wake(), or no worker at all, is simply a no-op. The
+    sibling set that calls this: the seven router enqueue seams (agents x2,
+    teams x2, workflows x3), acontinue_via_queue, and the requeue endpoint.
+    The router seams call it only after aprepare_accepted_or_abort: a worker
+    woken earlier can claim the ticket before the run row exists, so a failed
+    prepare could no longer cancel it."""
+    if queue_worker is None:
+        return
+    with contextlib.suppress(Exception):
+        queue_worker.wake()
 
 
 async def asettle_paused_ticket(queue_worker: Any, run_id: str, final_status: Any) -> None:
@@ -2273,7 +2640,9 @@ async def acontinue_via_queue(
         # timed out after the pause write): the detached path can still
         # continue the run; the caller logs the bypass
         return None
-    continue_payload = dict(continue_payload)
+    from agno.run.authorization import stamp_authorization
+
+    continue_payload = stamp_authorization(continue_payload, include_trusted=True)
     if "stream_events" not in continue_payload:
         # Hoist the CONTINUE request's stream_events choice to where the
         # worker reads it (cont["stream_events"] wins over the submit
@@ -2301,6 +2670,8 @@ async def acontinue_via_queue(
     # not silent automation. Attempt-scoped intent (roadmap, with the
     # queue/steering ownership convergence) dissolves this entirely.
     result = await queue_worker.store.continue_job(run_id, continue_payload)
+    if result.get("outcome") == "queued":
+        wake_queue_worker(queue_worker)
     if result.get("outcome") == "attach":
         # CAS-race loser: both callers read paused, the other one won. Its
         # boundary is the accepted one - ours may already include the
@@ -2410,7 +2781,13 @@ async def _aappend_pending_run(
 
 
 async def aprepare_queued_run(
-    component: Any, component_type: str, run_id: str, session_id: str, user_id: Optional[str], input: Any
+    component: Any,
+    component_type: str,
+    run_id: str,
+    session_id: str,
+    user_id: Optional[str],
+    input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """Persist the PENDING run row after a successful enqueue so pollers find
     the run immediately. Idempotent: if a worker already started (and possibly
@@ -2430,7 +2807,8 @@ async def aprepare_queued_run(
 
     prepare_hook = component_hook(component, "_aprepare_pending_run")
     if component_type == "agent" and prepare_hook is not None:
-        await prepare_hook(run_id, session_id, user_id, input, queued=True)
+        # Sandbox runs record their attachments on the pending row so the claim sees the same input.
+        await prepare_hook(run_id, session_id, user_id, input, queued=True, **({"media": media} if media else {}))
     elif component_type == "agent":
         from agno.agent._session import asave_run, asave_session
         from agno.agent._storage import aread_or_create_session, update_metadata
@@ -2560,6 +2938,7 @@ async def aprepare_accepted_or_abort(
     session_id: str,
     user_id: Optional[str],
     input: Any,
+    media: Optional[List[Dict[str, Any]]] = None,
 ) -> None:
     """Post-enqueue prepare under the acceptance invariant: once the ticket
     committed, every response must either ACKNOWLEDGE the durable acceptance
@@ -2580,7 +2959,9 @@ async def aprepare_accepted_or_abort(
       lie - the work happens anyway.
     """
     try:
-        await aprepare_queued_run(component, component_type, run_id, session_id, user_id, input)
+        await aprepare_queued_run(
+            component, component_type, run_id, session_id, user_id, input, **({"media": media} if media else {})
+        )
     except Exception as e:
         cancelled = False
         with contextlib.suppress(Exception):
@@ -2681,7 +3062,7 @@ async def aticket_poll_fallback(
         from agno.run.base import CancellationStage
 
         body["cancellation_stage"] = CancellationStage.pending.value
-    return body
+    return await aattach_waiting_on(queue_worker, run_id, body)
 
 
 def warn_unfenced_session_stores(agent_os: Any) -> None:
@@ -2734,32 +3115,43 @@ async def queue_lifespan(app: Any, agent_os: Any):
 
     async def resolve_component(
         component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = None
-    ) -> Optional["QueueableComponent"]:
+    ) -> Optional[Union["QueueableComponent", UnbuildableComponent]]:
+        from agno.registry._reserved import RESERVED_MEMBER_IDS
+
+        if component_id in RESERVED_MEMBER_IDS:
+            return None
         registry: Optional[Sequence["RegisteredComponent"]] = {
             "agent": agent_os.agents,
             "team": agent_os.teams,
             "workflow": agent_os.workflows,
         }.get(component_type)
-        resolved: Optional["QueueableComponent"] = None
+        resolved: Optional[Union["QueueableComponent", UnbuildableComponent]] = None
         from agno.agent import Agent, AgentFactory
         from agno.team import Team, TeamFactory
         from agno.workflow import Workflow, WorkflowFactory
 
         scope = scope or {}
-        # The ticket's source is authoritative in both directions: a
+        # The ticket's source is authoritative in every direction: a
         # db-sourced ticket must not run a registry component that a newer
-        # deploy registered under the same id, and vice versa below
+        # deploy registered under the same id, a factory-sourced ticket runs
+        # only through a factory, and vice versa below
         from_db = scope.get("source") == "db"
+        from_factory = scope.get("source") == "factory"
         for candidate in [] if from_db else registry or []:
             if getattr(candidate, "id", None) != component_id:
                 continue
-            if isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory)):
-                # Factory-backed components are rejected at submit time (they
-                # need request context). Return, never fall through: the db
+            is_factory = isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory))
+            if is_factory != from_factory:
+                # A factory needs the request context the door stamped; a
+                # ticket without one (registry-sourced, pre-scope) cannot
+                # build the component. Return, never fall through: the db
                 # block below would otherwise execute a db component that
                 # merely shares the factory's id (the HTTP loader has the
                 # same shape and never reaches its db block on a factory hit)
                 return None
+            if isinstance(candidate, (AgentFactory, TeamFactory, WorkflowFactory)):
+                resolved = await aresolve_factory_from_scope(candidate, component_type, scope.get("context"))
+                break
             if isinstance(candidate, (Agent, Team, Workflow)):
                 # Fresh copy per execution, mirroring the HTTP path: queued
                 # runs must not share mutable state with concurrent runs on
@@ -2849,7 +3241,10 @@ async def queue_lifespan(app: Any, agent_os: Any):
         config=config,
         stop_timeout=resolve_stop_timeout(config),
         auto_provision=getattr(agent_os, "auto_provision_dbs", True),
+        authorization_app=app,
     )
+    worker._company_db = getattr(agent_os, "_company_db", None)
+    worker._company_schedule_db = agent_os.db
     app.state.queue_worker = worker
     set_active_queue_worker(worker)
     try:

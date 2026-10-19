@@ -47,6 +47,7 @@ class TeamResponse(BaseModel):
     is_component: bool = False
     current_version: Optional[int] = None
     stage: Optional[str] = None
+    sandboxed: bool = False
 
     @classmethod
     def from_factory(cls, factory: TeamFactory) -> TeamResponse:
@@ -283,8 +284,15 @@ class TeamResponse(BaseModel):
         if team.model and team.model.provider is not None:
             _team_model_data["provider"] = team.model.provider
 
+        from agno.registry._reserved import RESERVED_MEMBER_IDS
+
         members: List[Union[AgentResponse, TeamResponse]] = []
         for member in team.members if isinstance(team.members, list) else []:
+            if (
+                getattr(member, "id", None) in RESERVED_MEMBER_IDS
+                and getattr(member, "_registry_excluded", False) is True
+            ):
+                continue
             if isinstance(member, Agent):
                 agent_response = await AgentResponse.from_agent(member)
                 members.append(agent_response)

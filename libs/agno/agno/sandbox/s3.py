@@ -27,6 +27,7 @@ from agno.sandbox.checkpoint import (
 
 _MIN_PART = 5 * 1024 * 1024  # S3 refuses smaller parts, except the last one.
 _MISSING = {"404", "NoSuchKey", "NotFound"}
+_FORBIDDEN = {"403", "AccessDenied", "Forbidden"}
 
 
 def _client_error_code(error: BaseException) -> str:
@@ -40,14 +41,20 @@ class S3CheckpointStore:
     ``put`` hashes the archive, skips the upload when the object already exists, and
     otherwise uploads it, in parts above ``part_size``. An upload is complete only once
     the object is readable, so a crash mid-upload leaves nothing a reader could restore.
-    ``verify`` is a metadata check against the bucket; ``open_archive`` downloads the
-    object, checks its bytes against the reference, and yields a read-only local path.
-    Without a cache the copy lives under ``scratch`` only for the duration of the
-    context. With ``cache_dir`` set, downloaded objects are kept there under their digest,
-    so opening the same checkpoint again costs a local hash instead of a download; the
-    cache is bounded by ``cache_bytes`` and evicts the least recently opened objects,
-    never one that a caller still holds open. Every replica with access to the bucket
-    can restore what another one captured, which is what a durable queue needs.
+    ``verify`` compares the object's size and the digest recorded at ``put`` without
+    reading its bytes; ``open_archive`` downloads the object, checks its bytes against
+    the reference, and yields a read-only local path. Without a cache the copy lives
+    under ``scratch`` only for the duration of the context. With ``cache_dir`` set,
+    downloaded objects are kept there under their digest, so opening the same checkpoint
+    again costs a local hash instead of a download; the cache is bounded by
+    ``cache_bytes`` and evicts the least recently opened objects, never one that a caller
+    still holds open. Every replica with access to the bucket can restore what another
+    one captured, which is what a durable queue needs.
+
+    The credentials need ``s3:GetObject``, ``s3:PutObject`` and ``s3:DeleteObject`` on
+    the prefix, and ``s3:AbortMultipartUpload`` for uploads above ``part_size``. Without
+    ``s3:ListBucket`` S3 answers a HEAD on a missing key with 403 rather than 404; ``put``
+    treats that as unknown and uploads, but ``verify`` reports it as the error it is.
 
     Args:
         bucket: The bucket name.
@@ -165,8 +172,17 @@ class S3CheckpointStore:
             raise SandboxError("Checkpoint checksum mismatch")
 
     def put(self, source: Path) -> CheckpointRef:
+        from botocore.exceptions import ClientError
+
         reference = self._digest(Path(source))
-        existing = self._head(reference)
+        try:
+            existing = self._head(reference)
+        except ClientError as error:
+            # Without s3:ListBucket a missing key answers 403; the upload settles it either
+            # way, and the HEAD that confirms it needs only s3:GetObject.
+            if _client_error_code(error) not in _FORBIDDEN:
+                raise
+            existing = None
         if existing is not None:
             # Content-addressed: the same bytes are already there, or something else sits
             # under the name they would take, which the check reports.

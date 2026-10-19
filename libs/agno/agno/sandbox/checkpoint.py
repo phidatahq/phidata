@@ -625,10 +625,12 @@ class CheckpointStore(Protocol):
     async def aput(self, source: Path) -> CheckpointRef: ...
 
     def verify(self, reference: CheckpointRef) -> None:
-        """Re-read the stored object and raise unless its size and digest both match.
+        """Check the stored object and raise unless its size and digest both match.
 
-        Raises ``CheckpointObjectNotFound`` when storage no longer holds it. Reading one
-        back is ``open_archive``'s job: an object need not have a path.
+        A store may answer from what it recorded at ``put`` rather than re-reading the
+        bytes; ``open_archive`` always checks the bytes it hands out. Raises
+        ``CheckpointObjectNotFound`` when storage no longer holds it. Reading one back is
+        ``open_archive``'s job: an object need not have a path.
         """
         ...
 

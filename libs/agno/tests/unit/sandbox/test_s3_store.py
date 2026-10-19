@@ -2,7 +2,6 @@
 
 import hashlib
 import os
-from pathlib import Path
 
 import pytest
 
@@ -55,6 +54,12 @@ def store(**kwargs):
     return S3CheckpointStore(BUCKET, prefix="ckpt", region="us-east-1", **kwargs)
 
 
+def forbidden(**kwargs):
+    from botocore.exceptions import ClientError
+
+    raise ClientError({"Error": {"Code": "403", "Message": "Forbidden"}}, "HeadObject")
+
+
 def objects():
     listing = boto3.client("s3", region_name="us-east-1").list_objects_v2(Bucket=BUCKET)
     return {item["Key"]: item["Size"] for item in listing.get("Contents", [])}
@@ -96,7 +101,9 @@ def test_put_of_an_existing_object_uploads_nothing(tmp_path, roots, monkeypatch)
 
 
 def test_verify_fails_on_a_truncated_or_tampered_object(tmp_path, roots):
-    s3 = store()
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    s3 = store(scratch=scratch)
     reference = s3.put(capture(tmp_path / "src", roots))
     client = boto3.client("s3", region_name="us-east-1")
     key = f"ckpt/{reference.sha256}.tar.gz"
@@ -120,15 +127,30 @@ def test_verify_fails_on_a_truncated_or_tampered_object(tmp_path, roots):
         with s3.open_archive(reference):
             entered = True
     assert not entered
-    assert not [p for p in Path(tempfile_dir()).iterdir() if p.name.startswith(".checkpoint-")], (
-        "a failed download leaves no temporary file behind"
-    )
+    assert list(scratch.iterdir()) == [], "a failed download leaves no temporary file behind"
 
 
-def tempfile_dir():
-    import tempfile
+def test_put_uploads_when_the_existence_check_is_forbidden(tmp_path, roots, monkeypatch):
+    """Without s3:ListBucket, S3 answers HEAD on a missing key with 403; put still stores the object."""
+    s3 = store()
+    real = s3.client.head_object
+    calls = []
 
-    return tempfile.gettempdir()
+    def head(**kwargs):
+        calls.append(kwargs["Key"])
+        if len(calls) == 1:
+            return forbidden(**kwargs)
+        return real(**kwargs)
+
+    monkeypatch.setattr(s3.client, "head_object", head)
+    reference = s3.put(capture(tmp_path / "src", roots))
+    assert len(calls) == 2, "the pre-upload HEAD was refused, the post-upload HEAD confirmed the object"
+    assert objects() == {f"ckpt/{reference.sha256}.tar.gz": reference.size}
+
+    # verify cannot tell a forbidden key from a missing one, so it reports the refusal.
+    monkeypatch.setattr(s3.client, "head_object", forbidden)
+    with pytest.raises(Exception, match="403"):
+        s3.verify(reference)
 
 
 def test_a_missing_object_is_a_store_error_through_every_access(tmp_path, roots):

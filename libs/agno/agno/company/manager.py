@@ -58,6 +58,48 @@ class CompanyManager:
             }
         )
 
+    def create_routine(
+        self,
+        *,
+        product_id: str,
+        routine: Any,
+        user_id: Optional[str] = None,
+        scoped_user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create and link a Routine before enabling its schedule."""
+        from agno.company.declarations import Routine
+        from agno.company.playbook import _require_owner
+        from agno.company.routines import _schedule_fields
+        from agno.scheduler import ScheduleManager
+
+        product = self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, scoped_user_id)
+        routine = Routine.model_validate(routine)
+        if routine.auto_accept:
+            raise ValueError("Authorize automatic acceptance through the Routine API")
+        fields = _schedule_fields(product_id, routine, self.registry)
+        fields["cron"] = fields.pop("cron_expr")
+        schedules = ScheduleManager(self.schedule_db)
+        schedule = schedules.create(
+            **fields,
+            user_id=user_id,
+            enabled_on_create=False,
+            provenance={
+                "managed_by": "company",
+                "target_type": routine.executor_type,
+                "target_id": routine.executor_id,
+            },
+        )
+        linked = self.db.add_product_routine(product_id, schedule.id)
+        if linked is None:
+            raise RuntimeError("Routine could not be linked to its Product")
+        enabled = schedules.enable(schedule.id, user_id=user_id)
+        if enabled is None:
+            raise RuntimeError("Routine could not be enabled")
+        return enabled.to_dict()
+
     def get(
         self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False
     ) -> Optional[Dict[str, Any]]:
@@ -873,6 +915,48 @@ class AsyncCompanyManager:
                 "deleted_at": None,
             }
         )
+
+    async def create_routine(
+        self,
+        *,
+        product_id: str,
+        routine: Any,
+        user_id: Optional[str] = None,
+        scoped_user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Create and link a Routine before enabling its schedule."""
+        from agno.company.declarations import Routine
+        from agno.company.playbook import _require_owner
+        from agno.company.routines import _schedule_fields
+        from agno.scheduler import ScheduleManager
+
+        product = await self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_owner(product, scoped_user_id)
+        routine = Routine.model_validate(routine)
+        if routine.auto_accept:
+            raise ValueError("Authorize automatic acceptance through the Routine API")
+        fields = _schedule_fields(product_id, routine, self.registry)
+        fields["cron"] = fields.pop("cron_expr")
+        schedules = ScheduleManager(self.schedule_db)
+        schedule = await schedules.acreate(
+            **fields,
+            user_id=user_id,
+            enabled_on_create=False,
+            provenance={
+                "managed_by": "company",
+                "target_type": routine.executor_type,
+                "target_id": routine.executor_id,
+            },
+        )
+        linked = await self.db.add_product_routine(product_id, schedule.id)
+        if linked is None:
+            raise RuntimeError("Routine could not be linked to its Product")
+        enabled = await schedules.aenable(schedule.id, user_id=user_id)
+        if enabled is None:
+            raise RuntimeError("Routine could not be enabled")
+        return enabled.to_dict()
 
     async def get(
         self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False

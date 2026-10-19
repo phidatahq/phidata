@@ -42,6 +42,8 @@ def _routine_failure(output: Any) -> Optional[str]:
     elif isinstance(output, dict):
         for tool in output.get("tools") or []:
             if tool.get("tool_call_error") and tool.get("tool_name") in {
+                "create_company_product",
+                "create_company_routine",
                 "add_company_source",
                 "read_company_source",
                 "intake_company_source",

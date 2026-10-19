@@ -1,3 +1,50 @@
+# Company chat Product creation — October 19, 2026
+
+Branch: `codex/company-chat-products`, based on main `287bc588c3`.
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Added the chat step "Set up a Product for our docs site with an
+intake Routine." The example invokes the same Company tool as Product Manager,
+creates the Product, website Source and on-demand intake Routine under Alice's
+identity, and checks that the records appear in the Product, Source and Routine
+lists. The existing proposal, status and decision steps still pass.
+
+**Result:** Passed with `.venv/bin/python` on SQLite. No model or external Source
+fetch was made. The new integration suite also exercises Product Manager with a
+deterministic model and a real Routine trigger on SQLite and PostgreSQL, sync
+and async: 116 passed, 36 conditional skips (sync tools on async adapters).
+All 14 core acceptance cases fail on clean main because the tools are absent.
+
+The complete Company integration and Product/Project/Task/schedule lifecycle
+selection passed 1,944 cases with 52 conditional skips. Eight replica subprocess
+cases initially failed to import their worker module; all eight passed after
+rerunning with `PYTHONPATH=libs/agno`. The final focused suite adds 12 passing
+provider/dispatch cases beyond that selection: 1,964 distinct integration passes
+and 56 conditional skips in total. MongoDB-only checks were not enabled.
+The affected Company-tool, Product Manager, heartbeat, execution and scheduler
+unit suites passed all 372 cases.
+
+Reproduce the full integration selection with:
+
+```bash
+PYTHONPATH=libs/agno \
+AGNO_TEST_POSTGRES_URL=postgresql+psycopg://ai:ai@localhost:5532/ai \
+.venv/bin/python -m pytest \
+  libs/agno/tests/integration/db/test_company_*.py \
+  libs/agno/tests/integration/db/test_{products,projects,tasks,schedule}_lifecycle_parity.py \
+  libs/agno/tests/integration/db/sqlite/test_{products,projects,tasks}.py \
+  -n 4 -q --disable-warnings --tb=short -o log_cli=false
+```
+
+Formatting and full validation passed in the isolated Python 3.10 environment.
+The shared development Python 3.12 environment reports nine typing errors in
+three untouched provider files; the same nine errors reproduce on clean main.
+
+---
+
 # Company validation record — Task ownership and recovery
 
 **Date:** October 16, 2026

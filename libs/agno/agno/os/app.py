@@ -1500,6 +1500,7 @@ class AgentOS:
                     found = True
                     if not toolkit._interfaces_explicit:
                         toolkit.interfaces = self.interfaces
+                    toolkit.registry = self.registry
                     toolkit._schedule_db = self.db
                     toolkit._automation_history_retention_days = self.company.automation_history_retention_days
                     toolkit.user_isolation = toolkit.user_isolation or bool(

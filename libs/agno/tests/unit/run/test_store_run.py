@@ -4,6 +4,7 @@ The run still reads the existing session (history, state) but works on a private
 nothing is written back, and a cached session is not changed by the temporary run.
 """
 
+import json
 from typing import Any, Dict, List, Optional
 
 import pytest
@@ -33,6 +34,49 @@ class RecordingModel(Model):
     def _resp(self, **kwargs) -> ModelResponse:
         self.calls.append(list(kwargs.get("messages") or []))
         return ModelResponse(content=self._reply, role="assistant", response_usage=MessageMetrics())
+
+    def invoke(self, *args, **kwargs):
+        return self._resp(**kwargs)
+
+    async def ainvoke(self, *args, **kwargs):
+        return self._resp(**kwargs)
+
+    def invoke_stream(self, *args, **kwargs):
+        yield self._resp(**kwargs)
+
+    async def ainvoke_stream(self, *args, **kwargs):
+        yield self._resp(**kwargs)
+
+    def parse_args(self, *args, **kwargs):
+        return {}
+
+    def _parse_provider_response(self, response, **kwargs):
+        return response
+
+    def _parse_provider_response_delta(self, response):
+        return response
+
+
+class DelegatingModel(Model):
+    """A team model that delegates the latest user message to one member, then answers."""
+
+    def __init__(self, member_id: str):
+        super().__init__(id="delegating", name="delegating", provider="test")
+        self._member_id = member_id
+        self._calls = 0
+
+    def _resp(self, **kwargs) -> ModelResponse:
+        self._calls += 1
+        if self._calls % 2 == 1:
+            task = _user_contents(list(kwargs.get("messages") or []))[-1]
+            arguments = json.dumps({"member_id": self._member_id, "task": task})
+            call = {
+                "id": f"call-{self._calls}",
+                "type": "function",
+                "function": {"name": "delegate_task_to_member", "arguments": arguments},
+            }
+            return ModelResponse(role="assistant", tool_calls=[call], response_usage=MessageMetrics())
+        return ModelResponse(content="team answer", role="assistant", response_usage=MessageMetrics())
 
     def invoke(self, *args, **kwargs):
         return self._resp(**kwargs)
@@ -181,6 +225,24 @@ class TestTeam:
         assert output.content == "an answer"
         assert db.get_session(session_id="s1", session_type=SessionType.TEAM) is None
         assert _runs(db, "s1") == 0
+
+    def test_member_cached_session_is_not_changed_by_a_temporary_run(self, db: SqliteDb):
+        member_model = RecordingModel()
+        member = Agent(id="member", name="Member", model=member_model, cache_session=True, add_history_to_context=True)
+        team = Team(id="t", name="T", model=DelegatingModel("member"), members=[member], db=db)
+
+        team.run("first", session_id="s1")
+        team.run("second", session_id="s1", store_run=False)
+        team.run("third", session_id="s1")
+
+        # The member saw the temporary task with its history, but the next delegated run did not.
+        assert "first" in _user_contents(member_model.calls[1])
+        assert "second" in _user_contents(member_model.calls[1])
+        assert "second" not in _user_contents(member_model.calls[2])
+        assert "third" in _user_contents(member_model.calls[2])
+        cached = member._get_cached_session("s1")
+        assert cached is not None and len(cached.runs or []) == 2
+        assert _runs(db, "s1") == 4  # two team runs, each with one member run
 
     def test_background_rejects_store_run_false(self, db: SqliteDb):
         model = RecordingModel()

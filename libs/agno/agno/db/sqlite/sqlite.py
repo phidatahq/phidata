@@ -8209,7 +8209,12 @@ class SqliteDb(BaseDb):
     def create_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         from agno.db.schemas.products import product_metadata
 
-        product_data = {**product_data, "metadata": product_metadata(product_data.get("metadata"))}
+        product_data = {
+            **product_data,
+            "metadata": product_metadata(
+                {k: v for k, v in (product_data.get("metadata") or {}).items() if k != "routine_ids"}
+            ),
+        }
         table = self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create products table")
@@ -8266,20 +8271,15 @@ class SqliteDb(BaseDb):
             return [dict(row._mapping) for row in rows], total
 
     def update_product(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        from agno.db.schemas.products import product_metadata, validate_product_fields
+        from agno.db.schemas.products import validate_product_fields
+        from agno.db.sql.company import update_product_fields
 
         validate_product_fields(fields)
-        if "metadata" in fields:
-            fields["metadata"] = product_metadata(fields["metadata"])
         table = self._get_table(table_type="products")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
-            return dict(result._mapping) if result else None
+            return update_product_fields(sess, table, product_id, user_id, fields)
 
     def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         from agno.db.sql.company import product_counts
@@ -8671,7 +8671,7 @@ class SqliteDb(BaseDb):
             return dict(result._mapping) if result else None
 
     def delete_task(self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None) -> bool:
-        from agno.db.sql.company import lock_child
+        from agno.db.sql.company import lock_child, refuse_live_tasks
 
         table = self._get_table(table_type="tasks")
         if table is None:
@@ -8689,6 +8689,7 @@ class SqliteDb(BaseDb):
         projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
             lock_child(sess, products, projects, table, task_id)
+            refuse_live_tasks(sess, table, table.c.id == task_id)
             result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
             return result is not None
 

@@ -94,6 +94,11 @@ async def test_owner_without_run_scope_can_delegate_start_and_cancel(
             first = await client.post(path + "/runs", headers=headers("bob"))
             assert first.status_code == 202, first.text
             assert (await execute(worker))["status"] == "completed"
+            assert (
+                await client.post(
+                    path + "/transitions", headers=headers("bob"), json={"target": "ready", "reason": "Revise result"}
+                )
+            ).status_code == 200
             second = await client.post(path + "/runs", headers=headers("bob"), json={"attempt": 2})
             assert second.status_code == 202, second.text
             run_id = second.json()["run_id"]
@@ -157,6 +162,11 @@ async def test_unowned_task_persists_executor_default_through_revision_recovery_
         first = await client.post(path)
         assert first.status_code == 202, first.text
         assert (await execute(worker))["status"] == "completed"
+        assert (
+            await client.post(
+                path.removesuffix("/runs") + "/transitions", json={"target": "ready", "reason": "Revise result"}
+            )
+        ).status_code == 200
         second = await client.post(path, json={"attempt": 2})
         assert second.status_code == 202, second.text
         assert second.json()["session_id"] == first.json()["session_id"]
@@ -184,6 +194,11 @@ async def test_unowned_task_persists_executor_default_through_revision_recovery_
         session = await _call(db, "get_session", task["session_id"], session_type=SessionType(kind), deserialize=False)
         assert session["user_id"] == "assistant"
         components[executor_id].user_id = "changed-default"
+        assert (
+            await client.post(
+                path.removesuffix("/runs") + "/transitions", json={"target": "ready", "reason": "Revise again"}
+            )
+        ).status_code == 200
         third = await client.post(path, json={"attempt": 3})
         assert third.status_code == 202, third.text
         current = await _call(db, "get_task", task["id"])

@@ -1,6 +1,5 @@
 """Task run routes: authorize, then enter the existing executor route and queue."""
 
-import asyncio
 from typing import Any, Dict, Optional
 from urllib.parse import quote, unquote
 
@@ -45,6 +44,7 @@ async def _run_route(
     key: Optional[str] = None,
     session_id: Optional[str] = None,
     checkout: Optional[Dict[str, Any]] = None,
+    attachments: Optional[list] = None,
 ) -> Response:
     """Enter the executor route with authorized actor grants and a separate session owner."""
     import json
@@ -78,7 +78,12 @@ async def _run_route(
             transport=httpx.ASGITransport(app=executor_app), base_url="http://company"
         ) as client:
             response = await client.request(
-                method, path, data=form, headers=headers, params={"session_id": session_id} if session_id else None
+                method,
+                path,
+                data=form,
+                files=attachments,
+                headers=headers,
+                params={"session_id": session_id} if session_id else None,
             )
         return Response(response.content, status_code=response.status_code, media_type="application/json")
     finally:
@@ -90,9 +95,21 @@ def get_company_runs_router(os: Any) -> APIRouter:
     auth = get_authentication_dependency(os.settings)
     db = os._company_db
     manager = (
-        AsyncCompanyManager(db, os.registry, schedule_db=os.db)
+        AsyncCompanyManager(
+            db,
+            os.registry,
+            schedule_db=os.db,
+            namespace=os.company.namespace,
+            task_input_max_bytes=os.company.task_input_max_bytes,
+        )
         if isinstance(db, AsyncBaseDb)
-        else CompanyManager(db, os.registry, schedule_db=os.db)
+        else CompanyManager(
+            db,
+            os.registry,
+            schedule_db=os.db,
+            namespace=os.company.namespace,
+            task_input_max_bytes=os.company.task_input_max_bytes,
+        )
         if db
         else None
     )
@@ -137,6 +154,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
     async def start(task_id: str, request: Request, body: TaskRunCreate = TaskRunCreate(), _: bool = Depends(auth)):
         try:
             return await start_task(task_id, request, body)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
         except _TaskRunUnavailable as exc:
             raise HTTPException(503, str(exc)) from exc
         except _TaskRunConflict as exc:
@@ -145,29 +164,11 @@ def get_company_runs_router(os: Any) -> APIRouter:
     async def start_task(task_id: str, request: Request, body: TaskRunCreate):
         value = await task(task_id)
         from agno.company.execution import _automatic_task
-        from agno.company.sandbox import _is_sandboxed
-        from agno.os.routers.company.sandbox import _sandbox_start_gate
 
-        component = executor(value)
+        executor(value)
         if _automatic_task.get() is None:
             await _require_endpoint_permission(request, endpoint(value), "POST", action="accept")
 
-        if _is_sandboxed(component):
-
-            async def admit():
-                async with _sandbox_start_gate(os, value, worker(request)):
-                    return await dispatch(task_id, request, body, value)
-
-            # A disconnected caller must not release admission while an off-thread
-            # queue INSERT can still commit. Finish submission under the same lock.
-            pending = asyncio.create_task(admit())
-            try:
-                return await asyncio.shield(pending)
-            except asyncio.CancelledError:
-                try:
-                    await asyncio.shield(pending)
-                finally:
-                    raise
         return await dispatch(task_id, request, body, value)
 
     async def dispatch(task_id: str, request: Request, body: TaskRunCreate, value: Dict[str, Any]):
@@ -188,7 +189,9 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 raise HTTPException(403, "Task acceptance has no saved caller authority")
             if authority is not None:
                 try:
-                    await authority.arequire(value["executor_type"] + "s", "run", value["executor_id"])
+                    from agno.company.execution import _arequire_task_permissions
+
+                    await _arequire_task_permissions(authority, value["executor_type"], value["executor_id"])
                 except PermissionError as exc:
                     raise HTTPException(403, str(exc)) from exc
         queue = worker(request)
@@ -285,14 +288,22 @@ def get_company_runs_router(os: Any) -> APIRouter:
             raise HTTPException(409, "Start the next Task attempt after accepting a retry")
         owner = _task_session_owner(value, component)
         await _prepare_task_session(run_db, value, owner)
+        from agno.company.sandbox import _is_sandboxed
+        from agno.sandbox.media import MAX_MEDIA_BYTES
+
+        sandboxed = _is_sandboxed(component)
         try:
-            message = await _task_input(manager, value)
+            message = await _task_input(manager, value, max_bytes=MAX_MEDIA_BYTES if sandboxed else None)
         except LookupError as exc:
             raise HTTPException(404, str(exc))
         except ValueError as exc:
             raise HTTPException(409, str(exc))
         except NotImplementedError:
             raise HTTPException(503, "Company wiki is not supported by the configured database")
+        attachments = None
+        if sandboxed:
+            attachments = [("files", ("task-input.json", message.encode("utf-8"), "application/json"))]
+            message = "Complete the Task described in the attached task-input.json, including its evidence and revision feedback."
         # Apply the ordinary run route's schema check before mutating the Task.
         # Rejected input must not consume an attempt or leave phantom active work.
         validate_seam_input(component, message)
@@ -319,6 +330,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 },
                 key=f"company:{task_id}:{body.attempt}",
                 checkout=(value.get("metadata") or {}).get("checkout"),
+                attachments=attachments,
             )
         finally:
             _task_submission.reset(token)
@@ -395,6 +407,8 @@ def get_company_runs_router(os: Any) -> APIRouter:
     async def cancel(run_id: str, request: Request, _: bool = Depends(auth)):
         try:
             return await cancel_task_run(run_id, request)
+        except PermissionError as exc:
+            raise HTTPException(403, str(exc)) from exc
         except _TaskRunUnavailable as exc:
             raise HTTPException(503, str(exc)) from exc
         except _TaskRunConflict as exc:

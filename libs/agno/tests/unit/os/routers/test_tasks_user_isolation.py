@@ -253,7 +253,9 @@ def test_ready_requires_accepting_callers_executor_scope(make_client, kind, scop
     for scopes in [["tasks:write"], ["tasks:write", scope + ":other:run"], ["tasks:read", scope + ":run"]]:
         assert c.post(path + "/transitions", json=body, headers=headers("bob", scopes)).status_code == 403
     assert c.get(path, headers=headers("alice")).json()["status"] == "backlog"
-    accepted = c.post(path + "/transitions", json=body, headers=headers("bob", ["tasks:write", scope + ":writer:run"]))
+    accepted = c.post(
+        path + "/transitions", json=body, headers=headers("bob", ["tasks:write", "wiki:read", scope + ":writer:run"])
+    )
     assert accepted.status_code == 200, accepted.text
     assert accepted.json()["accepted_by"] == "bob"
     assert accepted.json()["executor_id"] == "writer"
@@ -341,7 +343,15 @@ async def test_run_target_permission_with_async_managed_roles(tmp_path, resource
 
     db = AsyncSqliteDb(db_file=str(tmp_path / "managed.db"))
     engine = NativePolicyEngine(db=db)
-    scopes = ["projects:write", "products:write", "tasks:read", "tasks:write", "schedules:write", "agents:writer:run"]
+    scopes = [
+        "projects:write",
+        "products:write",
+        "tasks:read",
+        "tasks:write",
+        "schedules:write",
+        "agents:writer:run",
+        "wiki:read",
+    ]
     await engine.aset_role_scopes("editor", [(scope, "allow") for scope in scopes])
     await engine.aassign("alice", "editor")
     app = AgentOS(
@@ -403,7 +413,7 @@ def test_collaborators_return_or_cancel_accepted_tasks(make_client, start, targe
     accepted = c.post(
         path + "/transitions",
         json={"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": "writer"},
-        headers=headers("bob", ["tasks:write", "agents:writer:run"]),
+        headers=headers("bob", ["tasks:write", "wiki:read", "agents:writer:run"]),
     )
     assert accepted.status_code == 200, accepted.text
     assert accepted.json()["accepted_by"] == "bob"
@@ -435,7 +445,7 @@ def test_collaborators_return_or_cancel_accepted_tasks(make_client, start, targe
 
 
 @pytest.mark.parametrize(
-    "targets", [["cancelled"], ["ready", "in_progress", "in_review", "in_progress", "in_review", "done"]]
+    "targets", [["cancelled"], ["ready", "in_progress", "in_review", "ready", "in_progress", "in_review", "done"]]
 )
 def test_collaborators_complete_or_cancel_backlog_work(make_client, targets):
     c = make_client(True)
@@ -450,7 +460,7 @@ def test_collaborators_complete_or_cancel_backlog_work(make_client, targets):
         if target == "ready":
             body.update(executor_type="agent", executor_id="writer")
         response = c.post(
-            path + "/transitions", json=body, headers=headers("bob", ["tasks:write", "agents:writer:run"])
+            path + "/transitions", json=body, headers=headers("bob", ["tasks:write", "wiki:read", "agents:writer:run"])
         )
         assert response.status_code == 200, response.text
         assert response.json()["user_id"] == "alice"

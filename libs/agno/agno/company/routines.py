@@ -40,8 +40,13 @@ def _routine_failure(output: Any) -> Optional[str]:
             if error:
                 return error
     elif isinstance(output, dict):
-        for tool in output.get("tools") or []:
+        for tool in [*(output.get("tools") or []), *(output.get("messages") or [])]:
             if tool.get("tool_call_error") and tool.get("tool_name") in {
+                "read_company_wiki",
+                "list_company_wiki",
+                "write_company_wiki",
+                "update_company_status",
+                "propose_company_project",
                 "add_company_source",
                 "read_company_source",
                 "intake_company_source",
@@ -49,7 +54,11 @@ def _routine_failure(output: Any) -> Optional[str]:
                 "summarize_company_product",
                 "refresh_company_product",
             }:
-                return str(tool["tool_name"]) + " failed: " + str(tool.get("result") or "Company operation failed")
+                return (
+                    str(tool["tool_name"])
+                    + " failed: "
+                    + str(tool.get("result") or tool.get("content") or "Company operation failed")
+                )
         if output.get("success") is False:
             return str(output.get("error") or "Routine step failed")
         for key in ("member_responses", "step_results", "steps"):
@@ -76,34 +85,30 @@ class _RoutineResultGuardrail(BaseGuardrail):
         self.check(run_input, run_output)
 
 
-def _failed_routines(db: Any, products: Any) -> int:
+def _select_routines(rows: Any, product_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    return [
+        row.to_dict()
+        for row in rows
+        if row.managed_by == "company"
+        and (row.payload or {}).get("metadata", {}).get("product_id")
+        and (product_id is None or (row.payload or {}).get("metadata", {}).get("product_id") == product_id)
+    ]
+
+
+def _routine_rows(db: Any, product_id: Optional[str] = None) -> List[Dict[str, Any]]:
     from agno.scheduler import ScheduleManager
 
-    schedules = ScheduleManager(db)
-    failed = 0
-    for product in products:
-        for routine_id in (product.get("metadata") or {}).get("routine_ids", []):
-            schedule = schedules.get(routine_id)
-            if schedule is None or schedule.managed_by != "company":
-                continue
-            runs = schedules.get_runs(routine_id, limit=1)
-            failed += bool(runs and runs[0].status == "failed")
-    return failed
+    rows = _select_routines(ScheduleManager(db).list_all(raise_on_error=False), product_id)
+    latest = db.get_latest_schedule_runs([row["id"] for row in rows])
+    return [{**row, "last_run": latest.get(row["id"])} for row in rows]
 
 
-async def _afailed_routines(db: Any, products: Any) -> int:
+async def _aroutine_rows(db: Any, product_id: Optional[str] = None) -> List[Dict[str, Any]]:
     from agno.scheduler import ScheduleManager
 
-    schedules = ScheduleManager(db)
-    failed = 0
-    for product in products:
-        for routine_id in (product.get("metadata") or {}).get("routine_ids", []):
-            schedule = await schedules.aget(routine_id)
-            if schedule is None or schedule.managed_by != "company":
-                continue
-            runs = await schedules.aget_runs(routine_id, limit=1)
-            failed += bool(runs and runs[0].status == "failed")
-    return failed
+    rows = _select_routines(await ScheduleManager(db).alist_all(raise_on_error=False), product_id)
+    latest = await _call(db, "get_latest_schedule_runs", [row["id"] for row in rows])
+    return [{**row, "last_run": latest.get(row["id"])} for row in rows]
 
 
 def _routine_executor_endpoint(executor_type: str, executor_id: str, registry: Any) -> str:
@@ -611,9 +616,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
 
         os = self.agent_os
         manager = (
-            AsyncCompanyManager(os._company_db, os.registry)
+            AsyncCompanyManager(os._company_db, os.registry, namespace=os.company.namespace)
             if isinstance(os._company_db, AsyncBaseDb)
-            else CompanyManager(os._company_db, os.registry)
+            else CompanyManager(os._company_db, os.registry, namespace=os.company.namespace)
         )
         outcomes = []
         for product in await _records(manager, "list"):
@@ -742,9 +747,9 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
             ):
                 await authority.arequire(resource, action, resource_id)
         manager = (
-            AsyncCompanyManager(os._company_db, os.registry)
+            AsyncCompanyManager(os._company_db, os.registry, namespace=os.company.namespace)
             if isinstance(os._company_db, AsyncBaseDb)
-            else CompanyManager(os._company_db, os.registry)
+            else CompanyManager(os._company_db, os.registry, namespace=os.company.namespace)
         )
         # Avoid Source IO for exhausted policies. The transaction repeats this
         # check under the Product lock, so concurrent acceptances remain bounded.
@@ -864,13 +869,10 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
         authority = restore_authorization(self.app, snapshot)
         if authority is None and os.authorization:
             raise PermissionError("Task acceptance has no saved caller authority")
-        if task.get("executor_type") == "engineering":
-            raise _AutomationSkip("Engineering executors cannot be started yet")
         _executor(os.registry, task.get("executor_type"), task.get("executor_id"))
-        if authority is not None:
-            await authority.arequire(task["executor_type"] + "s", "run", task["executor_id"])
-            await authority.arequire("tasks", "write")
-            await authority.arequire("wiki", "read")
+        from agno.company.execution import _arequire_task_permissions
+
+        await _arequire_task_permissions(authority, task["executor_type"], task["executor_id"])
         try:
             await _check_automatic_policy(os.db, task)
         except ValueError as exc:
@@ -885,7 +887,7 @@ class _CompanyScheduleExecutor(CompanyScheduleExecutor):
                     str(exc),
                     expected_updated_at=task["updated_at"],
                 )
-            raise
+            raise _AutomationSkip(str(exc)) from exc
         if task["status"] == "ready" and task.get("job_id"):
             queue = getattr(self.app.state, "queue_worker", None)
             prior_job = await queue.store.get_job(task["job_id"]) if queue is not None else None

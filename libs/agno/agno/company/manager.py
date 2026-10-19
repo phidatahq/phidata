@@ -29,8 +29,19 @@ class CompanyManager:
     """
 
     def __init__(
-        self, db: BaseDb, registry: Any = None, schedule_db: Any = None, automation_history_retention_days: int = 30
+        self,
+        db: BaseDb,
+        registry: Any = None,
+        schedule_db: Any = None,
+        automation_history_retention_days: int = 30,
+        namespace: str = "company",
+        task_input_max_bytes: int = 256 * 1024,
     ):
+        from agno.company.config import CompanyConfig
+
+        config = CompanyConfig(namespace=namespace, task_input_max_bytes=task_input_max_bytes)
+        self.namespace = config.namespace
+        self.task_input_max_bytes = config.task_input_max_bytes
         self.automation_history_retention_days = automation_history_retention_days
         self.db = db
         self.registry = registry
@@ -388,8 +399,23 @@ class CompanyManager:
             raise PermissionError("Routines can propose work but cannot accept or complete it")
         if target == "ready":
             from agno.company.execution import _executor
+            from agno.db.schemas.tasks import _revision_transition
 
+            prior = self.db.get_task(task_id, user_id=user_id)
+            if prior is None:
+                return None
+            if _revision_transition(prior, target):
+                if executor_type not in (None, prior.get("executor_type")) or executor_id not in (
+                    None,
+                    prior.get("executor_id"),
+                ):
+                    raise ValueError("Revisions keep the accepted executor")
+                executor_type, executor_id = prior.get("executor_type"), prior.get("executor_id")
             component = _executor(self.registry, executor_type, executor_id, accepting=True)
+            assert executor_type is not None and executor_id is not None
+            from agno.company.execution import _require_task_permissions
+
+            _require_task_permissions(current_authorization(), executor_type, executor_id)
             from agno.company.sandbox import _accept_checkout, _accept_sandbox, _is_sandboxed
 
             existing = self.db.get_task(task_id, user_id=user_id)
@@ -419,36 +445,45 @@ class CompanyManager:
         )
 
     def attention(self, product_id: Optional[str] = None) -> Dict[str, Any]:
-        """Company-wide counts over the same filters used by the Task list."""
-        counts: Dict[str, Any] = {}
-        for name, filters in (
-            ("proposals", {"status": "backlog"}),
-            ("in_review", {"status": "in_review"}),
-            ("failed", {"failed": True}),
-        ):
-            _, counts[name] = self.list_tasks(product_id=product_id, limit=1, **filters)
-        from agno.company.routines import _failed_routines
+        """Count the Task and Routine lists and expose every failed record's identity."""
+        from agno.company.routines import _routine_rows
 
-        products = []
-        if product_id is not None:
-            product = self.get(product_id)
-            if product is not None:
-                products.append(product)
-        else:
-            page = 1
-            while True:
-                rows, total = self.list(limit=100, page=page)
-                products.extend(rows)
-                if page * 100 >= total:
-                    break
-                page += 1
-        counts["failed"] += _failed_routines(self.schedule_db, products)
+        counts: Dict[str, Any] = {}
+        for name, status in (("proposals", "backlog"), ("in_review", "in_review")):
+            _, counts[name] = self.list_tasks(product_id=product_id, status=status, limit=1)
+        failed_tasks: List[Dict[str, Any]] = []
+        page = 1
+        while True:
+            rows, total = self.list_tasks(product_id=product_id, failed=True, limit=100, page=page)
+            failed_tasks.extend(
+                {
+                    "id": row["id"],
+                    "run_id": (row.get("result") or {}).get("run_id"),
+                    "reason": (row.get("result") or {}).get("content") or "Task run failed",
+                }
+                for row in rows
+            )
+            if page * 100 >= total:
+                break
+            page += 1
+        routines = _routine_rows(self.schedule_db, product_id)
+        failed_routines = [
+            {
+                "id": row["id"],
+                "run_id": row["last_run"].get("run_id"),
+                "reason": row["last_run"].get("error") or "Routine run failed",
+            }
+            for row in routines
+            if (row.get("last_run") or {}).get("status") == "failed"
+        ]
+        counts.update(
+            failed_tasks=failed_tasks, failed_routines=failed_routines, failed=len(failed_tasks) + len(failed_routines)
+        )
         from agno.company.automation_history import automation_failures
 
         failures = automation_failures(self.schedule_db, self.db, product_id)
         if failures:
             counts["automation_failures"] = failures
-            counts["failed"] += len(failures)
         return counts
 
     def get_wiki(self, product_id: Optional[str] = None):
@@ -461,7 +496,7 @@ class CompanyManager:
         product = self.get(product_id) if product_id is not None else None
         if product_id is not None and product is None:
             raise LookupError("Product not found")
-        provider = _wiki(self.db, product)
+        provider = _wiki(self.db, product, namespace=self.namespace)
         _seed(provider, product)
         return provider
 
@@ -523,7 +558,7 @@ class CompanyManager:
         from agno.company.decisions import CompanyDecisionLogStore, _new_decision
 
         entry = _new_decision(decision, reasoning, context, outcome, user_id, session_id, agent_id)
-        CompanyDecisionLogStore(self.db).save(entry)
+        CompanyDecisionLogStore(self.db, namespace=self.namespace).save(entry)
         return entry
 
     def list_decisions(
@@ -540,7 +575,7 @@ class CompanyManager:
 
         if limit < 1 or page < 1 or (days is not None and days < 1):
             raise ValueError("limit, page and days must be positive")
-        entries = CompanyDecisionLogStore(self.db).search(
+        entries = CompanyDecisionLogStore(self.db, namespace=self.namespace).search(
             query=query, agent_id=agent_id, session_id=session_id, days=days, limit=None
         )
         return entries[(page - 1) * limit : page * limit], len(entries)
@@ -806,7 +841,7 @@ class CompanyManager:
         except LookupError:
             existing = None
         state_fs, previous, state_version = _load_summary_state(
-            self.db, product_id, existing.content if existing else ""
+            self.db, product_id, existing.content if existing else "", namespace=self.namespace
         )
         content = _summary_report(product, counts, rows, narrative, previous)
         report, delivered, marker = _summary_page(previous, run_id, content)
@@ -846,7 +881,14 @@ class AsyncCompanyManager:
         registry: Any = None,
         schedule_db: Any = None,
         automation_history_retention_days: int = 30,
+        namespace: str = "company",
+        task_input_max_bytes: int = 256 * 1024,
     ):
+        from agno.company.config import CompanyConfig
+
+        config = CompanyConfig(namespace=namespace, task_input_max_bytes=task_input_max_bytes)
+        self.namespace = config.namespace
+        self.task_input_max_bytes = config.task_input_max_bytes
         self.automation_history_retention_days = automation_history_retention_days
         self.db = db
         self.registry = registry
@@ -1208,8 +1250,23 @@ class AsyncCompanyManager:
             raise PermissionError("Routines can propose work but cannot accept or complete it")
         if target == "ready":
             from agno.company.execution import _executor
+            from agno.db.schemas.tasks import _revision_transition
 
+            prior = await self.db.get_task(task_id, user_id=user_id)
+            if prior is None:
+                return None
+            if _revision_transition(prior, target):
+                if executor_type not in (None, prior.get("executor_type")) or executor_id not in (
+                    None,
+                    prior.get("executor_id"),
+                ):
+                    raise ValueError("Revisions keep the accepted executor")
+                executor_type, executor_id = prior.get("executor_type"), prior.get("executor_id")
             component = _executor(self.registry, executor_type, executor_id, accepting=True)
+            assert executor_type is not None and executor_id is not None
+            from agno.company.execution import _arequire_task_permissions
+
+            await _arequire_task_permissions(current_authorization(), executor_type, executor_id)
             from agno.company.sandbox import _accept_checkout, _accept_sandbox, _is_sandboxed
 
             existing = await self.db.get_task(task_id, user_id=user_id)
@@ -1239,36 +1296,45 @@ class AsyncCompanyManager:
         )
 
     async def attention(self, product_id: Optional[str] = None) -> Dict[str, Any]:
-        """Company-wide counts over the same filters used by the Task list."""
-        counts: Dict[str, Any] = {}
-        for name, filters in (
-            ("proposals", {"status": "backlog"}),
-            ("in_review", {"status": "in_review"}),
-            ("failed", {"failed": True}),
-        ):
-            _, counts[name] = await self.list_tasks(product_id=product_id, limit=1, **filters)
-        from agno.company.routines import _afailed_routines
+        """Count the Task and Routine lists and expose every failed record's identity."""
+        from agno.company.routines import _aroutine_rows
 
-        products = []
-        if product_id is not None:
-            product = await self.get(product_id)
-            if product is not None:
-                products.append(product)
-        else:
-            page = 1
-            while True:
-                rows, total = await self.list(limit=100, page=page)
-                products.extend(rows)
-                if page * 100 >= total:
-                    break
-                page += 1
-        counts["failed"] += await _afailed_routines(self.schedule_db, products)
+        counts: Dict[str, Any] = {}
+        for name, status in (("proposals", "backlog"), ("in_review", "in_review")):
+            _, counts[name] = await self.list_tasks(product_id=product_id, status=status, limit=1)
+        failed_tasks: List[Dict[str, Any]] = []
+        page = 1
+        while True:
+            rows, total = await self.list_tasks(product_id=product_id, failed=True, limit=100, page=page)
+            failed_tasks.extend(
+                {
+                    "id": row["id"],
+                    "run_id": (row.get("result") or {}).get("run_id"),
+                    "reason": (row.get("result") or {}).get("content") or "Task run failed",
+                }
+                for row in rows
+            )
+            if page * 100 >= total:
+                break
+            page += 1
+        routines = await _aroutine_rows(self.schedule_db, product_id)
+        failed_routines = [
+            {
+                "id": row["id"],
+                "run_id": row["last_run"].get("run_id"),
+                "reason": row["last_run"].get("error") or "Routine run failed",
+            }
+            for row in routines
+            if (row.get("last_run") or {}).get("status") == "failed"
+        ]
+        counts.update(
+            failed_tasks=failed_tasks, failed_routines=failed_routines, failed=len(failed_tasks) + len(failed_routines)
+        )
         from agno.company.automation_history import aautomation_failures
 
         failures = await aautomation_failures(self.schedule_db, self.db, product_id)
         if failures:
             counts["automation_failures"] = failures
-            counts["failed"] += len(failures)
         return counts
 
     async def get_wiki(self, product_id: Optional[str] = None):
@@ -1281,7 +1347,7 @@ class AsyncCompanyManager:
         product = await self.get(product_id) if product_id is not None else None
         if product_id is not None and product is None:
             raise LookupError("Product not found")
-        provider = _wiki(self.db, product)
+        provider = _wiki(self.db, product, namespace=self.namespace)
         await _aseed(provider, product)
         return provider
 
@@ -1343,7 +1409,7 @@ class AsyncCompanyManager:
         from agno.company.decisions import CompanyDecisionLogStore, _new_decision
 
         entry = _new_decision(decision, reasoning, context, outcome, user_id, session_id, agent_id)
-        await CompanyDecisionLogStore(self.db).asave(entry)
+        await CompanyDecisionLogStore(self.db, namespace=self.namespace).asave(entry)
         return entry
 
     async def list_decisions(
@@ -1360,7 +1426,7 @@ class AsyncCompanyManager:
 
         if limit < 1 or page < 1 or (days is not None and days < 1):
             raise ValueError("limit, page and days must be positive")
-        entries = await CompanyDecisionLogStore(self.db).asearch(
+        entries = await CompanyDecisionLogStore(self.db, namespace=self.namespace).asearch(
             query=query, agent_id=agent_id, session_id=session_id, days=days, limit=None
         )
         return entries[(page - 1) * limit : page * limit], len(entries)
@@ -1626,7 +1692,7 @@ class AsyncCompanyManager:
         except LookupError:
             existing = None
         state_fs, previous, state_version = await _aload_summary_state(
-            self.db, product_id, existing.content if existing else ""
+            self.db, product_id, existing.content if existing else "", namespace=self.namespace
         )
         content = _summary_report(product, counts, rows, narrative, previous)
         report, delivered, marker = _summary_page(previous, run_id, content)

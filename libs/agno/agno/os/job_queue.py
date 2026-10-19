@@ -334,7 +334,13 @@ async def aenqueue_ticket(queue_worker: Any, job: Dict[str, Any], component: Any
 
     job = {**job, "payload": stamp_authorization(job.get("payload"), include_trusted=True)}
     from agno.company.execution import _enqueue_ticket
+    from agno.job_queue.capacity import _validate_capacity
 
+    limit = getattr(component, "max_concurrent_runs", None)
+    _validate_capacity(limit)
+    job["payload"].pop("max_concurrent_runs", None)
+    if limit is not None:
+        job["payload"]["max_concurrent_runs"] = limit
     config = queue_worker.config
     if config.queue_per_session or getattr(component, "one_turn_per_session", False) is True:
         job = {**job, "payload": {**(job.get("payload") or {}), "serialize_session": True}}

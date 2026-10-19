@@ -208,10 +208,7 @@ class TaskTransition(BaseModel):
 
     @model_validator(mode="after")
     def validate_executor(self) -> "TaskTransition":
-        if self.target == "ready":
-            if self.executor_type is None or self.executor_id is None or not self.executor_id.strip():
-                raise ValueError("Ready requires an executor type and id")
-        elif self.executor_type is not None or self.executor_id is not None:
+        if self.target != "ready" and (self.executor_type is not None or self.executor_id is not None):
             raise ValueError("Only Ready can set an executor")
         return self
 

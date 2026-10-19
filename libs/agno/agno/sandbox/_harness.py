@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from agno.agents.base import BaseExternalAgent
     from agno.sandbox.coordinator import SandboxCoordinator
 
-# The runtime sets these inside the sandbox, so the service-side values are not sent.
+# Runtime-owned fields and host queue policy are not sent as sandbox agent configuration.
 _RUNTIME_OWNED = frozenset(
     {
         "id",
@@ -37,6 +37,7 @@ _RUNTIME_OWNED = frozenset(
         "events_to_skip",
         "require_native_resume",
         "strict_persistence",
+        "max_concurrent_runs",
         "delay_between_retries",
         "exponential_backoff",
     }

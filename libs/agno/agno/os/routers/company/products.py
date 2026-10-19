@@ -57,6 +57,8 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
             if result is not None and method in {"create", "update", "restore"}:
                 result = await _call("get", result["id"], include_deleted=True)
             return result
+        except PermissionError as exc:
+            raise HTTPException(status_code=403, detail=str(exc)) from exc
         except NotImplementedError:
             raise HTTPException(status_code=503, detail="Company products not supported by the configured database")
         except ValueError as exc:

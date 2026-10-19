@@ -265,8 +265,12 @@ class BaseExternalAgent:
     _supports_output_schema: ClassVar[bool] = False
     # A second concurrent turn on a session is refused, so the durable queue always serializes these.
     one_turn_per_session: ClassVar[bool] = True
+    max_concurrent_runs: Optional[int] = None
 
     def __post_init__(self) -> None:
+        from agno.job_queue.capacity import _validate_capacity
+
+        _validate_capacity(self.max_concurrent_runs)
         from agno.utils.string import generate_id_from_name
 
         if self.id is None:

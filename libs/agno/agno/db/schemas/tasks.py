@@ -1,13 +1,15 @@
 """Validation and explicit lifecycle rules for Company tasks."""
 
 import time
+from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
 TASK_TRANSITIONS = {
     "backlog": {"ready", "cancelled"},
     "ready": {"cancelled", "in_progress", "backlog"},
     "in_progress": {"in_review", "cancelled", "backlog"},
-    "in_review": {"cancelled", "done", "in_progress", "backlog"},
+    "in_review": {"cancelled", "done", "ready", "backlog"},
     "done": set(),
     "cancelled": set(),
 }
@@ -40,6 +42,34 @@ def validate_task_fields(fields: Dict[str, Any]) -> None:
         raise ValueError("project_id must be a non-empty string or None")
 
 
+def _revision_transition(existing: Dict[str, Any], target: str) -> bool:
+    if target != "ready":
+        return False
+    if existing["status"] == "in_review":
+        return True
+    if existing["status"] != "ready":
+        return False
+    for entry in reversed(existing.get("transitions") or []):
+        if entry.get("attempt") or entry.get("target") != "ready":
+            return False
+        if entry.get("from") == "in_review":
+            return True
+    return False
+
+
+_revision_actor_id: ContextVar[Optional[str]] = ContextVar("company_revision_actor", default=None)
+
+
+@contextmanager
+def _revision_actor(actor_id: Optional[str]):
+    # The reviewer is an injected agent identity; dispatch retains the authorizing principal.
+    token = _revision_actor_id.set(actor_id)
+    try:
+        yield
+    finally:
+        _revision_actor_id.reset(token)
+
+
 def task_transition_fields(
     existing: Dict[str, Any],
     target: str,
@@ -51,11 +81,19 @@ def task_transition_fields(
     """Build lifecycle fields after validating a transition; callers persist atomically."""
     if not isinstance(reason, str) or not reason.strip():
         raise ValueError("A transition requires a non-empty reason")
-    if target not in TASK_TRANSITIONS.get(existing["status"], set()):
+    revision = _revision_transition(existing, target)
+    if not revision and target not in TASK_TRANSITIONS.get(existing["status"], set()):
         raise ValueError(f"Invalid task transition from {existing['status']} to {target}")
     now = int(time.time())
     fields: Dict[str, Any] = {"status": target, "updated_at": now}
     if target == "ready":
+        if revision:
+            if executor_type not in (None, existing.get("executor_type")) or executor_id not in (
+                None,
+                existing.get("executor_id"),
+            ):
+                raise ValueError("Revisions keep the accepted executor")
+            executor_type, executor_id = existing.get("executor_type"), existing.get("executor_id")
         if (
             executor_type not in {"agent", "team", "workflow"}
             or not isinstance(executor_id, str)
@@ -69,7 +107,13 @@ def task_transition_fields(
         fields.update(executor_type=None, executor_id=None, accepted_by=None, accepted_at=None)
     fields["transitions"] = [
         *(existing.get("transitions") or []),
-        {"from": existing["status"], "target": target, "reason": reason, "user_id": accepted_by, "created_at": now},
+        {
+            "from": existing["status"],
+            "target": target,
+            "reason": reason,
+            "user_id": (_revision_actor_id.get() or accepted_by) if revision else accepted_by,
+            "created_at": now,
+        },
     ]
     if target == "ready":
         from agno.run.authorization import AUTHORIZATION_KEY, authorization_snapshot
@@ -109,14 +153,14 @@ def task_run_fields(
 
     if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 1:
         raise ValueError("attempt must be a positive integer")
-    if existing["status"] not in {"ready", "in_progress", "in_review"} or not existing.get("executor_id"):
+    if existing["status"] == "in_review":
+        raise ValueError("Request revisions through the In review to Ready transition before starting another attempt")
+    if existing["status"] not in {"ready", "in_progress"} or not existing.get("executor_id"):
         raise ValueError("Only accepted work can be started")
     if existing.get("executor_type") not in {"agent", "team", "workflow"}:
         raise ValueError("Select a registered agent, team or workflow executor")
     history = existing.get("transitions") or []
     attempts = [entry["attempt"] for entry in history if "attempt" in entry]
-    if existing["status"] == "in_review" and not attempts:
-        raise ValueError("A revision requires a previous Task attempt")
     if attempt != max(attempts, default=0) + 1:
         raise ValueError("Start the next Task attempt, or retry the original attempt")
     now = int(time.time())

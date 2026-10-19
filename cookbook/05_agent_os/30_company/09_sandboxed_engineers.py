@@ -15,6 +15,7 @@ from pathlib import Path
 from agno.agents.claude import ClaudeAgent
 from agno.agents.codex import CodexAgent
 from agno.db.postgres import PostgresDb
+from agno.db.sqlite import SqliteDb
 from agno.job_queue import QueueConfig
 from agno.os import AgentOS, CompanyConfig
 from agno.sandbox import Repository
@@ -23,9 +24,14 @@ from agno.sandbox.docker import DockerSandbox
 from fastapi.testclient import TestClient
 
 repository = Repository("https://github.com/octocat/Hello-World", branch="master")
-db = PostgresDb(
+queue_db = PostgresDb(
     db_url=os.getenv("DATABASE_URL", "postgresql+psycopg://ai:ai@localhost:5532/ai"),
     db_schema="company_engineering",
+)
+db = (
+    SqliteDb(db_file=os.getenv("COMPANY_SQLITE_FILE", "tmp/company-sandbox.db"))
+    if os.getenv("COMPANY_DB") == "sqlite"
+    else queue_db
 )
 image = os.getenv("SANDBOX_IMAGE", "agno-sandbox:local")
 checkpoints = FileCheckpointStore(
@@ -34,7 +40,8 @@ checkpoints = FileCheckpointStore(
 instructions = "Inspect the checked-out repository, name a file you read and report its contents. Do not push or publish."
 claude = ClaudeAgent(
     id="claude-engineer",
-    db=db,
+    db=queue_db,
+    max_concurrent_runs=1,
     repository=repository,
     sandbox=DockerSandbox(
         image,
@@ -48,7 +55,8 @@ claude = ClaudeAgent(
 )
 codex = CodexAgent(
     id="codex-engineer",
-    db=db,
+    db=queue_db,
+    max_concurrent_runs=1,
     repository=repository,
     sandbox=DockerSandbox(
         image,
@@ -67,7 +75,10 @@ agent_os = AgentOS(
     db=db,
     company=CompanyConfig(),
     queue=QueueConfig(
-        durable=True, db=db, redis=os.getenv("REDIS_URL", "redis://localhost:6379/0")
+        durable=True,
+        db=queue_db,
+        max_concurrency=1,
+        redis=os.getenv("REDIS_URL", "redis://localhost:6379/0"),
     ),
     telemetry=False,
 )
@@ -136,7 +147,9 @@ def run(executor: str) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--executor", choices=("claude", "codex"), default="codex")
+    parser.add_argument(
+        "--executor", choices=("claude", "codex", "both"), default="both"
+    )
     parser.add_argument("--config-only", action="store_true")
     args = parser.parse_args()
     if args.config_only:
@@ -144,4 +157,7 @@ if __name__ == "__main__":
             "Configured Claude and Codex with a public repository, Docker and explicit checkpoints"
         )
     else:
-        run(args.executor)
+        for executor in (
+            ["claude", "codex"] if args.executor == "both" else [args.executor]
+        ):
+            run(executor)

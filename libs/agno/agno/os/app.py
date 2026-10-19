@@ -980,7 +980,9 @@ class AgentOS:
             updated_routers.append(
                 get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry)
             )
-            updated_routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
+            updated_routers.append(
+                get_playbook_router(db=self._company_db, settings=self.settings, namespace=self.company.namespace)
+            )
             updated_routers.append(get_company_runs_router(self))
         # Routes that require a database
         if self.db is not None:
@@ -1501,6 +1503,8 @@ class AgentOS:
                     if not toolkit._interfaces_explicit:
                         toolkit.interfaces = self.interfaces
                     toolkit._schedule_db = self.db
+                    toolkit.namespace = self.company.namespace
+                    toolkit.registry = self.registry
                     toolkit._automation_history_retention_days = self.company.automation_history_retention_days
                     toolkit.user_isolation = toolkit.user_isolation or bool(
                         self.user_isolation
@@ -1872,7 +1876,9 @@ class AgentOS:
             routers.append(get_heartbeat_router(self))
             routers.append(get_projects_router(db=self._company_db, settings=self.settings))
             routers.append(get_tasks_router(db=self._company_db, settings=self.settings, registry=self.registry))
-            routers.append(get_playbook_router(db=self._company_db, settings=self.settings))
+            routers.append(
+                get_playbook_router(db=self._company_db, settings=self.settings, namespace=self.company.namespace)
+            )
             routers.append(get_company_runs_router(self))
         # Routes that require a database
         if self.db is not None:

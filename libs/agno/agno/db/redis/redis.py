@@ -2787,6 +2787,19 @@ class RedisDb(BaseDb):
                         if session_blocked(job, members):
                             pipe.unwatch()
                             return None
+                if (job.get("payload") or {}).get("max_concurrent_runs") is not None:
+                    from agno.job_queue.capacity import _capacity_blocked
+
+                    running_key = self._q_key("running")
+                    pipe.watch(running_key)
+                    ids = [_q_to_str(value) for value in pipe.zrange(running_key, 0, -1)]
+                    keys = [self._q_job_key(value) for value in ids]
+                    if keys:
+                        pipe.watch(*keys)
+                        running = [json.loads(value) for value in pipe.mget(keys) if value is not None]
+                        if _capacity_blocked(job, running):
+                            pipe.unwatch()
+                            return None
                 job.update(
                     status="running", locked_by=worker_id, locked_at=now, attempt=job["attempt"] + 1, updated_at=now
                 )

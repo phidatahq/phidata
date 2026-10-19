@@ -258,3 +258,32 @@ async def test_clearing_cron_during_claim_cannot_rearm_routine(system):
     saved = await _call(db, "get_schedule", routine["id"])
     assert saved["enabled"] and saved["next_run_at"] is None and saved["locked_by"] is None
     assert await _call(db, "claim_due_schedule", "worker") is None
+
+
+@pytest.mark.asyncio
+async def test_attention_failure_ids_match_routine_list_with_equal_timestamps(system):
+    client, db, _, _, _ = system
+    routine = await create_routine(client)
+    for run_id, status in [("a-failure", "failed"), ("z-success", "success")]:
+        await _call(
+            db,
+            "create_schedule_run",
+            dict(
+                id=run_id,
+                schedule_id=routine["id"],
+                status=status,
+                attempt=1,
+                triggered_at=20,
+                created_at=20,
+                completed_at=21,
+                error="read failed" if status == "failed" else None,
+            ),
+        )
+    listed = (await client.get("/company/routines")).json()["data"]
+    attention = (await client.get("/company/attention")).json()
+    failed = [row for row in listed if row["last_run"]["status"] == "failed"]
+    assert attention["failed"] == len(failed)
+    assert attention["failed_routines"] == [
+        {"id": row["id"], "run_id": row["last_run"]["run_id"], "reason": row["last_run"]["error"]} for row in failed
+    ]
+    assert attention["failed_tasks"] == []

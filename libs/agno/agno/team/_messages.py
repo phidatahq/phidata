@@ -77,7 +77,7 @@ def _input_kwarg(method: Any, input_message: Any) -> Dict[str, Any]:
 def _get_tool_names(member: Any, async_mode: bool = False) -> List[str]:
     """Extract tool names from a member's tools list."""
     tool_names: List[str] = []
-    if member.tools is None or not isinstance(member.tools, list):
+    if not isinstance(getattr(member, "tools", None), list):
         return tool_names
     for _tool in member.tools:
         if isinstance(_tool, Toolkit):
@@ -119,7 +119,7 @@ def get_members_system_message_content(
                 content += f'{pad}<member id="{member_id}" name="{member.name}" type="team">\n'
             else:
                 content += f'{pad}<member name="{member.name}" type="team">\n'
-            if member.role is not None:
+            if getattr(member, "role", None) is not None:
                 content += f"{pad}  Role: {member.role}\n"
             if member.description is not None:
                 content += f"{pad}  Description: {member.description}\n"
@@ -133,7 +133,7 @@ def get_members_system_message_content(
                 content += f'{pad}<member id="{member_id}" name="{member.name}">\n'
             else:
                 content += f'{pad}<member name="{member.name}">\n'
-            if member.role is not None:
+            if getattr(member, "role", None) is not None:
                 content += f"{pad}  Role: {member.role}\n"
             if member.description is not None:
                 content += f"{pad}  Description: {member.description}\n"

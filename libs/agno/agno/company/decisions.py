@@ -3,6 +3,7 @@
 from dataclasses import asdict
 from typing import Any, Optional
 
+from agno.company.config import _namespace_scope, _resolved_namespace
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.learn.config import DecisionLogConfig
 from agno.learn.schemas import DecisionLog
@@ -16,10 +17,12 @@ class CompanyDecisionLogStore(DecisionLogStore):
     after the general-purpose learning store's best-effort save has failed.
     """
 
-    def __init__(self, db: Any, user_isolation: bool = False):
+    def __init__(self, db: Any, user_isolation: bool = False, namespace: str = "company"):
+        self.namespace = namespace
         super().__init__(config=DecisionLogConfig(db=db))
         self.user_isolation = user_isolation
 
+    @_namespace_scope
     def recall(self, **kwargs):
         """Recall across Company authors; use search for explicit agent filtering."""
         from agno.tools.company import _permission
@@ -30,6 +33,7 @@ class CompanyDecisionLogStore(DecisionLogStore):
         kwargs.pop("agent_id", None)
         return super().recall(**kwargs)
 
+    @_namespace_scope
     async def arecall(self, **kwargs):
         """Async recall across Company authors, including human decisions."""
         from agno.tools.company import _apermission
@@ -44,7 +48,7 @@ class CompanyDecisionLogStore(DecisionLogStore):
         self.db.upsert_learning(
             id=decision.id,
             learning_type=self.learning_type,
-            namespace="company",
+            namespace=_resolved_namespace(self.namespace),
             entity_id=decision.id,
             content=asdict(decision),
             user_id=decision.user_id,
@@ -52,7 +56,12 @@ class CompanyDecisionLogStore(DecisionLogStore):
             session_id=decision.session_id,
             team_id=decision.team_id,
         )
-        if self.db.get_learning(learning_type=self.learning_type, namespace="company", entity_id=decision.id) is None:
+        if (
+            self.db.get_learning(
+                learning_type=self.learning_type, namespace=_resolved_namespace(self.namespace), entity_id=decision.id
+            )
+            is None
+        ):
             raise RuntimeError("Company decision was not persisted")
         self.decisions_updated = True
 
@@ -61,7 +70,7 @@ class CompanyDecisionLogStore(DecisionLogStore):
             await self.db.upsert_learning(
                 id=decision.id,
                 learning_type=self.learning_type,
-                namespace="company",
+                namespace=_resolved_namespace(self.namespace),
                 entity_id=decision.id,
                 content=asdict(decision),
                 user_id=decision.user_id,
@@ -70,7 +79,11 @@ class CompanyDecisionLogStore(DecisionLogStore):
                 team_id=decision.team_id,
             )
             if (
-                await self.db.get_learning(learning_type=self.learning_type, namespace="company", entity_id=decision.id)
+                await self.db.get_learning(
+                    learning_type=self.learning_type,
+                    namespace=_resolved_namespace(self.namespace),
+                    entity_id=decision.id,
+                )
                 is None
             ):
                 raise RuntimeError("Company decision was not persisted")
@@ -84,7 +97,10 @@ class CompanyDecisionLogStore(DecisionLogStore):
         if not isinstance(self.db, BaseDb):
             raise TypeError("Use asearch with an asynchronous database")
         rows = self.db.get_learnings(
-            learning_type=self.learning_type, namespace="company", agent_id=agent_id, session_id=session_id
+            learning_type=self.learning_type,
+            namespace=_resolved_namespace(self.namespace),
+            agent_id=agent_id,
+            session_id=session_id,
         )
         return self._filter_decisions(
             rows, query=query, decision_type=decision_type, days=days, limit=len(rows) if limit is None else limit
@@ -93,7 +109,10 @@ class CompanyDecisionLogStore(DecisionLogStore):
     async def asearch(self, query=None, agent_id=None, session_id=None, decision_type=None, days=None, limit=10):
         if isinstance(self.db, AsyncBaseDb):
             rows = await self.db.get_learnings(
-                learning_type=self.learning_type, namespace="company", agent_id=agent_id, session_id=session_id
+                learning_type=self.learning_type,
+                namespace=_resolved_namespace(self.namespace),
+                agent_id=agent_id,
+                session_id=session_id,
             )
             return self._filter_decisions(
                 rows, query=query, decision_type=decision_type, days=days, limit=len(rows) if limit is None else limit
@@ -120,7 +139,7 @@ class CompanyDecisionLogStore(DecisionLogStore):
 
         if not self._should_expose_tools:
             return []
-        tools = CompanyTools(self.db, user_isolation=self.user_isolation, agent_id=agent_id)
+        tools = CompanyTools(self.db, user_isolation=self.user_isolation, agent_id=agent_id, namespace=self.namespace)
         return [tools.log_company_decision, tools.search_company_decisions]
 
     async def aget_tools(self, agent_id: Optional[str] = None, **kwargs):
@@ -128,7 +147,7 @@ class CompanyDecisionLogStore(DecisionLogStore):
 
         if not self._should_expose_tools:
             return []
-        tools = CompanyTools(self.db, user_isolation=self.user_isolation, agent_id=agent_id)
+        tools = CompanyTools(self.db, user_isolation=self.user_isolation, agent_id=agent_id, namespace=self.namespace)
         return [
             tools.get_async_functions()["log_company_decision"],
             tools.get_async_functions()["search_company_decisions"],

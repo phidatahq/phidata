@@ -158,14 +158,24 @@ def get_tasks_router(
     async def transition_task(
         task_id: str, body: TaskTransition, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        await _writable(task_id, None)
+        existing = await _writable(task_id, None)
         if body.target == "in_progress":
             raise HTTPException(
                 status_code=409,
                 detail=f"Start a run with POST /company/tasks/{task_id}/runs to enter In progress",
             )
         if body.target == "ready":
-            assert body.executor_type is not None  # Validated by TaskTransition.
+            from agno.db.schemas.tasks import _revision_transition
+
+            if _revision_transition(existing, body.target):
+                if body.executor_type not in (None, existing["executor_type"]) or body.executor_id not in (
+                    None,
+                    existing["executor_id"],
+                ):
+                    raise HTTPException(409, "Revisions keep the accepted executor")
+                body.executor_type, body.executor_id = existing["executor_type"], existing["executor_id"]
+            if body.executor_type is None or body.executor_id is None or not body.executor_id.strip():
+                raise HTTPException(422, "Ready requires an executor type and id")
             resource = {"agent": "agents", "team": "teams", "workflow": "workflows"}[body.executor_type]
             await _require_endpoint_permission(request, f"/{resource}/{body.executor_id}/runs", "POST", action="accept")
         record = await _call(

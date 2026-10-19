@@ -503,7 +503,9 @@ def _get_delegate_task_function(
                 team._member_response_model = member_agent.output_schema
 
         # 3. Handle enable_agentic_knowledge_filters on the member agent
-        if team.enable_agentic_knowledge_filters and not member_agent.enable_agentic_knowledge_filters:
+        if team.enable_agentic_knowledge_filters and not getattr(
+            member_agent, "enable_agentic_knowledge_filters", False
+        ):
             member_agent.enable_agentic_knowledge_filters = team.enable_agentic_knowledge_filters
 
         # 4. Determine team context to send
@@ -588,14 +590,14 @@ def _get_delegate_task_function(
         # Scrub the member run based on that member's storage flags before storing
         if member_agent_run_response:
             if (
-                not member_agent.store_media
-                or not member_agent.store_tool_messages
-                or not member_agent.store_history_messages
+                not getattr(member_agent, "store_media", True)
+                or not getattr(member_agent, "store_tool_messages", True)
+                or not getattr(member_agent, "store_history_messages", True)
             ):
                 from agno.agent._run import scrub_run_output_for_storage
 
                 # Recorded before the scrub: by here the ids exist nowhere else.
-                if not member_agent.store_media:
+                if not getattr(member_agent, "store_media", True):
                     _record_opted_out_media(run_response, member_agent_run_response)
                 scrub_run_output_for_storage(member_agent, run_response=member_agent_run_response)  # type: ignore[arg-type]
 
@@ -665,14 +667,14 @@ def _get_delegate_task_function(
         # Scrub the member run based on that member's storage flags before storing
         if member_agent_run_response:
             if (
-                not member_agent.store_media
-                or not member_agent.store_tool_messages
-                or not member_agent.store_history_messages
+                not getattr(member_agent, "store_media", True)
+                or not getattr(member_agent, "store_tool_messages", True)
+                or not getattr(member_agent, "store_history_messages", True)
             ):
                 from agno.agent._run import scrub_run_output_for_storage
 
                 # Recorded before the scrub: by here the ids exist nowhere else.
-                if not member_agent.store_media:
+                if not getattr(member_agent, "store_media", True):
                     _record_opted_out_media(run_response, member_agent_run_response)
                 scrub_run_output_for_storage(member_agent, run_response=member_agent_run_response)  # type: ignore[arg-type]
 
@@ -739,7 +741,7 @@ def _get_delegate_task_function(
                     metadata=run_context.metadata,
                     add_session_state_to_context=add_session_state_to_context,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
@@ -799,7 +801,7 @@ def _get_delegate_task_function(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                 )
@@ -925,7 +927,7 @@ def _get_delegate_task_function(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
@@ -985,7 +987,7 @@ def _get_delegate_task_function(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                 )
@@ -1090,7 +1092,8 @@ def _get_delegate_task_function(
                         stream=True,
                         stream_events=stream_events or team.stream_member_events,
                         knowledge_filters=run_context.knowledge_filters
-                        if not member_agent.knowledge_filters and member_agent.knowledge
+                        if not getattr(member_agent, "knowledge_filters", None)
+                        and getattr(member_agent, "knowledge", None)
                         else None,
                         debug_mode=debug_mode,
                         dependencies=run_context.dependencies,
@@ -1153,7 +1156,8 @@ def _get_delegate_task_function(
                         files=files,
                         stream=False,
                         knowledge_filters=run_context.knowledge_filters
-                        if not member_agent.knowledge_filters and member_agent.knowledge
+                        if not getattr(member_agent, "knowledge_filters", None)
+                        and getattr(member_agent, "knowledge", None)
                         else None,
                         debug_mode=debug_mode,
                         dependencies=run_context.dependencies,
@@ -1400,7 +1404,8 @@ def _get_delegate_task_function(
                             stream_events=stream_events,
                             debug_mode=debug_mode,
                             knowledge_filters=run_context.knowledge_filters
-                            if not member_agent.knowledge_filters and member_agent.knowledge
+                            if not getattr(member_agent, "knowledge_filters", None)
+                            and getattr(member_agent, "knowledge", None)
                             else None,
                             dependencies=run_context.dependencies,
                             add_dependencies_to_context=add_dependencies_to_context,

@@ -11,6 +11,7 @@ from typing import Annotated, Any, Dict, List, Optional
 
 from pydantic import BeforeValidator
 
+from agno.company.config import _namespace_scope
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.company.playbook import _require_owner
 from agno.db.base import AsyncBaseDb
@@ -90,11 +91,15 @@ class CompanyTools(Toolkit):
         refresh_tools: bool = True,
         agent_id: Optional[str] = None,
         interfaces: Any = None,
+        namespace: str = "company",
+        registry: Any = None,
     ):
         self._interfaces_explicit = interfaces is not None
         self.interfaces = interfaces if interfaces is not None else []
         self._automation_history_retention_days = 30
         self._schedule_db = db
+        self.namespace = namespace
+        self.registry = registry
         self.db = db
         self.user_isolation = user_isolation
         # Supplied by the learning machine, never by the model or an MCP argument.
@@ -112,6 +117,7 @@ class CompanyTools(Toolkit):
             "propose_company_task",
             "edit_company_project",
             "edit_company_task",
+            "request_company_task_revisions",
             "list_company_wiki",
             "read_company_wiki",
             "update_company_status",
@@ -149,6 +155,8 @@ class CompanyTools(Toolkit):
         return CompanyManager(
             self.db,
             schedule_db=self._schedule_db,
+            registry=self.registry,
+            namespace=self.namespace,
             automation_history_retention_days=self._automation_history_retention_days,
         )
 
@@ -157,17 +165,22 @@ class CompanyTools(Toolkit):
             return AsyncCompanyManager(
                 self.db,
                 schedule_db=self._schedule_db,
+                registry=self.registry,
+                namespace=self.namespace,
                 automation_history_retention_days=self._automation_history_retention_days,
             )
         return _AsyncSyncManager(
             CompanyManager(
                 self.db,
                 schedule_db=self._schedule_db,
+                registry=self.registry,
+                namespace=self.namespace,
                 automation_history_retention_days=self._automation_history_retention_days,
             )
         )
 
     @requires_permission()
+    @_namespace_scope
     def list_company_products(
         self, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -185,6 +198,7 @@ class CompanyTools(Toolkit):
         return _page(self._sync().list(limit=limit, page=page), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     def get_company_product(self, product_id: str, _agno_run_context: Optional[Any] = None) -> str:
         """Read a Product's purpose and current configuration."""
         _permission("products", "read", _agno_run_context)
@@ -194,6 +208,7 @@ class CompanyTools(Toolkit):
         return _public_json(product)
 
     @requires_permission()
+    @_namespace_scope
     def list_company_projects(
         self,
         product_id: _OptionalString = None,
@@ -217,6 +232,7 @@ class CompanyTools(Toolkit):
         return _page(self._sync().list_projects(product_id=product_id, limit=limit, page=page), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     def list_company_tasks(
         self,
         product_id: _OptionalString = None,
@@ -243,6 +259,7 @@ class CompanyTools(Toolkit):
         return _page(self._sync().list_tasks(product_id=product_id, status=status, limit=limit, page=page), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     def propose_company_project(
         self, product_id: str, name: str, outcome: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -261,6 +278,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def propose_company_task(
         self,
         product_id: str,
@@ -303,6 +321,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def edit_company_project(
         self, project_id: str, name: str, outcome: str, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -321,6 +340,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def edit_company_task(self, task_id: str, title: str, brief: str, _agno_run_context: Optional[Any] = None) -> str:
         """Edit the title and brief of owned Backlog work; never change lifecycle or ownership."""
         _permission("tasks", "write", _agno_run_context)
@@ -333,6 +353,32 @@ class CompanyTools(Toolkit):
         return _public_json(manager.update_task(task_id, user_id=user, title=title, brief=brief))
 
     @requires_permission()
+    @_namespace_scope
+    def request_company_task_revisions(
+        self, task_id: str, reason: str, _agno_run_context: Optional[Any] = None, _agno_agent: Optional[Any] = None
+    ) -> str:
+        """Request revisions of reviewed work, preserving its executor and recording feedback."""
+        from agno.db.schemas.tasks import _revision_actor, _revision_transition, public_task
+
+        _permission("tasks", "write", _agno_run_context)
+        self._scoped_user(_agno_run_context)
+        manager = self._sync()
+        row = manager.get_task(task_id)
+        if row is None:
+            raise LookupError("Task not found")
+        if not _revision_transition(row, "ready"):
+            raise ValueError("Only reviewed work can request revisions")
+        actor = getattr(_agno_agent, "id", None) or self._agent_id or _identity(_agno_run_context)
+        with _revision_actor(actor):
+            result = manager.transition_task(
+                task_id=task_id, target="ready", reason=reason, accepted_by=_identity(_agno_run_context)
+            )
+        if result is None:
+            raise ValueError("Task changed while requesting revisions")
+        return _public_json(public_task(result))
+
+    @requires_permission()
+    @_namespace_scope
     def list_company_wiki(
         self,
         product_id: _OptionalString = None,
@@ -357,6 +403,7 @@ class CompanyTools(Toolkit):
         return _page(([asdict(row) for row in rows], total), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     def read_company_wiki(
         self, path: str, product_id: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -370,6 +417,7 @@ class CompanyTools(Toolkit):
         return _public_json(asdict(self._sync().read_wiki(product_id, path)))
 
     @requires_permission()
+    @_namespace_scope
     def update_company_status(
         self, product_id: str, content: str, expected_version: int, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -388,6 +436,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def log_company_decision(
         self,
         decision: str,
@@ -423,6 +472,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def search_company_decisions(
         self,
         query: _OptionalString = None,
@@ -456,6 +506,7 @@ class CompanyTools(Toolkit):
         return _page(([asdict(row) for row in rows], total), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     async def alist_company_products(
         self, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -473,6 +524,7 @@ class CompanyTools(Toolkit):
         return _page(await self._async().list(limit=limit, page=page), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     async def aget_company_product(self, product_id: str, _agno_run_context: Optional[Any] = None) -> str:
         """Read a Product's purpose and current configuration."""
         await _apermission("products", "read", _agno_run_context)
@@ -482,6 +534,7 @@ class CompanyTools(Toolkit):
         return _public_json(product)
 
     @requires_permission()
+    @_namespace_scope
     async def alist_company_projects(
         self,
         product_id: _OptionalString = None,
@@ -505,6 +558,7 @@ class CompanyTools(Toolkit):
         return _page(await self._async().list_projects(product_id=product_id, limit=limit, page=page), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     async def alist_company_tasks(
         self,
         product_id: _OptionalString = None,
@@ -533,6 +587,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def apropose_company_project(
         self, product_id: str, name: str, outcome: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -551,6 +606,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def apropose_company_task(
         self,
         product_id: str,
@@ -593,6 +649,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def aedit_company_project(
         self, project_id: str, name: str, outcome: str, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -613,6 +670,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def aedit_company_task(
         self, task_id: str, title: str, brief: str, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -627,6 +685,32 @@ class CompanyTools(Toolkit):
         return _public_json(await manager.update_task(task_id, user_id=user, title=title, brief=brief))
 
     @requires_permission()
+    @_namespace_scope
+    async def arequest_company_task_revisions(
+        self, task_id: str, reason: str, _agno_run_context: Optional[Any] = None, _agno_agent: Optional[Any] = None
+    ) -> str:
+        """Request revisions of reviewed work, preserving its executor and recording feedback."""
+        from agno.db.schemas.tasks import _revision_actor, _revision_transition, public_task
+
+        await _apermission("tasks", "write", _agno_run_context)
+        self._scoped_user(_agno_run_context)
+        manager = self._async()
+        row = await manager.get_task(task_id)
+        if row is None:
+            raise LookupError("Task not found")
+        if not _revision_transition(row, "ready"):
+            raise ValueError("Only reviewed work can request revisions")
+        actor = getattr(_agno_agent, "id", None) or self._agent_id or _identity(_agno_run_context)
+        with _revision_actor(actor):
+            result = await manager.transition_task(
+                task_id=task_id, target="ready", reason=reason, accepted_by=_identity(_agno_run_context)
+            )
+        if result is None:
+            raise ValueError("Task changed while requesting revisions")
+        return _public_json(public_task(result))
+
+    @requires_permission()
+    @_namespace_scope
     async def alist_company_wiki(
         self,
         product_id: _OptionalString = None,
@@ -651,6 +735,7 @@ class CompanyTools(Toolkit):
         return _page(([asdict(row) for row in rows], total), limit, page)
 
     @requires_permission()
+    @_namespace_scope
     async def aread_company_wiki(
         self, path: str, product_id: _OptionalString = None, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -664,6 +749,7 @@ class CompanyTools(Toolkit):
         return _public_json(asdict(await self._async().read_wiki(product_id, path)))
 
     @requires_permission()
+    @_namespace_scope
     async def aupdate_company_status(
         self, product_id: str, content: str, expected_version: int, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -682,6 +768,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def alog_company_decision(
         self,
         decision: str,
@@ -717,6 +804,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def asearch_company_decisions(
         self,
         query: _OptionalString = None,
@@ -755,6 +843,7 @@ class CompanyTools(Toolkit):
         return run_context.run_id
 
     @requires_permission()
+    @_namespace_scope
     def add_company_source(
         self,
         product_id: str,
@@ -787,6 +876,7 @@ class CompanyTools(Toolkit):
         return json.dumps({key: value for key, value in row.items() if key != "credential_ref"}, default=str)
 
     @requires_permission()
+    @_namespace_scope
     def list_company_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -809,6 +899,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def read_company_source(
         self,
         source_id: str,
@@ -854,6 +945,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def intake_company_source(
         self,
         source_id: str,
@@ -908,6 +1000,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     def refresh_company_product(self, product_id: str, _agno_run_context: Optional[Any] = None) -> str:
         """Propose Project completion and archive old terminal work using the Product's window."""
         from agno.company.routines import _RoutineAuthorization
@@ -927,6 +1020,7 @@ class CompanyTools(Toolkit):
         return json.dumps(self._sync().refresh(product_id, user_id=self._scoped_user(_agno_run_context)))
 
     @requires_permission()
+    @_namespace_scope
     def summarize_company_product(
         self, product_id: str, narrative: str, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -946,6 +1040,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def aadd_company_source(
         self,
         product_id: str,
@@ -978,6 +1073,7 @@ class CompanyTools(Toolkit):
         return json.dumps({key: value for key, value in row.items() if key != "credential_ref"}, default=str)
 
     @requires_permission()
+    @_namespace_scope
     async def alist_company_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
@@ -1000,6 +1096,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def aread_company_source(
         self,
         source_id: str,
@@ -1047,6 +1144,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def aintake_company_source(
         self,
         source_id: str,
@@ -1101,6 +1199,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
+    @_namespace_scope
     async def arefresh_company_product(self, product_id: str, _agno_run_context: Optional[Any] = None) -> str:
         """Propose Project completion and archive old terminal work using the Product's window."""
         from agno.company.routines import _RoutineAuthorization
@@ -1120,6 +1219,7 @@ class CompanyTools(Toolkit):
         return json.dumps(await self._async().refresh(product_id, user_id=self._scoped_user(_agno_run_context)))
 
     @requires_permission()
+    @_namespace_scope
     async def asummarize_company_product(
         self, product_id: str, narrative: str, _agno_run_context: Optional[Any] = None
     ) -> str:

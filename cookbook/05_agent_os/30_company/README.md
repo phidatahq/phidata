@@ -51,7 +51,10 @@ Projects start `proposed` and move to `active`, then `done`. Tasks start
 Either can be `cancelled` from any non-terminal state. Each transition takes
 `target` and a non-empty `reason`; history is returned on the record. Tasks
 may return to Backlog to clear acceptance and change scope, and In review may
-return to In progress for revisions by starting the next run attempt. Direct HTTP
+return to Ready to request revisions with a required reason, keeping the executor.
+Start the next attempt from Ready; the runs endpoint takes no reason. Revision
+input includes the previous result and all revision reasons in order. Agents
+use `request_company_task_revisions` through CompanyTools for the same transition. Direct HTTP
 transitions to In progress return 409 and name the runs endpoint. Terminal states cannot transition.
 
 The HTTP routes use `/company/projects` and `/company/tasks`, with the same
@@ -59,7 +62,8 @@ CRUD, paging, soft delete and restore conventions as Products, plus
 `POST /{id}/transitions`. Task Ready requests include `executor_type` and
 `executor_id`; the API applies the scheduler's caller run-permission check.
 Acceptance also validates the executor against the registry. Direct Python callers
-pass `registry=Registry(...)` to their Company manager.
+pass `registry=Registry(...)` to their Company manager. Acceptance checks the
+executor run scope, `tasks:write`, and `wiki:read` together.
 
 Project and Task HTTP reads are company-wide for callers with the resource's
 read scope, matching Products. Edits and transitions are collaborative: callers with the resource write
@@ -161,10 +165,13 @@ The durable ticket is accepted before the Task moves to In progress, and the wor
 can recover that update if the submitting process stops. If acceptance changes
 before the Task can reserve a fresh ticket, the request returns 409 and cancels
 the waiting ticket; an already-claimed ticket is rejected by the worker.
-To request a revision from In review, POST to the runs route with `attempt` equal
-to the highest recorded attempt plus one. The reservation writes the In review
-to In progress transition and clears the previous result, retaining the same
-session and executor. A rejected submission leaves the result and lifecycle unchanged.
+To request a revision from In review, POST to the transitions route with
+`{"target": "ready", "reason": "What must change"}`. The executor stays the same.
+Additional feedback before starting appends another revision reason. Then POST
+to the runs route with `attempt` equal to the highest recorded attempt plus one.
+The new input carries the previous result and ordered revision reasons; the
+previous attempt's input is unchanged. A rejected submission leaves the result
+and lifecycle unchanged.
 A fresh Ready Task starts attempt 1. Work returned to Backlog, edited, and accepted
 again starts the next unused attempt from Ready, retaining its session. Backlog
 cannot start a run. Failed or cancelled runs can still be retried while the Task
@@ -190,12 +197,13 @@ policy's accepting human. Revisions by another authorized collaborator keep the
 same session and owner in both isolation modes. The ordinary session ownership
 check still rejects unrelated sessions. For a legacy session created by a starter,
 Company recovers with the recorded reservation identity and transfers an idle
-session to the Task owner only after matching its original reservation and run. Engineering executors cannot be started yet. Framework-reserved executors,
+session to the Task owner only after matching its original reservation and run. Framework-reserved executors,
 including Product Manager and OS Manager, cannot be accepted or started as
 Task executors.
 
-Executor input contains only the Task brief, its evidence and the current
-company and Product wiki pages. Queue retries and restart recovery use the
+Executor input contains the Task brief, evidence, Product playbook and status
+pages, and revision context, bounded by `CompanyConfig.task_input_max_bytes`.
+Other pages are read through wiki tools; sandboxed executors receive attachments. Queue retries and restart recovery use the
 existing queue policy. Results are saved on the Task; success moves it to
 `in_review`. Retryable failures remain outside failed attention while the queue
 has attempts left. An exhausted, permanent or cancelled run leaves the Task
@@ -429,10 +437,9 @@ error. Dispatch failures, including unavailable queue storage or a missing
 executor, produce failed history with Task-specific reasons, readable through
 `/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
 run rows. Unexpected database errors are recorded even before dispatch starts.
-Engineering executors and a previous attempt whose ticket is still active are
-expected skips. If a Ready Task's accepting human loses permission, the Task
-returns to Backlog with the refusal reason and appears in attention; the failed
-tick is recorded once instead of repeating every minute.
+A previous attempt whose ticket is still active is an expected skip. If a Ready Task's accepting human loses permission, the Task
+returns to Backlog with the refusal reason and appears among proposals. This
+policy revocation is an expected skip and does not increase failed attention.
 
 Recovery runs before current Routine pause, policy and permission checks. It only
 reconciles existing reservations and never enqueues work. A terminal durable run
@@ -453,8 +460,10 @@ an HTTP 404 refusal.
 
 Consecutive dispatch failures for the same Task state and reason update one failed
 schedule-history row. `/company/attention` includes an `automation_failures` list
-when actionable failures exist, with `task_id`, `reason` and `count`; `failed`
-counts each active streak once. A changed reason, Task move or successful check
+when actionable dispatch failures exist, with `task_id`, `reason` and `count`.
+These diagnostics do not increase `failed`: that count is the combined lengths
+of `failed_tasks` and `failed_routines`, computed from their list queries.
+Policy revocations, budget skips and quiet ticks are excluded. A changed reason, Task move or successful check
 ends that streak. Refresh deletes completed automation history after
 `CompanyConfig(automation_history_retention_days=30)` days, measured from the most
 recent occurrence. The setting must be a positive integer. Routine history and
@@ -809,7 +818,8 @@ the deadline null after release on SQL and MongoDB storage.
 
 [09_sandboxed_engineers.py](09_sandboxed_engineers.py) configures one reusable
 ClaudeAgent and one CodexAgent with `repository=Repository(...)`. Select either
-with `--executor claude` or `--executor codex`. Both use the public
+with `--executor claude` or `--executor codex`; the default `--executor both`
+runs both sequentially. Both use the public
 `octocat/Hello-World` repository, Docker `network="isolated"`, and an explicit
 `checkpoints=FileCheckpointStore(...)`. `--config-only` makes no model calls.
 
@@ -824,9 +834,10 @@ uses the same pin validation and saves the checkout atomically with its result.
 A checkout validation error can be retried after repairing its cause. Reacceptance
 requires a sandboxed executor with the same repository and branch once a checkout
 is pinned. Use a new Task for a non-sandboxed executor or a different repository.
-A second sandboxed Task start receives 409 while another has a live job, including after that Task is
-returned to Backlog, reassigned or archived. Ordinary agents remain eligible
-and report `sandboxed: false`. This marker is derived from the component and
+Each agent sets `max_concurrent_runs=1`: a second start returns 202 and waits
+in the durable queue across replicas. The example also sets worker
+`max_concurrency=1` to run the two agents sequentially. Ordinary agents report
+`sandboxed: false`. This marker is derived from the component and
 cannot be set on a Task.
 
 Deployment requirements:
@@ -855,3 +866,25 @@ Deployment requirements:
 Set `SANDBOX_IMAGE`, `SANDBOX_CHECKPOINTS`, `DATABASE_URL`, and `REDIS_URL` for your
 deployment, plus the selected harness's model API key. Running the example
 without `--config-only` makes a real model call and leaves its Task for review.
+
+## Namespaces, bounded context and execution capacity
+
+Set `CompanyConfig(namespace="acme")` to prefix Company wiki pages, Product
+playbooks, Summary state and learning decisions. The default is `company`.
+FileSystem placeholders such as `{user_id}` resolve from authenticated or
+framework-injected context; distinct prefixes also produce distinct setup
+Product IDs. Use the same prefix on direct CompanyManager and CompanyTools calls.
+
+Task input includes its brief and evidence, the Product's `brief.md`,
+`playbook.md` and `status.md`, and revision context. `CompanyConfig(task_input_max_bytes=262144)`
+sets the UTF-8 byte cap. Larger pages are omitted first, and `omitted_pages`
+names every page to read through wiki tools. Sandboxed agents receive the same
+bounded input as an attachment.
+
+Agents, teams and workflows can set `max_concurrent_runs=1` to limit their running
+queued jobs across all replicas sharing the queue store. Additional starts return
+202 and wait in the queue. `QueueConfig.max_concurrency` separately limits each
+worker. This applies to ordinary runs, Company Tasks and Routines, including
+sandboxed agents; it does not impose a limit on direct Python execution.
+An executing Task cannot be archived, including by a Project or Product cascade:
+cancel its named run first, then archive it.

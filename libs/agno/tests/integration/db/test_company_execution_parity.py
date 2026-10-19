@@ -166,8 +166,8 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
     run_id = starts[0].json()["run_id"]
     job = await worker.store.get_job(run_id)
     payload = json.loads(job["payload"]["input"])
-    assert set(payload) == {"brief", "wiki", "evidence"}
-    assert len(payload["wiki"]) == 4 and payload["evidence"][0]["hash"] == "abc"
+    assert {"brief", "wiki", "evidence", "omitted_pages"} <= set(payload)
+    assert len(payload["wiki"]) == 2 and payload["evidence"][0]["hash"] == "abc"
     assert "never-forward" not in job["payload"]["input"]
     assert job["idempotency_key"] == f"company:{value['id']}:1" and job["max_attempts"] == 2
     assert (await execute(worker))["status"] == "completed"
@@ -182,11 +182,16 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
         "proposals": 0,
         "in_review": 1,
         "failed": 0,
+        "failed_tasks": [],
+        "failed_routines": [],
     }
     assert (await client.post(path + "/runs", json={"attempt": 3})).status_code == 409
     assert (
         await client.post(path + "/transitions", json={"target": "in_progress", "reason": "Revise"})
     ).status_code == 409
+    assert (
+        await client.post(path + "/transitions", json={"target": "ready", "reason": "Revise result"})
+    ).status_code == 200
     revisions = await asyncio.gather(
         client.post(path + "/runs", json={"attempt": 2}), client.post(path + "/runs", json={"attempt": 2})
     )
@@ -198,7 +203,7 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
     assert running["status"] == "in_progress" and running["result"] is None
     assert (running["executor_type"], running["executor_id"]) == (kind, id)
     assert len([entry for entry in running["transitions"] if entry.get("attempt") == 2]) == 1
-    assert running["transitions"][-1]["from"] == "in_review"
+    assert running["transitions"][-1]["from"] == "ready"
     assert running["transitions"][-1]["target"] == "in_progress"
     assert (await execute(worker))["status"] == "completed"
     assert (await client.get(path + "/runs", params={"limit": 1, "page": 2})).json()["meta"]["total_count"] == 2
@@ -430,6 +435,9 @@ async def test_run_history_and_revision_survive_ticket_retention(system):
     assert (
         await client.post(path + "/transitions", json={"target": "in_progress", "reason": "Revise draft"})
     ).status_code == 409
+    assert (
+        await client.post(path + "/transitions", json={"target": "ready", "reason": "Revise result"})
+    ).status_code == 200
     revision = await client.post(path + "/runs", json={"attempt": 2})
     assert revision.status_code == 202, revision.text
     assert revision.json()["run_id"] != run_id
@@ -671,7 +679,13 @@ async def test_attention_clears_acted_on_failures_and_preserves_results(system, 
         response = await client.post(path + "/transitions", json=body)
         assert response.status_code == 200, response.text
         attention = (await client.get("/company/attention", params=product_filter)).json()
-        assert attention == {"proposals": int(step == "backlog"), "in_review": int(step == "in_review"), "failed": 0}
+        assert attention == {
+            "proposals": int(step == "backlog"),
+            "in_review": int(step == "in_review"),
+            "failed": 0,
+            "failed_tasks": [],
+            "failed_routines": [],
+        }
     assert (await client.get(path)).json()["result"] == {"status": result_status, "content": "Failure"}
     assert (await client.get("/company/attention")).json()["failed"] == 1
     failed = (await client.get("/company/tasks", params={"failed": "true", "limit": 1})).json()
@@ -742,6 +756,9 @@ async def test_full_queue_leaves_task_and_attempt_unchanged(system, kind, id, at
         response = await client.post(path + "/runs")
         if previous_status == "COMPLETED":
             assert (await execute(worker))["status"] == "completed"
+            assert (
+                await client.post(path + "/transitions", json={"target": "ready", "reason": "Revise result"})
+            ).status_code == 200
         else:
             job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
             assert job["id"] == response.json()["run_id"]
@@ -910,7 +927,13 @@ async def test_cancellation_during_execution_projects_task_result(system, monkey
     assert saved["status"] == "in_progress" and saved["result"]["status"] == "CANCELLED"
     assert (await client.get("/company/attention")).json()["failed"] == 1
     assert (await client.post(path + "/transitions", json={"target": "backlog", "reason": "Replan"})).status_code == 200
-    assert (await client.get("/company/attention")).json() == {"proposals": 1, "in_review": 0, "failed": 0}
+    assert (await client.get("/company/attention")).json() == {
+        "proposals": 1,
+        "in_review": 0,
+        "failed": 0,
+        "failed_tasks": [],
+        "failed_routines": [],
+    }
     assert (await client.get(path)).json()["result"]["status"] == "CANCELLED"
 
 
@@ -976,7 +999,13 @@ async def test_changed_acceptance_during_enqueue_returns_conflict(system, monkey
     job = await worker.store.get_job(run_id)
     assert job["status"] == ("failed" if claimed else "cancelled")
     assert (await client.get(path)).json() == saved
-    assert (await client.get("/company/attention")).json() == {"proposals": 1, "in_review": 0, "failed": 0}
+    assert (await client.get("/company/attention")).json() == {
+        "proposals": 1,
+        "in_review": 0,
+        "failed": 0,
+        "failed_tasks": [],
+        "failed_routines": [],
+    }
 
 
 @pytest.mark.asyncio
@@ -1001,7 +1030,7 @@ async def test_worker_completion_before_submitter_reservation_still_returns_acce
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["queued", "running", "revoked"])
-async def test_task_archive_restore_preserves_queued_acceptance(system, monkeypatch, phase):
+async def test_task_archive_refuses_live_attempt_preserving_acceptance(system, monkeypatch, phase):
     client, db, worker, os, components = system
     task = await accepted(client)
     path = "/company/tasks/" + task["id"]
@@ -1024,11 +1053,11 @@ async def test_task_archive_restore_preserves_queued_acceptance(system, monkeypa
     try:
         if running is not None:
             await asyncio.wait_for(entered.wait(), timeout=10)
-        assert (await client.delete(path)).status_code == 204
-        restored = await client.post(path + "/restore")
-        assert restored.status_code == 200, restored.text
-        for key in ["transitions", "session_id", "job_id", "evidence", "result", "accepted_at", "accepted_by"]:
-            assert restored.json()[key] == before[key]
+        refused = await client.delete(path)
+        assert refused.status_code == 409, refused.text
+        assert run_id in refused.json()["detail"]
+        assert f"/company/runs/{run_id}/cancel" in refused.json()["detail"]
+        assert (await client.get(path)).json() == before
         if phase == "revoked":
             response = await client.post(path + "/transitions", json={"target": "backlog", "reason": "Withdraw"})
             assert response.status_code == 200, response.text
@@ -1044,6 +1073,8 @@ async def test_task_archive_restore_preserves_queued_acceptance(system, monkeypa
         assert saved["status"] == "in_review" and saved["result"]["status"] == "COMPLETED"
         assert saved["result"]["run_id"] == run_id
         assert (await client.get("/company/attention")).json()["in_review"] == 1
+        assert (await client.delete(path)).status_code == 204
+        assert (await client.post(path + "/restore")).json()["result"] == saved["result"]
 
 
 async def automation(system):
@@ -3442,7 +3473,7 @@ async def test_terminal_reconciliation_preserves_task_and_session_guards(system,
     run = await _call(db, "get_run", reserved["job_id"], deserialize=False)
     # A stale observation must not overwrite a later lifecycle transition.
     if conflict == "acceptance":
-        await _call(db, "transition_task", task["id"], "in_progress", "Revise this result")
+        await _call(db, "transition_task", task["id"], "ready", "Revise this result")
     elif conflict == "session":
         run["session_id"] = "another-session"
     elif conflict == "run":
@@ -3461,3 +3492,28 @@ async def test_terminal_reconciliation_preserves_task_and_session_guards(system,
     else:
         assert await _reconcile_task_run(db, db, reserved, run, None) is False
     assert await _call(db, "get_task", task["id"]) == before
+
+
+@pytest.mark.asyncio
+async def test_revision_transition_carries_result_and_ordered_reasons(system):
+    client, db, worker, _, _ = system
+    value = await accepted(client, "agent", "writer")
+    path = f"/company/tasks/{value['id']}"
+    started = await client.post(path + "/runs")
+    assert started.status_code == 202
+    first = await worker.store.get_job(started.json()["run_id"])
+    await execute(worker)
+    reviewed = (await client.get(path)).json()
+    for reason in ("Include exact references", "Also explain the limits"):
+        response = await client.post(path + "/transitions", json={"target": "ready", "reason": reason})
+        assert response.status_code == 200, response.text
+        assert response.json()["executor_id"] == "writer"
+        assert response.json()["transitions"][-1]["reason"] == reason
+    assert (await client.post(path + "/runs", json={"attempt": 2, "reason": "wrong surface"})).status_code == 422
+    started = await client.post(path + "/runs", json={"attempt": 2})
+    assert started.status_code == 202, started.text
+    second = await worker.store.get_job(started.json()["run_id"])
+    serialized = json.dumps(second["payload"])
+    assert reviewed["result"]["content"] in serialized
+    assert "Include exact references" in serialized and "Also explain the limits" in serialized
+    assert (await worker.store.get_job(first["id"]))["payload"] == first["payload"]

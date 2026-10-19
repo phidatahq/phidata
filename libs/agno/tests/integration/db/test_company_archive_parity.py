@@ -648,7 +648,13 @@ async def test_attention_excludes_archived_ancestors_with_execution_results(db, 
         for params in [{}, {"product_id": product["id"]}]:
             response = await client.get("/company/attention", params=params)
             assert response.status_code == 200, response.text
-            assert response.json() == {"proposals": 1, "in_review": 1, "failed": 1}
+            assert {key: response.json()[key] for key in ("proposals", "in_review", "failed")} == {
+                "proposals": 1,
+                "in_review": 1,
+                "failed": 1,
+            }
+            assert len(response.json()["failed_tasks"]) == 1
+            assert response.json()["failed_routines"] == []
         # Reproduce parents archived by older releases, with live children left behind.
         monkeypatch.setattr(archive, "_archive_children", lambda *args: None)
         monkeypatch.setattr(archive, "_refuse_open_tasks", lambda *args: None)
@@ -656,7 +662,13 @@ async def test_attention_excludes_archived_ancestors_with_execution_results(db, 
         assert await call(method, parent["id"])
         for params in [{}, {"product_id": product["id"]}]:
             response = await client.get("/company/attention", params=params)
-            assert response.json() == {"proposals": 0, "in_review": 0, "failed": 0}
+            assert response.json() == {
+                "proposals": 0,
+                "in_review": 0,
+                "failed": 0,
+                "failed_tasks": [],
+                "failed_routines": [],
+            }
         for include_deleted in [False, True]:
             response = await client.get("/company/tasks", params={"failed": True, "include_deleted": include_deleted})
             assert response.json()["data"] == []
@@ -688,3 +700,40 @@ async def test_argless_storage_value_error_remains_validation_error(db, monkeypa
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/company/" + resource, json=payload)
         assert response.status_code == 422, response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("resource", ["task", "project", "product"])
+async def test_archive_refuses_live_attempt_and_names_cancel_route(db, resource):
+    m = manager(db)
+    product = await call(m.create, name="Live")
+    project = await call(m.create_project, product_id=product["id"], name="Live")
+    task = await call(m.create_task, product_id=product["id"], project_id=project["id"], title="Live")
+    task = await call(
+        m.transition_task, task_id=task["id"], target="ready", reason="Run", executor_type="agent", executor_id="writer"
+    )
+    task = await call(db.start_task_run, task["id"], 1, task["transitions"])
+    app = AgentOS(db=db, company=CompanyConfig(), agents=[Agent(id="writer", db=db, telemetry=False)]).get_app()
+    route = {
+        "task": f"tasks/{task['id']}",
+        "project": f"projects/{project['id']}",
+        "product": f"products/{product['id']}",
+    }[resource]
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.delete("/company/" + route)
+        assert response.status_code == 409
+        assert task["job_id"] in response.text
+        assert f"/company/runs/{task['job_id']}/cancel" in response.text
+
+
+@pytest.mark.asyncio
+async def test_product_metadata_merges_and_routine_ids_are_server_owned(db):
+    m = manager(db)
+    product = await call(m.create, name="Metadata", metadata={"routine_ids": ["forged"], "archive_window_days": 7})
+    assert not product["metadata"].get("routine_ids")
+    for routine_id in ["one", "two", "three"]:
+        await call(db.add_product_routine, product["id"], routine_id)
+    updated = await call(m.update, product["id"], metadata={"summary": {"destination": "here"}, "routine_ids": []})
+    assert updated["metadata"]["routine_ids"] == ["one", "two", "three"]
+    assert updated["metadata"]["archive_window_days"] == 7
+    assert updated["metadata"]["summary"] == {"destination": "here"}

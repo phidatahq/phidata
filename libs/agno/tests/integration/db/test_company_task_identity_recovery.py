@@ -76,6 +76,11 @@ async def test_collaborators_share_task_owner_and_preserve_actor_authority(
         assert (await execute(worker))["status"] == "completed"
         denied = await client.post(path + "/runs", json={"attempt": 2}, headers=headers("denied"))
         assert denied.status_code == 403, denied.text
+        assert (
+            await client.post(
+                path + "/transitions", json={"target": "ready", "reason": "Revise result"}, headers=headers("bob")
+            )
+        ).status_code == 200
         second = await client.post(path + "/runs", json={"attempt": 2}, headers=headers("bob"))
         assert second.status_code == 202, second.text
         assert second.json()["session_id"] == first.json()["session_id"]
@@ -117,6 +122,11 @@ async def test_collaborators_share_task_owner_and_preserve_actor_authority(
         assert await _call(
             db, "reassign_session_owner", current["session_id"], previous_user_id="alice", user_id="unrelated"
         )
+        assert (
+            await client.post(
+                path + "/transitions", json={"target": "ready", "reason": "Review again"}, headers=headers("bob")
+            )
+        ).status_code == 200
         refused = await client.post(path + "/runs", json={"attempt": 4}, headers=headers("bob"))
         assert refused.status_code == 404, refused.text
     auth_db.close()
@@ -201,7 +211,7 @@ async def test_failure_streaks_attention_and_retention(system, monkeypatch):
     await tick(executor, db)
     attention = (await client.get("/company/attention")).json()
     assert attention["automation_failures"][0]["count"] == 1
-    assert attention["failed"] == 1
+    assert attention["failed"] == 0
     await _call(db, "update_schedule", schedule["id"], next_run_at=0)
     await tick(executor, db)
     assert (await client.get("/company/attention")).json()["automation_failures"][0]["count"] == 2
@@ -409,6 +419,12 @@ async def test_legacy_starter_session_recovers_then_adopts_accountable_owner(sys
     )
     outcome = await _recover_task(os_app, worker, await _call(db, "get_task", task["id"]))
     assert outcome["action"] == "reconciled"
+    assert (
+        await client.post(
+            "/company/tasks/" + task["id"] + "/transitions",
+            json={"target": "ready", "reason": "Review recovered result"},
+        )
+    ).status_code == 200
     response = await client.post("/company/tasks/" + task["id"] + "/runs", json={"attempt": 2})
     assert response.status_code == 202, response.text
     assert response.json()["session_id"] == task["session_id"]

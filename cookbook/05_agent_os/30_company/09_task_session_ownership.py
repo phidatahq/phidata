@@ -122,6 +122,12 @@ if __name__ == "__main__":
                 first = client.post(path + "/runs")
                 first.raise_for_status()
                 wait_for_review(client, path)
+                revision = client.post(
+                    path + "/transitions",
+                    json={"target": "ready", "reason": "Clarify the evidence"},
+                    headers=headers("bob"),
+                )
+                assert revision.status_code == 200, revision.text
                 second = client.post(
                     path + "/runs", json={"attempt": 2}, headers=headers("bob")
                 )

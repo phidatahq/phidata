@@ -39,7 +39,7 @@ def _serialized_summary(fn):
             if product is None:
                 raise LookupError("Product not found")
             _require_owner(product, kwargs.get("user_id"))
-            filesystem = _summary_state_filesystem(self.db, product_id)
+            filesystem = _summary_state_filesystem(self.db, product_id, namespace=self.namespace)
             existing = await filesystem.aread_with_meta(_LOCK_PATH)
             content = _claim_content(existing)
             saved = await filesystem.awrite(
@@ -62,7 +62,7 @@ def _serialized_summary(fn):
         if product is None:
             raise LookupError("Product not found")
         _require_owner(product, kwargs.get("user_id"))
-        filesystem = _summary_state_filesystem(self.db, product_id)
+        filesystem = _summary_state_filesystem(self.db, product_id, namespace=self.namespace)
         existing = filesystem.read_with_meta(_LOCK_PATH)
         content = _claim_content(existing)
         saved = filesystem.write(_LOCK_PATH, content, expected_version=existing.metadata.version if existing else 0)
@@ -85,13 +85,18 @@ def _delivery_state(report: str) -> str:
     return "\n" + "\n".join([*baseline[-1:], *dict.fromkeys(receipts)]) + "\n"
 
 
-def _summary_state_filesystem(db: Any, product_id: str) -> FileSystem:
-    return FileSystem(db, namespace=f"company/products/{product_id}/summary-state", user_scoped=False)
+def _summary_state_filesystem(db: Any, product_id: str, namespace: str = "company") -> FileSystem:
+    from agno.company.config import _namespace_bindings
+
+    filesystem = FileSystem(db, namespace=f"{namespace}/products/{product_id}/summary-state", user_scoped=False)
+    return filesystem.resolve(**_namespace_bindings()) if filesystem.is_templated else filesystem
 
 
-def _load_summary_state(db: Any, product_id: str, legacy_report: str) -> Tuple[FileSystem, str, int]:
+def _load_summary_state(
+    db: Any, product_id: str, legacy_report: str, namespace: str = "company"
+) -> Tuple[FileSystem, str, int]:
     """Migrate legacy receipts before the report can expire; writes use filesystem versions."""
-    filesystem = _summary_state_filesystem(db, product_id)
+    filesystem = _summary_state_filesystem(db, product_id, namespace=namespace)
     existing = filesystem.read_with_meta(_STATE_PATH)
     if existing is not None:
         assert existing.metadata.version is not None, "Summary delivery state requires a versioned filesystem"
@@ -102,9 +107,11 @@ def _load_summary_state(db: Any, product_id: str, legacy_report: str) -> Tuple[F
     return filesystem, content, saved.version
 
 
-async def _aload_summary_state(db: Any, product_id: str, legacy_report: str) -> Tuple[FileSystem, str, int]:
+async def _aload_summary_state(
+    db: Any, product_id: str, legacy_report: str, namespace: str = "company"
+) -> Tuple[FileSystem, str, int]:
     """Asynchronously preserve delivery state independently of report retention."""
-    filesystem = _summary_state_filesystem(db, product_id)
+    filesystem = _summary_state_filesystem(db, product_id, namespace=namespace)
     existing = await filesystem.aread_with_meta(_STATE_PATH)
     if existing is not None:
         assert existing.metadata.version is not None, "Summary delivery state requires a versioned filesystem"

@@ -62,6 +62,11 @@ STORE_PARAMS = [
         marks=pytest.mark.skipif(not _REDIS_AVAILABLE, reason="Redis not available on localhost:6379"),
     ),
     pytest.param(
+        "pg_sync",
+        id="pg_sync",
+        marks=pytest.mark.skipif(not _PG_AVAILABLE, reason="Postgres not available on localhost:5532"),
+    ),
+    pytest.param(
         "pg", id="pg", marks=pytest.mark.skipif(not _PG_AVAILABLE, reason="Postgres not available on localhost:5532")
     ),
 ]
@@ -347,10 +352,15 @@ class TestSweepFamilyParity:
         else:
             from sqlalchemy import update
 
-            table = await inner._get_table(table_type="jobs")
-            async with inner.async_session_factory() as sess:
-                async with sess.begin():
-                    await sess.execute(update(table).where(table.c.id == job_id).values(locked_at=stale_at))
+            if hasattr(inner, "async_session_factory"):
+                table = await inner._get_table(table_type="jobs")
+                async with inner.async_session_factory() as sess:
+                    async with sess.begin():
+                        await sess.execute(update(table).where(table.c.id == job_id).values(locked_at=stale_at))
+            else:
+                table = inner._get_table(table_type="jobs")
+                with inner.Session() as sess, sess.begin():
+                    sess.execute(update(table).where(table.c.id == job_id).values(locked_at=stale_at))
 
     @pytest.mark.asyncio
     async def test_sweep_acquire_fence_and_ownership_keyed_fail(self, store):
@@ -934,3 +944,31 @@ class TestRedisSessionEntry:
         else:
             assert db.requeue_job("a")
         assert db.get_job("a")["payload"]["session_seq"] == 1
+
+
+@pytest.mark.asyncio
+async def test_component_capacity_across_deployments(store):
+    for name in ("a", "b"):
+        await store.enqueue_job(make_job(name, session_id=name, deployment_id=name, payload={"max_concurrent_runs": 1}))
+    first = await store.claim_job("worker-a", deployment_id="a")
+    assert first["id"] == "a"
+    assert await store.claim_job("worker-b", deployment_id="b") is None
+    assert (await store.get_job("b"))["status"] == "queued"
+    await store.enqueue_job(make_job("other", component_id="other", deployment_id="b"))
+    assert (await store.claim_job("worker-b", deployment_id="b"))["id"] == "other"
+    assert await store.complete_job("a", "worker-a", first["attempt"], "completed")
+    assert (await store.claim_job("worker-b", deployment_id="b"))["id"] == "b"
+
+
+@pytest.mark.asyncio
+async def test_component_capacity_concurrent_claims(store):
+    for i in range(8):
+        await store.enqueue_job(make_job(str(i), session_id=str(i), payload={"max_concurrent_runs": 2}))
+    claimed = await asyncio.gather(*(store.claim_job(f"worker-{i}") for i in range(8)))
+    assert sum(job is not None for job in claimed) <= 2
+    # A contended pass may yield; subsequent passes must fill but never exceed capacity.
+    for i in range(8):
+        job = await store.claim_job(f"retry-{i}")
+        if job:
+            claimed.append(job)
+    assert sum(job is not None for job in claimed) == 2

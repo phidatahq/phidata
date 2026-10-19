@@ -139,6 +139,9 @@ async def test_disabled_owner_blocks_new_work_but_allows_collaborator_cancel(
         recovered = await _recover_task(os_app, worker, await _call(db, "get_task", task["id"]))
         assert recovered["action"] == "reconciled"
         assert (await _call(db, "get_task", task["id"]))["result"]["status"] == "COMPLETED"
+        assert (
+            await client.post(path + "/transitions", json={"target": "ready", "reason": "Review recovered result"})
+        ).status_code == 200
         before = await _call(db, "get_task", task["id"])
         refused = await client.post(path + "/runs", json={"attempt": 2})
         assert refused.status_code == 403, refused.text

@@ -851,6 +851,8 @@ def to_dict(agent: Agent) -> Dict[str, Any]:
         config["name"] = agent.name
     if agent.id is not None:
         config["id"] = agent.id
+    if agent.max_concurrent_runs is not None:
+        config["max_concurrent_runs"] = agent.max_concurrent_runs
 
     # --- User settings ---
     if agent.user_id is not None:
@@ -1455,6 +1457,7 @@ def from_dict(
         model=config.get("model"),
         name=config.get("name"),
         id=config.get("id"),
+        max_concurrent_runs=config.get("max_concurrent_runs"),
         # --- User settings ---
         user_id=config.get("user_id"),
         # --- Session settings ---

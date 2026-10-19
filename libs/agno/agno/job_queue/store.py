@@ -65,6 +65,8 @@ class InMemoryQueueStore:
     async def claim_job(
         self, worker_id: str, lock_grace_seconds: int = 60, deployment_id: Optional[str] = None
     ) -> Optional[Dict[str, Any]]:
+        from agno.job_queue.capacity import _capacity_blocked
+
         # Affinity filters BOTH branches - fresh claims and stale reclaims -
         # because a reclaim executes too. deployment_id=None degenerates to
         # claiming only unstamped jobs (mixed fleets safe by construction).
@@ -75,6 +77,7 @@ class InMemoryQueueStore:
                 j
                 for j in self._jobs.values()
                 if not session_blocked(j, self._jobs.values())
+                and not _capacity_blocked(j, self._jobs.values())
                 and j["available_at"] <= now
                 and (j.get("deployment_id") is None or j.get("deployment_id") == deployment_id)
                 and (

@@ -7814,6 +7814,7 @@ class PostgresDb(BaseDb):
         jobs only on matching workers; deployment_id=None degenerates to
         claiming only unstamped jobs.
         """
+        from agno.job_queue.capacity import _capacity_condition, _capacity_lock_key
         from agno.job_queue.session import session_claim_condition, session_claim_lock_key
 
         try:
@@ -7830,6 +7831,7 @@ class PostgresDb(BaseDb):
                     .where(
                         table.c.available_at <= now,
                         session_claim_condition(table),
+                        _capacity_condition(table),
                         or_(table.c.deployment_id.is_(None), table.c.deployment_id == deployment_id),
                         or_(
                             table.c.status == "queued",
@@ -7848,6 +7850,17 @@ class PostgresDb(BaseDb):
                 if candidate_row is None:
                     return None
                 candidate = candidate_row["id"]
+                if (candidate_row["payload"] or {}).get("max_concurrent_runs") is not None:
+                    key = _capacity_lock_key(table.fullname, dict(candidate_row))
+                    locked = (sess.execute(text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": key})).scalar_one()
+                    if not locked:
+                        return None
+                    eligible = (
+                        sess.execute(select(table.c.id).where(table.c.id == candidate, _capacity_condition(table)))
+                    ).first()
+                    if eligible is None:
+                        return None
+
                 if (candidate_row["payload"] or {}).get("serialize_session") is True:
                     # A concurrent claim of another ticket in this session may have committed
                     # after the candidate scan; recheck under the session lock.
@@ -9223,7 +9236,12 @@ class PostgresDb(BaseDb):
     def create_product(self, product_data: Dict[str, Any]) -> Dict[str, Any]:
         from agno.db.schemas.products import product_metadata
 
-        product_data = {**product_data, "metadata": product_metadata(product_data.get("metadata"))}
+        product_data = {
+            **product_data,
+            "metadata": product_metadata(
+                {k: v for k, v in (product_data.get("metadata") or {}).items() if k != "routine_ids"}
+            ),
+        }
         table = self._get_table(table_type="products", create_table_if_not_found=True)
         if table is None:
             raise RuntimeError("Failed to get or create products table")
@@ -9280,20 +9298,15 @@ class PostgresDb(BaseDb):
             return [dict(row._mapping) for row in rows], total
 
     def update_product(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        from agno.db.schemas.products import product_metadata, validate_product_fields
+        from agno.db.schemas.products import validate_product_fields
+        from agno.db.sql.company import update_product_fields
 
         validate_product_fields(fields)
-        if "metadata" in fields:
-            fields["metadata"] = product_metadata(fields["metadata"])
         table = self._get_table(table_type="products")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
-            return dict(result._mapping) if result else None
+            return update_product_fields(sess, table, product_id, user_id, fields)
 
     def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         from agno.db.sql.company import product_counts
@@ -9685,7 +9698,7 @@ class PostgresDb(BaseDb):
             return dict(result._mapping) if result else None
 
     def delete_task(self, task_id: str, user_id: Optional[str] = None, updated_before: Optional[int] = None) -> bool:
-        from agno.db.sql.company import lock_child
+        from agno.db.sql.company import lock_child, refuse_live_tasks
 
         table = self._get_table(table_type="tasks")
         if table is None:
@@ -9703,6 +9716,7 @@ class PostgresDb(BaseDb):
         projects = self._get_table(table_type="projects", create_table_if_not_found=True)
         with self.Session() as sess, sess.begin():
             lock_child(sess, products, projects, table, task_id)
+            refuse_live_tasks(sess, table, table.c.id == task_id)
             result = sess.execute(stmt.values(deleted_at=now, updated_at=now).returning(table.c.id)).fetchone()
             return result is not None
 

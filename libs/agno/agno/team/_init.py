@@ -69,6 +69,7 @@ def __init__(
     members: Union[List[Union[Agent, "Team"]], Callable[..., List]],
     *,
     id: Optional[str] = None,
+    max_concurrent_runs: Optional[int] = None,
     model: Optional[Union[Model, str]] = None,
     fallback_config: Optional[FallbackConfig] = None,
     fallback_models: Optional[List[Union[Model, str]]] = None,
@@ -199,6 +200,10 @@ def __init__(
         team.fallback_config = None
 
     team.name = name
+    from agno.job_queue.capacity import _validate_capacity
+
+    _validate_capacity(max_concurrent_runs)
+    team.max_concurrent_runs = max_concurrent_runs
     team.id = id
     team.role = role
 

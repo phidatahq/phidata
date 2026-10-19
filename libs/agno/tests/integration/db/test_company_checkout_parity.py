@@ -62,6 +62,7 @@ async def test_checkout_is_atomic_and_a_different_pin_fails_the_attempt(system):
         )
         assert next_checkout is None and failed["status"] == "ERROR"
     # Exercise the worker completion projection itself against a reserved second attempt.
+    saved = await _call(db, "transition_task", task["id"], "ready", "Revise the result")
     task = await _call(db, "start_task_run", task["id"], 2, saved["transitions"], user_id=None)
     job = {
         **job,

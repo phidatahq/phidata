@@ -248,3 +248,94 @@ async def test_company_recall_is_shared_and_agent_attribution_is_bound(db):
         assert entry["agent_id"] == "sync-agent"
         assert len(store.recall(agent_id=PRODUCT_MANAGER_ID)) == 4
         assert len(store.search(agent_id="sync-agent")) == 1
+
+
+@pytest.mark.asyncio
+async def test_company_namespace_isolates_wiki_summary_and_decisions(db):
+    from agno.company.summary import _summary_state_filesystem
+
+    cls = AsyncCompanyManager if isinstance(db, AsyncBaseDb) else CompanyManager
+    suffix = uuid4().hex
+    left, right = cls(db, namespace=f"left/{suffix}"), cls(db, namespace=f"right/{suffix}")
+    product = await call(left.create, name="Shared record")
+    pid = product["id"]
+    await call(left.write_wiki, product_id=pid, path="note.md", content="left only", expected_version=0)
+    with pytest.raises(LookupError):
+        await call(right.read_wiki, pid, "note.md")
+    await call(left.write_wiki, product_id=None, path="note.md", content="left company", expected_version=0)
+    with pytest.raises(LookupError):
+        await call(right.read_wiki, None, "note.md")
+    await call(left.log_decision, decision="left decision")
+    assert (await call(right.list_decisions))[1] == 0
+    assert (await call(left.list_decisions))[1] == 1
+    a = _summary_state_filesystem(db, pid, namespace=left.namespace)
+    b = _summary_state_filesystem(db, pid, namespace=right.namespace)
+    await a.awrite("delivery.md", "left receipt")
+    assert await b.aread("delivery.md") is None
+
+
+@pytest.mark.asyncio
+async def test_task_input_only_inlines_playbook_and_status_with_byte_cap(db):
+    import json
+
+    from agno.company.execution import _task_input
+
+    cls = AsyncCompanyManager if isinstance(db, AsyncBaseDb) else CompanyManager
+    m = cls(db, namespace="input/" + uuid4().hex)
+    product = await call(m.create, name="Bounded")
+    pid = product["id"]
+    for index in range(40):
+        await call(m.write_wiki, product_id=pid, path=f"page-{index}.md", content="多" * 10000, expected_version=0)
+    message = await _task_input(m, {"product_id": pid, "brief": "Deliver", "evidence": []})
+    value = json.loads(message)
+    assert {page["path"] for page in value["wiki"]} == {"brief.md", "status.md"}
+    assert len(message.encode()) <= 256 * 1024
+    assert "page-39.md" in value["omitted_pages"]
+    assert len((await call(m.read_wiki, pid, "page-39.md")).content) == 10000
+
+
+@pytest.mark.asyncio
+async def test_bounded_input_omits_largest_page_and_writer_reads_it_with_tools(db):
+    import json
+
+    from agno.agent import Agent
+    from agno.company.execution import _task_input
+    from agno.models.response import ModelResponse
+    from agno.tools.company import CompanyTools
+    from tests.integration.db.test_company_execution_parity import OfflineModel
+
+    cls = AsyncCompanyManager if isinstance(db, AsyncBaseDb) else CompanyManager
+    manager = cls(db, namespace="bounded/" + uuid4().hex, task_input_max_bytes=4096)
+    product = await call(manager.create, name="Bounded")
+    await call(
+        manager.write_wiki, product_id=product["id"], path="playbook.md", content="多" * 5000, expected_version=0
+    )
+    message = await _task_input(manager, {"product_id": product["id"], "brief": "Read the playbook", "evidence": []})
+    value = json.loads(message)
+    assert len(message.encode("utf-8")) <= 4096
+    assert "playbook.md" in value["omitted_pages"]
+    assert {row["path"] for row in value["wiki"]} == {"brief.md", "status.md"}
+
+    class ReadPageModel(OfflineModel):
+        def invoke(self, messages, **kwargs):
+            if any(message.role == "tool" for message in messages):
+                return super().invoke(messages, **kwargs)
+            return ModelResponse(
+                role="assistant",
+                tool_calls=[
+                    {
+                        "id": "read-page",
+                        "type": "function",
+                        "function": {
+                            "name": "read_company_wiki",
+                            "arguments": json.dumps({"product_id": product["id"], "path": "playbook.md"}),
+                        },
+                    }
+                ],
+            )
+
+    writer = Agent(model=ReadPageModel(), tools=[CompanyTools(db, namespace=manager.namespace)], telemetry=False)
+    result = await writer.arun(message)
+    assert result.tools[0].tool_name == "read_company_wiki"
+    assert not result.tools[0].tool_call_error
+    assert "多" * 5000 in result.tools[0].result or "\\u591a" * 5000 in result.tools[0].result

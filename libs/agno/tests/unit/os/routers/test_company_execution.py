@@ -770,3 +770,33 @@ def test_pending_routine_retry_rechecks_and_refreshes_human_grant(system, monkey
     assert grant["user_id"] == "alice"
     assert grant != pending["payload"]["_agno_company_acceptance"]
     assert grant[AUTHORIZATION_KEY] == current["payload"][AUTHORIZATION_KEY]
+
+
+def test_acceptance_refuses_missing_dispatch_scope(system):
+    client, _, _, _ = system
+    path, _ = accepted(client)
+    assert (
+        client.post(
+            path + "/transitions", json={"target": "backlog", "reason": "Recheck"}, headers=headers()
+        ).status_code
+        == 200
+    )
+    response = client.post(
+        path + "/transitions",
+        json={"target": "ready", "reason": "Approve", "executor_type": "agent", "executor_id": "writer"},
+        headers=headers(scopes=["tasks:write", "agents:writer:run"]),
+    )
+    assert response.status_code == 403, response.text
+    assert "wiki:read" in response.text
+    assert client.get(path, headers=headers()).json()["status"] == "backlog"
+
+
+def test_setup_missing_source_scope_is_403(system):
+    client, _, _, _ = system
+    response = client.post(
+        "/company/setup",
+        json={"name": "Setup", "sources": [{"type": "website", "reference": "https://docs.agno.com"}]},
+        headers=headers(scopes=["products:write"]),
+    )
+    assert response.status_code == 403, response.text
+    assert "sources:write" in response.text

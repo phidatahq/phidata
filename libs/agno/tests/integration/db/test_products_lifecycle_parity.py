@@ -70,8 +70,8 @@ async def test_lifecycle_and_owner_guards(db):
     assert await call(m.delete, a["id"], user_id="bob") is False
     assert await call(m.get, a["id"]) == {**a, "counts": EMPTY_COUNTS}
     changed = await call(m.update, a["id"], user_id="alice", purpose=None, metadata=None, name="Framework")
-    # Clearing metadata resets the archive policy to its default.
-    assert changed["purpose"] is None and changed["metadata"] == {"archive_window_days": 14}
+    # An empty metadata patch preserves existing keys and the archive policy.
+    assert changed["purpose"] is None and changed["metadata"] == a["metadata"]
     assert changed["created_at"] == a["created_at"] and changed["updated_at"] >= a["created_at"]
     assert await call(m.restore, a["id"]) is None
     assert await call(m.delete, a["id"], user_id="alice") is True

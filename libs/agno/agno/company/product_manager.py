@@ -50,6 +50,7 @@ def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
         tools=[
             CompanyTools(
                 db,
+                namespace=agent_os.company.namespace,
                 user_isolation=isolation,
                 decision_tools=False,
                 summary_tools=False,
@@ -59,7 +60,9 @@ def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
         ],
         skills=load_routine_skills(),
         learning=LearningMachine(
-            db=db, model=model, decision_log=CompanyDecisionLogStore(db, user_isolation=isolation)
+            db=db,
+            model=model,
+            decision_log=CompanyDecisionLogStore(db, user_isolation=isolation, namespace=agent_os.company.namespace),
         ),
         instructions=INSTRUCTIONS,
         add_datetime_to_context=True,

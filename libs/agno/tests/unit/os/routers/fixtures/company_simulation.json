@@ -1,0 +1,30 @@
+{
+  "newsletter": {
+    "messages": [
+      {
+        "role": "tool",
+        "tool_name": "list_company_wiki",
+        "tool_call_error": true,
+        "content": "Tool call limit reached. Tool call list_company_wiki not executed. Don't try to execute it again."
+      }
+    ]
+  },
+  "support": {
+    "status": "COMPLETED",
+    "content": "## Product: Support \u2014 proposed response for human review\n\n**Classification:** In scope (Northstar operational issue)  \n**Duplicate check:** No matching issue was identified in the available Support task list.\n\nA Northstar call can exceed a conservative input-budget bound when the estimated prompt size\u2014including playbook text, task history, source content, and tool results\u2014passes the configured safety threshold before the request is sent.\n\nTo diagnose it, capture the estimated token breakdown by prompt component, then reduce the largest contributors: paginate task/source listings, request smaller source excerpts, and summarize prior results rather than reinserting full content.\n\n**Unverified:** The specific configured limit, estimator, and call payload were not provided, so the exact overage and corrective change cannot be confirmed. No external publication occurred.",
+    "step_results": [
+      {
+        "content": "Northstar call exceeds conservative input budget bound",
+        "step_name": "classify",
+        "success": false,
+        "error": "Northstar call exceeds conservative input budget bound"
+      },
+      {
+        "content": "## Product: Support \u2014 proposed response for human review\n\n**Classification:** In scope (Northstar operational issue)  \n**Duplicate check:** No matching issue was identified in the available Support task list.\n\nA Northstar call can exceed a conservative input-budget bound when the estimated prompt size\u2014including playbook text, task history, source content, and tool results\u2014passes the configured safety threshold before the request is sent.\n\nTo diagnose it, capture the estimated token breakdown by prompt component, then reduce the largest contributors: paginate task/source listings, request smaller source excerpts, and summarize prior results rather than reinserting full content.\n\n**Unverified:** The specific configured limit, estimator, and call payload were not provided, so the exact overage and corrective change cannot be confirmed. No external publication occurred.",
+        "step_name": "answer",
+        "success": true,
+        "error": null
+      }
+    ]
+  }
+}

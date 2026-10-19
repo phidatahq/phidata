@@ -133,7 +133,19 @@ def _restore_children(sess: Any, table: Any, condition: Any, parent: Dict[str, s
         )
 
 
+def refuse_live_tasks(sess: Any, tasks: Any, condition: Any) -> None:
+    """Check attempts under the same parent lock used to reserve and archive work."""
+    rows = sess.execute(select(tasks).where(condition, tasks.c.deleted_at.is_(None))).mappings()
+    for row in rows:
+        run_id = row.get("job_id")
+        if run_id and (row.get("result") or {}).get("status") not in {"COMPLETED", "ERROR", "CANCELLED"}:
+            raise ValueError(
+                f"Task {row['id']} has live attempt {run_id}; cancel with POST /company/runs/{run_id}/cancel before archiving"
+            )
+
+
 def _refuse_open_tasks(sess: Any, tasks: Any, condition: Any) -> None:
+    refuse_live_tasks(sess, tasks, condition)
     rows = (
         sess.execute(
             select(tasks.c.id, tasks.c.title)
@@ -349,3 +361,21 @@ def link_product_routine(sess: Any, products: Any, product_id: str, schedule_id:
             .returning(products)
         ).one()
     return dict(row._mapping)
+
+
+def update_product_fields(sess: Any, table: Any, product_id: str, user_id: Optional[str], fields: Dict[str, Any]):
+    """Merge metadata while holding the same row lock as Routine link writers."""
+    from agno.db.schemas.products import product_metadata
+
+    stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
+    if user_id is not None:
+        stmt = stmt.where(table.c.user_id == user_id)
+    row = sess.execute(stmt.values(updated_at=table.c.updated_at).returning(table)).mappings().first()
+    if row is None:
+        return None
+    fields = dict(fields)
+    if "metadata" in fields:
+        incoming = {key: value for key, value in (fields["metadata"] or {}).items() if key != "routine_ids"}
+        fields["metadata"] = product_metadata({**(row["metadata"] or {}), **incoming})
+    result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).mappings().one()
+    return dict(result)

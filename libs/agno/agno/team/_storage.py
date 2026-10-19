@@ -524,6 +524,8 @@ def to_dict(team: "Team") -> Dict[str, Any]:
     # --- Team Settings ---
     if team.id is not None:
         config["id"] = team.id
+    if team.max_concurrent_runs is not None:
+        config["max_concurrent_runs"] = team.max_concurrent_runs
     if team.name is not None:
         config["name"] = team.name
     if team.role is not None:
@@ -1316,6 +1318,7 @@ def from_dict(
         cls(
             # --- Team settings ---
             id=config.get("id"),
+            max_concurrent_runs=config.get("max_concurrent_runs"),
             name=config.get("name"),
             role=config.get("role"),
             description=config.get("description"),

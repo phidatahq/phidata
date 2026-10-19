@@ -240,3 +240,127 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All 164 focused queue and sandbox unit cases and all 309 queue-store parity/Company admission integration cases passed, with no skips. New coverage checks errors across sync/async PostgreSQL, Redis and in-memory stores, and matching listing results with both flag values on in-memory, fake/real Redis and sync/async PostgreSQL. Full format, clean Python 3.10 validation and whitespace checks passed. No model calls were made.
 
 ---
+
+## PR 6.8 — simulation fixes (2026-10-19)
+
+Cookbook paths below are relative to `cookbook/05_agent_os/30_company/`. All runs used `.venv/bin/python`. SQLite was run directly; PostgreSQL used native backend options where available. Examples with a fixed SQLite constructor (01–05, 07 heartbeat and 08) were replayed with that constructor mapped to the corresponding PostgreSQL adapter in isolated test schemas; their example logic was unchanged.
+
+### 01_manage_products.py
+
+**Status:** PASS
+
+**Description:** Product CRUD, archive and restore.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 02_manage_projects.py
+
+**Status:** PASS
+
+**Description:** Project lifecycle, pagination and parent constraints.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 03_manage_tasks.py
+
+**Status:** PASS
+
+**Description:** Task lifecycle, acceptance and executor validation.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 04_manage_playbook.py
+
+**Status:** PASS
+
+**Description:** Versioned wiki pages and learning decisions.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Product Manager assembly and Company tools.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 06_execute_tasks.py
+
+**Status:** PASS
+
+**Description:** Queued agent, team and workflow execution with bounded input.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 07_cascading_archive.py
+
+**Status:** PASS
+
+**Description:** Project and Product cascade archive/restore.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 07_heartbeat.py
+
+**Status:** PASS
+
+**Description:** Heartbeat setup and scheduled execution.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 08_custom_routines.py
+
+**Status:** PASS
+
+**Description:** Custom Routine creation and local execution.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 09_task_session_ownership.py
+
+**Status:** PASS
+
+**Description:** Separate caller/session identities and a revision transition before attempt two.
+
+**Result:** Passed on SQLite and PostgreSQL. These were deterministic local runs, without model API calls.
+
+---
+
+### 09_sandboxed_engineers.py
+
+**Status:** PASS
+
+**Description:** The default selects both reusable sandboxed agents sequentially. Each agent declares `max_concurrent_runs=1`; worker concurrency is one. Company records support SQLite or PostgreSQL, with a PostgreSQL durable queue and run storage.
+
+**Result:** `--executor both --config-only` passed for both Company databases. After explicit approval for external provider calls, live `--executor both` also passed on PostgreSQL and SQLite Company records: Claude then Codex read the public Hello-World README, returned `Hello World!`, persisted commit `7fd1a60b01f91b314f59955a4e4d4e80d8edf11d` and left each Task In review, without a 409. The queue and sandbox run stores remained PostgreSQL. No repository files were changed or published by the sandbox agents. Local sandbox Team, Routine trigger and attachment regressions passed separately.
+
+---
+
+### PR 6.8 regression and validation suites
+
+**Status:** PASS
+
+**Description:** Each of the ten changes had a failing regression before implementation. Checked sync/async SQLite and PostgreSQL, queue capacity across replicas, sandbox Team/Routine execution, retained checkout behavior, revision identity/context, bounded wiki inputs, permission refusals and list-derived attention.
+
+**Result:** 1,886 distinct Company/lifecycle integration cases passed across the broad run and focused correction reruns (22 conditional skips). The affected router/Company/Team/media unit suites passed 2,325 cases (14 conditional skips). Queue parity plus sandbox parameters passed 292 cases; the final sandbox integration/parameter suite passed 136. Full formatting and validation passed in the existing isolated Python 3.10 environment. The shared Python 3.12 environment has nine mypy errors in untouched Google/AWS model files, reproduced on unchanged main. Full unit execution is left to CI. These are local checks, not CI or independent review.
+
+---

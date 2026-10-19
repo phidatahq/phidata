@@ -331,7 +331,13 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
             {
                 "sub": user,
                 "aud": os_id,
-                "scopes": [resource + ":read", resource + ":write", resource + ":delete", "agents:writer:run"],
+                "scopes": [
+                    resource + ":read",
+                    resource + ":write",
+                    resource + ":delete",
+                    "agents:writer:run",
+                    "wiki:read",
+                ],
                 "exp": int(time.time()) + 3600,
                 "iat": int(time.time()),
             },

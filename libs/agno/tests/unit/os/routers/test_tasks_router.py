@@ -66,6 +66,8 @@ def reserve_run(client, path, user_id=None):
 
 
 def test_lifecycle(client):
+    from agno.company.execution import _call
+
     record = create(client)
     path = "/company/tasks/" + record["id"]
     assert record["status"] == "backlog"
@@ -77,11 +79,18 @@ def test_lifecycle(client):
             assert transition(client, path, state).status_code == 409
             assert reserve_run(client, path)["status"] == state
             continue
-        response = transition(client, path, state)
+        if state == "in_review":
+            db = client.app.state.task_test_db
+            task = asyncio.run(_call(db, "get_task", record["id"]))
+            assert client.delete(path).status_code == 409
+            asyncio.run(_call(db, "complete_task_run", record["id"], task["job_id"], {"status": "COMPLETED"}))
+            response = client.get(path)
+        else:
+            response = transition(client, path, state)
         assert response.status_code == 200, response.text
         assert response.json()["status"] == state
     assert [x["target"] for x in response.json()["transitions"]] == states
-    assert all(x["reason"] == "Reviewed" for x in response.json()["transitions"] if "attempt" not in x)
+    assert all(x["reason"] for x in response.json()["transitions"])
     assert response.json()["transitions"][1]["attempt"] == 1
     assert transition(client, path, "cancelled").status_code == 409
     assert client.post(path + "/restore").status_code == 409

@@ -191,7 +191,7 @@ async def test_archive_window_paging_pages_context_and_restore(archive, monkeypa
     assert (await call(manager, "get_task", "0", include_deleted=True))["deleted_at"] == now
     assert (await call(manager, "get_task", "other"))["deleted_at"] is None
     counts = await call(manager, "attention", product["id"])
-    assert counts == {"proposals": 1, "in_review": 0, "failed": 0}
+    assert counts == {"proposals": 1, "in_review": 0, "failed": 0, "failed_tasks": [], "failed_routines": []}
     app = AgentOS(db=db, company=CompanyConfig(), telemetry=False).get_app()
     async with AsyncClient(transport=ASGITransport(app), base_url="http://test") as client:
         assert (await client.post("/company/tasks/0/runs")).status_code == 404

@@ -49,6 +49,22 @@ def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional
     return component
 
 
+def _task_permissions(executor_type: str, executor_id: str):
+    return ((executor_type + "s", "run", executor_id), ("tasks", "write", None), ("wiki", "read", None))
+
+
+def _require_task_permissions(authority: Any, executor_type: str, executor_id: str) -> None:
+    if authority is not None:
+        for resource, action, resource_id in _task_permissions(executor_type, executor_id):
+            authority.require(resource, action, resource_id)
+
+
+async def _arequire_task_permissions(authority: Any, executor_type: str, executor_id: str) -> None:
+    if authority is not None:
+        for resource, action, resource_id in _task_permissions(executor_type, executor_id):
+            await authority.arequire(resource, action, resource_id)
+
+
 async def _call(target: Any, method: str, *args: Any, **kwargs: Any) -> Any:
     from agno.company.manager import AsyncCompanyManager
 
@@ -331,6 +347,7 @@ async def _reconcile_task_run(
         ):
             raise _TaskRunUnavailable("Sandboxed Task executor is unavailable while recovering its checkout")
         checkout, result = await _project_checkout(db, task, component, data, result)
+    result = _project_workflow_result(task["executor_type"], data, result)
     updated = await _call(
         db,
         "complete_task_run",
@@ -418,14 +435,34 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
     from agno.run.authorization import current_authorization
 
     authority = current_authorization()
-    if authority is not None:
-        await authority.arequire(
-            {"agent": "agents", "team": "teams", "workflow": "workflows"}[job["component_type"]],
-            "run",
-            job["component_id"],
-        )
+    await _arequire_task_permissions(authority, job["component_type"], job["component_id"])
     component = await worker._aresolve_job_component(job)
     _validate_executor_tools(component)
+
+
+def _workflow_step_failure(value: Any) -> Optional[str]:
+    """Company treats a failed or cancelled step as a failed deliverable."""
+    if isinstance(value, list):
+        for child in value:
+            error = _workflow_step_failure(child)
+            if error:
+                return error
+    elif isinstance(value, dict):
+        if value.get("success") is False or str(value.get("status", "")).upper() in {"ERROR", "CANCELLED"}:
+            return str(value.get("error") or value.get("content") or "Workflow step failed or was cancelled")
+        for key in ("step_results", "steps", "member_responses"):
+            error = _workflow_step_failure(value.get(key))
+            if error:
+                return error
+    return None
+
+
+def _project_workflow_result(kind: str, data: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
+    if kind == "workflow":
+        error = _workflow_step_failure(data.get("step_results"))
+        if error:
+            return {**result, "status": "ERROR", "content": error, "content_type": "str"}
+    return result
 
 
 async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None) -> None:
@@ -456,6 +493,7 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         from agno.company.sandbox import _project_checkout
 
         checkout, result = await _project_checkout(db, task, component, data, result)
+        result = _project_workflow_result(job["component_type"], data, result)
     await _call(
         db,
         "complete_task_run",
@@ -467,29 +505,50 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
     )
 
 
-async def _task_input(manager: Any, task: Dict[str, Any]) -> str:
+def _revision_input(task: Dict[str, Any]) -> Dict[str, Any]:
+    reasons = []
+    for entry in reversed(task.get("transitions") or []):
+        if entry.get("attempt"):
+            break
+        if entry.get("target") == "ready" and entry.get("from") in {"in_review", "ready"}:
+            reasons.append(entry["reason"])
+    if not reasons:
+        return {}
+    return {"previous_result": task.get("result"), "revision_reasons": list(reversed(reasons))}
+
+
+async def _task_input(manager: Any, task: Dict[str, Any], max_bytes: Optional[int] = None) -> str:
     pages = []
-    # Both namespaces have company-wide read visibility. No Source credentials,
-    # Product metadata, other Tasks or caller-supplied runtime state are forwarded.
+    omitted = []
     for product_id in (None, task["product_id"]):
         page = 1
         while True:
             rows, total = await _call(manager, "list_wiki", product_id, limit=100, page=page)
             for row in rows:
+                if product_id is None or row.path not in {"brief.md", "playbook.md", "status.md"}:
+                    omitted.append(("company/" if product_id is None else "") + row.path)
+                    continue
                 value = await _call(manager, "read_wiki", product_id, row.path)
-                pages.append(
-                    {
-                        "namespace": "company" if product_id is None else "product",
-                        "path": row.path,
-                        "content": value.content,
-                    }
-                )
+                pages.append({"namespace": "product", "path": row.path, "content": value.content})
             if page * 100 >= total:
                 break
             page += 1
-    return json.dumps(
-        {"brief": task.get("brief"), "wiki": pages, "evidence": task.get("evidence") or []}, ensure_ascii=False
-    )
+    value = {"brief": task.get("brief"), "wiki": pages, "evidence": task.get("evidence") or [], **_revision_input(task)}
+    limit = min(manager.task_input_max_bytes, max_bytes) if max_bytes is not None else manager.task_input_max_bytes
+    while True:
+        value["omitted_pages"] = sorted(omitted)
+        if omitted:
+            value["note"] = (
+                "Pages listed in omitted_pages were not included. Read them through the wiki tools when needed."
+            )
+        message = json.dumps(value, ensure_ascii=False)
+        if len(message.encode("utf-8")) <= limit:
+            return message
+        if not pages:
+            raise ValueError("Task brief, evidence, revision context and omission note exceed task_input_max_bytes")
+        largest = max(pages, key=lambda item: len(json.dumps(item, ensure_ascii=False).encode("utf-8")))
+        pages.remove(largest)
+        omitted.append(largest["path"])
 
 
 def _validate_executor_tools(component: Any) -> None:

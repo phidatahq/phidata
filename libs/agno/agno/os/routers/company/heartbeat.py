@@ -62,7 +62,11 @@ class Setup(Product):
 def get_heartbeat_router(agent_os: Any) -> APIRouter:
     router = APIRouter(prefix="/company", tags=["Company heartbeat"], dependencies=[Depends(get_scoped_user_id)])
     db = agent_os._company_db
-    manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+    manager = (
+        AsyncCompanyManager(db, namespace=agent_os.company.namespace)
+        if isinstance(db, AsyncBaseDb)
+        else CompanyManager(db, namespace=agent_os.company.namespace)
+    )
     auth = get_authentication_dependency(agent_os.settings)
     schedule_db = agent_os.db
     scheduler = get_schedule_router(
@@ -184,18 +188,14 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         page: int = Query(1, ge=1),
         _: bool = Depends(auth),
     ):
-        from agno.scheduler import ScheduleManager
+        from agno.company.routines import _aroutine_rows
 
         get_scoped_user_id(request)
-        rows = await call(ScheduleManager(schedule_db).alist_all)
-        selected = [
-            row.to_dict()
-            for row in rows
-            if row.managed_by == "company"
-            and (row.payload or {}).get("metadata", {}).get("product_id")
-            and (product_id is None or (row.payload or {}).get("metadata", {}).get("product_id") == product_id)
+        selected = await _aroutine_rows(schedule_db, product_id)
+        rows = [
+            {**row, "schedule_type": "scheduled" if row["cron_expr"] else "on_demand"}
+            for row in selected[(page - 1) * limit : page * limit]
         ]
-        rows = await routine_responses(selected[(page - 1) * limit : page * limit])
         return page_response(rows, len(selected), limit, page)
 
     @router.get("/routines/{routine_id}", response_model=RoutineResponse)
@@ -294,30 +294,35 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
 
     @router.post("/setup", status_code=201)
     async def setup(body: Setup, request: Request, response: Response, _: bool = Depends(auth)):
+        from uuid import NAMESPACE_URL, uuid5
+
         from agno.company.bootstrap import arehydrate_product
+        from agno.company.config import _resolved_namespace
         from agno.os.routers.run_permissions import _require_endpoint_permission
         from agno.run.authorization import current_authorization
 
+        prefix = _resolved_namespace(agent_os.company.namespace)
+        setup_id = "company-setup" if prefix == "company" else str(uuid5(NAMESPACE_URL, f"{prefix}/setup"))
         owner = get_scoped_user_id(request) or getattr(request.state, "user_id", None)
         authority = current_authorization()
         if body.sources and authority is not None:
-            await authority.arequire("sources", "write")
+            await call(authority.arequire, "sources", "write")
         if body.routines:
             if authority is not None:
-                await authority.arequire("schedules", "write")
-                await authority.arequire("routines", "write")
+                await call(authority.arequire, "schedules", "write")
+                await call(authority.arequire, "routines", "write")
             for declaration in body.routines:
-                fields = await call(_schedule_fields, "company-setup", declaration, agent_os.registry)
+                fields = await call(_schedule_fields, setup_id, declaration, agent_os.registry)
                 await _require_endpoint_permission(request, fields["endpoint"], "POST")
-        existing = await call(manager.get, "company-setup", include_deleted=True)
+        existing = await call(manager.get, setup_id, include_deleted=True)
         if existing is not None:
             _require_write_ownership(existing, get_scoped_user_id(request))
             response.status_code = 200
         else:
             rows, _ = await call(manager.list, limit=1, include_deleted=True)
-            if rows:
+            if rows and prefix == "company":
                 raise HTTPException(409, "Company setup requires a deployment without Products")
-        product_declaration = Product(**{**body.model_dump(), "id": "company-setup", "user_id": owner})
+        product_declaration = Product(**{**body.model_dump(), "id": setup_id, "user_id": owner})
         return await call(
             arehydrate_product,
             db,

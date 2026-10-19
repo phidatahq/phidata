@@ -104,7 +104,7 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
                 from agno.company.summary import _aload_summary_state
 
                 # Upgrade old reports before retention removes their only delivery receipts.
-                await _aload_summary_state(manager.db, product_id, current.content)
+                await _aload_summary_state(manager.db, product_id, current.content, namespace=manager.namespace)
             if await filesystem.adelete(page.path, expected_version=current.metadata.version):
                 result["deleted_pages"].append(page.path)
 

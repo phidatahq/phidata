@@ -9,10 +9,14 @@ from agno.fs._paths import normalize_path
 from agno.fs.errors import VersionConflictError
 
 
-def _wiki(db: Any, product: Optional[Dict[str, Any]] = None) -> WikiContextProvider:
-    namespace = "company/wiki" if product is None else f"company/products/{product['id']}/wiki"
+def _wiki(db: Any, product: Optional[Dict[str, Any]] = None, namespace: str = "company") -> WikiContextProvider:
+    namespace = f"{namespace}/wiki" if product is None else f"{namespace}/products/{product['id']}/wiki"
     try:
+        from agno.company.config import _namespace_bindings
+
         filesystem = FileSystem(db, namespace=namespace, user_scoped=False)
+        if filesystem.is_templated:
+            filesystem = filesystem.resolve(**_namespace_bindings())
     except (TypeError, ValueError) as exc:
         raise NotImplementedError("Company wiki requires a supported FileSystem database") from exc
     return WikiContextProvider(

@@ -26,6 +26,7 @@ from agno.sandbox.checkpoint import (
 
 _MIN_PART = 5 * 1024 * 1024  # S3 refuses smaller parts, except the last one.
 _MISSING = {"404", "NoSuchKey", "NotFound"}
+_FORBIDDEN = {"403", "AccessDenied", "Forbidden"}
 
 
 def _client_error_code(error: BaseException) -> str:
@@ -39,10 +40,16 @@ class S3CheckpointStore:
     ``put`` hashes the archive, skips the upload when the object already exists, and
     otherwise uploads it, in parts above ``part_size``. An upload is complete only once
     the object is readable, so a crash mid-upload leaves nothing a reader could restore.
-    ``verify`` is a metadata check against the bucket; ``open_archive`` downloads the
-    object to a temporary file, checks its bytes against the reference, and removes the
-    file when the caller is done. Every replica with access to the bucket can restore
-    what another one captured, which is what a durable queue needs.
+    ``verify`` compares the object's size and the digest recorded at ``put`` without
+    reading its bytes; ``open_archive`` downloads the object to a temporary file, checks
+    its bytes against the reference, and removes the file when the caller is done. Every
+    replica with access to the bucket can restore what another one captured, which is
+    what a durable queue needs.
+
+    The credentials need ``s3:GetObject``, ``s3:PutObject`` and ``s3:DeleteObject`` on
+    the prefix, and ``s3:AbortMultipartUpload`` for uploads above ``part_size``. Without
+    ``s3:ListBucket`` S3 answers a HEAD on a missing key with 403 rather than 404; ``put``
+    treats that as unknown and uploads, but ``verify`` reports it as the error it is.
 
     Args:
         bucket: The bucket name.
@@ -55,6 +62,9 @@ class S3CheckpointStore:
             upload uses them. At least 5 MiB.
         boto_session: A ``boto3.session.Session`` to build the client from; the default
             session otherwise, which reads the environment and the instance role.
+        scratch: Directory for the downloaded copy ``open_archive`` hands out. It holds
+            unencrypted archives and must be coordinator-private; the system temporary
+            directory otherwise.
     """
 
     def __init__(
@@ -67,6 +77,7 @@ class S3CheckpointStore:
         max_bytes: int = 1024 * 1024 * 1024,
         part_size: int = 64 * 1024 * 1024,
         boto_session: Optional[Any] = None,
+        scratch: Optional[Path] = None,
     ) -> None:
         if not isinstance(bucket, str) or not bucket or "/" in bucket:
             raise ValueError("Checkpoint bucket must be a nonempty bucket name")
@@ -82,6 +93,7 @@ class S3CheckpointStore:
         self.max_bytes = max_bytes
         self.part_size = part_size
         self._boto_session = boto_session
+        self.scratch = Path(scratch) if scratch is not None else None
         self._client: Optional[Any] = None
 
     def key(self, reference: CheckpointRef) -> str:
@@ -141,8 +153,17 @@ class S3CheckpointStore:
             raise SandboxError("Checkpoint checksum mismatch")
 
     def put(self, source: Path) -> CheckpointRef:
+        from botocore.exceptions import ClientError
+
         reference = self._digest(Path(source))
-        existing = self._head(reference)
+        try:
+            existing = self._head(reference)
+        except ClientError as error:
+            # Without s3:ListBucket a missing key answers 403; the upload settles it either
+            # way, and the HEAD that confirms it needs only s3:GetObject.
+            if _client_error_code(error) not in _FORBIDDEN:
+                raise
+            existing = None
         if existing is not None:
             # Content-addressed: the same bytes are already there, or something else sits
             # under the name they would take, which the check reports.
@@ -213,7 +234,7 @@ class S3CheckpointStore:
         from botocore.exceptions import ClientError
 
         self.verify(reference)
-        descriptor, name = tempfile.mkstemp(prefix=".checkpoint-", suffix=".tar")
+        descriptor, name = tempfile.mkstemp(prefix=".checkpoint-", suffix=".tar", dir=self.scratch)
         path = Path(name)
         try:
             try:

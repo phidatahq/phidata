@@ -75,8 +75,11 @@ containers = subprocess.run(
     text=True,
     check=True,
 ).stdout.split()
-subprocess.run(["docker", "rm", "-f", *containers], capture_output=True, check=True)
-print("Removed the session's container:", ", ".join(containers))
+if containers:
+    subprocess.run(["docker", "rm", "-f", *containers], capture_output=True, check=True)
+    print("Removed the session's container:", ", ".join(containers))
+else:
+    print("The session's container was already gone")
 
 # The next turn starts a new container and restores the checkpoint from S3 into it.
 second = agent.run(

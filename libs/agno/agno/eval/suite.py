@@ -35,6 +35,7 @@ from agno.run.team import TeamRunOutput
 from agno.run.workflow import WorkflowErrorEvent
 from agno.scorer.base import Score, Scorer
 from agno.team.team import Team
+from agno.utils.log import log_debug
 from agno.utils.message import get_text_from_message
 
 if TYPE_CHECKING:
@@ -427,6 +428,11 @@ async def _run_case_body(
         return
 
     if case.criteria:
+        input_text = _input_text(case)
+        if not input_text:
+            # The judge takes text only, so a Message with no text leaves it grading the reply
+            # against an empty question. Passing the media to the judge is not supported yet.
+            log_debug(f"Judging without a question, the input has no text: {case.name}")
         try:
             judge = await AgentAsJudgeEval(
                 name=case.name,
@@ -442,7 +448,7 @@ async def _run_case_body(
                 # Preserve EvalSuite's existing policy: its internally-created evals
                 # do not emit hidden telemetry, and the suite has no telemetry option.
                 telemetry=False,
-            ).arun(input=_input_text(case), output=result.output or "")
+            ).arun(input=input_text, output=result.output or "")
         except Exception as exc:
             _append_error(result, f"judge: {type(exc).__name__}: {exc}")
         else:
@@ -501,7 +507,8 @@ async def _arun_case(
         tags=case.tags,
         agent_id=_component_id(case) if case.agent is not None else None,
         team_id=_component_id(case) if case.team is not None else None,
-        # Dedicated session per case so eval traffic doesn't pollute the agent or team's history
+        # Dedicated session per case so eval traffic doesn't pollute the agent or team's history,
+        # unless the case names the session to run in
         session_id=case.session_id or f"eval-{case.name}-{uuid4().hex[:8]}",
     )
     timeout = case.timeout_seconds if case.timeout_seconds is not None else default_timeout

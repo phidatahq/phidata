@@ -358,12 +358,32 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 
 ---
 
-### open_checkpoint.py and checkpoint access through the agent
+### sandbox_s3_checkpoints.py (2026-10-17)
+
+**Status:** PASS (claude-sonnet-4-6, `agno-sandbox:local`, moto server as the S3 endpoint on 127.0.0.1:9000)
+
+**Description:** A sandboxed Claude agent with `DockerSandbox(checkpoints=S3CheckpointStore("agno-checkpoints", prefix="sandbox/checkpoints"))`, boto3 pointed at the local server through `AWS_ENDPOINT_URL_S3`. Turn 1 writes and runs `hello.py`; the cookbook lists the bucket, removes the session's container by its `io.agno.sandbox.session` label to simulate losing the host, then runs turn 2 on the same session.
+
+**Result:** Turn 1 completed and its checkpoint appeared as one object under `sandbox/checkpoints/<sha256>.tar.gz` (75 KB). After the container was removed, turn 2 completed on a new container restored from that object, answered `hello.py`, and reported `metadata.sandbox.resumed = False`, the cold path. MinIO could not be pulled on this host (Docker Hub refused `minio/minio`, quay.io answered 401), so moto's server mode stood in as the S3-compatible endpoint; the store speaks plain S3 to either.
+
+---
+
+### S3CheckpointStore under the existing suites (2026-10-17)
 
 **Status:** PASS
 
-**Description:** `BaseExternalAgent.checkpoint_store`, `open_run_checkpoint` and `aopen_run_checkpoint`: a completed run's committed checkpoint opened on the host through the agent and restored with `CheckpointArchive.restore`, without importing the harness coordinator. Two fixture turns of one session through `FixtureAgent` on real Docker and local Postgres 18, each run's checkpoint restored to a directory, an unknown run and another agent's run refused, and the warm computer removed at the end through `find` and `destroy`. Unit cases in `tests/unit/sandbox/test_checkpoint_access.py` on a store-only sandbox with a real file store: the configured store, the file default and its queue-worker refusal, the property answering with the coordinator's own store, restore through the async form on both database adapters and the sync form on a sync database, the sync form refusing an async database as `get_session` does, every refusal, a retired object and a tampered object. Integration cases in `tests/integration/sandbox/test_checkpoint_access.py` on `PostgresDb` and `AsyncPostgresDb`: open and restore through both forms, each turn's own checkpoint, another agent's run, and a run refused while running and again after cancellation.
+**Description:** `libs/agno/tests/unit/sandbox/test_s3_store.py` (moto in-process): contract round trip, a second store instance restoring what the first captured, no upload when the object exists, verify on a truncated object and on one overwritten without its digest, a forged digest caught when the bytes are read, missing-object errors through every sync and async access, delete idempotent, multipart upload with a crash after part 2 leaving no readable object and no lingering parts, the object limit applied before any upload, and constructor validation. Then the Docker transfer, coordinator and AgentOS integration suites with `AGNO_TEST_S3_BUCKET=agno-checkpoints AGNO_TEST_S3_ENDPOINT=http://127.0.0.1:9000` so every store in them is an `S3CheckpointStore`, including the warm-computer, replacement-computer and checkpoint-outage paths.
 
-**Result:** Passed on 16 October 2026 with an image built from this tree (`agno-sandbox:checkpoint-access`). Turn 1's checkpoint restored `workspace/fixture-effects.txt` holding turn 1 and `native/fixture-session`; turn 2's held both turns; the two refusals printed their reasons; the warm generation was removed and no containers were left. 18 unit cases and 10 integration cases passed; `tests/unit/sandbox` and `tests/unit/agents`: 940 passed, 2 skipped. The local database held a bindings table from an earlier build (no `run_id` foreign key), which the default table name refuses with the documented message; the cookbook run above used a scratch copy differing only in `PostgresDb(sandbox_table=...)`. After merging main's repository support, a live case (`AGNO_TEST_LIVE_REPOSITORY=1`, isolated network on `AGNO_TEST_SANDBOX_SUBNET=10.213.0.0/22`) ran a `FixtureAgent` with `repository=Repository("https://github.com/octocat/Hello-World", branch="master")` and restored its run's checkpoint: `workspace/repository/.git` present and `native/repository.json` equal to the published pin. 12 integration cases passed on an image rebuilt from the merged tree. Review then pointed out that the yielded path is a hard link to the content-addressed object, so a consumer writing to it would corrupt the session's recovery point: `FileCheckpointStore.put` now stores objects with mode 0400, a case writes through the yielded path and gets `PermissionError` with the checkpoint still restoring afterwards, and the store tests that corrupt objects from outside lift the mode first. `tests/unit/sandbox` and `tests/unit/agents`: 1023 passed, 2 skipped; checkpoint-access and transfer Docker suites: 12 passed, 4 skipped.
+**Result:** 9 unit tests passed. `test_transfer.py` 4 passed; `test_coordinator.py` 80 passed, 26 skipped (the AsyncPostgresDb and transport skips the log already records); `test_agentos.py` 24 passed after its checkpoint-outage test was changed to restore into `tmp_path` instead of the file store's root, the one place a suite had reached into the file store; that test still passes on the file store. The whole `tests/unit/sandbox` suite: 447 passed.
+
+---
+
+### checkpoint_cache.py (2026-10-19)
+
+**Status:** PASS (fixture runtime, `agno-sandbox:local`, moto server as the S3 endpoint through `AWS_ENDPOINT_URL_S3`)
+
+**Description:** `S3CheckpointStore(cache_dir=..., cache_bytes=256 MiB)` on a sandboxed `FixtureAgent`. One turn checkpoints to the bucket; the checkpoint is then opened and restored five times, a second store instance on the same cache directory opens it once more, and the object is deleted from the bucket before a final open. A boto3 event hook on `request-created.s3.GetObject` counts the downloads.
+
+**Result:** The first open downloaded the object (25 ms); the next four and the other store's open came from the cache (7 to 16 ms) with the download count staying at one. The cache directory held the object under its digest. After `delete`, the next open raised `CheckpointObjectNotFound` despite the cached copy, since the bucket is consulted first. Unit tests for the cache (`test_s3_store.py`): downloaded once, served to async opens, a corrupt entry fetched again, a deleted object not hidden, eviction within the budget while an open lease keeps reading, and the uncached copy landing in `scratch=` read-only. 15 tests pass.
 
 ---

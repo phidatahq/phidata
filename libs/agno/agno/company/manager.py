@@ -107,16 +107,27 @@ class CompanyManager:
             enabled_on_create=False,
             provenance=_routine_provenance(routine),
         )
+        linked = False
         try:
             if self.db.add_product_routine(product_id, schedule.id) is None:
                 raise RuntimeError("Routine could not be linked to its Product")
+            linked = True
             enabled = schedules.enable(schedule.id, user_id=user_id)
             if enabled is None:
                 raise RuntimeError("Routine could not be enabled")
         except Exception:
+            if linked:
+                self._unlink_routine(product_id, schedule.id)
             schedules.delete(schedule.id, user_id=user_id)
             raise
         return enabled.to_dict()
+
+    def _unlink_routine(self, product_id: str, schedule_id: str) -> None:
+        product = self.get(product_id)
+        if product is not None:
+            metadata = dict(product.get("metadata") or {})
+            metadata["routine_ids"] = [i for i in metadata.get("routine_ids") or [] if i != schedule_id]
+            self.db.update_product(product_id, metadata=metadata)
 
     def discard_product(
         self,
@@ -984,16 +995,27 @@ class AsyncCompanyManager:
             enabled_on_create=False,
             provenance=_routine_provenance(routine),
         )
+        linked = False
         try:
             if await self.db.add_product_routine(product_id, schedule.id) is None:
                 raise RuntimeError("Routine could not be linked to its Product")
+            linked = True
             enabled = await schedules.aenable(schedule.id, user_id=user_id)
             if enabled is None:
                 raise RuntimeError("Routine could not be enabled")
         except Exception:
+            if linked:
+                await self._unlink_routine(product_id, schedule.id)
             await schedules.adelete(schedule.id, user_id=user_id)
             raise
         return enabled.to_dict()
+
+    async def _unlink_routine(self, product_id: str, schedule_id: str) -> None:
+        product = await self.get(product_id)
+        if product is not None:
+            metadata = dict(product.get("metadata") or {})
+            metadata["routine_ids"] = [i for i in metadata.get("routine_ids") or [] if i != schedule_id]
+            await self.db.update_product(product_id, metadata=metadata)
 
     async def discard_product(
         self,

@@ -235,19 +235,21 @@ def _failing_link(db, calls, error=None):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [False, True])
-async def test_failed_link_leaves_no_schedule_and_the_name_stays_usable(db, use_async, monkeypatch):
+@pytest.mark.parametrize("failing", ["add_product_routine", "update_schedule"])
+async def test_failed_link_or_enable_leaves_no_schedule_and_the_name_stays_usable(db, use_async, failing, monkeypatch):
     from agno.company.execution import _call
 
     tools = CompanyTools(db, registry=Registry(agents=[Agent(id="reader")]))
     product = await invoke(tools, "create_company_product", use_async, name="Docs", _agno_run_context=context())
-    original, calls = type(db).add_product_routine, []
-    monkeypatch.setattr(type(db), "add_product_routine", _failing_link(db, calls))
-    with pytest.raises(RuntimeError, match="linked"):
+    original, calls = getattr(type(db), failing), []
+    monkeypatch.setattr(type(db), failing, _failing_link(db, calls))
+    with pytest.raises(RuntimeError, match="linked" if failing == "add_product_routine" else "enabled"):
         await invoke(
             tools, "create_company_routine", use_async, product_id=product["id"], **ROUTINE, _agno_run_context=context()
         )
     assert calls and (await _call(db, "get_schedules"))[1] == 0
-    monkeypatch.setattr(type(db), "add_product_routine", original)
+    assert (await _call(db, "get_product", product["id"]))["metadata"].get("routine_ids", []) == []
+    monkeypatch.setattr(type(db), failing, original)
     routine = await invoke(
         tools, "create_company_routine", use_async, product_id=product["id"], **ROUTINE, _agno_run_context=context()
     )

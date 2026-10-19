@@ -16,7 +16,7 @@ under Alice's identity.
 
 **Result:** Passed with `.venv/bin/python` on SQLite. No model call was made.
 The chat suite with its five new cases and the Product Manager unit suite:
-153 passed, 44 conditional skips (sync tools on async adapters). Every new case
+159 passed, 46 conditional skips (sync tools on async adapters). Every new case
 fails on the `codex/company-chat-products` head and passes here. The Company
 integration selection below: 1,534 passed, 48 conditional skips; the 44 cases in `test_company_sandbox_admission.py` fail on a `pymongo` import in this environment; the four MongoDB-dependent modules
 were left out because `pymongo` is not installed in this environment. Company,

@@ -92,6 +92,7 @@ from agno.os.utils import (
     format_sse_event,
     get_agent_by_id,
     get_request_kwargs,
+    is_temporary_run,
     parse_files_metadata,
     process_audio,
     process_document,
@@ -722,10 +723,12 @@ def get_agent_router(
         background: bool = Form(
             False, description="Run in background and return immediately with run metadata (requires database)"
         ),
-        store_run: bool = Form(
-            True,
+        # A string, not ``bool = Form(True)``: recent FastAPI resolves an absent bool form field to
+        # False whatever its default, which would turn every run into a temporary one.
+        store_run: Optional[str] = Form(
+            None,
             description="Set to false for a temporary run: the response is returned but neither the run nor "
-            "its session is saved to the database. Cannot be combined with background=true",
+            "its session is saved to the database. Defaults to true. Cannot be combined with background=true",
         ),
         factory_input: Optional[str] = Form(
             None,
@@ -733,7 +736,7 @@ def get_agent_router(
         ),
     ):
         kwargs = await get_request_kwargs(request, create_agent_run)
-        if not store_run:
+        if is_temporary_run(store_run):
             if not os.allow_temporary_runs:
                 raise HTTPException(status_code=400, detail="Temporary runs (store_run=false) are disabled on this OS")
             if background:

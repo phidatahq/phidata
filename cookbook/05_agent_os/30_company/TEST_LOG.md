@@ -1,3 +1,45 @@
+# Company chat Product creation hardening — October 19, 2026
+
+Branch: `fix/company-chat-products-hardening`, based on `codex/company-chat-products`.
+
+### 05_product_manager.py
+
+**Status:** PASS
+
+**Description:** Re-ran the chat step after the hardening changes: Routine
+creation deletes its schedule when linking or enabling fails, Product creation
+discards a partially created Product, the Product is checked before its
+executor, both chat tools require `routines:write` with `schedules:write`, and
+toolkits published only over MCP receive the OS registry. The example runs
+unchanged and still creates the Product, website Source and intake Routine
+under Alice's identity.
+
+**Result:** Passed with `.venv/bin/python` on SQLite. No model call was made.
+The chat suite with its five new cases and the Product Manager unit suite:
+159 passed, 46 conditional skips (sync tools on async adapters). Every new case
+fails on the `codex/company-chat-products` head and passes here. The Company
+integration selection below: 1,534 passed, 48 conditional skips; the 44 cases in `test_company_sandbox_admission.py` fail on a `pymongo` import in this environment; the four MongoDB-dependent modules
+were left out because `pymongo` is not installed in this environment. Company,
+scheduler and heartbeat unit suites: 563 passed, one Telegram transport case
+needs `telebot`, which is not installed here.
+
+Reproduce the integration selection with:
+
+```bash
+PYTHONPATH=libs/agno \
+AGNO_TEST_POSTGRES_URL=postgresql+psycopg://ai:ai@localhost:5532/ai \
+.venv/bin/python -m pytest \
+  libs/agno/tests/integration/db/test_company_*.py \
+  libs/agno/tests/integration/db/test_{products,projects,tasks,schedule}_lifecycle_parity.py \
+  libs/agno/tests/integration/db/sqlite/test_{products,projects,tasks}.py \
+  -q --disable-warnings --tb=short -o log_cli=false
+```
+
+`ruff format` and `ruff check` pass. The shared development environment reports
+mypy errors only in untouched database adapter and model provider files.
+
+---
+
 # Company chat Product creation — October 19, 2026
 
 Branch: `codex/company-chat-products`, based on main `287bc588c3`.

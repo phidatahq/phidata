@@ -9,6 +9,7 @@ import asyncio
 import json
 from dataclasses import asdict
 from typing import Annotated, Any, Dict, List, Optional
+from uuid import uuid4
 
 from pydantic import BeforeValidator
 
@@ -75,15 +76,32 @@ def _require_human_creation(run_context):
 
 
 def _chat_sources(sources, agent, team, run_context):
+    from agno.company.manager import _validate_agent_source
+
+    executor = team if team is not None else agent
     for source in sources:
-        if source.type != "website":
-            raise PermissionError(
-                "Agents may add only website Sources; local repository and path Sources require a human"
-            )
         if source.id or source.credential_ref:
             raise ValueError("Chat website Sources cannot set id or credential_ref; add them through the Source API")
-    if sources and (not getattr(team or agent, "id", None) or not getattr(run_context, "run_id", None)):
-        raise ValueError("Adding a Source requires the calling agent or team and run identity")
+        _validate_agent_source(
+            source.type,
+            "team" if team is not None else "agent",
+            getattr(executor, "id", None),
+            getattr(run_context, "run_id", None),
+        )
+
+
+def _routine_declaration(name, executor_type, executor_id, template, instructions, cron_expr, timezone):
+    return Routine.model_validate(
+        dict(
+            name=name,
+            executor_type=executor_type,
+            executor_id=executor_id,
+            template=_empty_to_none(template),
+            instructions=_empty_to_none(instructions),
+            cron_expr=_empty_to_none(cron_expr),
+            timezone=_empty_to_none(timezone) or "UTC",
+        )
+    )
 
 
 def _page(result, limit, page):
@@ -201,24 +219,48 @@ class CompanyTools(Toolkit):
             )
         )
 
-    def _validate_routine(self, product_id, routine, run_context):
-        from agno.company.routines import _schedule_fields
+    def _declare_product(self, name, purpose, sources, routines, agent, team, run_context):
+        from agno.db.schemas.products import validate_product_fields
+
+        product = Product(name=name, purpose=_empty_to_none(purpose), sources=sources or [], routines=routines or [])
+        validate_product_fields({"name": product.name, "purpose": product.purpose})
+        if len({routine.name for routine in product.routines}) != len(product.routines):
+            raise ValueError("Routine names must be unique within a Product")
+        _chat_sources(product.sources, agent, team, run_context)
+        return product
+
+    def _routine_check(self, routine, run_context):
+        """Chat-side checks on the composed schedule; the manager runs them before any write."""
         from agno.tools.scheduler import _manager_member_refusal, archived_endpoint_refusal
 
-        if routine.auto_accept:
-            raise PermissionError("Authorize automatic acceptance through the Routine API")
-        fields = _schedule_fields(product_id, routine, self.registry)
-        refusal = _manager_member_refusal(fields["endpoint"])
-        if refusal:
-            raise ValueError(refusal)
-        authority = _authority(run_context)
-        if authority is not None:
-            authority.require(routine.executor_type + "s", "run", routine.executor_id)
-        archived = archived_endpoint_refusal(
-            self._schedule_db, fields["endpoint"], user_id=self._scoped_user(run_context)
-        )
-        if archived:
-            raise ValueError("Routine executor is archived; restore the component first")
+        def check(fields):
+            refusal = _manager_member_refusal(fields["endpoint"])
+            if refusal:
+                raise ValueError(refusal)
+            authority = _authority(run_context)
+            if authority is not None:
+                authority.require(routine.executor_type + "s", "run", routine.executor_id)
+            if archived_endpoint_refusal(self._schedule_db, fields["endpoint"], user_id=self._scoped_user(run_context)):
+                raise ValueError("Routine executor is archived; restore the component first")
+
+        return check
+
+    def _aroutine_check(self, routine, run_context):
+        from agno.tools.scheduler import _manager_member_refusal, aarchived_endpoint_refusal
+
+        async def check(fields):
+            refusal = _manager_member_refusal(fields["endpoint"])
+            if refusal:
+                raise ValueError(refusal)
+            authority = _authority(run_context)
+            if authority is not None:
+                await authority.arequire(routine.executor_type + "s", "run", routine.executor_id)
+            if await aarchived_endpoint_refusal(
+                self._schedule_db, fields["endpoint"], user_id=self._scoped_user(run_context)
+            ):
+                raise ValueError("Routine executor is archived; restore the component first")
+
+        return check
 
     @requires_permission()
     def create_company_product(
@@ -238,42 +280,46 @@ class CompanyTools(Toolkit):
             sources: Source declarations as in config; null adds no Sources. Websites only.
             routines: Routine declarations as in config; null adds no Routines.
         """
-        from agno.db.schemas.products import validate_product_fields
+        from agno.company.routines import _declared_schedule_fields
 
         _require_human_creation(_agno_run_context)
         _permission("products", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        product = Product(name=name, purpose=_empty_to_none(purpose), sources=sources or [], routines=routines or [])
-        validate_product_fields({"name": product.name, "purpose": product.purpose})
+        product = self._declare_product(name, purpose, sources, routines, _agno_agent, _agno_team, _agno_run_context)
         if product.sources:
             _permission("sources", "write", _agno_run_context)
         if product.routines:
             _permission("schedules", "write", _agno_run_context)
-        if len({routine.name for routine in product.routines}) != len(product.routines):
-            raise ValueError("Routine names must be unique within a Product")
-        _chat_sources(product.sources, _agno_agent, _agno_team, _agno_run_context)
+            _permission("routines", "write", _agno_run_context)
+        # The id is chosen first so every Routine is checked under its real schedule name before any write.
+        product_id = str(uuid4())
+        plans = []
         for routine in product.routines:
-            # Product ids are UUIDs; validate the composed schedule name before any write.
-            self._validate_routine("00000000-0000-0000-0000-000000000000", routine, _agno_run_context)
+            fields = _declared_schedule_fields(product_id, routine, self.registry)
+            self._routine_check(routine, _agno_run_context)(fields)
+            plans.append((routine, fields))
         manager = self._sync()
-        row = manager.create(name=product.name, purpose=product.purpose, user_id=_identity(_agno_run_context))
-        for source in product.sources:
-            self.add_company_source(
-                row["id"],
-                source.reference,
-                config=source.config,
-                _agno_agent=_agno_agent,
-                _agno_team=_agno_team,
-                _agno_run_context=_agno_run_context,
-            )
-        for routine in product.routines:
-            manager.create_routine(
-                product_id=row["id"],
-                routine=routine,
-                user_id=_identity(_agno_run_context),
-                scoped_user_id=self._scoped_user(_agno_run_context),
-            )
-        return _public_json(manager.get(row["id"]))
+        identity = _identity(_agno_run_context)
+        manager.create(id=product_id, name=product.name, purpose=product.purpose, user_id=identity)
+        source_ids: List[str] = []
+        schedule_ids: List[str] = []
+        try:
+            for source in product.sources:
+                row = self.add_company_source(
+                    product_id,
+                    source.reference,
+                    config=source.config,
+                    _agno_agent=_agno_agent,
+                    _agno_team=_agno_team,
+                    _agno_run_context=_agno_run_context,
+                )
+                source_ids.append(json.loads(row)["id"])
+            for routine, fields in plans:
+                schedule_ids.append(manager._write_routine(product_id, routine, fields, identity)["id"])
+        except Exception:
+            manager.discard_product(product_id, source_ids=source_ids, schedule_ids=schedule_ids, user_id=identity)
+            raise
+        return _public_json(manager.get(product_id))
 
     @requires_permission()
     def create_company_routine(
@@ -299,45 +345,17 @@ class CompanyTools(Toolkit):
         _require_human_creation(_agno_run_context)
         _permission("products", "write", _agno_run_context)
         _permission("schedules", "write", _agno_run_context)
-        routine = Routine.model_validate(
-            dict(
-                name=name,
-                executor_type=executor_type,
-                executor_id=executor_id,
-                template=_empty_to_none(template),
-                instructions=_empty_to_none(instructions),
-                cron_expr=_empty_to_none(cron_expr),
-                timezone=_empty_to_none(timezone) or "UTC",
-            )
-        )
-        self._validate_routine(product_id, routine, _agno_run_context)
+        _permission("routines", "write", _agno_run_context)
+        routine = _routine_declaration(name, executor_type, executor_id, template, instructions, cron_expr, timezone)
         return _public_json(
             self._sync().create_routine(
                 product_id=product_id,
                 routine=routine,
                 user_id=_identity(_agno_run_context),
                 scoped_user_id=self._scoped_user(_agno_run_context),
+                check=self._routine_check(routine, _agno_run_context),
             )
         )
-
-    async def _avalidate_routine(self, product_id, routine, run_context):
-        from agno.company.routines import _schedule_fields
-        from agno.tools.scheduler import _manager_member_refusal, aarchived_endpoint_refusal
-
-        if routine.auto_accept:
-            raise PermissionError("Authorize automatic acceptance through the Routine API")
-        fields = _schedule_fields(product_id, routine, self.registry)
-        refusal = _manager_member_refusal(fields["endpoint"])
-        if refusal:
-            raise ValueError(refusal)
-        authority = _authority(run_context)
-        if authority is not None:
-            await authority.arequire(routine.executor_type + "s", "run", routine.executor_id)
-        archived = await aarchived_endpoint_refusal(
-            self._schedule_db, fields["endpoint"], user_id=self._scoped_user(run_context)
-        )
-        if archived:
-            raise ValueError("Routine executor is archived; restore the component first")
 
     @requires_permission()
     async def acreate_company_product(
@@ -357,42 +375,48 @@ class CompanyTools(Toolkit):
             sources: Source declarations as in config; null adds no Sources. Websites only.
             routines: Routine declarations as in config; null adds no Routines.
         """
-        from agno.db.schemas.products import validate_product_fields
+        from agno.company.routines import _declared_schedule_fields
 
         _require_human_creation(_agno_run_context)
         await _apermission("products", "write", _agno_run_context)
         self._scoped_user(_agno_run_context)
-        product = Product(name=name, purpose=_empty_to_none(purpose), sources=sources or [], routines=routines or [])
-        validate_product_fields({"name": product.name, "purpose": product.purpose})
+        product = self._declare_product(name, purpose, sources, routines, _agno_agent, _agno_team, _agno_run_context)
         if product.sources:
             await _apermission("sources", "write", _agno_run_context)
         if product.routines:
             await _apermission("schedules", "write", _agno_run_context)
-        if len({routine.name for routine in product.routines}) != len(product.routines):
-            raise ValueError("Routine names must be unique within a Product")
-        _chat_sources(product.sources, _agno_agent, _agno_team, _agno_run_context)
+            await _apermission("routines", "write", _agno_run_context)
+        # The id is chosen first so every Routine is checked under its real schedule name before any write.
+        product_id = str(uuid4())
+        plans = []
         for routine in product.routines:
-            # Product ids are UUIDs; validate the composed schedule name before any write.
-            await self._avalidate_routine("00000000-0000-0000-0000-000000000000", routine, _agno_run_context)
+            fields = _declared_schedule_fields(product_id, routine, self.registry)
+            await self._aroutine_check(routine, _agno_run_context)(fields)
+            plans.append((routine, fields))
         manager = self._async()
-        row = await manager.create(name=product.name, purpose=product.purpose, user_id=_identity(_agno_run_context))
-        for source in product.sources:
-            await self.aadd_company_source(
-                row["id"],
-                source.reference,
-                config=source.config,
-                _agno_agent=_agno_agent,
-                _agno_team=_agno_team,
-                _agno_run_context=_agno_run_context,
+        identity = _identity(_agno_run_context)
+        await manager.create(id=product_id, name=product.name, purpose=product.purpose, user_id=identity)
+        source_ids: List[str] = []
+        schedule_ids: List[str] = []
+        try:
+            for source in product.sources:
+                row = await self.aadd_company_source(
+                    product_id,
+                    source.reference,
+                    config=source.config,
+                    _agno_agent=_agno_agent,
+                    _agno_team=_agno_team,
+                    _agno_run_context=_agno_run_context,
+                )
+                source_ids.append(json.loads(row)["id"])
+            for routine, fields in plans:
+                schedule_ids.append((await manager._write_routine(product_id, routine, fields, identity))["id"])
+        except Exception:
+            await manager.discard_product(
+                product_id, source_ids=source_ids, schedule_ids=schedule_ids, user_id=identity
             )
-        for routine in product.routines:
-            await manager.create_routine(
-                product_id=row["id"],
-                routine=routine,
-                user_id=_identity(_agno_run_context),
-                scoped_user_id=self._scoped_user(_agno_run_context),
-            )
-        return _public_json(await manager.get(row["id"]))
+            raise
+        return _public_json(await manager.get(product_id))
 
     @requires_permission()
     async def acreate_company_routine(
@@ -418,24 +442,21 @@ class CompanyTools(Toolkit):
         _require_human_creation(_agno_run_context)
         await _apermission("products", "write", _agno_run_context)
         await _apermission("schedules", "write", _agno_run_context)
-        routine = Routine.model_validate(
-            dict(
-                name=name,
-                executor_type=executor_type,
-                executor_id=executor_id,
-                template=_empty_to_none(template),
-                instructions=_empty_to_none(instructions),
-                cron_expr=_empty_to_none(cron_expr),
-                timezone=_empty_to_none(timezone) or "UTC",
-            )
+        await _apermission("routines", "write", _agno_run_context)
+        routine = _routine_declaration(name, executor_type, executor_id, template, instructions, cron_expr, timezone)
+        # A synchronous database runs the manager in a worker thread, where only a plain check can run.
+        check = (
+            self._aroutine_check(routine, _agno_run_context)
+            if isinstance(self.db, AsyncBaseDb)
+            else self._routine_check(routine, _agno_run_context)
         )
-        await self._avalidate_routine(product_id, routine, _agno_run_context)
         return _public_json(
             await self._async().create_routine(
                 product_id=product_id,
                 routine=routine,
                 user_id=_identity(_agno_run_context),
                 scoped_user_id=self._scoped_user(_agno_run_context),
+                check=check,
             )
         )
 

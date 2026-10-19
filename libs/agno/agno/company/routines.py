@@ -147,6 +147,13 @@ def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[s
     return fields
 
 
+def _declared_schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[str, Any]:
+    """Schedule fields for a declared Routine; automatic acceptance needs the Routine API's authorization."""
+    if routine.auto_accept:
+        raise ValueError("Authorize automatic acceptance through the Routine API")
+    return _schedule_fields(product_id, routine, registry)
+
+
 class _RoutineAuthorization(_ExecutorAuthorization):
     """Routine authority permits proposals, never acceptance or schedule edits."""
 

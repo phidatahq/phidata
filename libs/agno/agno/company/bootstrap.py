@@ -7,7 +7,7 @@ from uuid import NAMESPACE_URL, uuid5
 
 from agno.company.declarations import Product
 from agno.company.execution import _call
-from agno.company.routines import _schedule_fields
+from agno.company.routines import _declared_schedule_fields
 from agno.db.utils import is_unique_violation
 from agno.scheduler import ScheduleManager
 
@@ -19,9 +19,7 @@ async def arehydrate_product(
     import time
 
     product_id = product.id or str(uuid5(NAMESPACE_URL, "agno:company:product:" + product.name))
-    if any(routine.auto_accept for routine in product.routines):
-        raise ValueError("Authorize automatic acceptance through the Routine API")
-    routine_fields = [_schedule_fields(product_id, routine, registry) for routine in product.routines]
+    routine_fields = [_declared_schedule_fields(product_id, routine, registry) for routine in product.routines]
     row = await _call(db, "get_product", product_id, include_deleted=True)
     if row is None:
         try:

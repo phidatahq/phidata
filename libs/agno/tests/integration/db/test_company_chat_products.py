@@ -23,6 +23,8 @@ db = company_db
 
 ROUTINE = dict(name="intake", template="intake", executor_type="agent", executor_id="reader")
 SOURCE = dict(type="website", reference="https://docs.agno.com")
+# POST /company/routines requires the same pair, so chat and HTTP agree on who may create a Routine.
+WRITE_SCOPES = ["products:write", "schedules:write", "routines:write"]
 
 
 def context(scopes=None, wrapper=None):
@@ -109,10 +111,10 @@ async def test_creation_refuses_missing_product_scope_and_automated_runs(db, use
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [False, True])
-@pytest.mark.parametrize("scope", ["sources:write", "schedules:write", "agents:reader:run"])
+@pytest.mark.parametrize("scope", ["sources:write", "schedules:write", "routines:write", "agents:reader:run"])
 async def test_nested_permissions_fail_before_creating_product(db, use_async, scope):
     tools = CompanyTools(db, registry=Registry(agents=[Agent(id="reader")]))
-    scopes = [s for s in ["products:write", "sources:write", "schedules:write", "agents:reader:run"] if s != scope]
+    scopes = [s for s in [*WRITE_SCOPES, "sources:write", "agents:reader:run"] if s != scope]
     with pytest.raises(PermissionError, match=scope):
         await invoke(
             tools,
@@ -181,8 +183,100 @@ async def test_existing_product_ownership_matches_http(db, use_async):
             use_async,
             product_id=product["id"],
             **ROUTINE,
-            _agno_run_context=context(["products:write", "schedules:write", "agents:reader:run"]),
+            _agno_run_context=context([*WRITE_SCOPES, "agents:reader:run"]),
         )
+    assert (await _call(db, "get_schedules"))[1] == 0
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True])
+async def test_routine_creation_checks_the_product_before_its_executor(db, use_async):
+    from agno.company.execution import _call
+    from agno.company.manager import AsyncCompanyManager, CompanyManager
+
+    manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db)
+    product = await _call(manager, "create", name="Owned by someone else", user_id="bob")
+    tools = CompanyTools(db, user_isolation=True, registry=Registry(agents=[Agent(id="reader")]))
+    unknown = {**ROUTINE, "executor_id": "missing"}
+    with pytest.raises(PermissionError, match="owned by another user"):
+        await invoke(
+            tools,
+            "create_company_routine",
+            use_async,
+            product_id=product["id"],
+            **unknown,
+            _agno_run_context=context([*WRITE_SCOPES, "agents:missing:run"]),
+        )
+    with pytest.raises(LookupError, match="Product not found"):
+        await invoke(
+            tools, "create_company_routine", use_async, product_id="missing", **unknown, _agno_run_context=context()
+        )
+
+
+def _failing_link(db, calls, error=None):
+    def record(args):
+        calls.append(args)
+        if error is not None:
+            raise error
+        return None
+
+    if isinstance(db, AsyncBaseDb):
+
+        async def failing(self, *args, **kwargs):
+            return record(args)
+
+    else:
+
+        def failing(self, *args, **kwargs):
+            return record(args)
+
+    return failing
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True])
+async def test_failed_link_leaves_no_schedule_and_the_name_stays_usable(db, use_async, monkeypatch):
+    from agno.company.execution import _call
+
+    tools = CompanyTools(db, registry=Registry(agents=[Agent(id="reader")]))
+    product = await invoke(tools, "create_company_product", use_async, name="Docs", _agno_run_context=context())
+    original, calls = type(db).add_product_routine, []
+    monkeypatch.setattr(type(db), "add_product_routine", _failing_link(db, calls))
+    with pytest.raises(RuntimeError, match="linked"):
+        await invoke(
+            tools, "create_company_routine", use_async, product_id=product["id"], **ROUTINE, _agno_run_context=context()
+        )
+    assert calls and (await _call(db, "get_schedules"))[1] == 0
+    monkeypatch.setattr(type(db), "add_product_routine", original)
+    routine = await invoke(
+        tools, "create_company_routine", use_async, product_id=product["id"], **ROUTINE, _agno_run_context=context()
+    )
+    assert routine["enabled"] and routine["name"] == product["id"] + ".intake"
+    assert (await _call(db, "get_product", product["id"]))["metadata"]["routine_ids"] == [routine["id"]]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True])
+async def test_failed_routine_write_discards_the_partial_product(db, use_async, monkeypatch):
+    from agno.company.execution import _call
+
+    tools = CompanyTools(db, registry=Registry(agents=[Agent(id="reader")]))
+    calls: list = []
+    monkeypatch.setattr(type(db), "add_product_routine", _failing_link(db, calls, RuntimeError("link failed")))
+    with pytest.raises(RuntimeError, match="link failed"):
+        await invoke(
+            tools,
+            "create_company_product",
+            use_async,
+            name="Partial",
+            sources=[SOURCE],
+            routines=[ROUTINE],
+            _agno_agent=Agent(id="chat"),
+            _agno_run_context=context(),
+        )
+    assert calls
+    assert (await _call(db, "get_products"))[1] == 0
+    assert (await _call(db, "get_sources"))[1] == 0
     assert (await _call(db, "get_schedules"))[1] == 0
 
 
@@ -291,11 +385,7 @@ async def test_provider_decides_permissions_and_records_human(db, use_async):
 
         def authorize_route(self, ctx, required_scopes):
             # This plane ignores token scopes, including a claimed admin scope.
-            return ctx.principal_id == "ana" and set(required_scopes) <= {
-                "products:write",
-                "schedules:write",
-                "agents:run",
-            }
+            return ctx.principal_id == "ana" and set(required_scopes) <= {*WRITE_SCOPES, "agents:run"}
 
     ctx = context([])
     ctx.authorization.provider = HumanGrants()

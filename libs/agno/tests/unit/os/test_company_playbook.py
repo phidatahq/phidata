@@ -121,6 +121,43 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True])
+async def test_revision_tool_requires_task_owner(tmp_path, use_async):
+    db = SqliteDb(db_file=str(tmp_path / "revisions.db"))
+    manager = CompanyManager(db, registry=Registry(agents=[Agent(id="writer")]))
+    product = manager.create(name="SDK", user_id="alice")
+    project = manager.create_project(product_id=product["id"], name="Release", user_id="alice")
+    task = manager.create_task(product_id=product["id"], project_id=project["id"], title="Draft", user_id="alice")
+    ready = manager.transition_task(
+        task_id=task["id"],
+        target="ready",
+        reason="approved",
+        executor_type="agent",
+        executor_id="writer",
+        accepted_by="alice",
+    )
+    started = db.start_task_run(task["id"], 1, ready["transitions"], user_id="alice")
+    result = {"run_id": started["job_id"], "status": "COMPLETED", "content": "draft"}
+    reviewed = db.complete_task_run(task["id"], started["job_id"], result, expected_transitions=started["transitions"])
+    assert reviewed["status"] == "in_review"
+    tools = CompanyTools(db, registry=manager.registry, user_isolation=True)
+    alice = RunContext(run_id="r", session_id="s", user_id="alice")
+    bob = RunContext(run_id="r2", session_id="s2", user_id="bob")
+
+    async def invoke(name, *args, **kwargs):
+        fn = getattr(tools, ("a" if use_async else "") + name)
+        return await fn(*args, **kwargs) if use_async else fn(*args, **kwargs)
+
+    with pytest.raises(PermissionError):
+        await invoke("request_company_task_revisions", task["id"], "Rewrite it", _agno_run_context=bob)
+    assert manager.get_task(task["id"])["status"] == "in_review"
+    revised = json.loads(
+        await invoke("request_company_task_revisions", task["id"], "Cite the evidence", _agno_run_context=alice)
+    )
+    assert revised["status"] == "ready" and revised["executor_id"] == "writer"
+
+
+@pytest.mark.asyncio
 async def test_direct_mcp_has_only_bounded_tools(tmp_path):
     from fastmcp import Client
 

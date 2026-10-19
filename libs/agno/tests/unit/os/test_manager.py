@@ -1030,6 +1030,7 @@ def test_docs_mcp_defaults_on_is_private_and_uses_os_lifecycle(db, monkeypatch, 
     os = AgentOS(db=db, manager=config, telemetry=False)
     docs = [tool for tool in manager_member(os, OPERATOR_ID).tools if isinstance(tool, MCPTools)]
     assert len(docs) == int(enabled)
+    assert [tool for tool in os.manager.tools if isinstance(tool, MCPTools)] == docs
     assert not os.registry.tools
     if enabled:
         assert docs[0].url == "https://docs.agno.com/mcp"
@@ -1044,6 +1045,56 @@ def test_docs_mcp_defaults_on_is_private_and_uses_os_lifecycle(db, monkeypatch, 
         assert all(url == "https://docs.agno.com/mcp" for _, url in calls)
     else:
         assert not calls
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+def test_manager_can_answer_framework_question_using_docs_without_delegation(db, monkeypatch, async_mode):
+    from agno.tools.function import Function
+    from agno.tools.mcp import MCPTools
+
+    queries = []
+
+    def search_docs(query: str) -> str:
+        queries.append(query)
+        return "Agentic learning saves and recalls user context through tools."
+
+    async def connect(tool, force=False):
+        tool.functions["search_docs"] = Function(name="search_docs", entrypoint=search_docs)
+        tool._initialized = True
+
+    monkeypatch.setattr(MCPTools, "connect", connect)
+    model = ManagerToolModel("search_docs", {"query": "How does learning work?"})
+    os = AgentOS(db=db, manager=OSManager(model=model), telemetry=False)
+    # The fake model selects a docs call; this verifies the execution path and
+    # persistence, not a real model's ability to choose the narrower route.
+    with TestClient(os.get_app()):
+        manager = os.manager.deep_copy()
+        run = (
+            asyncio.run(manager.arun("How does learning work?"))
+            if async_mode
+            else manager.run("How does learning work?")
+        )
+    assert queries == ["How does learning work?"]
+    assert [tool.tool_name for tool in run.tools] == ["search_docs"]
+    assert not run.member_responses
+    assert model.calls == 2
+
+
+@pytest.mark.parametrize("custom_provider", [False, True])
+def test_manager_can_inspect_requested_tmp_artifacts(db, workspace, custom_provider):
+    from agno.context.workspace import WorkspaceContextProvider
+
+    (workspace / "tmp").mkdir()
+    (workspace / "tmp" / "evidence.json").write_text('{"learning": "irrelevant run dump"}')
+    (workspace / "learning.py").write_text("learning = True")
+    root = WorkspaceContextProvider(root=workspace, exclude_patterns=[]) if custom_provider else workspace
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), root=root), telemetry=False)
+    tool = next(t for t in manager_member(os, OPERATOR_ID).tools if "search_content" in getattr(t, "functions", {}))
+    result = json.loads(tool.search_content("learning"))
+    assert result["matches_found"] == 2
+    assert {file["file"] for file in result["files"]} == {"learning.py", "tmp/evidence.json"}
+    assert "evidence.json" in tool.list_files(recursive=True)
+    assert "irrelevant run dump" in tool.read_file("tmp/evidence.json")
 
 
 @pytest.mark.parametrize("enabled", [False, True])

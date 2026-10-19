@@ -1,5 +1,23 @@
 # Test Log
 
+### sixtydb_tools.py
+
+**Status:** PASS (local HTTP and cookbook checks); live agent run pending
+
+**Description:** Discover a workspace voice when `SIXTYDB_VOICE_ID` is unset,
+generate a WAV artifact, and save audio under `tmp/` with an explicit result
+message. Set `SIXTYDB_API_KEY` and the credentials for the agent's model.
+
+**Result:** `pytest libs/agno/tests/unit/tools/test_sixtydb.py` covers real
+loopback HTTP requests, top-level and `backendResponse` JSON audio, WAV
+validation, rejection of unsupported response shapes, error diagnostics,
+and the actual cookbook through `runpy`. The cookbook checks substitute only
+the LLM response and verify voice discovery, output bytes and the no-audio
+message. These do not verify an LLM-driven conversation or live synthesis;
+those require service and model credentials.
+
+---
+
 ### publora_tools.py (PubloraTools)
 
 **Status:** PASS
@@ -7,6 +25,8 @@
 **Description:** `PubloraTools` against the live Publora API: list the connected social accounts, create a post, read it back, list it, edit it and delete it. The example in the cookbook stops at a draft on purpose, so running it publishes nothing.
 
 **Result:** 13 unit tests pass (`pytest libs/agno/tests/unit/tools/test_publora.py`). Live run on a test account listed 9 connected accounts, created a draft (`6aa7a3bc...`), read it back as `status: draft`, found it in `list_posts`, edited its text and deleted it; the draft was removed afterwards. A request for a post id that does not exist returns the API's 404 as `{"error": "HTTP error: 404 ..."}` rather than raising. Note: a post created without `scheduled_time` is a draft and never goes out, which is what makes the example safe to run.
+
+---
 
 ### atomic_mail_tools.py (AtomicMailTools + workflow)
 

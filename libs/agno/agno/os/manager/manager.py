@@ -28,10 +28,11 @@ class _Manager:
     team: Team
     builder: Agent
     operator: Agent
+    product_manager: Optional[Agent] = None
 
     @property
     def agents(self) -> List[Agent]:
-        return [self.builder, self.operator]
+        return [self.builder, self.operator, *([self.product_manager] if self.product_manager is not None else [])]
 
     @property
     def components(self) -> List[Any]:
@@ -209,6 +210,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
     )
 
     operator_tools = [AgentOSTools(db=db), _diagnostics_tool(agent_os, config.required_env)]
+    docs_tools: List[Any] = []
     operator_instructions = [OPERATOR_INSTRUCTIONS]
     if workspace is not None:
         operator_tools.extend(workspace.get_tools())
@@ -223,7 +225,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
         else:
             # MCPTools.connect logs connection failures and cleans up partial sessions.
             # Unavailable MCP tools are skipped during runs, leaving platform tools usable.
-            operator_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
+            docs_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
 
     operator = Agent(
         id=OPERATOR_ID,
@@ -232,7 +234,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
         model=model,
         db=db,
         offload_tool_results=config.offload_tool_results,
-        tools=operator_tools,
+        tools=[*operator_tools, *docs_tools],
         instructions=operator_instructions,
         add_datetime_to_context=True,
         add_history_to_context=True,
@@ -254,6 +256,9 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
         knowledge=config.knowledge,
         tools=[
             *config.tools,
+            # Share the lifecycle-managed docs connection so a framework question
+            # does not require a specialist run just to look up documentation.
+            *docs_tools,
             # The manager can run served components, including itself once.
             StudioRunnerTools(
                 registry=registry,

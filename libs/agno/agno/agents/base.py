@@ -1,15 +1,18 @@
 import asyncio
 import json
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager, contextmanager, suppress
 from contextvars import ContextVar
 from copy import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from functools import partial
+from pathlib import Path
 from time import time
 from typing import (
     TYPE_CHECKING,
     Any,
     AsyncIterator,
     Awaitable,
+    Callable,
     ClassVar,
     Coroutine,
     Dict,
@@ -55,6 +58,9 @@ from agno.utils.log import log_exception, log_warning
 from agno.utils.string import parse_response_dict_str, parse_response_model_str
 
 if TYPE_CHECKING:
+    from agno.sandbox import Sandbox
+    from agno.sandbox.checkpoint import CheckpointRef, CheckpointStore
+    from agno.sandbox.repository import Repository
     from agno.tools.component import ComponentTool
 
 # Limits for the history replayed into a fresh harness session when the framework's own
@@ -81,6 +87,12 @@ _live_handles: Dict[str, _LiveHandle] = {}
 # Identifies the attempt currently inside _run_cancellation on this task, so handle cleanup can
 # tell its own registration from one a retry of the same run id made in the meantime.
 _handle_owner: ContextVar[Optional[object]] = ContextVar("agno_external_handle_owner", default=None)
+
+
+def _sandbox_harness() -> Any:
+    from agno.sandbox import _harness
+
+    return _harness
 
 
 def run_coroutine_sync(coro: Awaitable[Any]) -> Any:
@@ -223,8 +235,17 @@ class BaseExternalAgent:
     description: Optional[str] = None
     db: Optional[Union[BaseDb, AsyncBaseDb]] = None
     markdown: bool = True
+    # Fail closed when native context is missing; sandbox restoration requires exact continuity.
+    require_native_resume: bool = False
+    # Propagate local persistence failures before acknowledging a runtime result.
+    strict_persistence: bool = False
+    # Run the whole harness process in a computer from this sandbox each turn, e.g. DockerSandbox(image).
+    sandbox: Optional["Sandbox"] = field(default=None, repr=False)
+    repository: Optional["Repository"] = None
 
     _sdk_name: ClassVar[str] = "external"
+    # Runtime name the sandbox uses to rebuild this adapter; None means it cannot be sandboxed.
+    _sandbox_runtime: ClassVar[Optional[str]] = None
 
     # Keep the streamed events on the persisted run (RunOutput.events), as Agent does, so a
     # finished run can be shown and replayed from the database. AgentOS turns this on.
@@ -258,6 +279,15 @@ class BaseExternalAgent:
         if self.events_to_skip is None:
             self.events_to_skip = [RunEvent.run_content]
         self._check_output_schema(self.output_schema)
+        if self.repository is not None:
+            from agno.sandbox.repository import Repository
+
+            if not isinstance(self.repository, Repository):
+                raise TypeError("agent.repository must be a Repository")
+            if self.sandbox is None:
+                raise ValueError("agent.repository requires sandbox=")
+        if self.sandbox is not None:
+            _sandbox_harness().validate(self)
 
     @property
     def sdk(self) -> str:
@@ -460,6 +490,8 @@ class BaseExternalAgent:
         streams yield SSE strings rather than event objects. Separate media
         arguments require adapter support; unsupported media fails before work starts.
         """
+        if "repository" in kwargs:
+            raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
         kwargs.update(self._media_kwargs(images=images, audio=audio, videos=videos, files=files))
         run_id = run_id or str(uuid4())
         session_id = session_id or str(uuid4())
@@ -593,6 +625,8 @@ class BaseExternalAgent:
         """
         if background:
             raise ValueError("Use arun(background=True) on a persistent event loop")
+        if "repository" in kwargs:
+            raise ValueError("repository is agent configuration; set agent.repository=Repository(...)")
         kwargs.update(self._media_kwargs(images=images, audio=audio, videos=videos, files=files))
         if run_id is not None:
             kwargs["run_id"] = run_id
@@ -810,11 +844,12 @@ class BaseExternalAgent:
                             run=run_output, session_id=session.session_id, user_id=user_id, run_index=run_index
                         )
                 except NotImplementedError:
-                    # Adapter not ported to v3 storage; runs persist inline via upsert_session
-                    pass
+                    # Adapter not ported to v3 storage; strict runtimes require explicit run rows.
+                    if strict or self.strict_persistence:
+                        raise
         except Exception as upsert_err:
             log_warning(f"Failed to persist run for {self.sdk} agent '{self.id}': {upsert_err}")
-            if strict or worker_owned:
+            if strict or worker_owned or self.strict_persistence:
                 raise
 
     async def _arewrite_run_row(self, session: AgentSession, run_output: RunOutput) -> None:
@@ -844,9 +879,12 @@ class BaseExternalAgent:
             elif isinstance(self.db, BaseDb):
                 self.db.upsert_run(run=run_output, session_id=session.session_id, user_id=user_id, run_index=run_index)
         except NotImplementedError:
-            pass
+            if self.strict_persistence:
+                raise
         except Exception as upsert_err:
             log_warning(f"Failed to rewrite run row for {self.framework} agent '{self.id}': {upsert_err}")
+            if self.strict_persistence:
+                raise
 
     def get_session(self, session_id: str, user_id: Optional[str] = None) -> Optional[AgentSession]:
         """Read a session scoped to this agent and, when supplied, its user."""
@@ -914,6 +952,9 @@ class BaseExternalAgent:
         so the row is marked whenever no live handle exists here. A run that is live on another
         replica sees the cancellation through the manager and ends cancelled as well.
         """
+        if self.sandbox is not None:
+            await _sandbox_harness().acancel_unowned_row(self, run_id)
+            return
         if self.db is None:
             return
         from agno.run.status_persist import apersist_run_transition
@@ -1145,9 +1186,17 @@ class BaseExternalAgent:
             await araise_if_cancelled(run_id)
 
     async def _aprepare_pending_run(
-        self, run_id: str, session_id: str, user_id: Optional[str], input: Any, queued: bool = False
+        self,
+        run_id: str,
+        session_id: str,
+        user_id: Optional[str],
+        input: Any,
+        queued: bool = False,
+        media: Optional[List[Dict[str, Any]]] = None,
     ) -> RunOutput:
         """Persist an idempotent PENDING row before background or queued execution."""
+        if self.sandbox is not None:
+            return await _sandbox_harness().aprepare_pending_run(self, run_id, session_id, user_id, input, media)
         from agno.os.job_queue import _aappend_pending_run
 
         run = RunOutput(
@@ -1168,10 +1217,18 @@ class BaseExternalAgent:
             await self._apersist_run_in_session(session, run, strict=True)
         return run
 
+    def _queue_terminal_writer(self) -> Optional[Callable[..., Awaitable[Any]]]:
+        """Queue terminal writer that retires sandbox compute before the ticket settles."""
+        if self.sandbox is None:
+            return None
+        return partial(_sandbox_harness().apersist_queue_terminal, self)
+
     async def _apersist_run_fallback(
         self, session_id: str, run_response: RunOutput, user_id: Optional[str] = None
     ) -> None:
         """Re-read the session and persist one run; completed or cancelled rows win."""
+        if self.sandbox is not None:
+            _sandbox_harness().refuse_fallback()
         session = await self.aread_or_create_session(session_id, user_id)
         existing = session.get_run(run_response.run_id or "")
         if existing is not None and existing.status in (RunStatus.completed, RunStatus.cancelled):
@@ -1189,6 +1246,17 @@ class BaseExternalAgent:
         yield_run_output: bool,
         **kwargs: Any,
     ) -> Any:
+        if self.sandbox is not None:
+            return await _sandbox_harness().astart_background(
+                self,
+                input,
+                run_id=run_id,
+                session_id=session_id,
+                user_id=user_id,
+                stream=stream,
+                yield_run_output=yield_run_output,
+                **kwargs,
+            )
         from agno.run.background import _BackgroundStream, _execute_background, _spawn_background
         from agno.run.cancel import aregister_run
         from agno.run.status_persist import apersist_run_transition
@@ -1248,6 +1316,14 @@ class BaseExternalAgent:
         return transport if transport is not None else run
 
     async def _arun_background_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        if self.sandbox is not None:
+            events = _sandbox_harness().astream_background(self, input, **kwargs)
+            try:
+                async for item in events:
+                    yield item
+            finally:
+                await events.aclose()
+            return
         transport = await self._astart_background(input, stream=True, **kwargs)
         pump = transport.pump()
         try:
@@ -1281,6 +1357,80 @@ class BaseExternalAgent:
             return None
         session = await self.aget_session(session_id, user_id)
         return self._find_run_in_session(session, run_id) if session else None
+
+    # ---------------------------------------------------------------------------
+    # Sandbox checkpoints
+    # ---------------------------------------------------------------------------
+
+    @property
+    def checkpoint_store(self) -> "CheckpointStore":
+        """The store this agent's sandbox turns checkpoint to.
+
+        The sandbox's ``checkpoints=`` store, else the host-local file default. The default
+        is refused while a durable queue worker is active, as the coordinator refuses it,
+        because another replica cannot read this host's disk.
+        """
+        return _sandbox_harness().store(self)
+
+    @asynccontextmanager
+    async def aopen_run_checkpoint(self, run_id: str) -> AsyncIterator[Path]:
+        """Open the checkpoint a completed sandbox run committed and yield its archive path.
+
+        The path holds the archive's stored bytes, verified by the store before it is yielded,
+        read-only, and is valid only inside the context. Extract them with
+        ``CheckpointArchive.arestore(path, destination)``, which documents the restored layout.
+        Refused when the run is unknown, belongs to another agent, is not COMPLETED or
+        committed no checkpoint.
+        """
+        store = self.checkpoint_store
+        reference = self._run_checkpoint_ref(run_id, await self._aread_run_row(run_id))
+        async with store.aopen_archive(reference) as archive:
+            yield archive
+
+    @contextmanager
+    def open_run_checkpoint(self, run_id: str) -> Iterator[Path]:
+        """Sync ``aopen_run_checkpoint``; an async database must use the async form, as with ``get_session``."""
+        store = self.checkpoint_store
+        reference = self._run_checkpoint_ref(run_id, self._read_run_row(run_id))
+        with store.open_archive(reference) as archive:
+            yield archive
+
+    def _read_run_row(self, run_id: str) -> Any:
+        if self.db is None:
+            raise ValueError(f"{type(self).__name__} has no database to read run {run_id} from")
+        if isinstance(self.db, AsyncBaseDb):
+            # An async engine's pooled connections belong to the loop that first used them, and a
+            # query on another loop fails inside get_run, which would then look like a missing run.
+            raise ValueError("Use aopen_run_checkpoint with an async database")
+        return self.db.get_run(run_id, deserialize=False)
+
+    async def _aread_run_row(self, run_id: str) -> Any:
+        if self.db is None:
+            raise ValueError(f"{type(self).__name__} has no database to read run {run_id} from")
+        if isinstance(self.db, BaseDb):
+            return self.db.get_run(run_id, deserialize=False)
+        return await self.db.get_run(run_id, deserialize=False)
+
+    def _run_checkpoint_ref(self, run_id: str, row: Any) -> "CheckpointRef":
+        """The checkpoint reference a completed run of this agent committed, from its stored row."""
+        from agno.sandbox.checkpoint import CheckpointRef
+
+        if not isinstance(row, dict):
+            raise ValueError(f"Run {run_id} does not exist")
+        if row.get("agent_id") != self.get_id():
+            raise ValueError(f"Run {run_id} belongs to another agent")
+        run_data = row.get("run_data") or {}
+        if isinstance(run_data, str):
+            run_data = json.loads(run_data)
+        status = str(row.get("status") or run_data.get("status") or "").upper()
+        if status != RunStatus.completed.value:
+            raise ValueError(
+                f"Run {run_id} is {status or 'unknown'}, not COMPLETED; only a completed turn commits a checkpoint"
+            )
+        checkpoint = ((run_data.get("metadata") or {}).get("sandbox") or {}).get("checkpoint")
+        if not isinstance(checkpoint, dict):
+            raise ValueError(f"Run {run_id} committed no sandbox checkpoint")
+        return CheckpointRef(**checkpoint)
 
     # ---------------------------------------------------------------------------
     # One turn per session
@@ -1575,6 +1725,11 @@ class BaseExternalAgent:
             lines.append(f"{role}: {content}")
         return lines
 
+    def _check_native_resume(self, native_id: Optional[str], session: Optional[AgentSession]) -> None:
+        if self.require_native_resume and not native_id and session is not None:
+            if any(run.status == RunStatus.completed for run in session.runs or []):
+                raise ValueError("Native conversation identity is missing; restore its checkpoint before continuing")
+
     @staticmethod
     def _build_prompt(input: Any, history: Optional[List[Dict[str, Any]]], resumed: bool) -> str:
         """Plain prompt when the framework's own session carries the context; otherwise
@@ -1614,6 +1769,8 @@ class BaseExternalAgent:
     # ---------------------------------------------------------------------------
 
     async def _arun_non_stream(self, input: Any, **kwargs: Any) -> RunOutput:
+        if self.sandbox is not None:
+            return await _sandbox_harness().arun(self, input, **kwargs)
         run_id = kwargs.pop("run_id", None) or str(uuid4())
         session_id = kwargs.get("session_id") or str(uuid4())
         kwargs["session_id"] = session_id
@@ -1709,6 +1866,14 @@ class BaseExternalAgent:
             self._release_session(session_id, run_id)
 
     async def _arun_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        if self.sandbox is not None:
+            events = _sandbox_harness().astream(self, input, **kwargs)
+            try:
+                async for item in events:
+                    yield item
+            finally:
+                await events.aclose()
+            return
         run_id = kwargs.pop("run_id", None) or str(uuid4())
         session_id = kwargs.get("session_id") or str(uuid4())
         kwargs["session_id"] = session_id

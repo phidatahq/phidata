@@ -7,7 +7,8 @@ on:
     branches:
       - "*release*" # Run on release-* format
       - "release/*" # Run on release/1.2.3 branch format
-      - "feat/agno-compaction"
+      - "feat/sandbox"
+      - "fix/fastapi-omitted-bool-form-defaults"
   workflow_dispatch: # Allows manual triggering
     inputs:
       branch:
@@ -1295,6 +1296,8 @@ jobs:
         working-directory: .
         env:
           AGNO_TELEMETRY: false
+          # Opts the sandbox suite into real containers; the runner's Docker daemon pulls it.
+          AGNO_TEST_DOCKER_IMAGE: python:3.12-slim
         run: |
           source .venv/bin/activate
           python -m pytest --ignore=./libs/agno/tests/integration/db --ignore=./libs/agno/tests/integration/models --ignore=./libs/agno/tests/integration/agent --ignore=./libs/agno/tests/integration/knowledge --ignore=./libs/agno/tests/integration/teams --ignore=./libs/agno/tests/integration/embedder --ignore=./libs/agno/tests/integration/workflows --ignore=./libs/agno/tests/integration/fs --ignore=./libs/agno/tests/integration/os/interfaces/test_a2a.py --ignore=./libs/agno/tests/integration/os --ignore=./libs/agno/tests/integration/tools/test_seltz.py ./libs/agno/tests/integration

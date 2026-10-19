@@ -94,6 +94,8 @@ class Cloud:
         # Listings omit a new computer for this many listings after its create.
         self.list_lag = 0
         self.connect_options = []
+        # Listings fail once any computer exists, as after a create whose follow-up listing times out.
+        self.fail_list_after_create = False
         self.clock = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
     def add(self, metadata, state="running"):
@@ -143,6 +145,8 @@ class Cloud:
 
     def list(self, query=None, **options):
         self.calls.append(("list", dict(query.metadata)))
+        if self.fail_list_after_create and self.computers:
+            raise e2b.TimeoutException("listing timed out")
         found = []
         for computer in self.computers.values():
             if all(computer.metadata.get(key) == value for key, value in query.metadata.items()):
@@ -318,6 +322,38 @@ async def test_a_create_decides_from_the_listing_that_showed_its_computer(cloud,
     monkeypatch.setattr(e2b.AsyncSandbox, "list", staticmethod(flickering))
     handle = await sandbox.acreate("s1")
     assert list(cloud.computers) == [handle.provider_ref]
+
+
+@pytest.mark.asyncio
+async def test_racing_creates_with_lagging_listings_share_one_computer(cloud, sandbox, monkeypatch):
+    monkeypatch.setattr(e2b_sandbox, "_LISTING_SECONDS", 5.0)
+    cloud.list_lag = 2
+    handles = await asyncio.gather(*(sandbox.acreate("s1") for _ in range(3)))
+    assert len({handle.provider_ref for handle in handles}) == 1 and cloud.count("create") == 1
+    assert list(cloud.computers) == [handles[0].provider_ref] and sandbox._create_locks == {}
+
+
+@pytest.mark.asyncio
+async def test_a_listing_failure_after_create_kills_the_new_computer(cloud, sandbox):
+    cloud.fail_list_after_create = True
+    with pytest.raises(e2b.TimeoutException):
+        await sandbox.acreate("s1")
+    assert cloud.computers == {} and cloud.count("kill") == 1
+
+
+@pytest.mark.asyncio
+async def test_a_create_cancelled_while_waiting_for_listings_kills_the_new_computer(cloud, sandbox, monkeypatch):
+    monkeypatch.setattr(e2b_sandbox, "_LISTING_SECONDS", 30.0)
+    monkeypatch.setattr(e2b_sandbox, "_LISTING_POLL_SECONDS", 0.01)
+    cloud.list_lag = 1000
+    task = asyncio.create_task(sandbox.acreate("s1"))
+    while cloud.count("list") < 3:
+        await asyncio.sleep(0.01)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await asyncio.sleep(0)
+    assert cloud.computers == {} and sandbox._create_locks == {}
 
 
 @pytest.mark.asyncio
@@ -638,8 +674,8 @@ async def test_concurrent_creates_of_one_generation_share_one_computer(cloud, sa
     handles = await asyncio.gather(*(sandbox.acreate("s1", agent_id="coder") for _ in range(5)))
     assert len({handle.provider_ref for handle in handles}) == 1
     assert list(cloud.computers) == [handles[0].provider_ref]
-    # Every task raced past the first lookup, so the duplicates were created and then killed.
-    assert cloud.count("create") == 5 and cloud.count("kill") >= 4
+    # Creates of one generation are serialized, so only the first one reaches E2B.
+    assert cloud.count("create") == 1 and sandbox._create_locks == {}
 
 
 @pytest.mark.asyncio

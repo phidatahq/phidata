@@ -9,8 +9,8 @@ import secrets
 import shlex
 import threading
 import weakref
-from contextlib import suppress
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from contextlib import asynccontextmanager, suppress
+from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, List, Mapping, Optional, Sequence, Tuple
 from uuid import uuid4
 
 from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
@@ -76,7 +76,10 @@ class E2BSandbox(Sandbox):
     E2B assigns random sandbox IDs, so each generation is found again by the
     metadata it was created with. A create whose reply was lost is reconciled by
     that metadata; if two computers exist for one generation, the oldest is kept
-    and the others are killed.
+    and the others are killed. E2B has no atomic allocation, so creates of one
+    generation are serialized within this provider, and callers in different
+    processes must not create the same generation at once; ``SandboxCoordinator``
+    allocates under the session's lease.
 
     ``lifetime`` is the E2B timeout: E2B kills a running computer when it passes,
     and a turn still running dies with it. ``execution_timeout`` bounds one turn
@@ -142,6 +145,9 @@ class E2BSandbox(Sandbox):
             self._options["domain"] = domain
         # Connections to running computers, so each command does not reconnect.
         self._connections: Dict[str, Any] = {}
+        # Creates of one generation run one at a time here, from any thread or event loop.
+        self._create_locks: Dict[str, List[Any]] = {}
+        self._create_locks_guard = threading.Lock()
         # One pooled HTTP client per event loop for the runtime server, so requests reuse TLS connections.
         self._http: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]] = {}
         self._http_lock = threading.Lock()
@@ -312,6 +318,40 @@ class E2BSandbox(Sandbox):
         if _TOKEN_ENV in values:
             raise ValueError("The runtime token is generated per computer; do not set it in env")
         name = self._name(session_id, agent_id, generation)
+        async with self._generation_lock(name):
+            return await self._acreate(name, session_id, agent_id, generation, values)
+
+    @asynccontextmanager
+    async def _generation_lock(self, name: str) -> AsyncIterator[None]:
+        with self._create_locks_guard:
+            entry = self._create_locks.setdefault(name, [threading.Lock(), 0])
+            entry[1] += 1
+        try:
+            # Polled rather than blocking, so a cancelled waiter never takes the lock afterwards.
+            while not entry[0].acquire(blocking=False):
+                await asyncio.sleep(0.05)
+            try:
+                yield
+            finally:
+                entry[0].release()
+        finally:
+            with self._create_locks_guard:
+                entry[1] -= 1
+                if entry[1] == 0:
+                    del self._create_locks[name]
+
+    async def _kill_created(self, sandbox_id: str) -> None:
+        """Kill a computer this create made but cannot hand out, so it never runs unowned."""
+        from e2b import AsyncSandbox
+
+        try:
+            await asyncio.shield(AsyncSandbox.kill(sandbox_id, **self._options))
+        except Exception as error:
+            log_warning(f"Could not kill unlisted E2B sandbox {sandbox_id}: {error}")
+
+    async def _acreate(
+        self, name: str, session_id: str, agent_id: Optional[str], generation: int, values: Mapping[str, str]
+    ) -> SandboxHandle:
         digest = self._digest(session_id, agent_id, generation, values)
         current = await self._lookup(name)
         if current is None:
@@ -351,17 +391,18 @@ class E2BSandbox(Sandbox):
                 found = await self._await_listed(name, None)
                 if found is None:
                     raise SandboxError(f"E2B creation failed: {str(error)[:500] or type(error).__name__}") from error
-            # Oldest-wins is only consistent once every racing create is listed, so wait for this one.
-            if created_id is not None:
-                found = await self._await_listed(name, created_id)
-            current = await self._lookup(name, found) if found is not None else None
+            try:
+                # Listings lag a create, so wait for this one before choosing the oldest.
+                if created_id is not None:
+                    found = await self._await_listed(name, created_id)
+                current = await self._lookup(name, found) if found is not None else None
+            except BaseException:
+                if created_id is not None:
+                    await self._kill_created(created_id)
+                raise
             if current is None:
                 if created_id is not None:
-                    # Never leave a computer this create made running when it cannot be handed out.
-                    try:
-                        await asyncio.shield(AsyncSandbox.kill(created_id, **self._options))
-                    except Exception as error:
-                        log_warning(f"Could not kill unlisted E2B sandbox {created_id}: {error}")
+                    await self._kill_created(created_id)
                 raise SandboxError("E2B sandbox did not appear in listings after creation")
         if current.config_digest != digest:
             raise SandboxError("Sandbox generation already exists with different configuration")

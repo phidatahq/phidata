@@ -436,7 +436,9 @@ def _run(
                 if attempt == 0 and pre_session is not None:
                     agent_session = pre_session
                 else:
-                    agent_session = read_or_create_session(agent, session_id=session_id, user_id=user_id)
+                    agent_session = read_or_create_session(
+                        agent, session_id=session_id, user_id=user_id, store_run=run_context.store_run
+                    )
 
                 # 2. Update metadata and session state
                 if not (attempt == 0 and pre_session is not None):
@@ -844,7 +846,9 @@ def _run_stream(
                 if attempt == 0 and pre_session is not None:
                     agent_session = pre_session
                 else:
-                    agent_session = read_or_create_session(agent, session_id=session_id, user_id=user_id)
+                    agent_session = read_or_create_session(
+                        agent, session_id=session_id, user_id=user_id, store_run=run_context.store_run
+                    )
 
                 # 2. Update metadata and session state
                 if not (attempt == 0 and pre_session is not None):
@@ -1342,6 +1346,7 @@ def run_dispatch(
     output_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
     yield_run_output: Optional[bool] = None,
     debug_mode: Optional[bool] = None,
+    store_run: Optional[bool] = None,
     **kwargs: Any,
 ) -> Union[RunOutput, Iterator[Union[RunOutputEvent, RunOutput]]]:
     """Run the Agent and return the response."""
@@ -1406,7 +1411,9 @@ def run_dispatch(
 
     from agno.agent._storage import read_or_create_session, update_metadata
 
-    agent_session = read_or_create_session(agent, session_id=session_id, user_id=user_id)
+    # Resolved early: the session load already depends on it (a temporary run gets a private copy).
+    effective_store_run = store_run if store_run is not None else (run_context.store_run if run_context else True)
+    agent_session = read_or_create_session(agent, session_id=session_id, user_id=user_id, store_run=effective_store_run)
     # Snapshot BEFORE update_metadata merges agent.metadata into the session dict,
     # so the session layer keeps the session's own values (agent < session < call-site).
     session_metadata = deepcopy(agent_session.metadata)
@@ -1426,6 +1433,7 @@ def run_dispatch(
         metadata=metadata,
         session_metadata=session_metadata,
         output_schema=output_schema,
+        store_run=store_run,
     )
 
     agent.model = cast(Model, agent.model)
@@ -1440,6 +1448,7 @@ def run_dispatch(
         knowledge_filters=opts.knowledge_filters,
         metadata=opts.metadata,
         output_schema=opts.output_schema,
+        store_run=opts.store_run,
     )
     # Apply options with precedence: explicit args > existing run_context > resolved defaults.
     opts.apply_to_context(
@@ -1447,6 +1456,7 @@ def run_dispatch(
         dependencies_provided=dependencies is not None,
         knowledge_filters_provided=knowledge_filters is not None,
         metadata_provided=metadata is not None,
+        store_run_provided=store_run is not None,
         user_id=user_id,
     )
 
@@ -1583,7 +1593,9 @@ async def _arun(
                 if attempt == 0 and pre_session is not None:
                     agent_session = pre_session
                 else:
-                    agent_session = await aread_or_create_session(agent, session_id=session_id, user_id=user_id)
+                    agent_session = await aread_or_create_session(
+                        agent, session_id=session_id, user_id=user_id, store_run=run_context.store_run
+                    )
 
                 # 2. Update metadata and session state
                 if not (attempt == 0 and pre_session is not None):
@@ -2190,7 +2202,9 @@ async def _arun_stream(
                 if attempt == 0 and pre_session is not None:
                     agent_session = pre_session
                 else:
-                    agent_session = await aread_or_create_session(agent, session_id=session_id, user_id=user_id)
+                    agent_session = await aread_or_create_session(
+                        agent, session_id=session_id, user_id=user_id, store_run=run_context.store_run
+                    )
 
                 # Start the Run by yielding a RunStarted event
                 if stream_events:
@@ -2733,6 +2747,7 @@ def arun_dispatch(  # type: ignore
     yield_run_output: Optional[bool] = None,
     debug_mode: Optional[bool] = None,
     background: bool = False,
+    store_run: Optional[bool] = None,
     **kwargs: Any,
 ) -> Union[RunOutput, AsyncIterator[RunOutputEvent]]:
     """Async Run the Agent and return the response."""
@@ -2741,6 +2756,13 @@ def arun_dispatch(  # type: ignore
     from agno.agent._response import get_response_format
 
     run_id = run_id or str(uuid4())
+
+    # Resolved early: the session load already depends on it (a temporary run gets a private copy).
+    effective_store_run = store_run if store_run is not None else (run_context.store_run if run_context else True)
+    if background and not effective_store_run:
+        raise ValueError(
+            "store_run=False cannot be combined with background=True: a background run is polled from its stored run row"
+        )
 
     if (add_history_to_context or agent.add_history_to_context) and not agent.db and not agent.team_id:
         log_warning(
@@ -2798,7 +2820,9 @@ def arun_dispatch(  # type: ignore
     if not has_async_db(agent):
         from agno.agent._storage import read_or_create_session
 
-        _pre_session = read_or_create_session(agent, session_id=session_id, user_id=user_id)
+        _pre_session = read_or_create_session(
+            agent, session_id=session_id, user_id=user_id, store_run=effective_store_run
+        )
         # Snapshot BEFORE update_metadata merges agent.metadata into the session dict,
         # so the session layer keeps the session's own values (agent < session < call-site).
         _session_metadata = deepcopy(_pre_session.metadata)
@@ -2818,6 +2842,7 @@ def arun_dispatch(  # type: ignore
         metadata=metadata,
         session_metadata=_session_metadata,
         output_schema=output_schema,
+        store_run=store_run,
     )
 
     agent.model = cast(Model, agent.model)
@@ -2832,6 +2857,7 @@ def arun_dispatch(  # type: ignore
         knowledge_filters=opts.knowledge_filters,
         metadata=opts.metadata,
         output_schema=opts.output_schema,
+        store_run=opts.store_run,
     )
     # Apply options with precedence: explicit args > existing run_context > resolved defaults.
     opts.apply_to_context(
@@ -2839,6 +2865,7 @@ def arun_dispatch(  # type: ignore
         dependencies_provided=dependencies is not None,
         knowledge_filters_provided=knowledge_filters is not None,
         metadata_provided=metadata is not None,
+        store_run_provided=store_run is not None,
         user_id=user_id,
     )
 
@@ -6050,6 +6077,10 @@ def persist_run_in_session(
         else:
             session.session_data = {"session_state": run_context.session_state}
 
+    # A temporary run (store_run=False) keeps its private session copy in memory only.
+    if getattr(session, "transient", False):
+        return
+
     # Persist the session row and this single run (both O(1))
     _session.save_session(agent, session=session)
     _session.save_run(
@@ -6086,6 +6117,10 @@ async def apersist_run_in_session(
             session.session_data["session_state"] = run_context.session_state
         else:
             session.session_data = {"session_state": run_context.session_state}
+
+    # A temporary run (store_run=False) keeps its private session copy in memory only.
+    if getattr(session, "transient", False):
+        return
 
     await _session.asave_session(agent, session=session)
     await _session.asave_run(

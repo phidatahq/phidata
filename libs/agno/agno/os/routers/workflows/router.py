@@ -1811,6 +1811,11 @@ def get_workflow_router(
             False,
             description="Run workflow in background (survives client disconnect). Requires database. Use /resume to reconnect.",
         ),
+        store_run: bool = Form(
+            True,
+            description="Set to false for a temporary run: the response is returned but neither the run nor "
+            "its session is saved to the database. Cannot be combined with background=true",
+        ),
         session_id: Optional[str] = Form(
             None, description="Session ID for conversation continuity. If not provided, a new session is created"
         ),
@@ -1822,6 +1827,16 @@ def get_workflow_router(
         ),
     ):
         kwargs = await get_request_kwargs(request, create_workflow_run)
+        if not store_run:
+            if not os.allow_temporary_runs:
+                raise HTTPException(status_code=400, detail="Temporary runs (store_run=false) are disabled on this OS")
+            if background:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A temporary run (store_run=false) cannot run in the background: "
+                    "background runs are polled from the stored run row",
+                )
+            kwargs["store_run"] = False
 
         # Scoped non-admin callers always get their JWT sub as user_id.
         # Admins and unscoped callers fall through to middleware/form values.

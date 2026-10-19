@@ -722,12 +722,27 @@ def get_agent_router(
         background: bool = Form(
             False, description="Run in background and return immediately with run metadata (requires database)"
         ),
+        store_run: bool = Form(
+            True,
+            description="Set to false for a temporary run: the response is returned but neither the run nor "
+            "its session is saved to the database. Cannot be combined with background=true",
+        ),
         factory_input: Optional[str] = Form(
             None,
             description="JSON object with factory-specific parameters for dynamic agent construction",
         ),
     ):
         kwargs = await get_request_kwargs(request, create_agent_run)
+        if not store_run:
+            if not os.allow_temporary_runs:
+                raise HTTPException(status_code=400, detail="Temporary runs (store_run=false) are disabled on this OS")
+            if background:
+                raise HTTPException(
+                    status_code=400,
+                    detail="A temporary run (store_run=false) cannot run in the background: "
+                    "background runs are polled from the stored run row",
+                )
+            kwargs["store_run"] = False
 
         files_metadata_list = parse_files_metadata(files_metadata)
 

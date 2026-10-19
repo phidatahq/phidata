@@ -206,9 +206,13 @@ async def _asetup_session(
     )
 
     if _has_async_db(team):
-        team_session = await _aread_or_create_session(team, session_id=session_id, user_id=user_id)
+        team_session = await _aread_or_create_session(
+            team, session_id=session_id, user_id=user_id, store_run=run_context.store_run
+        )
     else:
-        team_session = _read_or_create_session(team, session_id=session_id, user_id=user_id)
+        team_session = _read_or_create_session(
+            team, session_id=session_id, user_id=user_id, store_run=run_context.store_run
+        )
 
     # Update metadata
     _update_metadata(team, session=team_session)
@@ -1922,6 +1926,7 @@ def run_dispatch(
     debug_mode: Optional[bool] = None,
     yield_run_output: bool = False,
     output_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
+    store_run: Optional[bool] = None,
     **kwargs: Any,
 ) -> Union[TeamRunOutput, Iterator[Union[RunOutputEvent, TeamRunOutputEvent]]]:
     """Run the Team and return the response."""
@@ -1988,7 +1993,11 @@ def run_dispatch(
         # Read existing session from database
         from copy import deepcopy
 
-        team_session = _read_or_create_session(team, session_id=session_id, user_id=user_id)
+        # Resolved early: the session load already depends on it (a temporary run gets a private copy).
+        effective_store_run = store_run if store_run is not None else (run_context.store_run if run_context else True)
+        team_session = _read_or_create_session(
+            team, session_id=session_id, user_id=user_id, store_run=effective_store_run
+        )
         # Snapshot BEFORE _update_metadata merges team.metadata into the session dict,
         # so the session layer keeps the session's own values (team < session < call-site).
         session_metadata = deepcopy(team_session.metadata)
@@ -2008,6 +2017,7 @@ def run_dispatch(
             metadata=metadata,
             session_metadata=session_metadata,
             output_schema=output_schema,
+            store_run=store_run,
         )
 
         # Initialize session state
@@ -2038,6 +2048,7 @@ def run_dispatch(
             knowledge_filters=opts.knowledge_filters,
             metadata=opts.metadata,
             output_schema=opts.output_schema,
+            store_run=opts.store_run,
         )
         # Apply options with precedence: explicit args > existing run_context > resolved defaults.
         opts.apply_to_context(
@@ -2045,6 +2056,7 @@ def run_dispatch(
             dependencies_provided=dependencies_provided,
             knowledge_filters_provided=knowledge_filters_provided,
             metadata_provided=metadata_provided,
+            store_run_provided=store_run is not None,
             user_id=user_id,
         )
 
@@ -4153,6 +4165,7 @@ def arun_dispatch(  # type: ignore
     yield_run_output: bool = False,
     output_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None,
     background: bool = False,
+    store_run: Optional[bool] = None,
     **kwargs: Any,
 ) -> Union[TeamRunOutput, AsyncIterator[Union[RunOutputEvent, TeamRunOutputEvent]]]:
     """Run the Team asynchronously and return the response."""
@@ -4163,6 +4176,12 @@ def arun_dispatch(  # type: ignore
     from agno.team._run_options import resolve_run_options
 
     run_id = run_id or str(uuid4())
+
+    effective_store_run = store_run if store_run is not None else (run_context.store_run if run_context else True)
+    if background and not effective_store_run:
+        raise ValueError(
+            "store_run=False cannot be combined with background=True: a background run is polled from its stored run row"
+        )
 
     # Initialize Team
     team.initialize_team(debug_mode=debug_mode)
@@ -4182,6 +4201,7 @@ def arun_dispatch(  # type: ignore
         knowledge_filters=knowledge_filters,
         metadata=metadata,
         output_schema=output_schema,
+        store_run=store_run,
     )
 
     if (opts.add_history_to_context) and not team.db and not team.parent_team_id:
@@ -4238,6 +4258,7 @@ def arun_dispatch(  # type: ignore
         knowledge_filters=opts.knowledge_filters,
         metadata=opts.metadata,
         output_schema=opts.output_schema,
+        store_run=opts.store_run,
     )
     # Apply options with precedence: explicit args > existing run_context > resolved defaults.
     opts.apply_to_context(
@@ -4245,6 +4266,7 @@ def arun_dispatch(  # type: ignore
         dependencies_provided=dependencies_provided,
         knowledge_filters_provided=knowledge_filters_provided,
         metadata_provided=metadata_provided,
+        store_run_provided=store_run is not None,
         user_id=user_id,
     )
 
@@ -4668,6 +4690,10 @@ def _cleanup_and_store(
         else:
             session.session_data = {"session_state": run_context.session_state}
 
+    # A temporary run (store_run=False) keeps its private session copy in memory only.
+    if getattr(session, "transient", False):
+        return
+
     # Persist the session row and this single run (both O(1))
     from agno.team._session import save_run
 
@@ -4750,6 +4776,10 @@ async def _acleanup_and_store(
             session.session_data["session_state"] = run_context.session_state
         else:
             session.session_data = {"session_state": run_context.session_state}
+
+    # A temporary run (store_run=False) keeps its private session copy in memory only.
+    if getattr(session, "transient", False):
+        return
 
     # Persist the session row and this single run (both O(1))
     from agno.team._session import asave_run
@@ -4894,6 +4924,10 @@ def _persist_team_run_in_session(
         else:
             session.session_data = {"session_state": run_context.session_state}
 
+    # A temporary run (store_run=False) keeps its private session copy in memory only.
+    if getattr(session, "transient", False):
+        return
+
     # Persist the session row and this single run (both O(1))
     from agno.team._session import save_run
 
@@ -4953,6 +4987,10 @@ async def _apersist_team_run_in_session(
             session.session_data["session_state"] = run_context.session_state
         else:
             session.session_data = {"session_state": run_context.session_state}
+
+    # A temporary run (store_run=False) keeps its private session copy in memory only.
+    if getattr(session, "transient", False):
+        return
 
     # Persist the session row and this single run (both O(1))
     from agno.team._session import asave_run

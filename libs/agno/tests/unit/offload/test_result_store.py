@@ -895,5 +895,6 @@ def test_a_truncated_excerpt_reports_more_so_a_skipped_match_is_not_lost(store, 
     ref = _offload(store, payload)
     matches = store.search(ref.result_id, "needle")
     assert [match.char_offset for match in matches] == [0], "the second match sat inside the first excerpt"
-    assert len(matches[0].line) <= 100 and "needle" + "x" * 50 in matches[0].line
+    # 100 minus the 48 characters reserved for the match header leaves 52 for the excerpt.
+    assert len(matches[0].line) == 52 and matches[0].line.startswith("needle" + "x" * 40)
     assert matches[0].more is True

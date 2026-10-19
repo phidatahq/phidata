@@ -18,6 +18,7 @@ from agno.media.storage.local import LocalMediaStorage
 from agno.models.base import Model
 from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
+from agno.offload import ResultStore
 from agno.run.base import RunStatus
 from agno.session.agent import AgentSession
 from agno.session.team import TeamSession
@@ -329,6 +330,44 @@ class TestTeam:
         stored = team.run("weather?", session_id="s1")
         assert stored.is_paused
         assert _approvals(db) == 1
+
+    def test_temporary_run_offloads_no_member_messages_to_the_result_store(self, db: SqliteDb):
+        member = Agent(id="member", name="Member", model=RecordingModel())
+        team = Team(
+            id="t",
+            name="T",
+            model=DelegatingModel("member"),
+            members=[member],
+            db=db,
+            offload_tool_results=ResultStore(threshold_chars=100),
+        )
+        long_task = "please summarize this " * 20
+
+        team.run(long_task, session_id="s1", store_run=False)
+
+        assert db.get_tool_results_for_session("s1") == []
+        assert _runs(db, "s1") == 0
+
+        # A stored run with the same oversized member input does offload it.
+        team.run(long_task, session_id="s1")
+        assert db.get_tool_results_for_session("s1")
+
+    @pytest.mark.asyncio
+    async def test_async_temporary_run_offloads_no_member_messages_to_the_result_store(self, db: SqliteDb):
+        member = Agent(id="member", name="Member", model=RecordingModel())
+        team = Team(
+            id="t",
+            name="T",
+            model=DelegatingModel("member"),
+            members=[member],
+            db=db,
+            offload_tool_results=ResultStore(threshold_chars=100),
+        )
+
+        await team.arun("please summarize this " * 20, session_id="s1", store_run=False)
+
+        assert db.get_tool_results_for_session("s1") == []
+        assert _runs(db, "s1") == 0
 
     def test_member_cached_session_is_not_changed_by_a_temporary_run(self, db: SqliteDb):
         member_model = RecordingModel()

@@ -4562,13 +4562,17 @@ def _member_run_for_storage(team: "Team", session: TeamSession, member_run: Any)
     The live object is returned unchanged when offloading is off, so callers
     reading ``RunOutput.member_responses`` always see the whole answer. A
     sub-team offloads too: its member runs are written by the parent through
-    the session copy. A workflow step's member runs are never written, so no
-    storage copy is made for them.
+    the session copy. A workflow step's member runs and a temporary run's (transient
+    session) are never written, so no storage copy is made for them.
     """
     store = getattr(team, "_result_store", None)
     if store is None or not store.member_responses:
         return member_run
-    if getattr(team, "workflow_id", None) is not None or _member_opted_out_of_the_store(team, member_run):
+    if (
+        getattr(team, "workflow_id", None) is not None
+        or is_transient(session)
+        or _member_opted_out_of_the_store(team, member_run)
+    ):
         return member_run
     from agno.offload.runs import offload_run_for_storage
 
@@ -4580,7 +4584,11 @@ async def _amember_run_for_storage(team: "Team", session: TeamSession, member_ru
     store = getattr(team, "_result_store", None)
     if store is None or not store.member_responses:
         return member_run
-    if getattr(team, "workflow_id", None) is not None or _member_opted_out_of_the_store(team, member_run):
+    if (
+        getattr(team, "workflow_id", None) is not None
+        or is_transient(session)
+        or _member_opted_out_of_the_store(team, member_run)
+    ):
         return member_run
     from agno.offload.runs import aoffload_run_for_storage
 

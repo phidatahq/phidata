@@ -361,17 +361,18 @@ class CompanyTools(Toolkit):
         from agno.db.schemas.tasks import _revision_actor, _revision_transition, public_task
 
         _permission("tasks", "write", _agno_run_context)
-        self._scoped_user(_agno_run_context)
         manager = self._sync()
         row = manager.get_task(task_id)
         if row is None:
             raise LookupError("Task not found")
+        user = self._scoped_user(_agno_run_context)
+        _require_owner(row, user)
         if not _revision_transition(row, "ready"):
             raise ValueError("Only reviewed work can request revisions")
         actor = getattr(_agno_agent, "id", None) or self._agent_id or _identity(_agno_run_context)
         with _revision_actor(actor):
             result = manager.transition_task(
-                task_id=task_id, target="ready", reason=reason, accepted_by=_identity(_agno_run_context)
+                task_id=task_id, target="ready", reason=reason, user_id=user, accepted_by=_identity(_agno_run_context)
             )
         if result is None:
             raise ValueError("Task changed while requesting revisions")
@@ -693,17 +694,18 @@ class CompanyTools(Toolkit):
         from agno.db.schemas.tasks import _revision_actor, _revision_transition, public_task
 
         await _apermission("tasks", "write", _agno_run_context)
-        self._scoped_user(_agno_run_context)
         manager = self._async()
         row = await manager.get_task(task_id)
         if row is None:
             raise LookupError("Task not found")
+        user = self._scoped_user(_agno_run_context)
+        _require_owner(row, user)
         if not _revision_transition(row, "ready"):
             raise ValueError("Only reviewed work can request revisions")
         actor = getattr(_agno_agent, "id", None) or self._agent_id or _identity(_agno_run_context)
         with _revision_actor(actor):
             result = await manager.transition_task(
-                task_id=task_id, target="ready", reason=reason, accepted_by=_identity(_agno_run_context)
+                task_id=task_id, target="ready", reason=reason, user_id=user, accepted_by=_identity(_agno_run_context)
             )
         if result is None:
             raise ValueError("Task changed while requesting revisions")

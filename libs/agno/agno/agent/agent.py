@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -34,14 +34,17 @@ from agno.agent import (
     _utils,
 )
 from agno.agent.followup import FollowupConfig, resolve_followup_settings
+from agno.compaction.compaction import Compaction
 from agno.compression.manager import CompressionManager
 from agno.db.base import AsyncBaseDb, BaseDb, ComponentType, UserMemory
 from agno.eval.base import BaseEval
 from agno.filters import FilterExpr
 from agno.guardrails import BaseGuardrail
 from agno.knowledge.protocol import KnowledgeProtocol
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 
 if TYPE_CHECKING:
+    from agno.compaction.types import CompactionResult
     from agno.fs import FileSystem
     from agno.learn.machine import LearningMachine
     from agno.tools.component import ComponentTool
@@ -56,6 +59,7 @@ from agno.models.message import Message
 
 if TYPE_CHECKING:
     from agno.offload.store import ResultStore
+    from agno.sandbox import Sandbox
 from agno.registry.registry import Registry
 from agno.run import RunContext, RunStatus
 from agno.run.agent import (
@@ -363,6 +367,13 @@ class Agent:
     # Metadata stored with this agent
     metadata: Optional[Dict[str, Any]] = None
 
+    # --- Compaction ---
+    # Keep a long session inside the context window: when the conversation
+    # crosses a threshold, older messages are archived and replaced by a
+    # summary. True uses the defaults; a Compaction sets the thresholds, what
+    # is kept verbatim, and whether the agent can search the archive.
+    compaction: Optional[Union[bool, "Compaction"]] = None
+
     # --- Context Compression ---
     # If True, compress tool call results to save context
     compress_tool_results: bool = False
@@ -395,6 +406,9 @@ class Agent:
     # Custom cache key function for knowledge callable factory
     callable_knowledge_cache_key: Optional[Callable[..., Optional[str]]] = None
 
+    # Keep this agent out of the registry while allowing it to run.
+    _registry_excluded: bool = field(default=False, init=False, repr=False, compare=False)
+
     def __init__(
         self,
         *,
@@ -425,6 +439,7 @@ class Agent:
         enable_session_summaries: bool = False,
         add_session_summary_to_context: Optional[bool] = None,
         session_summary_manager: Optional[SessionSummaryManager] = None,
+        compaction: Optional[Union[bool, Compaction]] = None,
         compress_tool_results: bool = False,
         compression_manager: Optional[CompressionManager] = None,
         offload_tool_results: Optional[Union[bool, "ResultStore"]] = None,
@@ -506,7 +521,13 @@ class Agent:
         cache_callables: bool = True,
         callable_tools_cache_key: Optional[Callable[..., Optional[str]]] = None,
         callable_knowledge_cache_key: Optional[Callable[..., Optional[str]]] = None,
+        sandbox: Optional["Sandbox"] = None,
     ):
+        if sandbox is not None:
+            raise NotImplementedError(
+                "Agent(sandbox=...) is not supported yet. Use ClaudeAgent(sandbox=...) or "
+                "CodexAgent(sandbox=...) to run a coding harness inside a sandbox."
+            )
         self.model = model  # type: ignore[assignment]
         if fallback_config is not None:
             if fallback_models:
@@ -553,6 +574,9 @@ class Agent:
             self.enable_session_summaries = True
 
         self.add_session_summary_to_context = add_session_summary_to_context
+
+        # Compaction settings
+        self.compaction = compaction
 
         # Context compression settings
         self.compress_tool_results = compress_tool_results
@@ -720,6 +744,7 @@ class Agent:
         self._callable_knowledge_cache: Dict[str, Any] = {}
 
         _init.get_models(self)
+        _init.disable_compaction_without_records(self)
 
     # ---------------------------------------------------------------
     # Properties
@@ -1100,6 +1125,23 @@ class Agent:
 
     async def asave_session(self, session: Union[AgentSession, TeamSession, WorkflowSession]) -> None:
         return await _session.asave_session(self, session=session)
+
+    def compact(self, session_id: Optional[str] = None, user_id: Optional[str] = None) -> "CompactionResult":
+        """Compact this session's history now, without waiting for the size trigger.
+
+        For folding at a moment you choose - the end of a topic, before a long task - rather
+        than when the context happens to cross a threshold.
+
+        Returns a CompactionResult carrying a status and a human-readable message. A fold can
+        legitimately decline: if the span is too small to pay for the summary replacing it,
+        compacting would leave the context bigger, so it is reported rather than performed.
+        Check ``result.compacted``, or show ``result.message``. ``result.metrics`` carries the
+        summarizer's token usage under ``compaction_model``, or None when no summary was made.
+        """
+        return _messages.compact_session(self, session_id=session_id, user_id=user_id)
+
+    async def acompact(self, session_id: Optional[str] = None, user_id: Optional[str] = None) -> "CompactionResult":
+        return await _messages.acompact_session(self, session_id=session_id, user_id=user_id)
 
     def rename(self, name: str, session_id: Optional[str] = None) -> None:
         return _session.rename(self, name=name, session_id=session_id)
@@ -1844,10 +1886,14 @@ def get_agent_by_id(
         Agent instance or None.
 
     Raises:
-        ComponentRehydrationError: If strict and a registry reference cannot be resolved.
+        ComponentRehydrationError: If the ID is reserved for OS Manager, or if strict
+            and a registry reference cannot be resolved.
     """
     from agno.exceptions import ComponentRehydrationError
     from agno.utils.log import log_error
+
+    if id in RESERVED_MANAGER_IDS:
+        raise ComponentRehydrationError(_reserved_manager_id_message(id))
 
     try:
         # Only resolve the agent if owned by this user, unowned (shared), or published.
@@ -1923,6 +1969,7 @@ def get_agents(
     """
     from agno.utils.log import log_error
 
+    exclude_component_ids = set(exclude_component_ids or ()) | RESERVED_MANAGER_IDS
     agents: List[Agent] = []
     try:
         # The DB default page is one small page and the catalog can exceed it

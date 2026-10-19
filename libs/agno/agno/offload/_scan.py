@@ -28,13 +28,13 @@ def main() -> None:
     positions: List[List[int]] = []
     more = False
     for index, line in enumerate(request["content"].split("\n")):
-        found = compiled.search(line)
-        if found is None:
-            continue
-        if len(positions) >= limit:
-            more = True
+        for found in compiled.finditer(line):
+            if len(positions) >= limit:
+                more = True
+                break
+            positions.append([index + 1, found.start(), found.end() - found.start()])
+        if more:
             break
-        positions.append([index + 1, found.start(), found.end() - found.start()])
     print(json.dumps({"positions": positions, "more": more}))
 
 

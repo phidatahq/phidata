@@ -559,6 +559,59 @@ def test_search_shows_a_window_around_a_match_on_a_long_line(store):
     assert match.line.startswith("...")
 
 
+@pytest.mark.parametrize("pattern", ["learning", "learn(ing)"])
+@pytest.mark.parametrize("async_mode", [False, True])
+def test_search_finds_later_passages_in_single_line_json(store, pattern, async_mode):
+    import asyncio
+
+    payload = json.dumps(
+        {
+            "results": [
+                {"content": "learning: overview " + "x" * 3000},
+                {"content": "learning: agentic memory " + "y" * 3000},
+                {"content": "learning: persistence " + "z" * 3000},
+            ]
+        }
+    )
+    ref = _offload(store, payload)
+    matches = asyncio.run(store.asearch(ref.result_id, pattern)) if async_mode else store.search(ref.result_id, pattern)
+    assert len(matches) == 3
+    assert [m.line_number for m in matches] == [1, 1, 1]
+    assert all(len(m.line) <= 500 for m in matches)
+    assert "agentic memory" in matches[1].line
+    assert "persistence" in matches[2].line
+    for match in matches:
+        kwargs = dict(start_line=1, start_char=match.char_offset, max_chars=80)
+        page = asyncio.run(store.aread(ref.result_id, **kwargs)) if async_mode else store.read(ref.result_id, **kwargs)
+        assert page.text == payload[match.char_offset : match.char_offset + 80]
+        assert page.next_start_char == match.char_offset + 80
+    assert store.payload(ref.result_id) == payload
+
+
+@pytest.mark.parametrize("pattern", ["needle", "(needle)", "(?=needle)"])
+def test_single_line_search_retains_match_limit_and_reports_more(store, pattern):
+    ref = _offload(store, "needle " * 100)
+    matches = store.search(ref.result_id, pattern)
+    assert len(matches) == 20
+    assert matches[-1].more
+    assert [m.char_offset for m in matches] == list(range(0, 140, 7))
+
+
+@pytest.mark.parametrize("max_chars,expected", [(0, 1), (-1, 1), (17, 17), (100_000, READ_MAX_CHARS)])
+@pytest.mark.parametrize("async_mode", [False, True])
+def test_focused_read_clamps_budget_and_preserves_continuation(store, max_chars, expected, async_mode):
+    import asyncio
+
+    payload = "x" * (READ_MAX_CHARS + 100)
+    ref = _offload(store, payload)
+    kwargs = dict(start_char=7, max_chars=max_chars)
+    page = asyncio.run(store.aread(ref.result_id, **kwargs)) if async_mode else store.read(ref.result_id, **kwargs)
+    assert page.text == payload[7 : 7 + expected]
+    assert page.truncated
+    assert page.next_start_line == 1
+    assert page.next_start_char == 7 + expected
+
+
 def test_a_refused_envelope_stays_small_for_a_huge_last_line(store):
     output = "\n".join(["header"] * 30 + ["x" * 2_000_000])
     envelope = render_refused_envelope(
@@ -566,6 +619,26 @@ def test_a_refused_envelope_stays_small_for_a_huge_last_line(store):
     )
     assert len(envelope) < 5_000
     assert 'stored="false"' in envelope
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+def test_readback_tool_exposes_excerpt_budget_and_keeps_session_checks(store, async_mode):
+    import asyncio
+    from types import SimpleNamespace
+
+    from agno.offload.tools import get_read_result_function
+    from agno.run import RunContext
+
+    ref = _offload(store, "intro " + "learning details " * 2000)
+    owner = SimpleNamespace(_result_store=store)
+    tool = get_read_result_function(owner, RunContext(run_id="r1", session_id="S1"), async_mode=async_mode)
+    assert "max_chars" in tool.parameters["properties"]
+    kwargs = dict(result_id=ref.result_id, start_char=6, max_chars=34)
+    result = asyncio.run(tool.entrypoint(**kwargs)) if async_mode else tool.entrypoint(**kwargs)
+    assert result.split("\n", 1)[1] == "learning details " * 2
+    denied = get_read_result_function(owner, RunContext(run_id="r2", session_id="other"), async_mode=async_mode)
+    result = asyncio.run(denied.entrypoint(**kwargs)) if async_mode else denied.entrypoint(**kwargs)
+    assert result == f"Error: result {ref.result_id} belongs to a different session"
 
 
 def test_sweep_deletes_index_rows_in_bounded_batches(tmp_path, monkeypatch):

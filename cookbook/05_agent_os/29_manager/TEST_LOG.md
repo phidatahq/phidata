@@ -1,5 +1,23 @@
 # Test log
 
+## Focused documentation lookup, 2026-10-19
+
+### manager_source.py
+
+**Status:** PASS
+
+**Description:** Constructed the example with branch source and a temporary
+working directory, without model or network calls. Inspected the configured
+documentation tool; the manager unit suite exercises direct sync/async lookup
+with a scripted model.
+
+**Result:** OS Manager and Platform Manager share one docs toolkit. The scripted
+manager lookup completes with one docs tool call, two model invocations, and no
+member runs. This verifies the available execution path, not live-model routing
+quality or latency. Live conversations remain an opt-in check.
+
+---
+
 ## Manager package and default offloading, 2026-10-14
 
 ### basic_manager.py

@@ -113,16 +113,16 @@ def _clip_around(line: str, char_offset: int, match_len: int = 1) -> str:
 def _find_match_positions(
     lines: List[str], compiled: "re.Pattern[str]", limit: int
 ) -> Tuple[List[Tuple[int, int, int]], bool]:
-    """(1-indexed line number, char offset, match length) for each matching
-    line, capped at ``limit``; the flag is True when one more match exists."""
+    """Match positions, including repeated matches on a single JSON line.
+
+    Capped at ``limit``; the flag is True when one more match exists.
+    """
     positions: List[Tuple[int, int, int]] = []
     for index, line in enumerate(lines):
-        found = compiled.search(line)
-        if found is None:
-            continue
-        if len(positions) >= limit:
-            return positions, True
-        positions.append((index + 1, found.start(), found.end() - found.start()))
+        for found in compiled.finditer(line):
+            if len(positions) >= limit:
+                return positions, True
+            positions.append((index + 1, found.start(), found.end() - found.start()))
     return positions, False
 
 
@@ -770,13 +770,19 @@ class ResultStore:
         return await self._adb_call("get_tool_result", result_id)
 
     def _page_from_content(
-        self, content: str, start_line: int, end_line: Optional[int], start_char: int = 0
+        self,
+        content: str,
+        start_line: int,
+        end_line: Optional[int],
+        start_char: int = 0,
+        max_chars: int = READ_MAX_CHARS,
     ) -> ResultPage:
         lines = content.split("\n")
         line_count = len(lines)
         start = min(max(1, start_line), line_count)
         end = line_count if end_line is None else min(max(end_line, start), line_count)
         offset = max(0, start_char)
+        char_limit = max(1, min(max_chars, READ_MAX_CHARS))
         pieces: List[str] = []
         chars = 0
         truncated = False
@@ -792,7 +798,7 @@ class ResultStore:
             skip = offset if current == start else 0
             line = lines[current - 1][skip:]
             separator = 1 if pieces else 0
-            room = READ_MAX_CHARS - chars - separator
+            room = char_limit - chars - separator
             if len(line) > room:
                 # The line does not fit. Take what fits and continue inside
                 # this line on the next page, so no character is ever lost.
@@ -853,24 +859,35 @@ class ResultStore:
         return await self._aread_payload(row)
 
     def read(
-        self, result_id: str, start_line: int = 1, end_line: Optional[int] = None, start_char: int = 0
+        self,
+        result_id: str,
+        start_line: int = 1,
+        end_line: Optional[int] = None,
+        start_char: int = 0,
+        max_chars: int = READ_MAX_CHARS,
     ) -> ResultPage:
         """Read a page of a stored result. Lines are 1-indexed and inclusive;
-        ``start_char`` is the 0-indexed offset into ``start_line`` to begin at."""
+        ``start_char`` is the 0-indexed offset into ``start_line`` to begin at.
+        ``max_chars`` bounds a focused excerpt, clamped to 1 through 16000."""
         row = self.get_row(result_id)
         if row is None:
             raise KeyError(f"unknown result id {result_id}")
-        return self._page_from_content(self._read_payload(row), start_line, end_line, start_char)
+        return self._page_from_content(self._read_payload(row), start_line, end_line, start_char, max_chars)
 
     async def aread(
-        self, result_id: str, start_line: int = 1, end_line: Optional[int] = None, start_char: int = 0
+        self,
+        result_id: str,
+        start_line: int = 1,
+        end_line: Optional[int] = None,
+        start_char: int = 0,
+        max_chars: int = READ_MAX_CHARS,
     ) -> ResultPage:
         """Async variant of ``read``."""
         row = await self.aget_row(result_id)
         if row is None:
             raise KeyError(f"unknown result id {result_id}")
         content = await self._aread_payload(row)
-        return await asyncio.to_thread(self._page_from_content, content, start_line, end_line, start_char)
+        return await asyncio.to_thread(self._page_from_content, content, start_line, end_line, start_char, max_chars)
 
     def _matches_from_content(self, content: str, pattern: str, context_lines: int) -> List[ResultMatch]:
         # Compiled here first so an invalid pattern raises re.error in the

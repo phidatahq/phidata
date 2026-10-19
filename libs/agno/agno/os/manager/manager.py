@@ -75,6 +75,10 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
         return None
     from agno.context.mode import ContextMode
     from agno.context.workspace import WorkspaceContextProvider
+    from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
+
+    # Generated run/eval artifacts are not application source.
+    source_exclusions = [*DEFAULT_EXCLUDE_PATTERNS, "tmp"]
 
     if isinstance(config.root, (str, Path)):
         # Give Platform Manager file tools directly. Default exclusions block
@@ -84,10 +88,10 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
             name="Platform Source",
             root=config.root,
             mode=ContextMode.tools,
+            exclude_patterns=source_exclusions,
         )
     if not isinstance(config.root, WorkspaceContextProvider):
         raise TypeError("OSManager.root must be a path or WorkspaceContextProvider")
-    from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
 
     provider = config.root
     if provider.allow_paths or any(
@@ -101,7 +105,7 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
         name=provider.name,
         root=provider.root,
         mode=ContextMode.tools,
-        exclude_patterns=list(dict.fromkeys([*DEFAULT_EXCLUDE_PATTERNS, *provider.exclude_patterns])),
+        exclude_patterns=list(dict.fromkeys([*source_exclusions, *provider.exclude_patterns])),
         max_file_lines=provider.max_file_lines,
         max_file_length=provider.max_file_length,
     )
@@ -210,6 +214,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
     )
 
     operator_tools = [AgentOSTools(db=db), _diagnostics_tool(agent_os, config.required_env)]
+    docs_tools: List[Any] = []
     operator_instructions = [OPERATOR_INSTRUCTIONS]
     if workspace is not None:
         operator_tools.extend(workspace.get_tools())
@@ -224,7 +229,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
         else:
             # MCPTools.connect logs connection failures and cleans up partial sessions.
             # Unavailable MCP tools are skipped during runs, leaving platform tools usable.
-            operator_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
+            docs_tools.append(MCPTools(url="https://docs.agno.com/mcp"))
 
     operator = Agent(
         id=OPERATOR_ID,
@@ -233,7 +238,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
         model=model,
         db=db,
         offload_tool_results=config.offload_tool_results,
-        tools=operator_tools,
+        tools=[*operator_tools, *docs_tools],
         instructions=operator_instructions,
         add_datetime_to_context=True,
         add_history_to_context=True,
@@ -255,6 +260,9 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
         knowledge=config.knowledge,
         tools=[
             *config.tools,
+            # Share the lifecycle-managed docs connection so a framework question
+            # does not require a specialist run just to look up documentation.
+            *docs_tools,
             # The manager can run served components, including itself once.
             StudioRunnerTools(
                 registry=registry,

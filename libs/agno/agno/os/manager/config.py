@@ -31,7 +31,7 @@ class OSManager:
         root: Directory or WorkspaceContextProvider for Platform Manager to read.
             Default file exclusions apply. Extra exclusions are allowed; custom
             exemptions and allow_paths are not. Omit to disable source access.
-        access_docs: Give Platform Manager access to the Agno documentation MCP
+        access_docs: Give OS Manager and Platform Manager access to the Agno documentation MCP
             server. Enabled by default. Connection failures are nonfatal; pass
             False to disable documentation access in offline deployments.
         offload_tool_results: Offload large tool results for the manager and its members.

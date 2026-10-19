@@ -804,7 +804,7 @@ class Workspace(Toolkit):
         Only text files (by extension) under 500KB are searched. Returns the first ``limit``
         matching files with a snippet around the first match in each.
 
-        :param query: Substring to search for (case-insensitive).
+        :param query: One literal substring to search for (case-insensitive), not a regex or a list of keywords.
         :param directory: Subdirectory to scope the search to (default ".").
         :param limit: Maximum number of matching files to return (default 10).
         :return: JSON string with keys ``query``, ``matches_found``, and ``files`` (a list of

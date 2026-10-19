@@ -50,6 +50,7 @@ Conversations use the configured model and incur provider charges.
 | `manager_user_access.py` | As Alice, ask “Run math-helper: what is 6 * 7?” Then ask to publish a new agent. | The permitted run succeeds; publishing is refused. Configure `JWT_VERIFICATION_KEY` and a JWT with `sub=alice`, `aud=manager-access-demo`. |
 | `manager_builds_agents.py` | “Create a calculator agent named Budget Helper.” Then: “Run Budget Helper: what is 15% of 240?” | Platform Builder publishes the agent. The second request runs it and should return 36. |
 | `manager_source.py` | “Read basic_manager.py, then check the Agno docs for how to add knowledge.” | Platform Manager reads the configured root and consults the docs MCP server; no notebook or memory setup is needed. |
+| `manager_source.py` | “How does learning work?” | OS Manager can search docs directly and answer the concept question without a deployment audit. |
 | `check_manager_permissions.py` | Run it directly; no chat or model key needed. | Seven HTTP checks confirm discovery, session access, rejected audiences, and denied publication. |
 | `manager_with_resources.py` | “Save a note in project.md: the demo is on Friday.” Then: “Read project.md.” | The shared notebook stores and retrieves the note. |
 | `manager_with_resources.py` | “Remember that I prefer short answers.” Then ask about your preference in a new session with the same user id. | The manager can save and retrieve a user preference across sessions. |
@@ -94,7 +95,7 @@ cannot override that role. Production tokens should come from your identity prov
 | `model` | First registry model | Shared by the manager and both members; also available for builds. |
 | `name` | `OS Manager` | Display name only; the ID and member composition are fixed. |
 | `root` | `None` | Platform Manager's read-only source directory or constrained workspace provider. |
-| `access_docs` | `True` | Gives Platform Manager access to Agno docs. Connection failures are nonfatal; set `False` for offline deployments. |
+| `access_docs` | `True` | Gives OS Manager and Platform Manager access to Agno docs through one shared connection. Connection failures are nonfatal; set `False` for offline deployments. |
 | `tools`, `knowledge`, `learning` | Empty / `None` | Extra resources for the lead team; not automatically available for builds. |
 | `instructions` | `None` | Appends instructions to the lead team's existing prompt. |
 | `required_env` | Empty | Names whose presence diagnostics checks; values are never returned. |
@@ -104,6 +105,15 @@ cannot override that role. Production tokens should come from your identity prov
 `root` is resolved relative to the process working directory. Use a path based on
 `__file__`, as in `manager_source.py`, for the same root regardless of where you
 launch the server. Setting `root` does not enable file writes or shell execution.
+Manager source tools exclude `tmp` directories containing generated run and eval
+artifacts, in addition to the default workspace exclusions.
+
+The manager is instructed to keep explanations scoped to the question and to
+request concise specialist answers when delegation is necessary. Documentation
+access on the lead lets it answer framework questions without a specialist run.
+For large offloaded results, it can search for the relevant passage and call
+`read_result` with `start_char` and a small `max_chars` instead of reloading the
+whole response. Model choices still determine the actual tool calls and latency.
 
 ## When to use a registry
 

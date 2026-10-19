@@ -377,3 +377,13 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** 9 unit tests passed. `test_transfer.py` 4 passed; `test_coordinator.py` 80 passed, 26 skipped (the AsyncPostgresDb and transport skips the log already records); `test_agentos.py` 24 passed after its checkpoint-outage test was changed to restore into `tmp_path` instead of the file store's root, the one place a suite had reached into the file store; that test still passes on the file store. The whole `tests/unit/sandbox` suite: 447 passed.
 
 ---
+
+### checkpoint_cache.py (2026-10-19)
+
+**Status:** PASS (fixture runtime, `agno-sandbox:local`, moto server as the S3 endpoint through `AWS_ENDPOINT_URL_S3`)
+
+**Description:** `S3CheckpointStore(cache_dir=..., cache_bytes=256 MiB)` on a sandboxed `FixtureAgent`. One turn checkpoints to the bucket; the checkpoint is then opened and restored five times, a second store instance on the same cache directory opens it once more, and the object is deleted from the bucket before a final open. A boto3 event hook on `request-created.s3.GetObject` counts the downloads.
+
+**Result:** The first open downloaded the object (25 ms); the next four and the other store's open came from the cache (7 to 16 ms) with the download count staying at one. The cache directory held the object under its digest. After `delete`, the next open raised `CheckpointObjectNotFound` despite the cached copy, since the bucket is consulted first. Unit tests for the cache (`test_s3_store.py`): downloaded once, served to async opens, a corrupt entry fetched again, a deleted object not hidden, eviction within the budget while an open lease keeps reading, and the uncached copy landing in `scratch=` read-only. 15 tests pass.
+
+---

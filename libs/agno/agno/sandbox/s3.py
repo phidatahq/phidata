@@ -12,7 +12,7 @@ import os
 import tempfile
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, Dict, Iterator, Optional, Tuple
+from typing import Any, AsyncIterator, ContextManager, Dict, Iterator, Optional, Tuple
 
 from agno.sandbox.base import SandboxError
 from agno.sandbox.checkpoint import (
@@ -20,6 +20,7 @@ from agno.sandbox.checkpoint import (
     CheckpointArchive,
     CheckpointObjectNotFound,
     CheckpointRef,
+    FileCheckpointStore,
     _regular,
     _thread,
 )
@@ -40,9 +41,13 @@ class S3CheckpointStore:
     otherwise uploads it, in parts above ``part_size``. An upload is complete only once
     the object is readable, so a crash mid-upload leaves nothing a reader could restore.
     ``verify`` is a metadata check against the bucket; ``open_archive`` downloads the
-    object to a temporary file, checks its bytes against the reference, and removes the
-    file when the caller is done. Every replica with access to the bucket can restore
-    what another one captured, which is what a durable queue needs.
+    object, checks its bytes against the reference, and yields a read-only local path.
+    Without a cache the copy lives under ``scratch`` only for the duration of the
+    context. With ``cache_dir`` set, downloaded objects are kept there under their digest,
+    so opening the same checkpoint again costs a local hash instead of a download; the
+    cache is bounded by ``cache_bytes`` and evicts the least recently opened objects,
+    never one that a caller still holds open. Every replica with access to the bucket
+    can restore what another one captured, which is what a durable queue needs.
 
     Args:
         bucket: The bucket name.
@@ -55,6 +60,13 @@ class S3CheckpointStore:
             upload uses them. At least 5 MiB.
         boto_session: A ``boto3.session.Session`` to build the client from; the default
             session otherwise, which reads the environment and the instance role.
+        scratch: Directory for the temporary copy an uncached open downloads into. The
+            system temporary directory otherwise, which may be small on a container.
+        cache_dir: Keep downloaded objects here, keyed by digest, for later opens on this
+            host. Unset, nothing is kept between opens.
+        cache_bytes: The most the cache may hold before the least recently opened objects
+            are evicted. Default 4 GiB. Objects a caller holds open are never removed
+            from under it.
     """
 
     def __init__(
@@ -67,6 +79,9 @@ class S3CheckpointStore:
         max_bytes: int = 1024 * 1024 * 1024,
         part_size: int = 64 * 1024 * 1024,
         boto_session: Optional[Any] = None,
+        scratch: Optional[Path] = None,
+        cache_dir: Optional[Path] = None,
+        cache_bytes: int = 4 * 1024 * 1024 * 1024,
     ) -> None:
         if not isinstance(bucket, str) or not bucket or "/" in bucket:
             raise ValueError("Checkpoint bucket must be a nonempty bucket name")
@@ -83,6 +98,15 @@ class S3CheckpointStore:
         self.part_size = part_size
         self._boto_session = boto_session
         self._client: Optional[Any] = None
+        if type(cache_bytes) is not int or cache_bytes < 1:
+            raise ValueError("Checkpoint cache limit must be positive")
+        self.scratch = Path(scratch) if scratch is not None else None
+        if self.scratch is not None:
+            self.scratch.mkdir(parents=True, exist_ok=True)
+        self.cache_bytes = cache_bytes
+        # The cache is itself a content-addressed file store: read-only objects, leases
+        # that outlive eviction, and the same byte check on every open.
+        self.cache = FileCheckpointStore(Path(cache_dir), max_bytes=max_bytes) if cache_dir is not None else None
 
     def key(self, reference: CheckpointRef) -> str:
         return f"{self.prefix}{reference.sha256}.tar.gz"
@@ -213,7 +237,7 @@ class S3CheckpointStore:
         from botocore.exceptions import ClientError
 
         self.verify(reference)
-        descriptor, name = tempfile.mkstemp(prefix=".checkpoint-", suffix=".tar")
+        descriptor, name = tempfile.mkstemp(prefix=".checkpoint-", suffix=".tar", dir=self.scratch)
         path = Path(name)
         try:
             try:
@@ -237,6 +261,9 @@ class S3CheckpointStore:
                 raise SandboxError("Checkpoint size mismatch")
             if digest.hexdigest() != reference.sha256:
                 raise SandboxError("Checkpoint checksum mismatch")
+            # The copy is the caller's to read, never to edit: a consumer that wrote through
+            # it would read back something the reference no longer describes.
+            path.chmod(0o400)
             return path
         except BaseException:
             if descriptor != -1:
@@ -244,8 +271,64 @@ class S3CheckpointStore:
             path.unlink(missing_ok=True)
             raise
 
+    def _cached(self, reference: CheckpointRef) -> ContextManager[Path]:
+        """Open the object from the cache, filling it from the bucket when it is not there.
+
+        The bucket is still asked whether the object exists, so a checkpoint retention
+        removed is reported missing even while a copy lingers here. A cache entry that no
+        longer matches its digest is dropped and fetched again.
+        """
+        assert self.cache is not None
+        self.verify(reference)
+        try:
+            self.cache.verify(reference)
+        except CheckpointObjectNotFound:
+            self._fill(reference)
+        except SandboxError:
+            self.cache.delete(reference)
+            self._fill(reference)
+        os.utime(self.cache.root / reference.sha256)
+        return self.cache.open_archive(reference)
+
+    def _fill(self, reference: CheckpointRef) -> None:
+        path = self._download(reference)
+        try:
+            self.cache.put(path)  # type: ignore[union-attr]
+        finally:
+            path.unlink(missing_ok=True)
+        # Every lease the cache hands out is a hard link to this object, so its mode is
+        # what keeps a consumer from editing the bytes the reference describes.
+        (self.cache.root / reference.sha256).chmod(0o400)  # type: ignore[union-attr]
+        self._evict(keep=reference)
+
+    def _evict(self, *, keep: CheckpointRef) -> None:
+        """Drop the least recently opened objects until the cache fits its budget.
+
+        Only canonical names are removed; a lease an open caller holds keeps its bytes.
+        """
+        assert self.cache is not None
+        objects = []
+        for path in self.cache.root.iterdir():
+            if path.name.startswith(".") or path.name == keep.sha256:
+                continue
+            try:
+                info = path.stat()
+            except FileNotFoundError:
+                continue
+            objects.append((info.st_mtime, info.st_size, path))
+        total = sum(size for _, size, _ in objects) + (self.cache.root / keep.sha256).stat().st_size
+        for _, size, path in sorted(objects):
+            if total <= self.cache_bytes:
+                break
+            path.unlink(missing_ok=True)
+            total -= size
+
     @contextmanager
     def open_archive(self, reference: CheckpointRef) -> Iterator[Path]:
+        if self.cache is not None:
+            with self._cached(reference) as path:
+                yield path
+            return
         path = self._download(reference)
         try:
             yield path
@@ -256,6 +339,11 @@ class S3CheckpointStore:
     async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
         # _thread drains the download before a cancellation propagates, so the file is
         # removed only once nothing is still writing it.
+        if self.cache is not None:
+            opened = await _thread(self._cached, reference)
+            with opened as path:
+                yield path
+            return
         path = await _thread(self._download, reference)
         try:
             yield path

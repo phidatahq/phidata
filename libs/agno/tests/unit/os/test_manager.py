@@ -1081,7 +1081,7 @@ def test_manager_can_answer_framework_question_using_docs_without_delegation(db,
 
 
 @pytest.mark.parametrize("custom_provider", [False, True])
-def test_manager_source_search_excludes_generated_eval_artifacts(db, workspace, custom_provider):
+def test_manager_can_inspect_requested_tmp_artifacts(db, workspace, custom_provider):
     from agno.context.workspace import WorkspaceContextProvider
 
     (workspace / "tmp").mkdir()
@@ -1091,9 +1091,10 @@ def test_manager_source_search_excludes_generated_eval_artifacts(db, workspace, 
     os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), root=root), telemetry=False)
     tool = next(t for t in manager_member(os, OPERATOR_ID).tools if "search_content" in getattr(t, "functions", {}))
     result = json.loads(tool.search_content("learning"))
-    assert result["matches_found"] == 1
-    assert result["files"][0]["file"] == "learning.py"
-    assert "evidence.json" not in tool.list_files(recursive=True)
+    assert result["matches_found"] == 2
+    assert {file["file"] for file in result["files"]} == {"learning.py", "tmp/evidence.json"}
+    assert "evidence.json" in tool.list_files(recursive=True)
+    assert "irrelevant run dump" in tool.read_file("tmp/evidence.json")
 
 
 @pytest.mark.parametrize("enabled", [False, True])

@@ -105,8 +105,6 @@ cannot override that role. Production tokens should come from your identity prov
 `root` is resolved relative to the process working directory. Use a path based on
 `__file__`, as in `manager_source.py`, for the same root regardless of where you
 launch the server. Setting `root` does not enable file writes or shell execution.
-Manager source tools exclude `tmp` directories containing generated run and eval
-artifacts, in addition to the default workspace exclusions.
 
 The manager is instructed to keep explanations scoped to the question and to
 request concise specialist answers when delegation is necessary. Documentation

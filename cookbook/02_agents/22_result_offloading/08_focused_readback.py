@@ -13,7 +13,7 @@ from agno.offload import ResultStore
 PAYLOAD = json.dumps(
     {
         "results": [
-            {"content": "learning overview " + "background " * 2000},
+            {"content": "learning " * 25 + "background " * 2000},
             {
                 "content": "learning uses saved context. AGENTIC mode saves through tools."
             },
@@ -24,6 +24,7 @@ PAYLOAD = json.dumps(
 
 async def check_async(store: ResultStore, result_id: str) -> None:
     matches = await store.asearch(result_id, "learning")
+    assert len(matches) == 2
     page = await store.aread(result_id, start_char=matches[1].char_offset, max_chars=80)
     assert "AGENTIC" in page.text
     assert len(page.text) <= 80

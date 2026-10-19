@@ -7,8 +7,8 @@
 **Description:** Ran with the development Python and branch source, using a
 temporary SQLite database and no network or model calls.
 
-**Result:** Found both learning passages on the same JSON line. Sync and async
-reads returned the relevant passage within an 80-character budget. The stored
+**Result:** Found both learning passages on the same JSON line, despite 25
+repeated keywords in the first passage. Sync and async reads returned the relevant passage within an 80-character budget. The stored
 payload remained byte-for-byte unchanged.
 
 ---

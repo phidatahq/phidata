@@ -589,12 +589,45 @@ def test_search_finds_later_passages_in_single_line_json(store, pattern, async_m
 
 
 @pytest.mark.parametrize("pattern", ["needle", "(needle)", "(?=needle)"])
-def test_single_line_search_retains_match_limit_and_reports_more(store, pattern):
-    ref = _offload(store, "needle " * 100)
+@pytest.mark.parametrize("count", [20, 21])
+def test_single_line_search_retains_match_limit_and_reports_more(store, pattern, count):
+    ref = _offload(store, ("needle needle" + "x" * 994) * count)
     matches = store.search(ref.result_id, pattern)
     assert len(matches) == 20
-    assert matches[-1].more
-    assert [m.char_offset for m in matches] == list(range(0, 140, 7))
+    assert matches[-1].more is (count > 20)
+    assert [m.char_offset for m in matches] == [i * 1007 for i in range(20)]
+
+
+@pytest.mark.parametrize("pattern", ["learning", "learn(ing)", "(?=learning)"])
+@pytest.mark.parametrize("async_mode", [False, True])
+@pytest.mark.parametrize("padding", [0, 1000])
+def test_search_skips_matches_already_visible_in_excerpt(store, pattern, async_mode, padding):
+    import asyncio
+
+    payload = "learning " * 25 + "x" * padding + "\nlearning: relevant second passage"
+    ref = _offload(store, payload)
+    matches = asyncio.run(store.asearch(ref.result_id, pattern)) if async_mode else store.search(ref.result_id, pattern)
+    assert [match.line_number for match in matches] == [1, 2]
+    assert "relevant second passage" in matches[1].line
+    assert not any(match.more for match in matches)
+
+
+@pytest.mark.parametrize("pattern", ["needle", "(needle)"])
+def test_search_keeps_a_match_extending_beyond_previous_excerpt(store, pattern):
+    payload = "needle" + "x" * 486 + "needle" + "y" * 1000
+    ref = _offload(store, payload)
+    matches = store.search(ref.result_id, pattern)
+    assert [match.char_offset for match in matches] == [0, 492]
+    assert all("needle" in match.line for match in matches)
+    assert not matches[-1].more
+
+
+@pytest.mark.parametrize("pattern", ["", "(?:)", "^|$", "(?:^|$)"])
+def test_zero_width_search_does_not_duplicate_line_end_excerpt(store, pattern):
+    ref = _offload(store, "first line\nsecond line")
+    matches = store.search(ref.result_id, pattern)
+    assert [match.line_number for match in matches] == [1, 2]
+    assert not matches[-1].more
 
 
 @pytest.mark.parametrize("max_chars,expected", [(0, 1), (-1, 1), (17, 17), (100_000, READ_MAX_CHARS)])

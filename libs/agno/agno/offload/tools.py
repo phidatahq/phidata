@@ -160,8 +160,8 @@ def get_search_result_function(owner: Any, run_context: RunContext, async_mode: 
     def search_result(result_id: str, pattern: str, context_lines: int = 0) -> str:
         """Search a stored tool result with a regular expression.
 
-        Returns at most 20 matches, including multiple matches on a single line, each
-        clipped to 500 characters. Use specific terms to avoid filling the result with repeated keywords.
+        Returns at most 20 excerpts, including separate passages on a single line,
+        each clipped to 500 characters. Matches already visible in an excerpt are skipped.
 
         Args:
             result_id: The id from the result envelope, e.g. "res_a91c4f20b3".
@@ -190,8 +190,8 @@ def get_search_result_function(owner: Any, run_context: RunContext, async_mode: 
     async def asearch_result(result_id: str, pattern: str, context_lines: int = 0) -> str:
         """Search a stored tool result with a regular expression.
 
-        Returns at most 20 matches as line-number/line pairs, each line clipped to 500
-        characters. Use read_result with the reported line numbers to read around a match.
+        Returns at most 20 excerpts, including separate passages on a single line,
+        each clipped to 500 characters. Matches already visible in an excerpt are skipped.
 
         Args:
             result_id: The id from the result envelope, e.g. "res_a91c4f20b3".

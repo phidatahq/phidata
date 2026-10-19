@@ -75,10 +75,6 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
         return None
     from agno.context.mode import ContextMode
     from agno.context.workspace import WorkspaceContextProvider
-    from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
-
-    # Generated run/eval artifacts are not application source.
-    source_exclusions = [*DEFAULT_EXCLUDE_PATTERNS, "tmp"]
 
     if isinstance(config.root, (str, Path)):
         # Give Platform Manager file tools directly. Default exclusions block
@@ -88,10 +84,11 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
             name="Platform Source",
             root=config.root,
             mode=ContextMode.tools,
-            exclude_patterns=source_exclusions,
         )
     if not isinstance(config.root, WorkspaceContextProvider):
         raise TypeError("OSManager.root must be a path or WorkspaceContextProvider")
+
+    from agno.tools.workspace import DEFAULT_EXCLUDE_PATTERNS
 
     provider = config.root
     if provider.allow_paths or any(
@@ -105,7 +102,7 @@ def _resolve_workspace(config: OSManager) -> Optional[Any]:
         name=provider.name,
         root=provider.root,
         mode=ContextMode.tools,
-        exclude_patterns=list(dict.fromkeys([*source_exclusions, *provider.exclude_patterns])),
+        exclude_patterns=list(dict.fromkeys([*DEFAULT_EXCLUDE_PATTERNS, *provider.exclude_patterns])),
         max_file_lines=provider.max_file_lines,
         max_file_length=provider.max_file_length,
     )

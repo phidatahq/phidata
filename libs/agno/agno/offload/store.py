@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from agno.fs import FileSystem
 from agno.fs._paths import MAX_SEGMENT_CHARS
 from agno.fs.errors import QuotaExceededError
+from agno.offload._scan import _find_match_positions, _match_window
 from agno.offload.types import NEVER_OFFLOADED_TOOLS, ResultMatch, ResultPage, ResultRef
 from agno.utils.log import log_debug, log_warning
 from agno.utils.string import hash_string_sha256
@@ -97,33 +98,10 @@ def _clip_around(line: str, char_offset: int, match_len: int = 1) -> str:
     from a little before the match, with ellipses marking cut ends, so the
     match itself is always inside the window whatever its position.
     """
-    if len(line) <= SEARCH_LINE_CLIP:
-        return line
-    width = SEARCH_LINE_CLIP - 6
-    lead = width // 4
-    start = max(0, min(char_offset - lead, len(line) - width))
-    need_end = char_offset + min(max(match_len, 1), width)
-    if start + width < need_end:
-        start = min(need_end - width, len(line) - width)
+    start, end = _match_window(line, char_offset, match_len, SEARCH_LINE_CLIP)
     head = "..." if start > 0 else ""
-    tail = "..." if start + width < len(line) else ""
-    return f"{head}{line[start : start + width]}{tail}"
-
-
-def _find_match_positions(
-    lines: List[str], compiled: "re.Pattern[str]", limit: int
-) -> Tuple[List[Tuple[int, int, int]], bool]:
-    """Match positions, including repeated matches on a single JSON line.
-
-    Capped at ``limit``; the flag is True when one more match exists.
-    """
-    positions: List[Tuple[int, int, int]] = []
-    for index, line in enumerate(lines):
-        for found in compiled.finditer(line):
-            if len(positions) >= limit:
-                return positions, True
-            positions.append((index + 1, found.start(), found.end() - found.start()))
-    return positions, False
+    tail = "..." if end < len(line) else ""
+    return f"{head}{line[start:end]}{tail}"
 
 
 def _render_matches(
@@ -172,7 +150,7 @@ def _render_matches(
 def _scan_for_matches(content: str, pattern: str, context_lines: int) -> List[ResultMatch]:
     """The search scan itself: at most 20 matches, one read_result page in total."""
     lines = content.split("\n")
-    positions, more = _find_match_positions(lines, re.compile(pattern), SEARCH_MAX_MATCHES)
+    positions, more = _find_match_positions(lines, re.compile(pattern), SEARCH_MAX_MATCHES, SEARCH_LINE_CLIP)
     return _render_matches(lines, positions, more, context_lines)
 
 
@@ -198,7 +176,9 @@ def _scan_in_subprocess(content: str, pattern: str, context_lines: int) -> List[
         log_warning(f"Result search: {scan_script} is missing; the scan runs in-process without a time limit")
         return _scan_for_matches(content, pattern, context_lines)
 
-    payload = json.dumps({"pattern": pattern, "content": content, "limit": SEARCH_MAX_MATCHES})
+    payload = json.dumps(
+        {"pattern": pattern, "content": content, "limit": SEARCH_MAX_MATCHES, "clip": SEARCH_LINE_CLIP}
+    )
     process = subprocess.Popen(
         [sys.executable, "-I", str(scan_script)],
         stdin=subprocess.PIPE,

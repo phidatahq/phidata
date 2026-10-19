@@ -135,7 +135,7 @@ def get_schedule_router(
         _: bool = Depends(auth_dependency),
     ) -> Dict[str, Any]:
         _check_scheduler_deps()
-        from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+        from agno.scheduler.cron import next_run_for, validate_cron_expr, validate_timezone
 
         if not validate_cron_expr(body.cron_expr):
             raise HTTPException(status_code=422, detail=f"Invalid cron expression: {body.cron_expr}")
@@ -226,7 +226,7 @@ def get_schedule_router(
                 return result
             raise HTTPException(status_code=409, detail=f"Schedule with name '{body.name}' already exists")
 
-        next_run_at = compute_next_run(body.cron_expr, body.timezone)
+        next_run_at = next_run_for(body.cron_expr, body.timezone)
         now = int(time.time())
 
         schedule_dict: Dict[str, Any] = {
@@ -324,8 +324,13 @@ def get_schedule_router(
         # Repointing at an archived component is refused for the same reason
         # creating against one is: the schedule could only 404 at fire time.
         if "endpoint" in updates:
+            from agno.db.schemas.scheduler import _schedule_endpoint_targets
             from agno.tools.scheduler import aarchived_endpoint_refusal, adraft_endpoint_refusal
 
+            try:
+                updates.update(_schedule_endpoint_targets(existing.get("managed_by"), updates["endpoint"]))
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
             refusal = await aarchived_endpoint_refusal(os_db, updates["endpoint"], user_id=scoped_user_id)
             if refusal is not None:
                 raise HTTPException(
@@ -347,7 +352,7 @@ def get_schedule_router(
         cron_changed = "cron_expr" in updates or "timezone" in updates
         if cron_changed:
             _check_scheduler_deps()
-            from agno.scheduler.cron import compute_next_run, validate_cron_expr, validate_timezone
+            from agno.scheduler.cron import is_on_demand, next_run_for, validate_cron_expr, validate_timezone
 
             new_cron = updates.get("cron_expr", existing["cron_expr"])
             new_tz = updates.get("timezone", existing["timezone"])
@@ -355,8 +360,8 @@ def get_schedule_router(
                 raise HTTPException(status_code=422, detail=f"Invalid cron expression: {new_cron}")
             if not validate_timezone(new_tz):
                 raise HTTPException(status_code=422, detail=f"Invalid timezone: {new_tz}")
-            if existing.get("enabled", True):
-                updates["next_run_at"] = compute_next_run(new_cron, new_tz)
+            if existing.get("enabled", True) or is_on_demand(new_cron):
+                updates["next_run_at"] = next_run_for(new_cron, new_tz)
 
         # Validate name uniqueness within the caller's scope if name is changing.
         # The pre-check scopes to the caller, but the row was stamped with the
@@ -471,9 +476,9 @@ def get_schedule_router(
             )
 
         _check_scheduler_deps()
-        from agno.scheduler.cron import compute_next_run
+        from agno.scheduler.cron import next_run_for
 
-        next_run_at = compute_next_run(existing["cron_expr"], existing.get("timezone", "UTC"))
+        next_run_at = next_run_for(existing["cron_expr"], existing.get("timezone", "UTC"))
         updates: Dict[str, Any] = {"enabled": True, "next_run_at": next_run_at}
         if defer_activation and pending_key in (existing.get("payload") or {}):
             # Activation and completion of creation are one scheduler storage update.

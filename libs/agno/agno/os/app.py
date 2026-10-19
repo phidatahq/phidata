@@ -27,6 +27,8 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.os.config import (
     AgentOSConfig,
     AuthorizationConfig,
+    CompanyDomainConfig,
+    CompanySectionConfig,
     CORSConfig,
     DatabaseConfig,
     EvalsConfig,
@@ -631,7 +633,7 @@ class AgentOS:
         self._scheduler_enabled = scheduler
         self._scheduler_poll_interval = scheduler_poll_interval
         self._scheduler_base_url = scheduler_base_url
-        if self._scheduler_enabled and not internal_service_token:
+        if (self._scheduler_enabled or company is not None) and not internal_service_token:
             import secrets
 
             internal_service_token = secrets.token_urlsafe(32)
@@ -1338,9 +1340,10 @@ class AgentOS:
             if existing_index is not None and existing_index > 0:
                 self.registry.dbs.insert(0, self.registry.dbs.pop(existing_index))
 
-        if self._agents:
+        registered_agents = [agent for agent in self.agents or [] if isinstance(agent, (Agent, BaseExternalAgent))]
+        if registered_agents:
             existing_agents = {aid: a for a in self.registry.agents if (aid := getattr(a, "id", None)) is not None}
-            for agent in self._agents:
+            for agent in registered_agents:
                 agent_id = getattr(agent, "id", None)
                 if agent_id is None or self._owned_by_manager(agent):
                     continue
@@ -1498,6 +1501,7 @@ class AgentOS:
                     if not toolkit._interfaces_explicit:
                         toolkit.interfaces = self.interfaces
                     toolkit._schedule_db = self.db
+                    toolkit._automation_history_retention_days = self.company.automation_history_retention_days
                     toolkit.user_isolation = toolkit.user_isolation or bool(
                         self.user_isolation
                         or (
@@ -2961,6 +2965,28 @@ class AgentOS:
                 )
 
         return memory_config
+
+    def _get_company_config(self) -> Optional[CompanySectionConfig]:
+        if self.company is None or self._company_db is None:
+            return None
+        company_config = (
+            CompanySectionConfig(
+                display_name=self.config.company.display_name,
+                dbs=[entry.model_copy(deep=True) for entry in self.config.company.dbs],
+            )
+            if self.config and self.config.company
+            else CompanySectionConfig()
+        )
+        db = self._company_db
+        configured = next((item for item in company_config.dbs if item.db_id == db.id), None)
+        company_config.dbs = [
+            DatabaseConfig(
+                db_id=db.id,
+                domain_config=configured.domain_config if configured else CompanyDomainConfig(display_name=db.id),
+                tables=[db.products_table_name, db.projects_table_name, db.tasks_table_name, db.sources_table_name],
+            )
+        ]
+        return company_config
 
     def _get_learning_config(self) -> LearningConfig:
         learning_config = self.config.learning if self.config and self.config.learning else LearningConfig()

@@ -31,6 +31,19 @@ def _require_mutable_schedule(schedule_id: str) -> None:
 RUN_ENDPOINT_RE = re.compile(r"^/(agents|teams|workflows)/([^/]+)/runs/?\Z")
 
 
+def _schedule_endpoint_targets(managed_by: Optional[str], endpoint: str) -> Dict[str, Optional[str]]:
+    """Derive editable targets while preserving control-plane target ownership."""
+    target = RUN_ENDPOINT_RE.fullmatch(endpoint)
+    if target is None and managed_by == "company":
+        raise ValueError("Routine executor must be a run endpoint")
+    if managed_by not in (None, "company"):
+        return {}
+    return {
+        "target_type": target.group(1).rstrip("s") if target else None,
+        "target_id": target.group(2) if target else None,
+    }
+
+
 def build_run_endpoint(target_type: str, target_id: str) -> str:
     """Build the canonical run endpoint for a component.
 
@@ -141,7 +154,15 @@ SCHEDULE_MUTABLE_COLUMNS = frozenset(
 
 def validate_schedule_update(kwargs: dict) -> None:
     """Refuse update_schedule writes outside the mutable column set."""
-    rejected = sorted(set(kwargs) - SCHEDULE_MUTABLE_COLUMNS)
+    allowed = set(SCHEDULE_MUTABLE_COLUMNS)
+    # Target columns may accompany an endpoint edit only when they exactly match
+    # that endpoint. Standalone provenance writes still use the dedicated API.
+    if "endpoint" in kwargs:
+        target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
+        expected = (target.group(1).rstrip("s"), target.group(2)) if target else (None, None)
+        if {"target_type", "target_id"} <= kwargs.keys() and (kwargs["target_type"], kwargs["target_id"]) == expected:
+            allowed.update({"target_type", "target_id"})
+    rejected = sorted(set(kwargs) - allowed)
     if rejected:
         raise ValueError(
             f"update_schedule cannot modify {rejected}: only {sorted(SCHEDULE_MUTABLE_COLUMNS)} are mutable; "

@@ -32,18 +32,22 @@ if __name__ == "__main__":
         )
         manager = CompanyManager(db)
         product = manager.create(
-            "SDK", purpose="Build reliable agents", user_id="alice"
+            name="SDK", purpose="Build reliable agents", user_id="alice"
         )
         # Trusted application code supplies context. HTTP and MCP inject their
         # authenticated caller automatically; identity is never a model argument.
         context = RunContext(run_id="demo", session_id="planning", user_id="alice")
+        project = json.loads(
+            tools.propose_company_project(
+                product["id"], "Release", _agno_run_context=context
+            )
+        )
         proposal = json.loads(
             tools.propose_company_task(
                 product["id"],
                 "Draft release notes",
                 brief="Summarize reviewed changes",
-                # Empty optional values from a model are treated as omitted.
-                project_id="",
+                project_id=project["id"],
                 _agno_run_context=context,
             )
         )

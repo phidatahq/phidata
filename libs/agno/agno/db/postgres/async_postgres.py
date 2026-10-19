@@ -948,6 +948,28 @@ class AsyncPostgresDb(AsyncBaseDb):
             log_error(f"Exception reading from runs table: {str(e)}")
             return None
 
+    async def cancel_pending_run(
+        self,
+        run_id: str,
+        *,
+        session_id: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        expected_status: str = "PENDING",
+    ) -> bool:
+        """Cancel an observed Pending or Running run; concurrent status changes win."""
+        from agno.db.sql.runs import cancel_pending_run_statement
+
+        table = await self._get_table(table_type="runs")
+        if table is None:
+            return False
+        statement = cancel_pending_run_statement(
+            table, "postgresql", run_id, session_id, reason, user_id, expected_status
+        )
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return result.scalar_one_or_none() is not None
+
     async def upsert_run(
         self,
         run: Union[RunOutput, TeamRunOutput, WorkflowRunOutput, Dict[str, Any]],
@@ -1196,6 +1218,25 @@ class AsyncPostgresDb(AsyncBaseDb):
             raise e
 
     # -- Session methods --
+    async def reassign_session_owner(self, session_id: str, *, previous_user_id: str, user_id: Optional[str]) -> bool:
+        """Transfer only an idle session with the observed owner, without rewriting history."""
+        table = await self._get_table(table_type="sessions")
+        runs = await self._get_table(table_type="runs")
+        if table is None or runs is None:
+            return False
+        active = select(runs.c.run_id).where(
+            runs.c.session_id == session_id, runs.c.status.in_(["PENDING", "RUNNING", "PAUSED"])
+        )
+        statement = (
+            table.update()
+            .where(table.c.session_id == session_id, table.c.user_id == previous_user_id, ~active.exists())
+            .values(user_id=user_id)
+            .returning(table.c.session_id)
+        )
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return result.scalar_one_or_none() is not None
+
     async def delete_session(self, session_id: str, user_id: Optional[str] = None) -> bool:
         """
         Delete a session from the database.
@@ -4436,15 +4477,6 @@ class AsyncPostgresDb(AsyncBaseDb):
             kwargs["updated_at"] = int(time.time())
             async with self.async_session_factory() as sess:
                 async with sess.begin():
-                    if "endpoint" in kwargs:
-                        from agno.db.schemas.scheduler import RUN_ENDPOINT_RE
-
-                        existing = (await sess.execute(select(table).where(table.c.id == schedule_id))).first()
-                        target = RUN_ENDPOINT_RE.fullmatch(kwargs["endpoint"])
-                        if existing is not None and existing._mapping.get("managed_by") == "company":
-                            if target is None:
-                                raise ValueError("Routine executor must be a run endpoint")
-                            kwargs.update(target_type=target.group(1).rstrip("s"), target_id=target.group(2))
                     stmt = table.update().where(table.c.id == schedule_id)
                     if user_id is not None:
                         stmt = stmt.where(table.c.user_id == user_id)
@@ -4607,8 +4639,12 @@ class AsyncPostgresDb(AsyncBaseDb):
             if table is None:
                 return False
             updates: Dict[str, Any] = {"locked_by": None, "locked_at": None, "updated_at": int(time.time())}
-            if next_run_at is not None:
-                updates["next_run_at"] = next_run_at
+            # A cron may be cleared while this claim is running. Never re-arm
+            # an on-demand schedule using the executor's older schedule snapshot.
+            updates["next_run_at"] = case(
+                (table.c.cron_expr == "", None),
+                else_=next_run_at if next_run_at is not None else table.c.next_run_at,
+            )
             statement = table.update().where(table.c.id == schedule_id)
             if worker_id is not None:
                 statement = statement.where(table.c.locked_by == worker_id)
@@ -4621,6 +4657,20 @@ class AsyncPostgresDb(AsyncBaseDb):
         except Exception as e:
             log_debug(f"Error releasing schedule: {e}")
             return False
+
+    async def delete_schedule_runs(self, schedule_id: str, *, before: int) -> int:
+        """Expire only completed history for the selected schedule."""
+        table = await self._get_table(table_type="schedule_runs")
+        if table is None:
+            return 0
+        statement = (
+            table.delete()
+            .where(table.c.schedule_id == schedule_id, table.c.completed_at < before)
+            .returning(table.c.id)
+        )
+        async with self.async_session_factory() as sess, sess.begin():
+            result = await sess.execute(statement)
+            return len(result.scalars().all())
 
     async def create_schedule_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         try:
@@ -4663,6 +4713,31 @@ class AsyncPostgresDb(AsyncBaseDb):
         except Exception as e:
             log_debug(f"Error getting schedule run: {e}")
             return None
+
+    async def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Fetch one most recent run per schedule, without per-schedule queries."""
+        if not schedule_ids:
+            return {}
+        table = await self._get_table(table_type="schedule_runs")
+        if table is None:
+            return {}
+        ranked = (
+            select(
+                table,
+                func.row_number()
+                .over(
+                    partition_by=table.c.schedule_id,
+                    order_by=(table.c.triggered_at.desc(), table.c.created_at.desc(), table.c.id.desc()),
+                )
+                .label("position"),
+            )
+            .where(table.c.schedule_id.in_(schedule_ids))
+            .subquery()
+        )
+        stmt = select(*(ranked.c[column.name] for column in table.columns)).where(ranked.c.position == 1)
+        async with self.async_session_factory() as sess:
+            result = await sess.execute(stmt)
+            return {row._mapping["schedule_id"]: dict(row._mapping) for row in result.fetchall()}
 
     async def get_schedule_runs(
         self,
@@ -5433,7 +5508,9 @@ class AsyncPostgresDb(AsyncBaseDb):
         *,
         session_id: Optional[Union[str, List[str]]] = None,
         user_id: Optional[str] = None,
+        raise_on_error: bool = False,
     ) -> Tuple[List[Dict[str, Any]], int]:
+        """List jobs, propagating read errors when raise_on_error is True."""
         try:
             table = await self._get_table(table_type="jobs")
             if table is None:
@@ -5462,6 +5539,8 @@ class AsyncPostgresDb(AsyncBaseDb):
                 f"Job queue store: list_jobs failed (status={status!r}, session_id={session_id!r}, "
                 f"user_id={user_id!r}): {e}"
             )
+            if raise_on_error:
+                raise
             return [], 0
 
     async def requeue_job(self, job_id: str) -> bool:
@@ -6342,7 +6421,6 @@ class AsyncPostgresDb(AsyncBaseDb):
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.sources import validate_source_fields
 
-        validate_source_fields(fields)
         table = await self._get_table(table_type="sources")
         if table is None:
             return None
@@ -6350,6 +6428,18 @@ class AsyncPostgresDb(AsyncBaseDb):
         if user_id is not None:
             stmt = stmt.where(table.c.user_id == user_id)
         async with self.async_session_factory() as sess, sess.begin():
+            condition = stmt.whereclause
+            assert condition is not None
+            existing = (await sess.execute(select(table).where(condition).with_for_update())).mappings().first()
+            if existing is None:
+                return None
+            candidate = {**{key: existing[key] for key in ("type", "reference", "credential_ref", "config")}, **fields}
+            if "config" not in fields and isinstance(candidate.get("config"), dict):
+                candidate["config"] = {key: value for key, value in candidate["config"].items() if key != "metadata"}
+            # Unchanged legacy references need not satisfy a newly introduced URL rule.
+            if "reference" not in fields and candidate["type"] == existing["type"]:
+                candidate.pop("reference", None)
+            validate_source_fields(candidate)
             result = (
                 await sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table))
             ).fetchone()
@@ -6914,6 +7004,7 @@ class AsyncPostgresDb(AsyncBaseDb):
         expected_transitions: List[Dict[str, Any]],
         user_id: Optional[str] = None,
         run_db_id: Optional[str] = None,
+        session_user_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.tasks import task_run_fields
 
@@ -6929,7 +7020,7 @@ class AsyncPostgresDb(AsyncBaseDb):
             existing = dict(row._mapping)
             if existing["transitions"] != expected_transitions:
                 return None
-            fields = task_run_fields(existing, attempt, user_id, run_db_id)
+            fields = task_run_fields(existing, attempt, user_id, run_db_id, session_user_id)
             stmt = (
                 table.update()
                 .where(
@@ -6950,7 +7041,10 @@ class AsyncPostgresDb(AsyncBaseDb):
         job_id: str,
         result: Dict[str, Any],
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
+        checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
+        from sqlalchemy import JSON, or_
+
         from agno.db.schemas.tasks import task_transition_fields
 
         table = await self._get_table(table_type="tasks")
@@ -6964,6 +7058,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                         table.c.job_id == job_id,
                         table.c.deleted_at.is_(None),
                         table.c.status == "in_progress",
+                        or_(table.c.result.is_(None), table.c.result == JSON.NULL),
                     )
                 )
             ).fetchone()
@@ -6972,11 +7067,13 @@ class AsyncPostgresDb(AsyncBaseDb):
             existing = dict(row._mapping)
             if expected_transitions is not None and existing["transitions"] != expected_transitions:
                 return None
-            fields = (
+            fields: Dict[str, Any] = (
                 task_transition_fields(existing, "in_review", "Execution completed; human review required")
                 if result.get("status") == "COMPLETED"
                 else {"updated_at": int(time.time())}
             )
+            if checkout is not None:
+                fields["metadata"] = {**(existing.get("metadata") or {}), "checkout": checkout}
             stmt = (
                 table.update()
                 .where(
@@ -6984,6 +7081,7 @@ class AsyncPostgresDb(AsyncBaseDb):
                     table.c.job_id == job_id,
                     table.c.deleted_at.is_(None),
                     table.c.status == "in_progress",
+                    or_(table.c.result.is_(None), table.c.result == JSON.NULL),
                     table.c.transitions == existing["transitions"],
                 )
                 .values(**fields, result=result)

@@ -47,7 +47,7 @@ async def db(request, tmp_path):
         await call(database.close)
 
 
-async def call(fn, *args, **kwargs):
+async def call(fn, /, *args, **kwargs):
     result = fn(*args, **kwargs)
     return await result if inspect.isawaitable(result) else result
 
@@ -63,30 +63,40 @@ def manager(db):
 async def test_lifecycle_and_owner_guards(db):
     m = manager(db)
     assert await call(m.list_tasks) == ([], 0)
-    parent = await call(m.create, "SDK", user_id="alice")
-    record = await call(m.create_task, parent["id"], "Ship", user_id="alice", scoped_user_id="alice")
+    parent = await call(m.create, name="SDK", user_id="alice")
+    project = await call(m.create_project, product_id=parent["id"], name="Release", user_id="alice")
+    record = await call(
+        m.create_task,
+        product_id=parent["id"],
+        title="Ship",
+        user_id="alice",
+        scoped_user_id="alice",
+        project_id=project["id"],
+    )
     rid = record["id"]
     assert record["status"] == "backlog"
     assert await call(m.get_task, rid, user_id="bob") is None
     assert await call(m.update_task, rid, user_id="bob", brief="No") is None
     assert await call(m.delete_task, rid, user_id="bob") is False
-    assert await call(m.transition_task, rid, "cancelled", "Stop", user_id="bob") is None
+    assert await call(m.transition_task, task_id=rid, target="cancelled", reason="Stop", user_id="bob") is None
     changed = await call(m.update_task, rid, brief="Changed")
     assert changed["brief"] == "Changed"
     assert changed["updated_at"] >= record["created_at"]
     with pytest.raises(ValueError):
-        await call(m.transition_task, rid, "done", "Skip")
+        await call(m.transition_task, task_id=rid, target="done", reason="Skip")
     with pytest.raises(ValueError):
-        await call(m.transition_task, rid, "cancelled", " ")
+        await call(m.transition_task, task_id=rid, target="cancelled", reason=" ")
     states = ["ready", "in_progress", "in_review", "done"]
     for state in states:
         kwargs = {"executor_type": "agent", "executor_id": "writer"} if state == "ready" else {}
-        result = await call(m.transition_task, rid, state, "Reviewed", accepted_by="reviewer", **kwargs)
+        result = await call(
+            m.transition_task, task_id=rid, target=state, reason="Reviewed", accepted_by="reviewer", **kwargs
+        )
         assert result["status"] == state
     assert [entry["target"] for entry in result["transitions"]] == states
     assert all(entry["user_id"] == "reviewer" for entry in result["transitions"])
     with pytest.raises(ValueError):
-        await call(m.transition_task, rid, "cancelled", "Terminal")
+        await call(m.transition_task, task_id=rid, target="cancelled", reason="Terminal")
     assert await call(m.restore_task, rid) is None
     assert await call(m.delete_task, rid)
     assert await call(m.get_task, rid) is None
@@ -97,13 +107,13 @@ async def test_lifecycle_and_owner_guards(db):
     assert await call(m.restore_task, rid, user_id="bob") is None
     assert (await call(m.restore_task, rid))["status"] == "done"
     assert await call(m.get_task, "missing") is None
-    assert await call(m.transition_task, "missing", "cancelled", "Missing") is None
+    assert await call(m.transition_task, task_id="missing", target="cancelled", reason="Missing") is None
 
 
 @pytest.mark.asyncio
 async def test_filters_and_stable_paging(db):
     m = manager(db)
-    parents = [await call(m.create, "A"), await call(m.create, "B")]
+    parents = [await call(m.create, name="A"), await call(m.create, name="B")]
     now = int(time.time())
     for i, owner in enumerate(["alice", "bob", "alice", None, "alice", "bob"]):
         await call(
@@ -118,7 +128,7 @@ async def test_filters_and_stable_paging(db):
                 "transitions": [],
             },
         )
-    await call(m.transition_task, "0", "cancelled", "Stop")
+    await call(m.transition_task, task_id="0", target="cancelled", reason="Stop")
     pages = [await call(m.list_tasks, user_id="alice", status="backlog", limit=1, page=p) for p in [1, 2]]
     assert [p[1] for p in pages] == [2, 2]
     assert [p[0][0]["id"] for p in pages] == ["4", "2"]
@@ -130,10 +140,19 @@ async def test_filters_and_stable_paging(db):
 @pytest.mark.asyncio
 async def test_validation_parent_visibility_and_immutable_fields(db):
     m = manager(db)
-    parent = await call(m.create, "SDK", user_id="alice")
+    parent = await call(m.create, name="SDK", user_id="alice")
+    project = await call(m.create_project, product_id=parent["id"], name="Release", user_id="alice")
     with pytest.raises(LookupError):
-        await call(m.create_task, parent["id"], "Hidden", user_id="bob", scoped_user_id="bob")
-    record = await call(m.create_task, parent["id"], "Work")
+        await call(
+            m.create_task,
+            product_id=parent["id"],
+            title="Hidden",
+            user_id="bob",
+            scoped_user_id="bob",
+            project_id=project["id"],
+        )
+    project = await call(m.create_project, product_id=parent["id"], name="Release", user_id="alice")
+    record = await call(m.create_task, product_id=parent["id"], title="Work", project_id=project["id"])
     for fields in [
         {"status": "done"},
         {"id": "other"},
@@ -157,8 +176,11 @@ async def test_validation_parent_visibility_and_immutable_fields(db):
 @pytest.mark.asyncio
 async def test_custom_table_migrations_and_configuration_roundtrip(db):
     m = manager(db)
-    parent = await call(m.create, "SDK")
-    record = await call(m.create_task, parent["id"], "Roundtrip", user_id="alice")
+    parent = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=parent["id"], name="Release", user_id="alice")
+    record = await call(
+        m.create_task, product_id=parent["id"], title="Roundtrip", user_id="alice", project_id=project["id"]
+    )
     assert await call(db.table_exists, db.tasks_table_name)
     assert not await call(db.table_exists, "agno_company_tasks")
     assert await call(db.get_latest_schema_version, db.tasks_table_name)
@@ -175,19 +197,20 @@ async def test_custom_table_migrations_and_configuration_roundtrip(db):
 @pytest.mark.asyncio
 async def test_task_acceptance_and_project_consistency(db):
     m = manager(db)
-    a = await call(m.create, "A")
-    b = await call(m.create, "B")
-    project = await call(m.create_project, b["id"], "Other")
+    a = await call(m.create, name="A")
+    b = await call(m.create, name="B")
+    project = await call(m.create_project, product_id=b["id"], name="Other")
     with pytest.raises(ValueError):
-        await call(m.create_task, a["id"], "Wrong", project_id=project["id"])
-    task = await call(m.create_task, a["id"], "Work")
+        await call(m.create_task, product_id=a["id"], title="Wrong", project_id=project["id"])
+    own_project = await call(m.create_project, product_id=a["id"], name="Release")
+    task = await call(m.create_task, product_id=a["id"], title="Work", project_id=own_project["id"])
     with pytest.raises(ValueError):
         await call(m.update_task, task["id"], project_id=project["id"])
     ready = await call(
         m.transition_task,
-        task["id"],
-        "ready",
-        "Accepted",
+        task_id=task["id"],
+        target="ready",
+        reason="Accepted",
         accepted_by="alice",
         executor_type="team",
         executor_id="writers",
@@ -197,7 +220,7 @@ async def test_task_acceptance_and_project_consistency(db):
     with pytest.raises(ValueError, match="Backlog"):
         await call(m.update_task, task["id"], brief="Changed")
     assert await call(db.update_task, task["id"], brief="Bypass") is None
-    backlog = await call(m.transition_task, task["id"], "backlog", "Rescope", accepted_by="alice")
+    backlog = await call(m.transition_task, task_id=task["id"], target="backlog", reason="Rescope", accepted_by="alice")
     assert all(backlog[k] is None for k in ["executor_id", "executor_type", "accepted_at", "accepted_by"])
     assert (await call(m.update_task, task["id"], brief="Changed"))["brief"] == "Changed"
 
@@ -207,8 +230,9 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
     import agno.db.schemas.tasks as task_schema
 
     m = manager(db)
-    parent = await call(m.create, "SDK")
-    task = await call(m.create_task, parent["id"], "Work")
+    parent = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=parent["id"], name="Release")
+    task = await call(m.create_task, product_id=parent["id"], title="Work", project_id=project["id"])
     # Capture the observed row at the SQL validation boundary. The later writer
     # sees Backlog again, but must not overwrite the intervening history.
     original = task_schema.task_transition_fields
@@ -224,9 +248,12 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
 
         async def execute(session, statement, *args, **kwargs):
             nonlocal first
+            # Pause the transition transaction, not preliminary manager validation.
+            in_transition = session.in_transaction()
             result = await original_execute(session, statement, *args, **kwargs)
             if (
                 first
+                and in_transition
                 and statement.is_select
                 and getattr(statement, "selected_columns", None) is not None
                 and "executor_type" in statement.selected_columns
@@ -238,11 +265,15 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
 
         monkeypatch.setattr(db.async_session_factory.class_, "execute", execute)
         pending = asyncio.create_task(
-            m.transition_task(task["id"], "ready", "Stale", executor_type="agent", executor_id="stale")
+            m.transition_task(
+                task_id=task["id"], target="ready", reason="Stale", executor_type="agent", executor_id="stale"
+            )
         )
         await asyncio.wait_for(observed.wait(), timeout=5)
-        await m.transition_task(task["id"], "ready", "Current", executor_type="agent", executor_id="current")
-        await m.transition_task(task["id"], "backlog", "Rescope")
+        await m.transition_task(
+            task_id=task["id"], target="ready", reason="Current", executor_type="agent", executor_id="current"
+        )
+        await m.transition_task(task_id=task["id"], target="backlog", reason="Rescope")
         resume.set()
         assert await asyncio.wait_for(pending, timeout=5) is None
     else:
@@ -258,13 +289,25 @@ async def test_stale_acceptance_cannot_overwrite_a_backlog_roundtrip(db, monkeyp
                 # needs its own thread to represent a separate transaction.
                 with ThreadPoolExecutor(max_workers=1) as pool:
                     pool.submit(
-                        m.transition_task, task["id"], "ready", "Current", executor_type="agent", executor_id="current"
+                        m.transition_task,
+                        task_id=task["id"],
+                        target="ready",
+                        reason="Current",
+                        executor_type="agent",
+                        executor_id="current",
                     ).result(timeout=5)
-                    pool.submit(m.transition_task, task["id"], "backlog", "Rescope").result(timeout=5)
+                    pool.submit(m.transition_task, task_id=task["id"], target="backlog", reason="Rescope").result(
+                        timeout=5
+                    )
             return original(existing, *args, **kwargs)
 
         monkeypatch.setattr(task_schema, "task_transition_fields", intervening)
-        assert m.transition_task(task["id"], "ready", "Stale", executor_type="agent", executor_id="stale") is None
+        assert (
+            m.transition_task(
+                task_id=task["id"], target="ready", reason="Stale", executor_type="agent", executor_id="stale"
+            )
+            is None
+        )
     saved = await call(m.get_task, task["id"])
     assert saved["status"] == "backlog" and saved["executor_id"] is None
     assert [entry["reason"] for entry in saved["transitions"]] == ["Current", "Rescope"]
@@ -298,8 +341,8 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
         return {"Authorization": "Bearer " + token}
 
     m = manager(db)
-    product = await call(m.create, "Shared", user_id="alice")
-    project = await call(m.create_project, product["id"], "Shared project", user_id="alice")
+    product = await call(m.create, name="Shared", user_id="alice")
+    project = await call(m.create_project, product_id=product["id"], name="Shared project", user_id="alice")
     app = AgentOS(
         agents=[Agent(id="writer")],
         id=os_id,
@@ -326,7 +369,9 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
         other = (
             project
             if resource == "projects"
-            else await call(m.create_task, product["id"], "Alice task", user_id="alice")
+            else await call(
+                m.create_task, product_id=product["id"], title="Alice task", user_id="alice", project_id=project["id"]
+            )
         )
         path = root + "/" + other["id"]
         assert (await client.get(path, headers=headers("bob"))).status_code == 200
@@ -344,7 +389,7 @@ async def test_http_collaborative_work_and_owner_scoped_deletion(db, resource, i
         if resource == "tasks":
             # Collaborators can assign another creator's Task to a shared Project.
             own_path = path
-            assert (await client.patch(own_path, json={"project_id": None}, headers=headers("bob"))).status_code == 200
+            assert (await client.patch(own_path, json={"project_id": None}, headers=headers("bob"))).status_code == 422
             assert (
                 await client.patch(own_path, json={"project_id": project["id"]}, headers=headers("bob"))
             ).status_code == 200

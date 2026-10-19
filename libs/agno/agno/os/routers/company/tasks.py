@@ -47,8 +47,15 @@ def get_tasks_router(
         try:
             fn = getattr(manager, method)
             if isinstance(manager, AsyncCompanyManager):
-                return await fn(*args, **kwargs)
-            return await asyncio.to_thread(fn, *args, **kwargs)
+                result = await fn(*args, **kwargs)
+            else:
+                result = await asyncio.to_thread(fn, *args, **kwargs)
+            from agno.company.sandbox import _task_response
+
+            if method == "list_tasks":
+                rows, total = result
+                return [_task_response(row, registry) for row in rows], total
+            return _task_response(result, registry) if isinstance(result, dict) else result
         except NotImplementedError:
             raise HTTPException(status_code=503, detail="Company tasks not supported by the configured database")
         except PermissionError as exc:
@@ -152,15 +159,18 @@ def get_tasks_router(
         task_id: str, body: TaskTransition, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
         await _writable(task_id, None)
+        if body.target == "in_progress":
+            raise HTTPException(
+                status_code=409,
+                detail=f"Start a run with POST /company/tasks/{task_id}/runs to enter In progress",
+            )
         if body.target == "ready":
             assert body.executor_type is not None  # Validated by TaskTransition.
-            resource = {"agent": "agents", "team": "teams", "workflow": "workflows", "engineering": "engineering"}[
-                body.executor_type
-            ]
+            resource = {"agent": "agents", "team": "teams", "workflow": "workflows"}[body.executor_type]
             await _require_endpoint_permission(request, f"/{resource}/{body.executor_id}/runs", "POST", action="accept")
         record = await _call(
             "transition_task",
-            task_id,
+            task_id=task_id,
             **body.model_dump(),
             user_id=None,
             accepted_by=getattr(request.state, "user_id", None),

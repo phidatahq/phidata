@@ -36,24 +36,34 @@ async def exercise(db):
         result = method(*args, **kwargs)
         return await result if inspect.isawaitable(result) else result
 
-    product = await call(manager.create, "Documentation")
-    first = await call(manager.create_project, product["id"], "Release guide")
-    second = await call(manager.create_project, product["id"], "Next release")
+    product = await call(manager.create, name="Documentation")
+    first = await call(
+        manager.create_project, product_id=product["id"], name="Release guide"
+    )
+    second = await call(
+        manager.create_project, product_id=product["id"], name="Next release"
+    )
     old = await call(
-        manager.create_task, product["id"], "Superseded draft", project_id=first["id"]
+        manager.create_task,
+        product_id=product["id"],
+        title="Superseded draft",
+        project_id=first["id"],
     )
     await call(manager.delete_task, old["id"])
     task = await call(
-        manager.create_task, product["id"], "Write guide", project_id=first["id"]
+        manager.create_task,
+        product_id=product["id"],
+        title="Write guide",
+        project_id=first["id"],
     )
     await call(manager.update_task, task["id"], project_id=second["id"])
     await call(manager.delete_project, first["id"])
     assert await call(manager.get_task, task["id"])
     await call(
         manager.transition_task,
-        task["id"],
-        "ready",
-        "Scope agreed",
+        task_id=task["id"],
+        target="ready",
+        reason="Scope agreed",
         executor_type="agent",
         executor_id="writer",
     )
@@ -69,7 +79,12 @@ async def exercise(db):
         print("Archive refused with the active Task id and title")
     else:
         raise AssertionError("Active work was archived")
-    await call(manager.transition_task, task["id"], "cancelled", "Defer this release")
+    await call(
+        manager.transition_task,
+        task_id=task["id"],
+        target="cancelled",
+        reason="Defer this release",
+    )
     assert (await call(manager.get, product["id"]))["counts"]["tasks"]["cancelled"] == 1
     await call(manager.delete, product["id"])
     assert (await call(manager.get, product["id"], include_deleted=True))["counts"][

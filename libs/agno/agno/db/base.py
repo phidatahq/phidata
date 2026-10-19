@@ -555,6 +555,10 @@ class BaseDb(ABC):
     # the session's runs explicitly before/after removing the session doc.
     # Best-effort — a crash between the two writes can leave orphan runs;
     # partial-migration cleanup and admin tooling should tolerate this.
+    def reassign_session_owner(self, session_id: str, *, previous_user_id: str, user_id: Optional[str]) -> bool:
+        """Transfer an idle session only when its stored owner still matches."""
+        raise NotImplementedError
+
     @abstractmethod
     def delete_session(self, session_id: str, user_id: Optional[str] = None) -> bool:
         raise NotImplementedError
@@ -632,6 +636,22 @@ class BaseDb(ABC):
         Adapters that have not been ported to v3 storage return ``None``.
         """
         return None
+
+    def cancel_pending_run(
+        self,
+        run_id: str,
+        *,
+        session_id: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        expected_status: str = "PENDING",
+    ) -> bool:
+        """Atomically cancel an observed Pending or Running run, preserving other statuses and data.
+
+        Return whether the row changed. Unsupported adapters must fail rather
+        than fall back to a read followed by an unconditional write.
+        """
+        raise NotImplementedError
 
     def get_runs(
         self,
@@ -1980,6 +2000,7 @@ class BaseDb(ABC):
         expected_transitions: List[Dict[str, Any]],
         user_id: Optional[str] = None,
         run_db_id: Optional[str] = None,
+        session_user_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Reserve a Task attempt conditionally; user_id records the starting caller."""
         raise NotImplementedError("Company execution not supported by this database")
@@ -1990,6 +2011,7 @@ class BaseDb(ABC):
         job_id: str,
         result: Dict[str, Any],
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
+        checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
@@ -2117,6 +2139,10 @@ class BaseDb(ABC):
 
     # --- Schedule Runs (Optional) ---
 
+    def delete_schedule_runs(self, schedule_id: str, *, before: int) -> int:
+        """Delete completed history older than the cutoff for one schedule."""
+        raise NotImplementedError
+
     def create_schedule_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a schedule run record. ``run_data["user_id"]`` is denormalised from the parent schedule."""
         raise NotImplementedError
@@ -2127,6 +2153,10 @@ class BaseDb(ABC):
 
     def get_schedule_run(self, run_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a schedule run by ID."""
+        raise NotImplementedError
+
+    def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Return the latest run for each requested schedule in one query."""
         raise NotImplementedError
 
     def get_schedule_runs(
@@ -2826,6 +2856,10 @@ class AsyncBaseDb(ABC):
         raise NotImplementedError
 
     # --- Sessions ---
+    async def reassign_session_owner(self, session_id: str, *, previous_user_id: str, user_id: Optional[str]) -> bool:
+        """Transfer an idle session only when its stored owner still matches."""
+        raise NotImplementedError
+
     @abstractmethod
     async def delete_session(self, session_id: str, user_id: Optional[str] = None) -> bool:
         raise NotImplementedError
@@ -2887,6 +2921,22 @@ class AsyncBaseDb(ABC):
     ) -> Optional[Union[RunOutput, TeamRunOutput, WorkflowRunOutput, Dict[str, Any]]]:
         """Async read of a single run. Adapters ported to v3 storage override this."""
         return None
+
+    async def cancel_pending_run(
+        self,
+        run_id: str,
+        *,
+        session_id: str,
+        reason: str,
+        user_id: Optional[str] = None,
+        expected_status: str = "PENDING",
+    ) -> bool:
+        """Atomically cancel an observed Pending or Running run, preserving other statuses and data.
+
+        Return whether the row changed. Unsupported adapters must fail rather
+        than fall back to a read followed by an unconditional write.
+        """
+        raise NotImplementedError
 
     async def get_runs(
         self,
@@ -3930,6 +3980,7 @@ class AsyncBaseDb(ABC):
         expected_transitions: List[Dict[str, Any]],
         user_id: Optional[str] = None,
         run_db_id: Optional[str] = None,
+        session_user_id: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Reserve a Task attempt conditionally; user_id records the starting caller."""
         raise NotImplementedError("Company execution not supported by this database")
@@ -3940,6 +3991,7 @@ class AsyncBaseDb(ABC):
         job_id: str,
         result: Dict[str, Any],
         expected_transitions: Optional[List[Dict[str, Any]]] = None,
+        checkout: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Save a completed run's result and move its still-current Task to review."""
         raise NotImplementedError("Company execution not supported by this database")
@@ -4053,6 +4105,10 @@ class AsyncBaseDb(ABC):
 
     # --- Schedule Runs (Optional) ---
 
+    async def delete_schedule_runs(self, schedule_id: str, *, before: int) -> int:
+        """Delete completed history older than the cutoff for one schedule."""
+        raise NotImplementedError
+
     async def create_schedule_run(self, run_data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a schedule run record."""
         raise NotImplementedError
@@ -4063,6 +4119,10 @@ class AsyncBaseDb(ABC):
 
     async def get_schedule_run(self, run_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get a schedule run by ID."""
+        raise NotImplementedError
+
+    async def get_latest_schedule_runs(self, schedule_ids: List[str]) -> Dict[str, Dict[str, Any]]:
+        """Return the latest run for each requested schedule in one query."""
         raise NotImplementedError
 
     async def get_schedule_runs(

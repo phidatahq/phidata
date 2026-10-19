@@ -17,7 +17,7 @@ from agno.os import AgentOS, CompanyConfig
 from agno.registry import Registry
 
 
-async def call(fn, *args, **kwargs):
+async def call(fn, /, *args, **kwargs):
     result = fn(*args, **kwargs)
     return await result if inspect.isawaitable(result) else result
 
@@ -64,16 +64,32 @@ async def test_product_cascade_exact_restore_and_repeated_cycles(db, monkeypatch
     # Provenance must not depend on timestamps: every archive shares one second.
     monkeypatch.setattr(archive.time, "time", lambda: 1800000000)
     m = manager(db)
-    product = await call(m.create, "SDK", user_id="owner")
-    project = await call(m.create_project, product["id"], "Release", user_id="collaborator")
-    old_project = await call(m.create_project, product["id"], "Old")
-    old_project_task = await call(m.create_task, product["id"], "Old project task", project_id=old_project["id"])
+    product = await call(m.create, name="SDK", user_id="owner")
+    project = await call(m.create_project, product_id=product["id"], name="Release", user_id="collaborator")
+    old_project = await call(m.create_project, product_id=product["id"], name="Old")
+    old_project_task = await call(
+        m.create_task, product_id=product["id"], title="Old project task", project_id=old_project["id"]
+    )
     await call(m.delete_project, old_project["id"])
-    old_task = await call(m.create_task, product["id"], "Separately archived", project_id=project["id"])
+    old_task = await call(
+        m.create_task, product_id=product["id"], title="Separately archived", project_id=project["id"]
+    )
     await call(m.delete_task, old_task["id"])
     tasks = [
-        await call(m.create_task, product["id"], "Release notes", project_id=project["id"], user_id="other"),
-        await call(m.create_task, product["id"], "Independent"),
+        await call(
+            m.create_task, product_id=product["id"], title="Release notes", project_id=project["id"], user_id="other"
+        ),
+        await call(
+            db.create_task,
+            dict(
+                id="legacy-independent",
+                product_id=product["id"],
+                title="Independent",
+                status="backlog",
+                created_at=1,
+                transitions=[],
+            ),
+        ),
     ]
     for _ in range(2):
         assert not await call(m.delete, product["id"], user_id="wrong")
@@ -115,12 +131,22 @@ async def test_product_cascade_exact_restore_and_repeated_cycles(db, monkeypatch
 @pytest.mark.asyncio
 async def test_project_cascade_and_parent_visibility_before_pagination(db):
     m = manager(db)
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
-    old = await call(m.create_task, product["id"], "Old", project_id=project["id"])
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
+    old = await call(m.create_task, product_id=product["id"], title="Old", project_id=project["id"])
     await call(m.delete_task, old["id"])
-    task = await call(m.create_task, product["id"], "New", project_id=project["id"])
-    independent = await call(m.create_task, product["id"], "Independent")
+    task = await call(m.create_task, product_id=product["id"], title="New", project_id=project["id"])
+    independent = await call(
+        db.create_task,
+        dict(
+            id="legacy-independent",
+            product_id=product["id"],
+            title="Independent",
+            status="backlog",
+            created_at=1,
+            transitions=[],
+        ),
+    )
     await call(m.delete_project, project["id"])
     assert (await call(m.get_task, task["id"], include_deleted=True))["transitions"][-1]["archived_by"] == {
         "type": "project",
@@ -142,27 +168,44 @@ async def test_project_cascade_and_parent_visibility_before_pagination(db):
 @pytest.mark.parametrize("parent_type", ["product", "project"])
 async def test_http_refuses_all_active_work_then_cascades_and_restores(db, parent_type):
     m = manager(db)
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
     active = []
     for target in ["ready", "in_progress", "in_review"]:
-        task = await call(m.create_task, product["id"], target, project_id=project["id"])
+        task = await call(m.create_task, product_id=product["id"], title=target, project_id=project["id"])
         for state in ["ready", "in_progress", "in_review"]:
             await call(
                 m.transition_task,
-                task["id"],
-                state,
-                "Advance",
+                task_id=task["id"],
+                target=state,
+                reason="Advance",
                 **({"executor_type": "agent", "executor_id": "writer"} if state == "ready" else {}),
             )
             if state == target:
                 break
         active.append(task)
-    backlog = await call(m.create_task, product["id"], "Backlog", project_id=project["id"])
-    # Product refusal also includes active Tasks outside Projects.
+    backlog = await call(m.create_task, product_id=product["id"], title="Backlog", project_id=project["id"])
+    # Legacy Task rows without a Project remain readable and participate in cascades.
     if parent_type == "product":
-        independent = await call(m.create_task, product["id"], "Independent")
-        await call(m.transition_task, independent["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+        independent = await call(
+            db.create_task,
+            dict(
+                id="legacy-independent",
+                product_id=product["id"],
+                title="Independent",
+                status="backlog",
+                created_at=1,
+                transitions=[],
+            ),
+        )
+        await call(
+            m.transition_task,
+            task_id=independent["id"],
+            target="ready",
+            reason="Accept",
+            executor_type="agent",
+            executor_id="writer",
+        )
         active.append(independent)
     parent = product if parent_type == "product" else project
     path = "/company/" + parent_type + "s/" + parent["id"]
@@ -176,7 +219,7 @@ async def test_http_refuses_all_active_work_then_cascades_and_restores(db, paren
         assert (await client.get(path)).status_code == 200
         assert (await call(m.get_task, backlog["id"]))["deleted_at"] is None
         for task in active:
-            await call(m.transition_task, task["id"], "cancelled", "Stop")
+            await call(m.transition_task, task_id=task["id"], target="cancelled", reason="Stop")
         assert (await client.delete(path)).status_code == 204
         for include_deleted in [False, True]:
             response = await client.get("/company/tasks", params={"include_deleted": include_deleted})
@@ -194,11 +237,11 @@ async def test_http_refuses_all_active_work_then_cascades_and_restores(db, paren
 @pytest.mark.asyncio
 async def test_backlog_patch_move_and_cross_product_refusal(db):
     m = manager(db)
-    product = await call(m.create, "SDK")
-    projects = [await call(m.create_project, product["id"], name) for name in ["One", "Two"]]
-    other_product = await call(m.create, "Other")
-    other = await call(m.create_project, other_product["id"], "Other")
-    task = await call(m.create_task, product["id"], "Move", project_id=projects[0]["id"])
+    product = await call(m.create, name="SDK")
+    projects = [await call(m.create_project, product_id=product["id"], name=name) for name in ["One", "Two"]]
+    other_product = await call(m.create, name="Other")
+    other = await call(m.create_project, product_id=other_product["id"], name="Other")
+    task = await call(m.create_task, product_id=product["id"], title="Move", project_id=projects[0]["id"])
     app = AgentOS(db=db, company=CompanyConfig(), telemetry=False).get_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         path = "/company/tasks/" + task["id"]
@@ -225,9 +268,9 @@ async def test_cascade_failure_rolls_back_parent_children_and_provenance(db, mon
     import agno.db.sql.company as archive
 
     m = manager(db)
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
-    task = await call(m.create_task, product["id"], "Work", project_id=project["id"])
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
+    task = await call(m.create_task, product_id=product["id"], title="Work", project_id=project["id"])
     if operation == "restore":
         await call(m.delete, product["id"])
 
@@ -265,9 +308,9 @@ async def test_acceptance_racing_archive_never_hides_active_work(db, parent_type
     app = AgentOS(
         db=db, agents=[Agent(id="writer", telemetry=False)], company=CompanyConfig(), telemetry=False
     ).get_app()
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
-    task = await call(m.create_task, product["id"], "Race", project_id=project["id"])
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
+    task = await call(m.create_task, product_id=product["id"], title="Race", project_id=project["id"])
     parent = product if parent_type == "product" else project
     path = "/company/tasks/" + task["id"]
     payload = {"target": "ready", "reason": "Accept", "executor_type": "agent", "executor_id": "writer"}
@@ -362,9 +405,9 @@ async def test_lists_hide_legacy_children_without_cascade_provenance(db, monkeyp
     import agno.db.sql.company as archive
 
     m = manager(db)
-    product = await call(m.create, "Archived by an older release")
-    project = await call(m.create_project, product["id"], "Still active")
-    await call(m.create_task, product["id"], "Still active", project_id=project["id"])
+    product = await call(m.create, name="Archived by an older release")
+    project = await call(m.create_project, product_id=product["id"], name="Still active")
+    await call(m.create_task, product_id=product["id"], title="Still active", project_id=project["id"])
     monkeypatch.setattr(archive, "_archive_children", lambda *args: None)
     await call(m.delete, product["id"])
     for include_deleted in [False, True]:
@@ -382,14 +425,14 @@ async def test_lists_hide_legacy_children_without_cascade_provenance(db, monkeyp
 @pytest.mark.asyncio
 async def test_response_counts_match_filtered_lists_and_exclude_archives(db):
     m = manager(db)
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
-    active_project = await call(m.create_project, product["id"], "Active")
-    await call(m.transition_project, active_project["id"], "active", "Start")
-    terminal_project = await call(m.create_project, product["id"], "Cancelled")
-    await call(m.transition_project, terminal_project["id"], "cancelled", "Stop")
-    archived_project = await call(m.create_project, product["id"], "Archived")
-    await call(m.create_task, product["id"], "Hidden by Project", project_id=archived_project["id"])
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
+    active_project = await call(m.create_project, product_id=product["id"], name="Active")
+    await call(m.transition_project, project_id=active_project["id"], target="active", reason="Start")
+    terminal_project = await call(m.create_project, product_id=product["id"], name="Cancelled")
+    await call(m.transition_project, project_id=terminal_project["id"], target="cancelled", reason="Stop")
+    archived_project = await call(m.create_project, product_id=product["id"], name="Archived")
+    await call(m.create_task, product_id=product["id"], title="Hidden by Project", project_id=archived_project["id"])
     await call(m.delete_project, archived_project["id"])
     statuses = ["backlog", "ready", "in_progress", "in_review", "done", "cancelled"]
     archived_active = []
@@ -449,11 +492,11 @@ async def test_response_counts_match_filtered_lists_and_exclude_archives(db):
         assert set(schema["TaskCounts"]["properties"]) == set(statuses)
     for status in ["ready", "in_progress", "in_review"]:
         for task in (await call(m.list_tasks, status=status))[0]:
-            await call(m.transition_task, task["id"], "cancelled", "Finish")
+            await call(m.transition_task, task_id=task["id"], target="cancelled", reason="Finish")
     # Counts hide archived children, but their active status still blocks a parent archive.
     for archived in archived_active:
         await call(m.restore_task, archived["id"])
-        await call(m.transition_task, archived["id"], "cancelled", "Finish archived work")
+        await call(m.transition_task, task_id=archived["id"], target="cancelled", reason="Finish archived work")
         await call(m.delete_task, archived["id"])
     await call(m.delete, product["id"])
     archived_counts = (await call(m.get, product["id"], include_deleted=True))["counts"]
@@ -471,8 +514,8 @@ async def test_counts_page_query_bound_and_5000_task_performance(db):
     from sqlalchemy import event
 
     m = manager(db)
-    products = [await call(m.create, "Product " + str(i)) for i in range(25)]
-    projects = [await call(m.create_project, p["id"], "Project") for p in products]
+    products = [await call(m.create, name="Product " + str(i)) for i in range(25)]
+    projects = [await call(m.create_project, product_id=p["id"], name="Project") for p in products]
     table = await call(db._get_table, table_type="tasks", create_table_if_not_found=True)
     task_rows = [
         {
@@ -555,10 +598,17 @@ async def test_counts_page_query_bound_and_5000_task_performance(db):
 @pytest.mark.parametrize("parent_type", ["product", "project"])
 async def test_separately_archived_active_task_still_blocks_parent_archive(db, parent_type):
     m = manager(db)
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
-    task = await call(m.create_task, product["id"], "Still active", project_id=project["id"])
-    await call(m.transition_task, task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
+    task = await call(m.create_task, product_id=product["id"], title="Still active", project_id=project["id"])
+    await call(
+        m.transition_task,
+        task_id=task["id"],
+        target="ready",
+        reason="Accept",
+        executor_type="agent",
+        executor_id="writer",
+    )
     await call(m.delete_task, task["id"])
     method, parent = (m.delete, product) if parent_type == "product" else (m.delete_project, project)
     with pytest.raises(ValueError) as error:
@@ -574,8 +624,8 @@ async def test_attention_excludes_archived_ancestors_with_execution_results(db, 
     import agno.db.sql.company as archive
 
     m = manager(db)
-    product = await call(m.create, "SDK")
-    project = await call(m.create_project, product["id"], "Release")
+    product = await call(m.create, name="SDK")
+    project = await call(m.create_project, product_id=product["id"], name="Release")
     for status in ["backlog", "in_progress", "in_review"]:
         await call(
             db.create_task,
@@ -623,7 +673,7 @@ async def test_attention_excludes_archived_ancestors_with_execution_results(db, 
     ],
 )
 async def test_argless_storage_value_error_remains_validation_error(db, monkeypatch, resource, method, payload):
-    product = await call(manager(db).create, "SDK")
+    product = await call(manager(db).create, name="SDK")
     if resource == "projects":
         payload = {**payload, "product_id": product["id"]}
 

@@ -37,13 +37,22 @@ change every Product; admins bypass owner isolation.
 | --- | --- |
 | `02_manage_projects.py` | Product-contained Projects, owner filtering, explicit transitions, soft delete and restore. |
 | `03_manage_tasks.py` | Backlog proposals, executor acceptance, frozen scope, rescoping, review and completion. |
+| `09_sandboxed_engineers.py` | Claude and Codex execute a Task from a public repository in Docker, with durable checkpoints and checkout pinning. |
+
+A Product contains Projects and Routines. Every new Task belongs to a Project
+in that Product: `project_id` is required by Task creation and proposal/Intake
+tools. HTTP rejects omission with 422; Python managers and tools raise
+`ValueError`. When no Project fits, propose one with `propose_company_project`,
+then pass its ID to the Task proposal. A Backlog Task can move between Projects
+but cannot clear its Project. Existing nullable storage rows remain readable.
 
 Projects start `proposed` and move to `active`, then `done`. Tasks start
 `backlog` and move through `ready`, `in_progress`, `in_review`, and `done`.
 Either can be `cancelled` from any non-terminal state. Each transition takes
 `target` and a non-empty `reason`; history is returned on the record. Tasks
 may return to Backlog to clear acceptance and change scope, and In review may
-return to In progress for revisions. Terminal states cannot transition.
+return to In progress for revisions by starting the next run attempt. Direct HTTP
+transitions to In progress return 409 and name the runs endpoint. Terminal states cannot transition.
 
 The HTTP routes use `/company/projects` and `/company/tasks`, with the same
 CRUD, paging, soft delete and restore conventions as Products, plus
@@ -146,23 +155,42 @@ the local PostgreSQL URL. SQLite follows the queue's existing development
 fallback; use PostgreSQL session storage for production attempt fencing.
 
 POST `/company/tasks/{id}/runs` accepts `{"attempt": 1}` (the default). Repeating
-that attempt returns the first run. A full queue returns 429 without changing
+an active attempt returns the first run. In review, a stale attempt returns 409. A full queue returns 429 without changing
 the Task or consuming the attempt; retry the same attempt when capacity is available.
 The durable ticket is accepted before the Task moves to In progress, and the worker
 can recover that update if the submitting process stops. If acceptance changes
 before the Task can reserve a fresh ticket, the request returns 409 and cancels
 the waiting ticket; an already-claimed ticket is rejected by the worker.
-A new attempt increments the number; after
-success, first transition In review to In progress to request revisions. Each
-Task retains one session. GET on the same route returns ordinary session runs
+To request a revision from In review, POST to the runs route with `attempt` equal
+to the highest recorded attempt plus one. The reservation writes the In review
+to In progress transition and clears the previous result, retaining the same
+session and executor. A rejected submission leaves the result and lifecycle unchanged.
+A fresh Ready Task starts attempt 1. Work returned to Backlog, edited, and accepted
+again starts the next unused attempt from Ready, retaining its session. Backlog
+cannot start a run. Failed or cancelled runs can still be retried while the Task
+remains In progress. No
+revision feedback field is accepted by this request. Each Task retains one session. GET on the same route returns ordinary session runs
 with `limit` and `page`. GET `/company/runs/{id}` reads an individual run and
 POST `/company/runs/{id}/cancel` uses the executor's existing cancellation route.
 
 Start rechecks the registry, `tasks:write`, `wiki:read` and the executor's run
 permission. Registry-only executors receive their ordinary routes when Company
 is enabled. Each executor needs a run database, and execution requires
-`QueueConfig(durable=True)`. An existing session retains the normal run route's
-ownership checks. Engineering executors cannot be started yet. Framework-reserved executors,
+`QueueConfig(durable=True)`. Every attempt runs as the Task's accountable owner,
+`task.user_id`. Company checks the starting human's current executor run permission
+first, then uses the internal service transport with the Task owner header. The
+owner does not need the executor's run permission; that permission belongs to the
+acting human. For an unowned Task, Company records the executor's default user as
+the effective session owner and reuses it on later attempts, even if that default
+changes. Cancellation checks the acting human's executor permission too, then
+uses the recorded run owner for cancellation and Task reconciliation. A refused
+cancel leaves the queue ticket unchanged.
+The attempt transition records that human as `started_by`; automatic starts record the
+policy's accepting human. Revisions by another authorized collaborator keep the
+same session and owner in both isolation modes. The ordinary session ownership
+check still rejects unrelated sessions. For a legacy session created by a starter,
+Company recovers with the recorded reservation identity and transfers an idle
+session to the Task owner only after matching its original reservation and run. Engineering executors cannot be started yet. Framework-reserved executors,
 including Product Manager and OS Manager, cannot be accepted or started as
 Task executors.
 
@@ -394,10 +422,62 @@ indistinguishable from the checked record. Project completion still refuses any
 current non-terminal Task, but child evidence changes do not advance the Project's
 timestamp and are not fenced by this comparison.
 
-Each minute it checks Ready Tasks and authorized Routine proposals. It uses the scheduler's ordinary claims,
-release, and run history. No extra loop, table, or route is installed. Skipped
-Tasks and proposals have their reasons in this schedule's run output, readable
-through `/schedules/{id}/runs`.
+Each minute it checks Ready Tasks and authorized Routine proposals using the
+scheduler's ordinary claims and release. A tick records history only when it
+accepts, dispatches, completes, or recovers work, or encounters an execution
+error. Dispatch failures, including unavailable queue storage or a missing
+executor, produce failed history with Task-specific reasons, readable through
+`/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
+run rows. Unexpected database errors are recorded even before dispatch starts.
+Engineering executors and a previous attempt whose ticket is still active are
+expected skips. If a Ready Task's accepting human loses permission, the Task
+returns to Backlog with the refusal reason and appears in attention; the failed
+tick is recorded once instead of repeating every minute.
+
+Recovery runs before current Routine pause, policy and permission checks. It only
+reconciles existing reservations and never enqueues work. A terminal durable run
+repairs a missing Task result, including after its Routine is paused or its policy
+is revoked. A ticketless Pending row is cancelled. A ticketless Running row is
+observed until durable completion or an explicit cancellation request. Absence
+from a cancellation registry does not prove that another worker has stopped;
+without authoritative liveness evidence, recovery leaves the attempt unresolved.
+The conditional database update preserves a concurrent worker's status change.
+Task result projection checks the reservation history and writes only while the
+attempt has no result, so the first terminal outcome wins. A
+reservation with neither a queue ticket nor a run is cancelled on the Task.
+Failed or cancelled attempts require a human retry; new dispatch still checks
+current actor permissions and the policy fingerprint.
+Reservation identity conflicts return HTTP 409, and unavailable original run
+stores or recovery executors return HTTP 503. Unrelated session ownership remains
+an HTTP 404 refusal.
+
+Consecutive dispatch failures for the same Task state and reason update one failed
+schedule-history row. `/company/attention` includes an `automation_failures` list
+when actionable failures exist, with `task_id`, `reason` and `count`; `failed`
+counts each active streak once. A changed reason, Task move or successful check
+ends that streak. Refresh deletes completed automation history after
+`CompanyConfig(automation_history_retention_days=30)` days, measured from the most
+recent occurrence. The setting must be a positive integer. Routine history and
+ordinary executor runs are unaffected. Retention also supports sync and async
+MongoDB schedule storage paired with SQL Company storage. Synchronous
+`CompanyManager.attention()` can be called from an application event loop.
+
+New dispatch refuses a disabled Task owner and follows the user directory's
+configured failure policy. An authorized collaborator can still cancel existing
+work after its owner is disabled; recovery can still project a completed result.
+
+`09_task_session_ownership.py` demonstrates Alice starting attempt 1 and Bob
+starting attempt 2, with both runs owned by Alice and distinct `started_by` entries.
+Run it with SQLite or `COMPANY_DB=postgres`; it uses a local workflow and the durable
+PostgreSQL queue without a model call.
+
+Starting AgentOS without Company disables an existing automation schedule with
+`disabled_reason="company_off"`. Enabling Company again re-enables that row;
+other disabled reasons are preserved. GET `/config` exposes `company.dbs` with
+the configured Company database id and its Product, Project, Task, and Source
+tables. The `company` key is null when Company is off. YAML Product declarations
+can share their `company` section with optional `display_name` and `dbs` display
+overrides.
 
 The tick stops admitting work 240 seconds after its claim, before the scheduler's
 default 300-second stale-lock threshold. It checks again after IO and before
@@ -452,10 +532,10 @@ Every authorization names an exact executor type and ID. A proposal with no
 executor receives that authorized executor at acceptance. A proposal that names
 an executor must name the same one. It must belong to the Routine's Product and
 carry the framework's Routine origin. `propose_company_task` and
-`intake_company_source` can name a proposed executor and Project; neither can
+`intake_company_source` require a Project and can name a proposed executor; neither can
 accept work. Source IDs and work scope are optional bounds. Omitted Source/scope
 bounds impose no additional restriction; an empty allowed-ID list permits no matching work.
-`project_ids` can include `null` to allow independent Tasks. Unknown fields and
+`project_ids` can include `null` for legacy Tasks without a Project; new Tasks require a Project. Unknown fields and
 check names fail closed. A Source bound requires verified reader evidence.
 Omitting `required_checks` defaults to `["executor_registered"]`; an explicit
 empty check list is rejected. Every policy therefore runs at least one server-side
@@ -647,11 +727,12 @@ when its policy sets `complete_projects: true`.
 A custom Routine does maintenance only when it calls the Refresh tool, and
 Summary bookkeeping only when it calls the Summary tool.
 
-Product Manager and executors can call `add_company_source` with `type="website"`
+Product Manager and executors can call `add_company_source(product_id, reference, config=None)`
 when granted `sources:write` and permitted to write the Product. Repository and
 path Sources remain human-added. Source storage has a single existing JSON
-field, `config`: server-stamped `config.metadata.agent_id` and
-`config.metadata.run_id` identify the first discovery. These fields are not
+field, `config`: server-stamped `config.metadata.agent_id` or
+`config.metadata.team_id`, plus `config.metadata.run_id`, identify the first discovery.
+The tool adds website Sources only; there is no `type` argument. These fields are not
 reader options or model-supplied identities. Matching additions reuse the same
 Source; conflicting settings or archived references are refused with the existing
 Source id. Policies may name these website Sources in `source_ids`;
@@ -666,3 +747,111 @@ Summary's unresolved failures match attention: only Tasks still `in_progress`
 with an ERROR or CANCELLED execution result appear under Failed Tasks. Moving
 work on or archiving it removes that unresolved failure without deleting its
 execution history.
+
+## Routine controls and on-demand work
+
+`GET /company/routines/{id}` returns the same Routine shape as the list.
+Create, read, update, pause, and resume responses include `schedule_type`
+(`scheduled` or `on_demand`) and `last_run`. The latter is null before the first
+run, then contains `status`, `triggered_at`, `completed_at`, `run_id`,
+`session_id`, and `error`. List pages fetch the latest runs together in one
+query. Run history remains at `GET /company/routines/{id}/runs`.
+
+Omit `cron_expr` (or use null) to create an on-demand Routine in code, YAML,
+setup, or `POST /company/routines`. It stays enabled with `next_run_at: null`
+and is never claimed by the poller. `PATCH /company/routines/{id}` with a cron
+makes it scheduled; `{"cron_expr": null}` removes the schedule and keeps history.
+Pause and resume also apply to on-demand Routines.
+
+On-demand execution is a scheduler rule for all schedules. The generic schedule
+API accepts an empty or omitted cron on creation and an empty cron on update;
+omitting it from a PATCH preserves the current cron. Schedule responses expose
+an empty stored cron as null. These schedules run only through trigger, with
+`next_run_at` remaining null across polling, restart, and pause/resume.
+
+With the scheduler enabled, `POST /company/routines/{id}/trigger` starts one
+execution and returns its schedule-run record when it finishes. It uses the
+same owner and executor permission checks as the other Routine controls;
+paused Routines return 409. Automation and non-Company schedule IDs return 404.
+A concurrent GET exposes the live `last_run.run_id` and `session_id` while
+execution is running. Stop uses the existing executor cancel route, such as
+`POST /agents/{executor_id}/runs/{run_id}/cancel` (or the equivalent Team or
+Workflow route). There is no separate Routine stop operation.
+
+`08_custom_routines.py` demonstrates on-demand declaration, single read, pause,
+resume, and adding/removing a cron without calling a model.
+
+
+## Named arguments for Company mutations
+
+The long `CompanyManager` and `AsyncCompanyManager` mutation methods require
+keyword arguments: `create`, `create_project`, `create_task`, `transition_project`,
+`transition_task`, `write_wiki`, `log_decision`, `create_source`, `add_source`,
+`intake`, and `summarize`. Name the fields explicitly, for example
+`manager.create_project(product_id=product["id"], name="Release")`. The sync and
+async signatures match; short lookup and update methods retain their existing
+calling convention.
+
+
+Routine `last_run` uses creation-ordered scheduler history identifiers to resolve
+executions started within the same second. History IDs are opaque strings; they
+are distinct from the executor `run_id` used to cancel a live run. Existing history
+is retained, although the order of old UUID-only records with identical timestamps
+cannot be reconstructed. Pause and resume return the same Routine resource shape
+as a single read, including `last_run`.
+
+Python `ScheduleManager.update(enabled=True)` and `aupdate(enabled=True)` re-arm
+recurring schedules using their current cron and timezone. On-demand schedules
+remain enabled with a null deadline. Clearing a cron during execution also keeps
+the deadline null after release on SQL and MongoDB storage.
+
+### Sandboxed engineering executors
+
+[09_sandboxed_engineers.py](09_sandboxed_engineers.py) configures one reusable
+ClaudeAgent and one CodexAgent with `repository=Repository(...)`. Select either
+with `--executor claude` or `--executor codex`. Both use the public
+`octocat/Hello-World` repository, Docker `network="isolated"`, and an explicit
+`checkpoints=FileCheckpointStore(...)`. `--config-only` makes no model calls.
+
+The Product has a matching git Source URL and `config.branch` names its default
+branch. The agent's Repository config selects the checkout branch. Acceptance
+checks the URL; the sandbox resolves and publishes the commit on its first turn.
+The first successful completion records the pin, including a successful retry
+after an earlier failed or cancelled attempt. The Task retains
+`{source_id, url, branch, commit}` in `metadata.checkout` and later attempts
+reuse its session and verify that pin at completion. Recovery of a completed run
+uses the same pin validation and saves the checkout atomically with its result.
+A checkout validation error can be retried after repairing its cause. Reacceptance
+requires a sandboxed executor with the same repository and branch once a checkout
+is pinned. Use a new Task for a non-sandboxed executor or a different repository.
+A second sandboxed Task start receives 409 while another has a live job, including after that Task is
+returned to Backlog, reassigned or archived. Ordinary agents remain eligible
+and report `sandboxed: false`. This marker is derived from the component and
+cannot be set on a Task.
+
+Deployment requirements:
+
+- PostgreSQL for executor runs and the durable queue; Redis for queue coordination.
+  SQLite is supported for local Company records, but sandbox executor state is
+  PostgreSQL-backed.
+- An explicit checkpoint store on one host, or a shared checkpoint filesystem
+  across replicas. Local checkpoint directories are not portable between hosts.
+- Docker with `network="isolated"` (or AgentCore with network access). Egress
+  filtering belongs to the deployment. No Docker socket or privileged container.
+- Set `workspace_mb` for the shallow clone and tools: this example uses 2048 MiB,
+  suitable for an Agno checkout plus a virtual environment. Checkpoints have a
+  1 GiB cap. Set `execution_timeout` for the intended test run; the example uses
+  1800 seconds within the provider lifetime.
+- For Agno development, build the engineering image with development dependencies,
+  PostgreSQL/pgvector and Redis running as unprivileged processes with disposable
+  data under `/tmp`. Run targeted tests there; full CI remains the release check.
+- Public repositories need no git credentials. Private repositories use a
+  read-only token in `Sandbox.env["GITHUB_READ_TOKEN"]`; the matching Source's
+  `credential_ref` must be `GITHUB_READ_TOKEN`, and acceptance checks that the
+  executor has that variable in `Sandbox.env`. Never pass a write credential to
+  the sandbox. Local-path git Sources remain read-only; URL Source HTTP reads
+  and publishing are outside this example.
+
+Set `SANDBOX_IMAGE`, `SANDBOX_CHECKPOINTS`, `DATABASE_URL`, and `REDIS_URL` for your
+deployment, plus the selected harness's model API key. Running the example
+without `--config-only` makes a real model call and leaves its Task for review.

@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 import jwt
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from agno.agent import Agent
@@ -20,7 +21,14 @@ from agno.registry import Registry
 from agno.tools.scheduler import SchedulerTools
 
 SECRET = "company-execution-tests-secret-at-least-32-bytes"
-SCOPES = ["products:read", "products:write", "tasks:read", "tasks:write", "wiki:read", "agents:writer:run"]
+SCOPES = [
+    "products:read",
+    "products:write",
+    "tasks:read",
+    "tasks:write",
+    "wiki:read",
+    "agents:writer:run",
+]
 
 
 def headers(user="alice", scopes=None):
@@ -63,8 +71,15 @@ def system(request, tmp_path):
 
 def accepted(client):
     product = client.post("/company/products", json={"name": "SDK"}, headers=headers()).json()
+    project = client.post(
+        "/company/projects",
+        json={"product_id": product["id"], "name": "Release"},
+        headers=headers(scopes=["projects:write"]),
+    ).json()
     task = client.post(
-        "/company/tasks", json={"product_id": product["id"], "title": "Draft", "brief": "Write"}, headers=headers()
+        "/company/tasks",
+        json={"product_id": product["id"], "project_id": project["id"], "title": "Draft", "brief": "Write"},
+        headers=headers(),
     ).json()
     path = f"/company/tasks/{task['id']}"
     response = client.post(
@@ -81,7 +96,9 @@ def test_missing_executor_at_acceptance_and_registry_only_mount(system):
     path, task = accepted(client)
     assert client.post(path + "/runs", headers=headers()).status_code == 202
     other = client.post(
-        "/company/tasks", json={"product_id": task["product_id"], "title": "Other"}, headers=headers()
+        "/company/tasks",
+        json={"product_id": task["product_id"], "project_id": task["project_id"], "title": "Other"},
+        headers=headers(),
     ).json()
     denied = client.post(
         f"/company/tasks/{other['id']}/transitions",
@@ -92,15 +109,32 @@ def test_missing_executor_at_acceptance_and_registry_only_mount(system):
     assert client.get(f"/company/tasks/{other['id']}", headers=headers()).json()["status"] == "backlog"
 
 
-def test_start_requires_current_run_and_wiki_permissions(system):
+@pytest.mark.parametrize("revision", [False, True])
+def test_start_requires_current_run_and_wiki_permissions(system, revision):
     client, db, os, queue = system
     path, task = accepted(client)
+    if revision:
+        started = client.post(path + "/runs", headers=headers())
+        assert started.status_code == 202, started.text
+
+        async def finish():
+            job = await queue.store.claim_job(queue.worker_id, queue.config.lock_grace_seconds)
+            assert job["id"] == started.json()["run_id"]
+            assert await queue.store.complete_job(job["id"], queue.worker_id, job["attempt"], "completed")
+
+        asyncio.run(finish())
+        db.complete_task_run(task["id"], started.json()["run_id"], {"status": "COMPLETED", "content": "Draft"})
+    before = db.get_task(task["id"])
+    body = {"attempt": 2 if revision else 1}
     for omitted in ("agents:writer:run", "wiki:read", "tasks:write"):
-        response = client.post(path + "/runs", headers=headers(scopes=[scope for scope in SCOPES if scope != omitted]))
+        response = client.post(
+            path + "/runs", json=body, headers=headers(scopes=[scope for scope in SCOPES if scope != omitted])
+        )
         assert response.status_code == 403, response.text
-    assert client.get(path, headers=headers()).json()["status"] == "ready"
+        assert db.get_task(task["id"]) == before
+    assert before["status"] == ("in_review" if revision else "ready")
     os.registry.agents.clear()
-    assert client.post(path + "/runs", headers=headers()).status_code == 409
+    assert client.post(path + "/runs", json=body, headers=headers()).status_code == 409
 
 
 def test_attention_history_and_duplicates_are_shared(system):
@@ -132,13 +166,18 @@ def test_unaccepted_no_queue_and_request_overrides(system):
 def test_python_acceptance_also_validates_registry(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "registry.db"))
     manager = CompanyManager(db)
-    product = manager.create("SDK")
-    task = manager.create_task(product["id"], "Draft")
+    product = manager.create(name="SDK")
+    project = manager.create_project(product_id=product["id"], name="Release")
+    task = manager.create_task(product_id=product["id"], title="Draft", project_id=project["id"])
     with pytest.raises(ValueError, match="missing"):
-        manager.transition_task(task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+        manager.transition_task(
+            task_id=task["id"], target="ready", reason="Accept", executor_type="agent", executor_id="writer"
+        )
     manager.registry = Registry(agents=[Agent(id="writer", tools=[SchedulerTools(db=db)])])
     with pytest.raises(ValueError, match="SchedulerTools"):
-        manager.transition_task(task["id"], "ready", "Accept", executor_type="agent", executor_id="writer")
+        manager.transition_task(
+            task_id=task["id"], target="ready", reason="Accept", executor_type="agent", executor_id="writer"
+        )
     db.close()
 
 
@@ -381,7 +420,7 @@ async def test_routine_payload_cannot_grant_or_widen_authorization(system, monke
         assert error.value.status_code == 403
         with pytest.raises(PermissionError, match="cannot accept"):
             CompanyManager(db, os.registry).transition_task(
-                task["id"], "ready", "self-accept", executor_type="agent", executor_id="writer"
+                task_id=task["id"], target="ready", reason="self-accept", executor_type="agent", executor_id="writer"
             )
 
 
@@ -390,7 +429,7 @@ def managed_system(request, tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "managed-company.db"))
     authz = Authorization(db=db, verification_keys=[SECRET], algorithm="HS256")
     authz.define_role("admin", ["agent_os:admin"])
-    authz.define_role("runner", SCOPES)
+    authz.define_role("runner", [*SCOPES, "projects:write"])
     authz.define_role("viewer", [scope for scope in SCOPES if scope != "agents:writer:run"])
     authz.seed(admin="root")
     authz.assign("alice", "runner")
@@ -459,8 +498,9 @@ async def test_automatic_pickup_rechecks_managed_grant_at_task_route(managed_sys
         return authority
 
     monkeypatch.setattr(run_context, "request_authorization", revoke_after_transport_checks)
-    with pytest.raises(ValueError, match="Permission required: agents:writer:run"):
+    with pytest.raises(HTTPException, match="Permission required: agents:writer:run") as denied:
         await executor._dispatch(db.get_task(task["id"]))
+    assert denied.value.status_code == 403
     assert revoked
     assert db.get_task(task["id"])["status"] == "ready"
     assert db.get_task(task["id"])["job_id"] is None
@@ -637,8 +677,8 @@ async def test_completion_rechecks_managed_human_permission(managed_system, duri
     authz.set_role("alice", "completer")
     product = client.post("/company/products", json={"name": "Docs"}, headers=headers()).json()
     manager = CompanyManager(db, os.registry)
-    project = manager.create_project(product["id"], "Release", user_id="alice")
-    project = manager.transition_project(project["id"], "active", "Start")
+    project = manager.create_project(product_id=product["id"], name="Release", user_id="alice")
+    project = manager.transition_project(project_id=project["id"], target="active", reason="Start")
 
     async def revoke(proposal, check_manager):
         authz.set_role("alice", "without_completion")

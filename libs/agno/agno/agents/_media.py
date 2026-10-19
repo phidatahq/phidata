@@ -7,9 +7,9 @@ prompt. Images and documents are supported; audio and video have no consumer in 
 
 import re
 import shutil
+from base64 import b64encode
 from contextlib import suppress
 from dataclasses import dataclass
-from base64 import b64encode
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 

@@ -11,7 +11,7 @@ def test_reopen_schema_and_serialization(tmp_path):
     path = str(tmp_path / "company.db")
     db = SqliteDb(db_file=path, products_table="custom_products")
     manager = CompanyManager(db)
-    product = manager.create("SDK", user_id="alice", metadata={"nested": {"x": [1, 2]}})
+    product = manager.create(name="SDK", user_id="alice", metadata={"nested": {"x": [1, 2]}})
     assert manager.delete(product["id"])
     serialized = db.to_dict()
     assert serialized["products_table"] == "custom_products"

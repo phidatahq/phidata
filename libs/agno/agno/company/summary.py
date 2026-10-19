@@ -32,13 +32,13 @@ def _serialized_summary(fn):
     if inspect.iscoroutinefunction(fn):
 
         @wraps(fn)
-        async def async_wrapped(self, product_id, *args, **kwargs):
+        async def async_wrapped(self, *, product_id, **kwargs):
             from agno.company.playbook import _require_owner
 
             product = await self.get(product_id)
             if product is None:
                 raise LookupError("Product not found")
-            _require_owner(product, kwargs.get("user_id", args[3] if len(args) > 3 else None))
+            _require_owner(product, kwargs.get("user_id"))
             filesystem = _summary_state_filesystem(self.db, product_id)
             existing = await filesystem.aread_with_meta(_LOCK_PATH)
             content = _claim_content(existing)
@@ -47,7 +47,7 @@ def _serialized_summary(fn):
             )
             token = _delivery_deadline.set(json.loads(content)["expires_at"])
             try:
-                return await fn(self, product_id, *args, **kwargs)
+                return await fn(self, product_id=product_id, **kwargs)
             finally:
                 _delivery_deadline.reset(token)
                 await filesystem.awrite(_LOCK_PATH, '{"expires_at": 0}', expected_version=saved.version)
@@ -55,20 +55,20 @@ def _serialized_summary(fn):
         return async_wrapped
 
     @wraps(fn)
-    def wrapped(self, product_id, *args, **kwargs):
+    def wrapped(self, *, product_id, **kwargs):
         from agno.company.playbook import _require_owner
 
         product = self.get(product_id)
         if product is None:
             raise LookupError("Product not found")
-        _require_owner(product, kwargs.get("user_id", args[3] if len(args) > 3 else None))
+        _require_owner(product, kwargs.get("user_id"))
         filesystem = _summary_state_filesystem(self.db, product_id)
         existing = filesystem.read_with_meta(_LOCK_PATH)
         content = _claim_content(existing)
         saved = filesystem.write(_LOCK_PATH, content, expected_version=existing.metadata.version if existing else 0)
         token = _delivery_deadline.set(json.loads(content)["expires_at"])
         try:
-            return fn(self, product_id, *args, **kwargs)
+            return fn(self, product_id=product_id, **kwargs)
         finally:
             _delivery_deadline.reset(token)
             filesystem.write(_LOCK_PATH, '{"expires_at": 0}', expected_version=saved.version)

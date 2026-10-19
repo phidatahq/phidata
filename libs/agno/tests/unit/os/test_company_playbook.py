@@ -38,6 +38,8 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     os.resync(os.get_app())
     assert pm not in registry.agents and not registry.tools
     tools = pm.tools[0]
+    assert {"create_company_product", "create_company_routine"} <= tools.functions.keys()
+    assert tools.registry is registry
     assert not any("schedule" in name or "transition" in name for name in tools.functions)
     assert "log_company_decision" not in tools.functions
     assert "summarize_company_product" not in tools.functions
@@ -49,6 +51,24 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     }
     inherited = AgentOS(db=db, registry=Registry(models=[first, override]), company=CompanyConfig(), telemetry=False)
     assert inherited.product_manager.model is first
+
+
+def test_company_tools_published_only_over_mcp_are_bound(tmp_path):
+    from agno.os import MCPConfig
+
+    db = SqliteDb(db_file=str(tmp_path / "mcp.db"))
+    registry = Registry(agents=[Agent(id="reader")])
+    exposed, explicit = CompanyTools(db), CompanyTools(db, registry=Registry())
+    AgentOS(
+        db=db,
+        registry=registry,
+        company=CompanyConfig(automation_history_retention_days=7),
+        mcp=MCPConfig(tools=[exposed, explicit]),
+        telemetry=False,
+    )
+    assert exposed.registry is registry and exposed._schedule_db is db
+    assert exposed._automation_history_retention_days == 7
+    assert explicit.registry is not registry
 
 
 def test_no_model_manual_api_and_disabled_company(tmp_path, caplog):
@@ -113,9 +133,9 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
         properties = function.parameters.get("properties", {})
         if function.name == "log_company_decision":
             assert "agent_id" not in properties
-        assert not {"user_id", "_agno_run_context", "status", "owner", "sources", "auto_accept", "accepted_by"} & set(
-            properties
-        ) - {"status"}
+        assert not {"user_id", "_agno_run_context", "owner", "auto_accept", "accepted_by"} & set(properties)
+        if function.name != "create_company_product":
+            assert "sources" not in properties
     with pytest.raises(PermissionError):
         await invoke("propose_company_task", product["id"], "anonymous", project_id=project["id"])
 

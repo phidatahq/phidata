@@ -32,6 +32,17 @@ Every process sharing the host's bridge must use the same subnet; remove the bri
 
 `sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
 
+## Checkpoints in S3
+
+```bash
+.venv/bin/python cookbook/frameworks/sandbox/docker/sandbox_s3_checkpoints.py
+.venv/bin/python cookbook/frameworks/sandbox/docker/checkpoint_cache.py
+```
+
+`checkpoint_cache.py` checkpoints a fixture turn to the bucket, opens that checkpoint five times with `cache_dir=` set and counts the downloads boto3 actually makes: one. A second store on the same cache directory does not download either, and deleting the object from the bucket makes the next open fail even though the cache still holds a copy.
+
+`S3CheckpointStore` (`agno.sandbox.s3`, needs `agno[s3]`) keeps checkpoints in an S3-compatible bucket instead of a directory, so replicas that share no filesystem can restore each other's sessions; the queue worker's refusal of the host-local default does not apply to it. Each checkpoint is one object under `<prefix>/<sha256>.tar.gz`, content-addressed like the file store, with its digest and size as object metadata. `put` hashes the archive first and uploads nothing when the object already exists; above `part_size` (default 64 MiB) it uploads in parts, and a crashed upload leaves nothing readable under the key. `verify` is a HEAD plus a size and digest-metadata check; `open_archive` downloads the object, checks the bytes against the reference, and yields a read-only local path: a temporary copy under `scratch=` (the system temporary directory by default) that is removed when the caller is done, or, with `cache_dir=` set, an entry kept on local disk under its digest so later opens on this host cost a hash instead of a download. The cache is bounded by `cache_bytes=` (default 4 GiB), evicts the least recently opened objects, never removes one a caller holds open, and still asks the bucket whether the object exists, so a checkpoint retention removed is reported missing even while a copy lingers. Configure `bucket`, `prefix` and `region`; credentials come from the standard AWS environment and the deployment's role; edit the bucket name at the top of the cookbook. An S3-compatible service such as MinIO works through the standard `AWS_ENDPOINT_URL_S3` variable or the store's `endpoint_url` argument. The integration suites run against this store when `AGNO_TEST_S3_BUCKET` is set (with `AGNO_TEST_S3_ENDPOINT` for a local server), and the unit tests use moto in-process.
+
 ## Attachments
 
 ```bash
@@ -140,6 +151,18 @@ sandbox.exec(new_handle, ["sh", "-c", "cd /workspace && python -m venv .venv && 
 ```
 
 Reinstalling needs network access or a local package source, since sandbox networking defaults to `none`. Exclusions are never inferred, so dependencies are not dropped silently.
+
+## Opening a run's checkpoint on the host
+
+```bash
+AGNO_SANDBOX_IMAGE=agno-sandbox:local .venv/bin/python cookbook/frameworks/sandbox/docker/open_checkpoint.py
+```
+
+Two fixture turns of one session through `FixtureAgent`, then each run's checkpoint opened on the host through the agent and restored to a directory. No model credentials are required.
+
+`agent.checkpoint_store` is the `CheckpointStore` the agent's turns write to: the sandbox's `checkpoints=` store, else the host-local default, which is refused while a durable queue worker is active, exactly as the coordinator refuses it. `agent.open_run_checkpoint(run_id)` and `aopen_run_checkpoint` read the committed reference from the run row, have the store verify the object, and yield the archive path for the duration of the context; `CheckpointArchive.restore(path, destination)` extracts it. As with `get_session`, the sync form takes a sync database and refuses an async one, whose pooled connections belong to the loop that first used them. The restored directory holds `workspace/`, the agent's working directory as the turn left it, with the pinned checkout under `workspace/repository` when the agent has `repository=` configured, and `native/`, the harness home, less the credential files excluded at capture. A run that is unknown, belongs to another agent, is not `COMPLETED` or committed no checkpoint is refused with a `ValueError`; an object that retention has removed raises `CheckpointObjectNotFound`.
+
+This is the extraction path for a host process that needs a turn's results after its computer is gone, such as turning an engineer's edits into a patch: open the run's checkpoint, restore it, and diff `workspace/` against the starting tree. The reference on the run row is the one the turn published atomically with its result, so the files always match the run.
 
 ## Native recovery: the sandbox never runs a turn on state it cannot verify
 

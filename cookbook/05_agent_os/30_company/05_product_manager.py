@@ -9,7 +9,7 @@ Try: With provider credentials, call agent_os.product_manager.print_response(...
 import json
 from tempfile import TemporaryDirectory
 
-from agno.company import CompanyManager
+from agno.agent import Agent
 from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
 from agno.os import AgentOS, CompanyConfig, MCPConfig
@@ -22,21 +22,46 @@ if __name__ == "__main__":
     with TemporaryDirectory() as directory:
         db = SqliteDb(db_file=directory + "/company.db")
         tools = CompanyTools(db, user_isolation=True)
+        model = OpenAIResponses(id="gpt-5.6-luna")
         agent_os = AgentOS(
             db=db,
-            registry=Registry(models=[OpenAIResponses(id="gpt-5.6-luna")]),
+            registry=Registry(
+                models=[model],
+                agents=[Agent(id="intake-reader", model=model, tools=[tools])],
+            ),
             company=CompanyConfig(),
             user_isolation=True,
             mcp=MCPConfig(tools=[tools]),
             telemetry=False,
         )
-        manager = CompanyManager(db)
-        product = manager.create(
-            name="SDK", purpose="Build reliable agents", user_id="alice"
-        )
         # Trusted application code supplies context. HTTP and MCP inject their
         # authenticated caller automatically; identity is never a model argument.
         context = RunContext(run_id="demo", session_id="planning", user_id="alice")
+        # Chat step: "Set up a Product for our docs site with an intake Routine."
+        # Exercise the same tool call Product Manager makes, without a paid model call.
+        product = json.loads(
+            tools.create_company_product(
+                name="Documentation",
+                purpose="Help people build reliable agents",
+                sources=[{"type": "website", "reference": "https://docs.agno.com"}],
+                routines=[
+                    {
+                        "name": "intake",
+                        "template": "intake",
+                        "executor_type": "agent",
+                        "executor_id": "intake-reader",
+                    }
+                ],
+                _agno_agent=agent_os.product_manager,
+                _agno_run_context=context,
+            )
+        )
+        assert (
+            json.loads(tools.list_company_products(_agno_run_context=context))["data"][
+                0
+            ]["id"]
+            == product["id"]
+        )
         project = json.loads(
             tools.propose_company_project(
                 product["id"], "Release", _agno_run_context=context
@@ -66,6 +91,8 @@ if __name__ == "__main__":
         with TestClient(agent_os.get_app()) as client:
             response = client.get("/agents/product-manager-internal")
             assert response.status_code == 200
+            assert len(client.get("/company/sources").json()["data"]) == 1
+            assert len(client.get("/company/routines").json()["data"]) == 1
         assert agent_os.product_manager is not None
         assert agent_os.product_manager not in agent_os.registry.agents
         assert not any(

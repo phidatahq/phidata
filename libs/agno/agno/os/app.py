@@ -1498,16 +1498,20 @@ class AgentOS:
         from agno.company.routines import _RoutineResultGuardrail
         from agno.tools.company import CompanyTools
 
-        for component in self._iter_component_carriers():
+        company = self.company
+
+        def bind(entries: Any) -> bool:
             found = False
-            for entry in getattr(component, "tools", None) or []:
+            for entry in entries or []:
                 toolkit = getattr(entry, "source_toolkit", None) or entry
                 if isinstance(toolkit, CompanyTools):
                     found = True
                     if not toolkit._interfaces_explicit:
                         toolkit.interfaces = self.interfaces
+                    if toolkit.registry is None:
+                        toolkit.registry = self.registry
                     toolkit._schedule_db = self.db
-                    toolkit._automation_history_retention_days = self.company.automation_history_retention_days
+                    toolkit._automation_history_retention_days = company.automation_history_retention_days
                     toolkit.user_isolation = toolkit.user_isolation or bool(
                         self.user_isolation
                         or (
@@ -1516,6 +1520,12 @@ class AgentOS:
                             and self.authorization_config.user_isolation
                         )
                     )
+            return found
+
+        # Toolkits published only through MCPConfig(tools=...) are served without a component.
+        bind(getattr(self.mcp_config, "tools", None))
+        for component in self._iter_component_carriers():
+            found = bind(getattr(component, "tools", None))
             if found and hasattr(component, "post_hooks"):
                 hooks = list(component.post_hooks or [])
                 if not any(isinstance(getattr(hook, "__self__", hook), _RoutineResultGuardrail) for hook in hooks):

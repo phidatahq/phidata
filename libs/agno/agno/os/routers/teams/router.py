@@ -87,6 +87,7 @@ from agno.os.utils import (
     get_request_kwargs,
     is_temporary_run,
     get_team_by_id,
+    is_form_field_omitted,
     parse_files_metadata,
     process_audio,
     process_document,
@@ -648,6 +649,10 @@ def get_team_router(
         ),
     ):
         kwargs = await get_request_kwargs(request, create_team_run)
+        if await is_form_field_omitted(request, "stream"):
+            stream = True
+        if await is_form_field_omitted(request, "monitor"):
+            monitor = True
         if is_temporary_run(store_run):
             if not os.allow_temporary_runs:
                 raise HTTPException(status_code=400, detail="Temporary runs (store_run=false) are disabled on this OS")
@@ -1431,6 +1436,10 @@ def get_team_router(
         background: bool = Form(False),
     ):
         kwargs = await get_request_kwargs(request, continue_team_run)
+        if await is_form_field_omitted(request, "stream"):
+            stream = True
+        if await is_form_field_omitted(request, "replace_original"):
+            replace_original = None
 
         if hasattr(request.state, "user_id") and request.state.user_id is not None:
             user_id = request.state.user_id

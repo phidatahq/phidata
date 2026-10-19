@@ -93,6 +93,7 @@ from agno.os.utils import (
     is_temporary_run,
     get_workflow_by_id,
     get_workflow_by_id_async,
+    is_form_field_omitted,
     no_stored_events_replay_meta,
     queued_run_tail_streamer,
     replayed_payload_to_sse,
@@ -1830,6 +1831,8 @@ def get_workflow_router(
         ),
     ):
         kwargs = await get_request_kwargs(request, create_workflow_run)
+        if await is_form_field_omitted(request, "stream"):
+            stream = True
         if is_temporary_run(store_run):
             if not os.allow_temporary_runs:
                 raise HTTPException(status_code=400, detail="Temporary runs (store_run=false) are disabled on this OS")
@@ -2276,6 +2279,9 @@ def get_workflow_router(
             description="JSON object with factory-specific parameters for dynamic workflow reconstruction",
         ),
     ):
+        if await is_form_field_omitted(request, "stream"):
+            stream = True
+
         if hasattr(request.state, "user_id") and request.state.user_id is not None:
             user_id = request.state.user_id
         if hasattr(request.state, "session_id") and request.state.session_id is not None:

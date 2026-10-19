@@ -25,6 +25,7 @@ from agno.media import File as FileMedia
 from agno.models.message import Message
 from agno.os.config import AgentOSConfig
 from agno.registry import Registry, ToolSource
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 from agno.remote.base import RemoteDb, RemoteKnowledge
 from agno.run.agent import RunOutputEvent
 from agno.run.base import RunStatus
@@ -1591,6 +1592,11 @@ def get_agent_by_id(
                 # RemoteAgent or other
                 return agent
 
+    # AgentOS may serve framework-owned agents, but reserved IDs must never
+    # fall back to user-created or legacy catalog components.
+    if agent_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
+
     # Try to get the agent from the database
     if db and isinstance(db, BaseDb):
         from agno.agent.agent import get_agent_by_id as get_agent_by_id_db
@@ -1651,6 +1657,11 @@ async def get_agent_by_id_async(
                     return result
                 # RemoteAgent or other
                 return agent
+
+    # AgentOS may serve framework-owned agents, but reserved IDs must never
+    # fall back to user-created or legacy catalog components.
+    if agent_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(agent_id)))
 
     if db and isinstance(db, BaseDb):
         from agno.agent.agent import get_agent_by_id as get_agent_by_id_db
@@ -1729,6 +1740,9 @@ def get_team_by_id(
                     return result
                 return team
 
+    if team_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(team_id)))
+
     if db and isinstance(db, BaseDb):
         from agno.team.team import get_team_by_id as get_team_by_id_db
 
@@ -1782,6 +1796,9 @@ async def get_team_by_id_async(
                     result = await team.resolve_async(ctx, expected_type=Team)
                     return result
                 return team
+
+    if team_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(team_id)))
 
     if db and isinstance(db, BaseDb):
         from agno.team.team import get_team_by_id as get_team_by_id_db
@@ -1865,6 +1882,9 @@ def get_workflow_by_id(
                     return result
                 return workflow
 
+    if workflow_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(workflow_id)))
+
     if db and isinstance(db, BaseDb):
         from agno.workflow.workflow import get_workflow_by_id as get_workflow_by_id_db
 
@@ -1920,6 +1940,9 @@ async def get_workflow_by_id_async(
                     result = await workflow.resolve_async(ctx, expected_type=Workflow)
                     return result
                 return workflow
+
+    if workflow_id in RESERVED_MANAGER_IDS:
+        raise AgnoHTTPException(ComponentRehydrationError(_reserved_manager_id_message(workflow_id)))
 
     if db and isinstance(db, BaseDb):
         from agno.workflow.workflow import get_workflow_by_id as get_workflow_by_id_db
@@ -2438,7 +2461,7 @@ def collect_components_from_agent(agent: Any, registry: Registry, visited: Set[i
     ``visited`` tracks already-walked agents/teams/workflows (by object id) to
     avoid redundant work and infinite recursion on cyclic composition graphs.
     """
-    if id(agent) in visited:
+    if id(agent) in visited or registry.is_component_excluded(agent):
         return
     visited.add(id(agent))
 
@@ -2469,7 +2492,7 @@ def collect_components_from_agent(agent: Any, registry: Registry, visited: Set[i
 
 def collect_components_from_team(team: Any, registry: Registry, visited: Set[int]) -> None:
     """Add a team's components to the registry, recursing into all of its members."""
-    if id(team) in visited:
+    if id(team) in visited or registry.is_component_excluded(team):
         return
     visited.add(id(team))
 
@@ -2501,7 +2524,7 @@ def collect_components_from_team(team: Any, registry: Registry, visited: Set[int
 
 def collect_components_from_workflow(workflow: Any, registry: Registry, visited: Set[int]) -> None:
     """Add a workflow's components (coordinator agent and step tree) to the registry."""
-    if id(workflow) in visited:
+    if id(workflow) in visited or registry.is_component_excluded(workflow):
         return
     visited.add(id(workflow))
 
@@ -3000,6 +3023,8 @@ async def resolve_agent(
             # Broken is not "not found": answer with the error's own status so
             # the refusal survives on caller-supplied apps with no handlers.
             raise HTTPException(status_code=e.status_code, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error resolving agent '{agent_id}': {e}")
             raise HTTPException(status_code=500, detail=f"Error resolving agent: {e}")
@@ -3084,6 +3109,8 @@ async def resolve_team(
             # Broken is not "not found": answer with the error's own status so
             # the refusal survives on caller-supplied apps with no handlers.
             raise HTTPException(status_code=e.status_code, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error resolving team '{team_id}': {e}")
             raise HTTPException(status_code=500, detail=f"Error resolving team: {e}")
@@ -3163,6 +3190,8 @@ async def resolve_workflow(
             # Broken is not "not found": answer with the error's own status so
             # the refusal survives on caller-supplied apps with no handlers.
             raise HTTPException(status_code=e.status_code, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error resolving workflow '{workflow_id}': {e}")
             raise HTTPException(status_code=500, detail=f"Error resolving workflow: {e}")

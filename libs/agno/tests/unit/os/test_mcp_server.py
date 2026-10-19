@@ -36,6 +36,7 @@ from agno.models.response import ModelResponse  # noqa: E402
 from agno.os import AgentOS, MCPConfig, MCPServerConfig  # noqa: E402
 from agno.os.config import AuthorizationConfig  # noqa: E402
 from agno.os.mcp import _resolve_user_id, build_mcp_server, get_mcp_server  # noqa: E402
+from agno.os.middleware.jwt import AuthMiddleware  # noqa: E402
 from agno.os.service_accounts import ServiceAccountVerification, VerificationStatus, generate_token  # noqa: E402
 from agno.os.settings import AgnoAPISettings  # noqa: E402
 from agno.run.agent import RunOutput  # noqa: E402
@@ -971,7 +972,7 @@ def test_authorize_with_jwt_does_not_warn(monkeypatch):
 def _parent_auth_middleware(os: AgentOS):
     """The single AuthMiddleware on the parent app (covers REST + the mounted /mcp)."""
     app = os.get_app()
-    return next(m for m in app.user_middleware if m.cls.__name__ == "AuthMiddleware")
+    return next(m for m in app.user_middleware if isinstance(m.cls, type) and issubclass(m.cls, AuthMiddleware))
 
 
 def test_auth_middleware_carries_jwt_constraints():
@@ -1020,9 +1021,9 @@ def test_mounted_mcp_app_carries_no_auth_middleware():
         authorization_config=AuthorizationConfig(verification_keys=["dummy"]),
         settings=AgnoAPISettings(os_security_key="test-key"),
     )
-    names = [m.cls.__name__ for m in get_mcp_server(os).user_middleware]
-    assert "AuthMiddleware" not in names
-    assert "JWTMiddleware" not in names
+    middleware = get_mcp_server(os).user_middleware
+    names = [m.cls.__name__ for m in middleware]
+    assert not any(isinstance(m.cls, type) and issubclass(m.cls, AuthMiddleware) for m in middleware)
     assert "_MCPKeyAuthMiddleware" not in names
 
 
@@ -1277,8 +1278,10 @@ async def test_open_mode_with_db_stays_open_and_ignores_stale_pats(tmp_path):
 def test_no_auth_mode_installs_no_auth_layer():
     """No security key and no db (no verifier): no auth middleware anywhere, /mcp stays open."""
     os = _auth_os(security_key=None)
-    assert not any(m.cls.__name__ == "AuthMiddleware" for m in os.get_app().user_middleware)
-    assert not any(m.cls.__name__ == "AuthMiddleware" for m in get_mcp_server(os).user_middleware)
+    assert not any(isinstance(m.cls, type) and issubclass(m.cls, AuthMiddleware) for m in os.get_app().user_middleware)
+    assert not any(
+        isinstance(m.cls, type) and issubclass(m.cls, AuthMiddleware) for m in get_mcp_server(os).user_middleware
+    )
 
 
 async def test_no_auth_mode_stays_open():

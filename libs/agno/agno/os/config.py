@@ -5,6 +5,8 @@ from typing import Any, Callable, Dict, Generic, List, Literal, Optional, Set, T
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from agno.company.declarations import CompanyDeclarations
+
 # Tags carried by the built-in MCP tools, exposed here so callers (and the IDE) can see
 # the valid values for ``MCPConfig.include_tags`` / ``exclude_tags`` without reading
 # ``agno/os/mcp.py``. Keep in sync with the ``tags={...}`` argument on each
@@ -554,6 +556,12 @@ class MemoryDomainConfig(BaseModel):
     display_name: Optional[str] = None
 
 
+class CompanyDomainConfig(BaseModel):
+    """Display configuration for the Company domain."""
+
+    display_name: Optional[str] = None
+
+
 class LearningDomainConfig(BaseModel):
     """Configuration for the Learning domain of the AgentOS"""
 
@@ -593,6 +601,12 @@ class MemoryConfig(MemoryDomainConfig):
     """Configuration for the Memory domain of the AgentOS"""
 
     dbs: Optional[List[DatabaseConfig[MemoryDomainConfig]]] = None
+
+
+class CompanySectionConfig(CompanyDomainConfig):
+    """Company database and table configuration exposed to clients."""
+
+    dbs: List[DatabaseConfig[CompanyDomainConfig]] = Field(default_factory=list)
 
 
 class LearningConfig(LearningDomainConfig):
@@ -651,6 +665,10 @@ class Manifest(BaseModel):
     quick_prompts: Optional[List[str]] = None
 
 
+class CompanySettings(CompanySectionConfig, CompanyDeclarations):
+    """Company declarations and optional display overrides in AgentOS configuration."""
+
+
 class AgentOSConfig(BaseModel):
     """General configuration for an AgentOS instance"""
 
@@ -664,6 +682,14 @@ class AgentOSConfig(BaseModel):
     knowledge: Optional[KnowledgeConfig] = None
     memory: Optional[MemoryConfig] = None
     learning: Optional[LearningConfig] = None
+    company: Optional[CompanySettings] = None
     session: Optional[SessionConfig] = None
     metrics: Optional[MetricsConfig] = None
     traces: Optional[TracesConfig] = None
+
+    @field_validator("company", mode="before")
+    @classmethod
+    def _company_settings(cls, value: Any) -> Any:
+        if isinstance(value, BaseModel):
+            return value.model_dump()
+        return value

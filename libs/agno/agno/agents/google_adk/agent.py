@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from agno.agents._config import agent_dataclass
 from agno.agents.base import BaseExternalAgent, ExternalRunMetricsEvent, ExternalRunResult
-from agno.agents.google_adk.utils import build_media_parts
+from agno.agents.google_adk.utils import abuild_media_parts
 from agno.metrics import BaseMetrics, ModelMetrics
 from agno.models.response import ToolExecution
 from agno.run.agent import (
@@ -217,7 +217,7 @@ class GoogleADKAgent(BaseExternalAgent):
 
         prompt = self._build_prompt(input, history, resumed)
         parts: List[Any] = [types.Part.from_text(text=prompt)]
-        parts.extend(build_media_parts(kwargs.get("media")))
+        parts.extend(await abuild_media_parts(kwargs.get("media")))
         new_message = types.Content(role="user", parts=parts)
 
         run_kwargs: Dict[str, Any] = dict(user_id=user_id, session_id=session_id, new_message=new_message)

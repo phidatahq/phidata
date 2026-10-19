@@ -598,3 +598,56 @@ Tests use disposable data and scripted models. No live model, hosted docs,
 PostgreSQL or frontend rendering checks were performed.
 
 ---
+
+## Focused execution limits, 2026-10-19
+
+### basic_manager.py
+
+**Status:** PASS
+
+**Description:** Constructed the serving example with checkout source in a temporary
+working directory. No provider calls or shared database writes.
+
+**Result:** Coordinator limit is 8; both specialists have limit 24. The example
+continues to expose the framework-owned manager.
+
+---
+
+### Manager execution and explanation regressions
+
+**Status:** PASS
+
+**Description:** The manager, Company playbook/tools and run-authorization suites
+passed 424 tests. New scripted-model checks exercise sequential and batched tool
+calls, sync/async runs, both streaming modes, reuse across turns, and both sides
+of delegation. Configuration tests cover overrides, zero, opt-out and invalid
+values; standalone Product Manager and application agents retain their policies.
+
+**Result:** Ordinary tools execute only within the configured per-invocation
+limit. All manager roles receive the shared focus/evidence instructions. Scripted
+models verify plumbing and enforcement, not live-model reasoning quality.
+
+---
+
+### Live framework manager rehearsal
+
+**Status:** PASS
+
+**Description:** Ran four conversations using GPT-6.1 Sol, low reasoning, default
+framework prompts/limits and Agno documentation access against a disposable SQLite
+database and source fixture. Counted coordinator and persisted member tools.
+
+**Result:** Final run: conceptual learning explanation used 3 calls (22.35s),
+learning configuration used 4 (27.35s), agent publication used 4 (22.07s), and one
+Project with two unaccepted Backlog Tasks used 13 (48.66s). Publication and Company
+records were verified from storage; the published agent was not executed. The
+configuration answer explicitly distinguished file configuration from attachment
+and actual learning execution.
+
+An earlier configuration attempt used 6 calls; guidance was tightened to read
+named files directly and count result read-backs in the explanation budget before
+the successful rerun. These are single-run behavioral checks, not a guarantee
+across models. Execution limits remain per invocation; offloaded-result reads
+are exempt, and model turns/tokens and dispatched application runs are not capped.
+
+---

@@ -17,7 +17,11 @@ from agno.os import AgentOS, OSManager
 agent_os = AgentOS(
     name="Manager demo",
     db=SqliteDb(db_file="tmp/manager.db"),
-    manager=OSManager(model=OpenAIResponses(id="gpt-5.6-luna")),
+    manager=OSManager(
+        model=OpenAIResponses(id="gpt-5.6-luna"),
+        tool_call_limit=8,
+        member_tool_call_limit=24,
+    ),
 )
 app = agent_os.get_app()
 

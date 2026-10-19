@@ -99,6 +99,8 @@ cannot override that role. Production tokens should come from your identity prov
 | `tools`, `knowledge`, `learning` | Empty / `None` | Extra resources for the lead team; not automatically available for builds. |
 | `instructions` | `None` | Appends instructions to the lead team's existing prompt. |
 | `required_env` | Empty | Names whose presence diagnostics checks; values are never returned. |
+| `tool_call_limit` | `8` | Ordinary tool executions per coordinator run, including delegations. `None` disables the limit; `0` refuses all ordinary tools. |
+| `member_tool_call_limit` | `24` | Ordinary tool executions per specialist invocation, including Product Manager when Company is enabled. `None` disables the limit. |
 | `num_history_runs` | `7` | Lead-team history depth. Members retain five runs. |
 | `offload_tool_results` | `True` | Stores large tool results on supported databases; accepts `False` or a `ResultStore`. |
 
@@ -109,7 +111,23 @@ launch the server. Setting `root` does not enable file writes or shell execution
 The manager is instructed to keep explanations scoped to the question and to
 request concise specialist answers when delegation is necessary. Documentation
 access on the lead lets it answer framework questions without a specialist run.
-Model choices still determine the actual tool calls and latency.
+The same focus and evidence guidance reaches the builder, operator and attached
+Product Manager. Concept explanations should start with one focused lookup or
+one delegation and aim for at most four total calls, including delegated lookups.
+Building and planning can use the larger configured budgets for validation and writes.
+
+The limits use the existing Agent/Team tool execution mechanism. Each member
+invocation has its own allowance; there is no shared budget across the run tree.
+The `read_result` and `search_result` tools remain exempt when result offloading
+is active. A refusal is returned to the model, which is instructed to stop and
+report verified progress and gaps. These limits do not bound model turns, tokens,
+latency, or application components dispatched through runner tools.
+
+Increase the limits for larger builds or plans. Set either limit to `None` to
+restore unlimited ordinary tool executions for that level. Ordinary application
+agents and standalone Product Manager retain their existing limits. Custom
+`instructions` remain specific to the lead team. Model choices still determine
+actual routing and answer quality; prompt guidance is not an execution guarantee.
 
 ## When to use a registry
 

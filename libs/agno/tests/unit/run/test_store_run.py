@@ -221,6 +221,34 @@ class TestWorkflow:
         assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is None
         assert _runs(db, "s1") == 0
 
+    def test_nested_workflow_inherits_the_option(self, db: SqliteDb):
+        inner_agent = Agent(id="inner-agent", name="InnerAgent", model=RecordingModel())
+        inner = Workflow(id="inner", name="Inner", steps=[Step(name="i1", agent=inner_agent)], db=db)
+        outer = Workflow(id="outer", name="Outer", steps=[Step(name="o1", workflow=inner)], db=db)
+
+        output = outer.run("hi", session_id="s1", store_run=False)
+
+        assert output.content == "an answer"
+        assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is None
+        assert _runs(db, "s1") == 0
+
+        outer.run("hi", session_id="s1")
+        assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is not None
+        assert _runs(db, "s1") >= 1
+
+    @pytest.mark.asyncio
+    async def test_nested_workflow_inherits_the_option_async(self, db: SqliteDb):
+        inner_agent = Agent(id="inner-agent", name="InnerAgent", model=RecordingModel())
+        inner = Workflow(id="inner", name="Inner", steps=[Step(name="i1", agent=inner_agent)], db=db)
+        outer = Workflow(id="outer", name="Outer", steps=[Step(name="o1", workflow=inner)], db=db)
+
+        await outer.arun("hi", session_id="s1", store_run=False)
+        events = [event async for event in outer.arun("hi", session_id="s1", stream=True, store_run=False)]
+        assert events
+
+        assert db.get_session(session_id="s1", session_type=SessionType.WORKFLOW) is None
+        assert _runs(db, "s1") == 0
+
     def test_background_rejects_store_run_false(self, db: SqliteDb):
         workflow = self._workflow(db)
 

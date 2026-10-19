@@ -5969,8 +5969,9 @@ class Workflow:
             self._persist_session_and_run(session=session, run=workflow_run_response)
 
         else:
-            # Workflow was executed by the tool
-            reloaded_session = self.get_session(session_id=session.session_id)
+            # Workflow was executed by the tool. A temporary run's executed run lives only on its
+            # private session copy, so that copy stands in for the reload.
+            reloaded_session = session if session.transient else self.get_session(session_id=session.session_id)
 
             executed_run = reloaded_session.get_run(run_id) if reloaded_session else None
             if reloaded_session and executed_run is not None:
@@ -6089,8 +6090,9 @@ class Workflow:
 
             return workflow_run_response
         else:
-            # Workflow was executed by the tool
-            reloaded_session = self.get_session(session_id=session.session_id)
+            # Workflow was executed by the tool. A temporary run's executed run lives only on its
+            # private session copy, so that copy stands in for the reload.
+            reloaded_session = session if session.transient else self.get_session(session_id=session.session_id)
 
             executed_run = reloaded_session.get_run(run_context.run_id) if reloaded_session else None
             if reloaded_session and executed_run is not None:
@@ -6389,8 +6391,12 @@ class Workflow:
             await self._apersist_session_and_run(session=session, run=workflow_run_response)
 
         else:
-            # Workflow was executed by the tool
-            if self._has_async_db():
+            # Workflow was executed by the tool. A temporary run's executed run lives only on its
+            # private session copy, so that copy stands in for the reload.
+            reloaded_session: Optional[WorkflowSession]
+            if session.transient:
+                reloaded_session = session
+            elif self._has_async_db():
                 reloaded_session = await self.aget_session(session_id=session.session_id)
             else:
                 reloaded_session = self.get_session(session_id=session.session_id)
@@ -6519,7 +6525,10 @@ class Workflow:
             logger.info("=" * 80)
 
             log_debug("Reloading session from database to get the latest workflow run...")
-            if self._has_async_db():
+            reloaded_session: Optional[WorkflowSession]
+            if session.transient:
+                reloaded_session = session
+            elif self._has_async_db():
                 reloaded_session = await self.aget_session(session_id=session.session_id)
             else:
                 reloaded_session = self.get_session(session_id=session.session_id)

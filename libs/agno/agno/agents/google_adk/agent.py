@@ -167,7 +167,9 @@ class GoogleADKAgent(BaseExternalAgent):
     ) -> ExternalRunResult:
         """Non-streaming: run the ADK agent and collect its answer, tool calls and usage."""
         content: List[str] = []
-        tools: Dict[str, ToolExecution] = {}
+        # Recorded as tools complete, in the run state the base keeps when an attempt fails or
+        # is cancelled, so a tool that ran before a later model call failed stays on the run.
+        tools: Dict[str, ToolExecution] = kwargs["run_state"].setdefault("tools", {})
         metrics = None
         async for event in self._aevents(input, history, self.run_config, **kwargs):
             if isinstance(event, ExternalRunMetricsEvent):
@@ -253,7 +255,8 @@ class _EventTranslator:
         self.run_id = run_id
         self.agent_id = agent_id
         self.agent_name = agent_name
-        self.streamed = ""
+        # Partial text per branch and author: a ParallelAgent's sub-agents interleave their chunks.
+        self.streamed: Dict[Tuple[Any, Any], str] = {}
         self.emitted_any = False
         # Tool call ids by name, for providers that return responses without ids.
         self.pending: Dict[str, List[str]] = {}
@@ -273,17 +276,19 @@ class _EventTranslator:
             part.text for part in parts if getattr(part, "text", None) and not getattr(part, "thought", False)
         )
         if text:
+            source = (getattr(event, "branch", None), getattr(event, "author", None))
+            streamed = self.streamed.get(source, "")
             if partial:
-                out.extend(self._content(text, new_turn=not self.streamed))
-                self.streamed += text
+                out.extend(self._content(text, new_turn=not streamed))
+                self.streamed[source] = streamed + text
             else:
-                if self.streamed and text.startswith(self.streamed):
-                    remainder = text[len(self.streamed) :]
+                if streamed and text.startswith(streamed):
+                    remainder = text[len(streamed) :]
                     if remainder:
                         out.extend(self._content(remainder, new_turn=False))
                 else:
-                    out.extend(self._content(text, new_turn=not self.streamed))
-                self.streamed = ""
+                    out.extend(self._content(text, new_turn=not streamed))
+                self.streamed.pop(source, None)
 
         if not partial:
             for call in (part.function_call for part in parts if getattr(part, "function_call", None)):

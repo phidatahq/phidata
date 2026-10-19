@@ -60,7 +60,8 @@ class ScriptedAgent(BaseAgent):
                 kwargs = dict(item)
                 if "text" in kwargs:
                     kwargs["content"] = _text(kwargs.pop("text"))
-                yield Event(author=self.name, invocation_id=ctx.invocation_id, **kwargs)
+                kwargs.setdefault("author", self.name)
+                yield Event(invocation_id=ctx.invocation_id, **kwargs)
 
 
 TOOL_SCRIPT = [
@@ -295,3 +296,32 @@ def test_agentos_serves_streaming_and_non_streaming_runs(tmp_path):
         assert "RunStarted" in text and "ToolCallStarted" in text and "RunCompleted" in text
         assert text.count("It is sunny") >= 1
     assert agent.db.get_runs(session_id="s")[0].status == RunStatus.completed
+
+
+def test_parallel_authors_keep_separate_stream_buffers():
+    # Sub-agents of a ParallelAgent stream on their own branches, so their chunks interleave.
+    script = [
+        {"text": "Hel", "partial": True, "author": "a", "branch": "root.a"},
+        {"text": "Wor", "partial": True, "author": "b", "branch": "root.b"},
+        {"text": "lo", "partial": True, "author": "a", "branch": "root.a"},
+        {"text": "ld", "partial": True, "author": "b", "branch": "root.b"},
+        {"text": "Hello", "author": "a", "branch": "root.a"},
+        {"text": "World", "author": "b", "branch": "root.b"},
+    ]
+    agent, _ = _agent(script)
+    events = list(agent.run("go", stream=True))
+    content = [event.content for event in events if isinstance(event, RunContentEvent)]
+    assert content == ["Hel", "\n\nWor", "lo", "ld"]
+    assert events[-1].content == "Hel\n\nWorlold"
+    # Without SSE mode ADK sends only the complete events.
+    complete_only, _ = _agent([item for item in script if not item.get("partial")])
+    assert complete_only.run("go").content == "Hello\n\nWorld"
+
+
+def test_completed_tools_survive_a_failed_non_stream_attempt(tmp_path):
+    script = TOOL_SCRIPT[:2] + [{"error_code": "RESOURCE_EXHAUSTED", "error_message": "quota"}]
+    agent, _ = _agent(script, db=SqliteDb(db_file=str(tmp_path / "runs.db")))
+    result = agent.run("weather?", session_id="s")
+    assert result.status == RunStatus.error
+    assert [(tool.tool_name, tool.result) for tool in result.tools or []] == [("get_weather", "sunny")]
+    assert agent.db.get_runs(session_id="s")[0].tools[0].tool_name == "get_weather"

@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import json
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 from fastapi import HTTPException, Request
@@ -11,6 +12,16 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from agno.db.schemas.jobs import QueuedJob
 from agno.os.job_queue import _new_queued_run_id, aenqueue_ticket, aprepare_accepted_or_abort, normalize_idempotency_key
 from agno.sandbox.base import SandboxError
+from agno.utils.log import log_info
+
+
+@lru_cache(maxsize=1)
+def _log_replica_local_coordination() -> None:
+    """Explain local coordination once per process, on the first sandbox submission without Redis."""
+    log_info(
+        "Sandbox run streams and cancellation are replica-local; "
+        "configure queue.redis for cross-replica streaming and cancellation."
+    )
 
 
 async def enqueue_sandbox_run(
@@ -27,12 +38,9 @@ async def enqueue_sandbox_run(
     if (
         worker is None
         or worker.config.durable is not True
-        or worker.config.redis is None
         or getattr(worker.store, "serializes_sessions", False) is not True
     ):
-        raise ValueError(
-            "Sandbox API execution requires a durable queue with Redis coordination and shared session admission"
-        )
+        raise ValueError("Sandbox API execution requires a durable queue with shared session admission")
     registered = await worker._aresolve_job_component({"component_type": "agent", "component_id": agent.get_id()})
     if registered is not agent:
         raise ValueError("Sandbox submissions must use the registered agent instance")
@@ -50,6 +58,8 @@ async def enqueue_sandbox_run(
         # the sandbox binding pins the session to one agent and one user for good, so the store would
         # refuse this turn as a lost lease after the ticket exists. Answer as that rule does.
         raise HTTPException(status_code=404, detail="Session not found")
+    if worker.config.redis is None:
+        _log_replica_local_coordination()
     job = QueuedJob(
         id=run_id or _new_queued_run_id(),
         component_type="agent",

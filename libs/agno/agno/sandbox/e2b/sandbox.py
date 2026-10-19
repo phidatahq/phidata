@@ -148,6 +148,8 @@ class E2BSandbox(Sandbox):
         # Creates of one generation run one at a time here, from any thread or event loop.
         self._create_locks: Dict[str, List[Any]] = {}
         self._create_locks_guard = threading.Lock()
+        # The computer this provider kept for each generation, checked directly when a listing omits it.
+        self._known: Dict[str, str] = {}
         # One pooled HTTP client per event loop for the runtime server, so requests reuse TLS connections.
         self._http: Dict[asyncio.AbstractEventLoop, Tuple[Any, "asyncio.Task[None]"]] = {}
         self._http_lock = threading.Lock()
@@ -244,10 +246,22 @@ class E2BSandbox(Sandbox):
 
     async def _lookup(self, name: str, found: Optional[List[Any]] = None) -> Optional[SandboxHandle]:
         """The computer of a generation, killing any duplicates a lost create reply left."""
-        from e2b import AsyncSandbox
+        from e2b import AsyncSandbox, SandboxNotFoundException
 
         if found is None:
             found = await self._listed(name)
+        found = list(found)
+        known = self._known.get(name)
+        if known is not None and all(info.sandbox_id != known for info in found):
+            # Listings can omit a computer this provider already handed out, so ask for it directly.
+            try:
+                info = await AsyncSandbox.get_info(known, **self._options)
+            except SandboxNotFoundException:
+                info = None
+            if info is not None and isinstance(info.metadata, dict) and info.metadata.get("name") == name:
+                found.append(info)
+            elif self._known.get(name) == known:
+                del self._known[name]
         if not found:
             return None
         found.sort(key=lambda info: (info.started_at, info.sandbox_id))
@@ -255,7 +269,10 @@ class E2BSandbox(Sandbox):
             log_debug(f"Killing duplicate E2B sandbox {duplicate.sandbox_id} for generation {name}")
             await AsyncSandbox.kill(duplicate.sandbox_id, **self._options)
         # Listings omit nothing the handle needs, but read the kept one fresh so its state is current.
-        return await self.aget(found[0].sandbox_id)
+        current = await self.aget(found[0].sandbox_id)
+        if current is not None:
+            self._known[name] = current.provider_ref
+        return current
 
     async def _owned(self, handle: SandboxHandle) -> Optional[SandboxHandle]:
         current = await self.aget(handle.provider_ref)
@@ -340,10 +357,12 @@ class E2BSandbox(Sandbox):
                 if entry[1] == 0:
                     del self._create_locks[name]
 
-    async def _kill_created(self, sandbox_id: str) -> None:
+    async def _kill_created(self, name: str, sandbox_id: str) -> None:
         """Kill a computer this create made but cannot hand out, so it never runs unowned."""
         from e2b import AsyncSandbox
 
+        if self._known.get(name) == sandbox_id:
+            del self._known[name]
         try:
             await asyncio.shield(AsyncSandbox.kill(sandbox_id, **self._options))
         except Exception as error:
@@ -353,6 +372,7 @@ class E2BSandbox(Sandbox):
         self, name: str, session_id: str, agent_id: Optional[str], generation: int, values: Mapping[str, str]
     ) -> SandboxHandle:
         digest = self._digest(session_id, agent_id, generation, values)
+        created_id: Optional[str] = None
         current = await self._lookup(name)
         if current is None:
             from e2b import AsyncSandbox
@@ -370,7 +390,6 @@ class E2BSandbox(Sandbox):
                 metadata["token"] = secrets.token_urlsafe(32)
             from e2b import AuthenticationException, InvalidArgumentException, NotFoundException, RateLimitException
 
-            created_id: Optional[str] = None
             found: Optional[List[Any]] = None
             try:
                 created = await AsyncSandbox.create(
@@ -398,23 +417,29 @@ class E2BSandbox(Sandbox):
                 current = await self._lookup(name, found) if found is not None else None
             except BaseException:
                 if created_id is not None:
-                    await self._kill_created(created_id)
+                    await self._kill_created(name, created_id)
                 raise
             if current is None:
                 if created_id is not None:
-                    await self._kill_created(created_id)
+                    await self._kill_created(name, created_id)
                 raise SandboxError("E2B sandbox did not appear in listings after creation")
-        if current.config_digest != digest:
-            raise SandboxError("Sandbox generation already exists with different configuration")
-        if current.state == "paused":
-            # Only the owner knows whether this is a warm pause or a restore that died halfway,
-            # so create never revives it: the owner calls resume, anyone else destroys.
-            raise SandboxError("Sandbox generation is paused; resume it or destroy it")
-        if current.state != "running":
-            raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
-        await self._harden(current)
-        if self.runtime_port is not None:
-            await self._start_runtime(current)
+        try:
+            if current.config_digest != digest:
+                raise SandboxError("Sandbox generation already exists with different configuration")
+            if current.state == "paused":
+                # Only the owner knows whether this is a warm pause or a restore that died halfway,
+                # so create never revives it: the owner calls resume, anyone else destroys.
+                raise SandboxError("Sandbox generation is paused; resume it or destroy it")
+            if current.state != "running":
+                raise SandboxError("Sandbox generation is not running; recovery requires a new generation")
+            await self._harden(current)
+            if self.runtime_port is not None:
+                await self._start_runtime(current)
+        except BaseException:
+            # Only a computer this call made is killed; an existing generation may be in use.
+            if created_id is not None and current.provider_ref == created_id:
+                await self._kill_created(name, created_id)
+            raise
         return current
 
     async def _harden(self, handle: SandboxHandle) -> None:
@@ -633,6 +658,8 @@ class E2BSandbox(Sandbox):
         from e2b import AsyncSandbox
 
         self._connections.pop(handle.provider_ref, None)
+        if self._known.get(handle.name) == handle.provider_ref:
+            del self._known[handle.name]
         if await self._owned(handle) is None:
             return
         log_debug(f"Killing E2B sandbox {handle.provider_ref}")

@@ -83,6 +83,7 @@ class Cloud:
 
     def __init__(self):
         self.computers = {}
+        self.created = 0
         self.calls = []
         self.lose_create_reply = False
         self.fail_create = False
@@ -96,11 +97,14 @@ class Cloud:
         self.connect_options = []
         # Listings fail once any computer exists, as after a create whose follow-up listing times out.
         self.fail_list_after_create = False
+        # Computers listings leave out, as an inconsistent listing can.
+        self.unlisted = set()
         self.clock = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
     def add(self, metadata, state="running"):
         self.clock += timedelta(seconds=1)
-        sandbox_id = "sbx%03d" % (len(self.computers) + 1)
+        self.created += 1
+        sandbox_id = "sbx%03d" % self.created
         computer = SimpleNamespace(
             sandbox_id=sandbox_id,
             sandbox_domain="e2b.app",
@@ -150,6 +154,8 @@ class Cloud:
         found = []
         for computer in self.computers.values():
             if all(computer.metadata.get(key) == value for key, value in query.metadata.items()):
+                if computer.sandbox_id in self.unlisted:
+                    continue
                 if getattr(computer, "hidden", 0):
                     computer.hidden -= 1
                 else:
@@ -354,6 +360,46 @@ async def test_a_create_cancelled_while_waiting_for_listings_kills_the_new_compu
         await task
     await asyncio.sleep(0)
     assert cloud.computers == {} and sandbox._create_locks == {}
+
+
+@pytest.mark.asyncio
+async def test_a_computer_already_handed_out_is_kept_when_listings_omit_it(cloud, sandbox):
+    first = await sandbox.acreate("s1")
+    cloud.unlisted.add(first.provider_ref)
+    assert (await sandbox.acreate("s1")).provider_ref == first.provider_ref
+    assert (await sandbox.afind("s1")).provider_ref == first.provider_ref
+    assert list(cloud.computers) == [first.provider_ref] and cloud.count("create") == 1
+
+
+@pytest.mark.asyncio
+async def test_a_known_computer_killed_elsewhere_is_forgotten(cloud, sandbox):
+    first = await sandbox.acreate("s1")
+    await cloud.kill(first.provider_ref)
+    second = await sandbox.acreate("s1")
+    assert second.provider_ref != first.provider_ref and list(cloud.computers) == [second.provider_ref]
+    await sandbox.adestroy(second)
+    assert sandbox._known == {}
+
+
+@pytest.mark.asyncio
+async def test_a_runtime_start_failure_kills_a_new_computer_but_not_an_existing_one(cloud, monkeypatch):
+    sandbox = E2BSandbox("agno-sandbox", namespace="test", runtime_port=8765)
+    failing = {"on": True}
+
+    async def start_runtime(handle):
+        if failing["on"]:
+            raise SandboxError("Sandbox runtime server did not become ready")
+
+    monkeypatch.setattr(sandbox, "_start_runtime", start_runtime)
+    with pytest.raises(SandboxError, match="did not become ready"):
+        await sandbox.acreate("s1")
+    assert cloud.computers == {} and sandbox._known == {}
+    failing["on"] = False
+    existing = await sandbox.acreate("s1")
+    failing["on"] = True
+    with pytest.raises(SandboxError, match="did not become ready"):
+        await sandbox.acreate("s1")
+    assert list(cloud.computers) == [existing.provider_ref]
 
 
 @pytest.mark.asyncio

@@ -19,6 +19,18 @@ Keep work proportional to the request:
   writes within the configured budget; do not spend it on unrelated investigation.
 
 Ground every conclusion:
+- Interpret ambiguous platform terms in the Agno context first: "learning machines" means Agno's LearningMachine
+  and Learning Stores, not a generic introduction to training ML models. Respect an explicitly broader question.
+- Use Agno documentation for framework concepts and application knowledge for business facts. Include the Agno
+  concept in documentation queries (for example, "Agno LearningMachine Learning Stores"). Do not search a business
+  knowledge base to explain the framework unless it contains relevant framework documentation.
+- Select evidence by relevance, not search rank. For "What is Agno?", search for the product overview, not a list of
+  SDK component names. Use the main overview's current description: how users build agents with supported
+  frameworks, serve them, and connect them to products or interfaces. A CLI FAQ does not establish the product's
+  purpose. Read the relevant overview if search excerpts are insufficient. Explain the purpose and how it works,
+  with a concrete example and descriptive source links.
+  Aim for 100-200 words for a basic explanation; include code only when requested.
+- If documentation is unavailable, say so and distinguish general knowledge from verified framework behavior.
 - Separate general framework behavior, configuration read here and behavior verified by execution. A setting
   proves configuration, not that a run succeeded. A specialist's summary must identify its supporting evidence.
 - Preserve diagnostic PASS, WARN, FAIL and SKIP statuses. A missing credential affects the associated capability;

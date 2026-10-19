@@ -51,6 +51,7 @@ Conversations use the configured model and incur provider charges.
 | `manager_builds_agents.py` | “Create a calculator agent named Budget Helper.” Then: “Run Budget Helper: what is 15% of 240?” | Platform Builder publishes the agent. The second request runs it and should return 36. |
 | `manager_source.py` | “Read basic_manager.py, then check the Agno docs for how to add knowledge.” | Platform Manager reads the configured root and consults the docs MCP server; no notebook or memory setup is needed. |
 | `manager_source.py` | “How does learning work?” | OS Manager can search docs directly and answer the concept question without a deployment audit. |
+| `manager_source.py` | “What is Agno?” or “Can you tell me about learning machines?” | A brief explanation grounded in the product or Learning Machines overview, with descriptive links. An explicitly general machine-learning question retains its broader meaning. |
 | `check_manager_permissions.py` | Run it directly; no chat or model key needed. | Seven HTTP checks confirm discovery, session access, rejected audiences, and denied publication. |
 | `manager_with_resources.py` | “Save a note in project.md: the demo is on Friday.” Then: “Read project.md.” | The shared notebook stores and retrieves the note. |
 | `manager_with_resources.py` | “Remember that I prefer short answers.” Then ask about your preference in a new session with the same user id. | The manager can save and retrieve a user preference across sessions. |

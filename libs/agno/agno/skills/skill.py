@@ -1,7 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from agno.skills.errors import SkillValidationError
+
+if TYPE_CHECKING:
+    from agno.db.base import BaseDb
 
 
 @dataclass
@@ -30,6 +33,7 @@ class Skill:
         source_type: Where the skill came from: "local", "url" or "db"
         reference_contents: Reference filename to UTF-8 text (content-carrying skills only)
         script_contents: Script filename to UTF-8 text (content-carrying skills only)
+        id: Component id of a skill stored in the database; defaults to `name` on save
     """
 
     name: str
@@ -46,6 +50,7 @@ class Skill:
     source_type: str = "local"
     reference_contents: Optional[Dict[str, str]] = None
     script_contents: Optional[Dict[str, str]] = None
+    id: Optional[str] = None
 
     def __post_init__(self) -> None:
         # None versus {} is the discriminator: a skill with no files is content-carrying with empty dicts.
@@ -88,6 +93,7 @@ class Skill:
             "source_type": self.source_type,
             "reference_contents": self.reference_contents,
             "script_contents": self.script_contents,
+            "id": self.id,
         }
 
     @classmethod
@@ -107,4 +113,61 @@ class Skill:
             source_type=data.get("source_type", "local"),
             reference_contents=data.get("reference_contents"),
             script_contents=data.get("script_contents"),
+            id=data.get("id"),
         )
+
+    def save(self, *, db: "BaseDb", user_id: Optional[str] = None) -> int:
+        """Store this skill as a new published version and make it the current one.
+
+        Every call appends a version; published versions never change. The component id is
+        `id`, or `name` when no id is set. A path-backed skill has its files read from disk.
+
+        Args:
+            db: The database to save the skill to.
+            user_id: The owner of a newly created skill. None leaves it unowned (shared).
+
+        Returns:
+            The version number of the saved config.
+        """
+        from agno.skills.component import save_skill
+
+        return save_skill(self, db=db, user_id=user_id)
+
+    @classmethod
+    def load(
+        cls,
+        id: str,
+        *,
+        db: "BaseDb",
+        version: Optional[int] = None,
+        label: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> Optional["Skill"]:
+        """Load a stored skill: the current published version, or an exact version or label.
+
+        Args:
+            id: The component id of the skill.
+            db: The database to load the skill from.
+            version: The exact version to load.
+            label: The label of the version to load.
+            user_id: When set, only a skill this user may see is returned.
+
+        Returns:
+            The skill, or None if there is no such skill or version.
+        """
+        from agno.skills.component import load_skill
+
+        return load_skill(id, db=db, version=version, label=label, user_id=user_id)
+
+    def delete(self, *, db: "BaseDb", hard_delete: bool = False) -> bool:
+        """Delete this stored skill. Refuses while a saved agent or team references it.
+
+        Returns:
+            True if the skill was deleted, False if there was nothing to delete.
+
+        Raises:
+            ComponentDependencyError: If a saved agent or team references this skill.
+        """
+        from agno.skills.component import delete_skill
+
+        return delete_skill(self.id or self.name, db=db, hard_delete=hard_delete)

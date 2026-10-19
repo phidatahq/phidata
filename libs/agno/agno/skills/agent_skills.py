@@ -204,6 +204,77 @@ class Skills:
         if fresh:
             self._commit_refresh(user_id, refresh, fresh, shared)
 
+    def to_config(self) -> Optional[Dict[str, Any]]:
+        """The stored form of these skills: references to database skills, never their content.
+
+        A reference with no version is pinned to the version this object loaded, so a saved
+        agent runs the skill it was tested with. Skills from other loaders are not saved.
+
+        Returns:
+            The config block, or None when no loader reads from the database.
+        """
+        from agno.skills.component import SkillRef
+        from agno.skills.loaders.db import DbSkills
+
+        refs: List[Dict[str, Any]] = []
+        for loader in self.loaders:
+            if not isinstance(loader, DbSkills):
+                log_warning(f"Skills from {type(loader).__name__} are not stored in the database and will not be saved")
+                continue
+            for ref in loader.refs:
+                version = ref.version if ref.version is not None else loader.resolved_versions.get(ref.id)
+                refs.append(SkillRef(ref.id, version).to_dict())
+        if not refs:
+            return None
+        config: Dict[str, Any] = {"refs": refs}
+        # An executor is code and cannot be stored; recording it stops a reload from running scripts on the host.
+        if type(self.executor) is not LocalSkillExecutor:
+            config["custom_executor"] = True
+        return config
+
+    @classmethod
+    def from_config(
+        cls,
+        config: Dict[str, Any],
+        *,
+        db: Optional[Any],
+        strict: bool = False,
+        label: str = "Component",
+        user_id: Optional[str] = None,
+    ) -> Optional["Skills"]:
+        """Rebuild Skills from a stored config block by resolving its references against ``db``.
+
+        Strict loading refuses a reference that resolves to nothing. Lenient loading skips it
+        with a warning. A config saved with a custom executor never loads with the default one.
+
+        Raises:
+            ComponentRehydrationError: If strict and the skills cannot be fully restored.
+        """
+        from agno.exceptions import ComponentRehydrationError
+        from agno.skills.component import SkillRef
+        from agno.skills.loaders.db import DbSkills
+
+        def refuse(message: str) -> None:
+            if strict:
+                raise ComponentRehydrationError(f"{label} {message}")
+            log_warning(f"{label} {message}; loading it without skills")
+
+        if config.get("custom_executor"):
+            refuse("was saved with a custom skill executor, which cannot be restored")
+            return None
+        if db is None:
+            refuse("references database skills but no database was provided")
+            return None
+
+        loader = DbSkills(db, [SkillRef.from_dict(ref) for ref in config.get("refs") or []], user_id=user_id)
+        skills = cls(loaders=[loader])
+        if strict and not loader.loaded:
+            raise ComponentRehydrationError(f"{label} skills could not be read from the database")
+        if strict and loader.missing:
+            missing = ", ".join(f"'{ref.id}'" + (f" v{ref.version}" if ref.version else "") for ref in loader.missing)
+            raise ComponentRehydrationError(f"{label} references skills that are not published: {missing}")
+        return skills
+
     def reload(self) -> None:
         """Reload skills from all loaders, replacing the existing skills.
 

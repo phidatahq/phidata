@@ -2296,7 +2296,7 @@ async def _call_within_the_budget(coro: Any, timeout_seconds: float) -> Any:
     raise asyncio.TimeoutError()
 
 
-def _register_tool_run_api(
+def _register_tool_run_endpoint(
     mcp: FastMCP, os: "AgentOS", timeout_seconds: float, mcp_config: "Optional[MCPConfig]" = None
 ) -> None:
     """Register the plain-HTTP tool runner.
@@ -2566,7 +2566,7 @@ def build_mcp_server(
             allowed_hosts=(mcp_config.allowed_hosts if mcp_config is not None else None),
         )
 
-    _register_tool_run_api(
+    _register_tool_run_endpoint(
         mcp,
         os,
         timeout_seconds=(

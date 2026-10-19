@@ -24,7 +24,7 @@ from agno.os.settings import AgnoAPISettings
 
 def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
     """Mount the existing wiki and learning domains under Company."""
-    router = APIRouter(prefix="/company", tags=["Company playbook"])
+    router = APIRouter(prefix="/company", tags=["Company playbook"], dependencies=[Depends(get_scoped_user_id)])
     auth = get_authentication_dependency(settings)
     manager = AsyncCompanyManager(db) if isinstance(db, AsyncBaseDb) else CompanyManager(db) if db else None
 
@@ -75,7 +75,12 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     ):
         return asdict(
             await call(
-                "write_wiki", product_id, path, body.content, body.expected_version, user_id=get_scoped_user_id(request)
+                "write_wiki",
+                product_id=product_id,
+                path=path,
+                content=body.content,
+                expected_version=body.expected_version,
+                user_id=get_scoped_user_id(request),
             )
         )
 
@@ -95,7 +100,12 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def write_company_wiki(path: str, body: WikiWrite, request: Request, _: bool = Depends(auth)):
         return asdict(
             await call(
-                "write_wiki", None, path, body.content, body.expected_version, user_id=get_scoped_user_id(request)
+                "write_wiki",
+                product_id=None,
+                path=path,
+                content=body.content,
+                expected_version=body.expected_version,
+                user_id=get_scoped_user_id(request),
             )
         )
 

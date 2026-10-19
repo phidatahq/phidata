@@ -1,236 +1,242 @@
-# Test Log: Company Products
+# Company validation record — Task ownership and recovery
 
-### 01_manage_products.py
+**Date:** October 16, 2026
 
-**Status:** PASS
+**Branch:** `codex/company-task-recovery`
 
-**Description:** Ran `cookbook/05_agent_os/30_company/01_manage_products.py`
-with the development environment on October 15, 2026, after simplifying the
-internal scope-map handoff (SQLAlchemy 2.0.54). SQLite persistence,
-two users, unscoped and owner-filtered listings, soft delete, include_deleted,
-and restore were exercised.
+**Base:** `2dec52a7e7bf202c3913b1d442220227525ce73a`
 
-**Result:** All assertions passed. Output:
+**Validated tree:** the implementation, tests, README and examples in the commit
+containing this record. The implementation was published for parallel review as
+`51b03980c696c296a1780b31dad20001c2c1b561`; the final follow-up changes this validation
+record only. The PR reports the final full commit SHA. This single record
+supersedes the historical entries; Git retains their previous versions.
 
-```text
-Isolation off: 2 Products
-Isolation on for alice: 1 Product
-Soft delete, include_deleted and restore passed
+## Integration validation
+
+**Status:** PASS — 1,744 distinct integration cases, including all 50 new
+regressions. No skips or failures.
+
+The four follow-up fixes preserve remote Running attempts, restore disabled-owner
+checks for new work, implement MongoDB schedule-history retention, and provide a
+native synchronous attention reader. `test_company_replica_offboarding.py` adds
+50 regression cases:
+
+- Eight real two-process checkpoint cases across four SQL adapters and both
+  isolation modes. The worker has executed a tool and persists Running; another
+  process loses the ticket and recovers twice without cancellation or replay.
+  The worker then completes and the Task receives its completed result.
+- Twenty-four disabled-owner cases across Agent, Team and Workflow, four SQL
+  adapters and both isolation modes. A lost completed result still recovers;
+  new manual and automatic work is refused; the automatic refusal records one
+  failure and returns the Task to Backlog; an authorized collaborator can cancel
+  existing work after its owner is disabled.
+- Eight fail-closed directory checks across four SQL adapters and both isolation
+  modes. Directory errors refuse new Company work with HTTP 503.
+- Eight real MongoDB retention cases: both Mongo adapters paired with all four
+  SQL Company stores. Refresh removes old completed automation history, retains
+  recent/incomplete/other-schedule rows, and continues to completion proposals.
+- Two synchronous attention cases inside an event loop, on SQLite and PostgreSQL,
+  with empty and paginated histories, product filtering and stale-failure removal.
+
+The prior actor/owner, authorization, recovery-error and failure-streak matrices
+remain in the complete integration selection.
+
+**Result:** All four disjoint partitions passed 436 cases each on implementation
+`51b03980c696c296a1780b31dad20001c2c1b561` (259.39, 262.49, 274.26 and 279.01
+seconds). Both PostgreSQL and MongoDB were explicitly enabled. A separate clean
+run of all 50 new regression cases passed in 73.98 seconds. These final runs
+supersede the earlier development runs and prior-head validation.
+
+The full Company integration tree was collected once and partitioned into four
+disjoint runs. It includes every `test_company_*.py`, Product/Project/Task and
+schedule lifecycle parity suites, and the SQLite Product/Project/Task suites.
+The four Company adapters are sync SQLite, async SQLite, sync PostgreSQL and
+async PostgreSQL. PostgreSQL used the local service on port 5532; MongoDB used port 27017.
+
+The new ownership and recovery suite covers:
+
+- Alice's first attempt and Bob's revision on the same Alice-owned session,
+  with `started_by` retaining the human actor. Agent, Team and Workflow routes
+  run in both isolation modes, with token scopes and managed roles.
+- Missing executor run permission returns 403. Automatic pickup retains the
+  accepting human as actor while keeping the Task owner as the run user.
+- Legacy starter-owned reservations and queue tickets recover with their
+  recorded identity. A subsequent attempt adopts the idle session only after
+  matching its original reservation and run. Unrelated session owners return 404.
+- Paused Routines and revoked policies do not prevent existing-attempt cleanup
+  or completed-result projection. Recovery is fenced against enqueueing.
+- Ticketless Pending attempts are cancelled. Running attempts remain observable
+  until durable completion or explicit cancellation; registry absence alone is
+  not authoritative liveness evidence. Missing ticket-and-run reservations receive a
+  cancelled Task result and can start a new numbered attempt.
+- Concurrent worker projection and recovery settle once. Competing completed,
+  failed and cancelled terminal results preserve exactly one winner.
+- Repeated identical dispatch errors retain one failed history row with a
+  count, including failure immediately after automatic acceptance. A new reason
+  or Task move resets the count; attention drops stale failures.
+- Refresh applies configured 7-day and default 30-day automation retention,
+  preserving recent and unfinished rows, through the actual Company tool.
+
+Reproduce the integration selection with the development Python and
+`PYTHONPATH=libs/agno`:
+
+```bash
+.venv/bin/python -m pytest \
+  libs/agno/tests/integration/db/test_company_*.py \
+  libs/agno/tests/integration/db/test_{products,projects,tasks,schedule}_lifecycle_parity.py \
+  libs/agno/tests/integration/db/sqlite/test_{products,projects,tasks}.py \
+  -q --disable-warnings --tb=short -o log_cli=false
 ```
 
----
+Set `AGNO_TEST_POSTGRES_URL` and `AGNO_TEST_MONGO_URL` to the local services to
+include optional schedule lifecycle and MongoDB cases. The Company PostgreSQL
+fixtures already configure the local service.
 
+## Unit validation
 
-### 02_manage_projects.py
+**Status:** PASS — 6,458 tests, 39 conditional skips, no failures.
 
-**Status:** PASS
+**Description:** Reran the complete database, OS (including authorization),
+scheduler and Company-tool suites on the review-fix implementation.
 
-**Description:** Ran `cookbook/05_agent_os/30_company/02_manage_projects.py`
-on October 15, 2026 using SQLite and the development environment. Tested two
-owners, unscoped and scoped listing, reasoned Project transitions, status
-filtering, soft delete and restore without a model.
+**Result:** All selected unit suites passed in 536.61 seconds. The command was:
 
-**Result:** All assertions passed; output: `Company projects lifecycle passed`.
-
----
-
-### 03_manage_tasks.py
-
-**Status:** PASS
-
-**Description:** Ran `cookbook/05_agent_os/30_company/03_manage_tasks.py`
-on October 15, 2026 using SQLite and the development environment. Tested
-Backlog creation, executor and acceptor recording, frozen scope, returning to
-Backlog and clearing acceptance, review/completion, filtering, delete and
-restore. This example manages records without executing a model.
-
-**Result:** All assertions passed. Output:
-
-```text
-Accepted scope is protected
-Company tasks lifecycle passed
+```bash
+.venv/bin/python -m pytest \
+  libs/agno/tests/unit/db libs/agno/tests/unit/os \
+  libs/agno/tests/unit/scheduler libs/agno/tests/unit/tools/test_company.py \
+  -q --disable-warnings --tb=short -o log_cli=false
 ```
 
----
+## Cookbook validation
 
-The existing `01_manage_products.py` was also rerun successfully with its
-original output and assertions unchanged.
+**Status:** PASS — all 15 invocations on the review-fix implementation.
 
+All paths below are relative to `cookbook/05_agent_os/30_company/`. Each example
+was executed using the development Python with this worktree's framework on
+`PYTHONPATH`. These use deterministic local components and make no model calls.
 
-### Rebase verification: all Company examples
+| Test | Modes | Description and result |
+| --- | --- | --- |
+| `01_manage_products.py` | SQLite | PASS: ownership filters, archive and restore assertions. |
+| `02_manage_projects.py` | SQLite | PASS: collaborative Project lifecycle and ownership. |
+| `03_manage_tasks.py` | SQLite | PASS: acceptance, frozen scope, transitions and restore. |
+| `04_manage_playbook.py` | SQLite | PASS: sync/async wiki, version conflicts and decisions. |
+| `05_product_manager.py` | SQLite | PASS: model resolution, bounded tools and MCP setup without inference. |
+| `06_execute_tasks.py` | SQLite and PostgreSQL, manual and automatic | PASS in all four modes: durable execution, duplicate start, result and attention assertions. |
+| `07_cascading_archive.py` | SQLite and `--postgres` | PASS in both modes: active-work refusal, cascading archive and exact restore. |
+| `07_heartbeat.py` | SQLite | PASS: declarations, Source evidence, Routine persistence and duplicate-free intake. |
+| `08_custom_routines.py` | SQLite | PASS: custom Routine and discovered website Source configuration. |
+| `09_task_session_ownership.py` | SQLite and PostgreSQL | PASS in both modes: Alice/Bob attempts share one Alice-owned session and retain separate actor attribution. |
 
-**Status:** PASS
+For execution examples, `COMPANY_DB=postgres` selects PostgreSQL session and
+Company storage; their durable queue uses PostgreSQL in both modes.
+`COMPANY_AUTOMATION=1` selects automatic execution in `06_execute_tasks.py`.
 
-**Description:** Reran `01_manage_products.py`, `02_manage_projects.py`, and
-`03_manage_tasks.py` on October 15, 2026 after rebasing onto Products commit
-`850ebb87a6a78c73392fd3c0a998ce9c18f8a823`, including its database shutdown
-and async configuration reconstruction fixes. The new Project/Task inserts
-also use the same required-row return convention as Products.
-
-**Result:** All assertions passed. Products reported two unscoped records,
-one Alice-owned record, and successful archive/restore checks. Projects
-reported lifecycle success. Tasks reported protected accepted scope and
-lifecycle success.
-
----
-
-
-### Company-wide work reads
-
-**Status:** PASS
-
-**Description:** Reran all three cookbook files after rebasing onto Products
-commit `c9ec5af77fb229a291dea1148eeb445331d1013d` and adopting its shared-read
-behavior for Projects and Tasks. The direct manager examples retain explicit
-owner filters.
-
-**Result:** All cookbook assertions passed. The Company router and integration
-run also passed 260 tests, including company-wide reads, paginated status
-filters, shared Product/Project assignment, and owner-scoped writes and
-transitions across sync/async SQLite and PostgreSQL.
-
----
-
-### 02_manage_projects.py — collaborative HTTP edits and transitions follow-up
+## Format, validation and scope
 
 **Status:** PASS
 
-**Description:** Reran the Project cookbook after allowing resource-authorized callers to edit and transition another creator's Project through HTTP.
+Full repository `./scripts/format.sh` and `./scripts/validate.sh` run with the clean
+Python 3.10 validation environment. The full formatter also normalizes existing
+import ordering and wrapping in twelve unrelated files; those edits are mechanical.
+No executor enum, Source type or sandbox acceptance behavior is changed here.
 
-**Result:** `Company projects lifecycle passed`. The cookbook checks direct-manager lifecycle, owner filtering, deletion, and restoration; separate HTTP regressions verify collaboration.
+**Result:** Full Ruff formatting/import sorting and lint passed. Mypy passed for
+1,182 framework files and 21 CLI files. The cookbook pattern check passed all 13
+checked quickstart files with no violations. `git diff --check` passed.
 
----
+These are local tests, not CI, independent review or hosted deployment evidence.
+No paid model calls or real outbound notification deliveries were exercised.
 
-### 03_manage_tasks.py — collaborative HTTP edits and transitions follow-up
 
-**Status:** PASS
-
-**Description:** Reran the Task cookbook after allowing resource-authorized callers to edit Backlog Tasks and perform lifecycle transitions through HTTP.
-
-**Result:** `Accepted scope is protected` and `Company tasks lifecycle passed`. Separate HTTP regressions verify cross-user acceptance, cancellation, returning to Backlog, attribution, and executor authorization.
-
----
-
-## Playbook and Product Manager delivery
-
-### 01_manage_products.py, 02_manage_projects.py, 03_manage_tasks.py
+### 09_sandboxed_engineers.py
 
 **Status:** PASS
 
-**Description:** Reran all three existing files in `cookbook/05_agent_os/30_company/`
-with the development environment on October 15, 2026. Products, Projects and
-Tasks retain their owner filters, transitions, soft deletion and restoration.
+**Description:** Ran `PYTHONPATH=libs/agno .venv/bin/python cookbook/05_agent_os/30_company/09_sandboxed_engineers.py --config-only` on October 16, 2026. Both ClaudeAgent and CodexAgent accept the repository, isolated Docker network, explicit checkpoint store, workspace size and execution timeout configuration.
 
-**Result:** Each file completed successfully; accepted Task scope remained protected.
+**Result:** Configuration smoke passed without model calls. The credential-free sandbox fixture separately exercised real public GitHub checkout, Task pin projection, container replacement, attempt-two session reuse, concurrent admission and acceptance on sync/async SQLite and PostgreSQL Company stores. The Claude and Codex model turns were not run.
 
 ---
 
-### 04_manage_playbook.py
+### Sandboxed Company executor regression checks
 
 **Status:** PASS
 
-**Description:** Ran `cookbook/05_agent_os/30_company/04_manage_playbook.py` on
-SQLite, sync and async. Created Product and company wiki namespaces, updated
-status with its version, rejected a stale edit and saved learning decisions.
+**Description:** October 16, 2026: all 1,344 Company integration cases passed across synchronous and asynchronous SQLite and PostgreSQL (eight conditional Mongo cases skipped). The affected unit suites passed 3,417 tests (35 conditional skips). All 12 Company Docker fixture cases passed, including cancellation during submission, and all 25 existing AgentOS sandbox cases passed, including the opt-in public-repository case. The Docker fixture used PostgreSQL, Redis and `agno-sandbox:pr71-repository`; no Claude or Codex model turn was invoked.
 
-**Result:** Both paths completed without a model or provider credentials.
+**Result:** Full format and validation scripts passed; validation used the clean Python 3.10 environment. These are local checks, not CI or independent review. PR 6.6 integration remains pending: its recovery completion must share the checkout projection before recovered sandbox completions can be claimed as covered.
 
 ---
 
-### 05_product_manager.py
+### PR 7.2 review fixes — retry pins and live execution admission
 
 **Status:** PASS
 
-**Description:** Ran `cookbook/05_agent_os/30_company/05_product_manager.py`.
-Configured a standalone Product Manager using the registry model, configured
-explicit MCP toolkit publication, and called the bounded tools with trusted
-application run context.
+**Description:** Failed or cancelled first attempts no longer prevent a later successful attempt from storing the checkout pin. Admission reads live queue tickets using their recorded executor, including after Backlog return, reassignment, archival, or a newer Task reservation; a retained run still blocks when its ticket is missing. Added four-adapter regressions for both blockers and for authorization before admission. External agents are refused as team members, Windows/UNC local git paths remain valid, legacy Source references can be edited without replacement, and an explicit read-token Source requires `GITHUB_READ_TOKEN` in the sandbox environment.
 
-**Result:** Backlog proposal, status and decision persisted with the caller's
-identity. No model call was made; live provider behavior was not tested.
+**Result:** 1,751 affected unit tests passed (35 conditional skips), all 12 Company Docker cases passed, and the focused review suite passed 170 tests. The broad Company integration run passed 1,368 cases with eight conditional Mongo skips; its 16 failures exposed executor validation occurring after endpoint construction in the permission cleanup. That order was corrected, and all 16 failed cases passed on rerun, giving 1,384 distinct passing Company cases. A further final-source focused route run passed all 88 cases. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 recovery integration remains deferred until it merges.
 
 ---
 
-
-### Final merged-base verification — October 16, 2026
+### PR 7.2 second review — admission and retries
 
 **Status:** PASS
 
-**Description:** Reran every file in `cookbook/05_agent_os/30_company/`:
-`01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`,
-`04_manage_playbook.py`, and `05_product_manager.py`. All completed successfully
-on the final implementation. The tested PR 2 head and merged main commit
-`a88f7a518c61c2d8a76b4407ed7c1d07378b77fe` have identical Git trees; PR 3
-was rebased onto that merge before publication.
+**Description:** Settled historical attempts are excluded before resolving retired run stores. Live-ticket enumeration propagates failures for admission, includes untagged jobs claimed by named deployments, and uses the existing quiet-contention response for automatic pickup. Checkout validation errors can retry after their cause is repaired. Acceptance refuses a repository or branch incompatible with an established checkout.
 
-**Result:** Products and Projects passed lifecycle checks; Tasks protected
-accepted scope. Sync/async wiki edits rejected stale versions and persisted
-learning decisions. Product Manager's bounded tools saved a caller-owned
-Backlog proposal, status and decision. No provider calls were made.
-
-The full database and AgentOS unit suites passed **6,079 tests**, with **15
-conditional skips**. Company SQLite/PostgreSQL integrations (sync and async)
-and filesystem integrations passed **238 tests**, with no skips. Shared
-filesystem/context unit tests plus the new four-adapter parity tests passed
-**840 tests** (overlapping the integration count). Format and validation passed,
-including both mypy checks; the validate output was read.
+**Result:** All 96 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Company Docker cases and all 183 queue-store parity cases passed. All 1,428 Company integration cases passed, with eight conditional Mongo skips. Full format, clean Python 3.10 validation and whitespace checks passed. No paid model turns were run. PR 6.6 dispatch and recovery functions remain unchanged; recovery pin integration is deferred until that PR merges.
 
 ---
 
-
-### Review fixes — October 16, 2026
+### PR 7.2 rebase and overlapping deployment admission
 
 **Status:** PASS
 
-**Description:** Reran all five files in `cookbook/05_agent_os/30_company/`:
-`01_manage_products.py`, `02_manage_projects.py`, `03_manage_tasks.py`,
-`04_manage_playbook.py`, and `05_product_manager.py`, after fixing Company
-decision recall, tool instructions, author attribution and wiki routing.
+**Description:** Rebased onto the latest PR 6.6 head, `f238e6892a9cfd634363fd0c41dfcb6c668fee3f`. Preserved its authenticated internal transport and passed the trusted checkout metadata through that application path. Admission uses a common advisory lock because named workers can claim untagged jobs. A deterministic two-application regression reproduced two accepted starts in all eight adapter/ordering cases before the fix; all eight now admit one start and refuse the other.
 
-**Result:** All cookbook assertions passed. The shared Company decision context
-includes human entries; direct CompanyTools/MCP calls no longer claim Product
-Manager authorship. Actual offline sync/async Product Manager runs verified
-human decision context and the exposed tool names in system prompts.
-The broader regression run passed **1,516 tests**, with no skips, covering
-Company routes/tools, scopes, manager composition, diagnostics, learning,
-context providers, and Company SQLite/PostgreSQL storage in both execution
-modes. All provider calls remained offline. The original full database/OS
-unit-suite results above precede this follow-up; those full suites were not
-rerun for these focused fixes. Format and validation passed.
+**Result:** All 104 focused regressions passed across sync/async SQLite and PostgreSQL. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. The initial combined run passed 1,840 cases and exposed four recovery-test failures caused by this module leaving Redis process defaults attached to a closed test event loop. The fixture now restores those defaults; all 24 ordered concurrent-start/recovery cases pass. A clean 1,844-case combined rerun is in progress at publication; its final results are recorded in the PR. No paid model calls. Recovery checkout projection remains deferred until PR 6.6 merges.
 
 ---
 
-
-### Async filesystem transaction review — October 16, 2026
+### PR 7.2 recovery checkout integration
 
 **Status:** PASS
 
-**Description:** Reran `01_manage_products.py`, `02_manage_projects.py`,
-`03_manage_tasks.py`, `04_manage_playbook.py`, and `05_product_manager.py`
-after fixing async SQLite outer transaction ownership.
+**Description:** Merged main after PR 6.6 landed, using normal merge commit `4554646f1e`. Recovered completed runs now use the same checkout projection as worker completion. The first successful recovery stores the pin, later attempts verify it, missing or changed pins fail the attempt, and an unavailable sandbox executor leaves recovery retryable. The checkout and result use the existing guarded atomic completion write; a stale recovery cannot replace a settled winner.
 
-**Result:** All five cookbooks passed. Product/Project/Task lifecycle checks,
-sync/async wiki version conflicts, and bounded Product Manager proposal, status
-and decision writes passed. No provider calls were made.
-
-The focused filesystem review reproduced four failing cases: exception and
-cancellation after savepoint release persisted an async SQLite write on both
-file-backed and in-memory databases. Explicit outer BEGIN fixes all four while
-respecting caller-managed transaction hooks. The 33 new regression cases cover
-legacy migrations (missing/nullable user column), data and partition retention,
-partial DDL rollback, migration cancellation, partial-move rollback, cold-create
-cancellation and retry, and durable connection recovery after cancellation.
-All 33 passed on Python 3.10 and Python 3.12 with SQLite and PostgreSQL.
-
-Filesystem/context units and filesystem/Company integrations passed **1,082
-tests**, with no skips (includes the 33 cases above). Format and validation
-passed; all validation output, including both mypy summaries, was read.
-In-memory SQLite remains connection-owned: driver cancellation that invalidates
-its only connection discards the database; durable cancellation recovery is
-verified on file-backed SQLite and PostgreSQL.
+**Result:** All 20 recovery regressions passed across sync/async SQLite and PostgreSQL. The complete Company/lifecycle matrix passed 1,864 cases with PostgreSQL and MongoDB enabled and no skips. The affected unit suite passed 1,751 tests (35 conditional skips); all 12 Docker and 183 queue-store parity cases passed. Cookbook configuration smoke, full format, clean Python 3.10 validation and whitespace checks passed. No paid model calls. These are local results; CI and independent review remain separate.
 
 ---
 
-Final full-suite rerun after this fix: **6,085 passed, 15 skipped** across
-`libs/agno/tests/unit/db` and `libs/agno/tests/unit/os`. The temporary MongoDB
-container was removed after the run; existing PostgreSQL services were retained.
+### PR 7.2 pinned Task acceptance consistency
+
+**Status:** PASS
+
+**Description:** Sync and async acceptance now reject a pinned Task's reassignment to a non-sandboxed agent, team or workflow with HTTP 409. Unpinned Tasks retain their existing behavior. The four-adapter regression covers refusal without mutation and successful session/pin reuse and recovery after selecting a compatible sandboxed executor. All 12 pinned cases failed before the fix; all 24 pinned/unpinned cases pass afterward.
+
+**Result:** All 148 focused sandbox/checkout tests, 1,751 affected unit tests (35 conditional skips), and 12 Docker cases passed. The broad Company/lifecycle run passed 1,886 cases and exposed two async concurrency fixtures pausing at the new preliminary validation read rather than the intended SQL transition read. The fixture now pauses within the transition transaction; the complete 40-case Task lifecycle suite passed on rerun, yielding 1,888 distinct passing integration cases. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. No paid model calls. Recovery and queue admission production code are unchanged.
+
+---
+
+### PR 7.2 unreleased migration cleanup
+
+**Status:** PASS
+
+**Description:** Removed the unreleased Company Task migration, its version registration, migration-specific tests and upgrade instructions. Task schema mismatches no longer recommend an unavailable migration. PostgreSQL and SQLite initial schemas still include checkout metadata; pin projection, acceptance and recovery behavior are unchanged.
+
+**Result:** All 1,084 affected Company checkout, admission, lifecycle, execution and recovery integration cases passed across sync/async SQLite and PostgreSQL. All seven migration endpoint cases and 12 real Docker Company cases passed. The database/OS unit run passed 6,241 cases with 39 skips; eight Redis cases failed, including teardown, after the shared Redis service disappeared. All 19 cases in that module passed against temporary Redis, yielding 6,249 distinct unit passes. The initial integration run was interrupted after the shared PostgreSQL service disappeared; the complete four-process rerun passed against a disposable database. Full format, clean Python 3.10 validation, cookbook configuration smoke and whitespace checks passed. The shared development environment reports 40 mypy diagnostics in untouched files; clean validation reports none. No model calls were made for this cleanup.
+
+---
+
+### PR 7.2 queue listing API cleanup
+
+**Status:** PASS
+
+**Description:** Moved `sandboxed` to the end of `AgentResponse`. Renamed the PostgreSQL queue listing flag to `raise_on_error`, updated Company admission, and accepted the same keyword on Redis and in-memory stores. Explicit error propagation works across all built-in stores; PostgreSQL retains its default fallback, while Redis and in-memory retain their existing error propagation.
+
+**Result:** All 164 focused queue and sandbox unit cases and all 309 queue-store parity/Company admission integration cases passed, with no skips. New coverage checks errors across sync/async PostgreSQL, Redis and in-memory stores, and matching listing results with both flag values on in-memory, fake/real Redis and sync/async PostgreSQL. Full format, clean Python 3.10 validation and whitespace checks passed. No model calls were made.
+
+---

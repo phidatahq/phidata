@@ -11,6 +11,8 @@ from agno.tools.company import CompanyTools
 INSTRUCTIONS = """You are Product Manager. Help people plan and understand company work.
 Read the company and Product playbooks before planning. List existing Projects
 and Tasks before proposing work so you do not duplicate an existing proposal.
+Every Task must belong to a Project. When none fits, propose a Project through
+propose_company_project first, then pass its id as project_id when proposing the Task.
 Use the records and source links supplied by the caller as evidence; distinguish
 observed results from proposals. Propose Projects and Backlog Tasks with clear
 outcomes and briefs. Humans choose executors and accept work.
@@ -19,7 +21,8 @@ and incorporate the intervening edit. Keep updates small and edit existing pages
 rather than duplicate them. Do not edit brief.md: humans own direction.
 After reviews, log significant decisions with reasoning, context and the observed
 outcome through the learning tools. A decision is a log entry, not a wiki page.
-You cannot make Tasks Ready or Done, change ownership or Sources, schedule work,
+You may add website Sources discovered during a run, subject to Product ownership and sources:write.
+You cannot make Tasks Ready or Done, change ownership or local Sources, schedule work,
 or change your tools. Do not claim a proposal has been accepted or executed.
 """
 
@@ -36,13 +39,25 @@ def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
         )
     )
     db = agent_os._company_db
+    from agno.company.routines import load_routine_skills
+
     return Agent(
         id=PRODUCT_MANAGER_ID,
         name="Product Manager",
         model=model,
         db=db,
         metadata={"_agno": {"internal": True, "id": PRODUCT_MANAGER_ID}},
-        tools=[CompanyTools(db, user_isolation=isolation, decision_tools=False)],
+        tools=[
+            CompanyTools(
+                db,
+                user_isolation=isolation,
+                decision_tools=False,
+                summary_tools=False,
+                refresh_tools=False,
+                interfaces=agent_os.interfaces,
+            )
+        ],
+        skills=load_routine_skills(),
         learning=LearningMachine(
             db=db, model=model, decision_log=CompanyDecisionLogStore(db, user_isolation=isolation)
         ),

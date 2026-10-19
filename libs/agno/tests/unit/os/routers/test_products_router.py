@@ -44,7 +44,7 @@ def test_lifecycle(client):
     updated = client.patch(path, json={"purpose": None, "metadata": {"b": 2}})
     assert updated.status_code == 200
     assert updated.json()["purpose"] is None
-    assert updated.json()["metadata"] == {"b": 2}
+    assert updated.json()["metadata"] == {"archive_window_days": 14, "b": 2}
     assert updated.json()["updated_at"] is not None
     assert client.patch(path, json={}).json() == updated.json()
     assert client.post(path + "/restore").status_code == 409
@@ -187,16 +187,16 @@ def test_unavailable_database_all_routes(db):
 
 def test_manager_unsupported():
     manager = CompanyManager(InMemoryDb())
-    for fn, args in [
-        (manager.create, ("SDK",)),
-        (manager.list, ()),
-        (manager.get, ("id",)),
-        (manager.update, ("id",)),
-        (manager.delete, ("id",)),
-        (manager.restore, ("id",)),
+    for fn, kwargs in [
+        (manager.create, {"name": "SDK"}),
+        (manager.list, {}),
+        (manager.get, {"product_id": "id"}),
+        (manager.update, {"product_id": "id"}),
+        (manager.delete, {"product_id": "id"}),
+        (manager.restore, {"product_id": "id"}),
     ]:
         with pytest.raises(NotImplementedError, match="Company products not supported"):
-            fn(*args)
+            fn(**kwargs)
 
 
 @pytest.mark.asyncio
@@ -213,16 +213,16 @@ async def test_async_manager_unsupported():
     ]:
         setattr(db, method, getattr(AsyncBaseDb, method).__get__(db))
     manager = AsyncCompanyManager(db)
-    for fn, args in [
-        (manager.create, ("SDK",)),
-        (manager.list, ()),
-        (manager.get, ("id",)),
-        (manager.update, ("id",)),
-        (manager.delete, ("id",)),
-        (manager.restore, ("id",)),
+    for fn, kwargs in [
+        (manager.create, {"name": "SDK"}),
+        (manager.list, {}),
+        (manager.get, {"product_id": "id"}),
+        (manager.update, {"product_id": "id"}),
+        (manager.delete, {"product_id": "id"}),
+        (manager.restore, {"product_id": "id"}),
     ]:
         with pytest.raises(NotImplementedError, match="Company products not supported"):
-            await fn(*args)
+            await fn(**kwargs)
 
 
 def test_sync_database_does_not_run_on_event_loop(tmp_path):

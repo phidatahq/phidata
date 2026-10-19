@@ -5,15 +5,28 @@ import asyncio
 import pytest
 from fastapi.testclient import TestClient
 
+from agno.agent import Agent
 from agno.db.in_memory import InMemoryDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.os import AgentOS, CompanyConfig
+from agno.team import Team
+from agno.workflow import Workflow
 
 
 @pytest.fixture(params=[False, True], ids=["sync", "async"])
 def client(request, tmp_path):
     db = (AsyncSqliteDb if request.param else SqliteDb)(db_file=str(tmp_path / "work.db"))
-    with TestClient(AgentOS(db=db, company=CompanyConfig(), telemetry=False).get_app()) as client:
+    with TestClient(
+        AgentOS(
+            agents=[Agent(id="writer")],
+            teams=[Team(id="writer", members=[])],
+            workflows=[Workflow(id="writer", steps=[])],
+            db=db,
+            company=CompanyConfig(),
+            telemetry=False,
+        ).get_app()
+    ) as client:
+        client.app.state.task_test_db = db
         yield client
     if request.param:
         asyncio.run(db.close())
@@ -23,7 +36,10 @@ def client(request, tmp_path):
 
 def create(client):
     parent = client.post("/company/products", json={"name": "SDK"}).json()["id"]
-    response = client.post("/company/tasks", json={"product_id": parent, "title": "Ship", "brief": "Build"})
+    project = client.post("/company/projects", json={"product_id": parent, "name": "Release"}).json()
+    response = client.post(
+        "/company/tasks", json={"product_id": parent, "project_id": project["id"], "title": "Ship", "brief": "Build"}
+    )
     assert response.status_code == 201, response.text
     return response.json()
 
@@ -35,6 +51,20 @@ def transition(client, path, target):
     return client.post(path + "/transitions", json=body)
 
 
+def reserve_run(client, path, user_id=None):
+    """Seed a committed run reservation for route tests without a queue worker."""
+    from agno.company.execution import _call
+
+    async def reserve():
+        db = client.app.state.task_test_db
+        task_id = path.rsplit("/", 1)[-1]
+        task = await _call(db, "get_task", task_id)
+        attempt = max((entry.get("attempt", 0) for entry in task["transitions"]), default=0) + 1
+        return await _call(db, "start_task_run", task_id, attempt, task["transitions"], user_id=user_id)
+
+    return asyncio.run(reserve())
+
+
 def test_lifecycle(client):
     record = create(client)
     path = "/company/tasks/" + record["id"]
@@ -43,11 +73,16 @@ def test_lifecycle(client):
     assert transition(client, path, "done").status_code == 409
     states = ["ready", "in_progress", "in_review", "done"]
     for state in states:
+        if state == "in_progress":
+            assert transition(client, path, state).status_code == 409
+            assert reserve_run(client, path)["status"] == state
+            continue
         response = transition(client, path, state)
         assert response.status_code == 200, response.text
         assert response.json()["status"] == state
     assert [x["target"] for x in response.json()["transitions"]] == states
-    assert all(x["reason"] == "Reviewed" for x in response.json()["transitions"])
+    assert all(x["reason"] == "Reviewed" for x in response.json()["transitions"] if "attempt" not in x)
+    assert response.json()["transitions"][1]["attempt"] == 1
     assert transition(client, path, "cancelled").status_code == 409
     assert client.post(path + "/restore").status_code == 409
     assert client.delete(path).status_code == 204
@@ -63,6 +98,9 @@ def test_lifecycle(client):
 def test_cancel_from_every_nonterminal_state(client, states):
     path = "/company/tasks/" + create(client)["id"]
     for state in states:
+        if state == "in_progress":
+            reserve_run(client, path)
+            continue
         assert transition(client, path, state).status_code == 200
     assert transition(client, path, "cancelled").status_code == 200
     assert transition(client, path, "ready").status_code == 409
@@ -75,7 +113,12 @@ def test_no_lifecycle_or_identity_edits(client, body):
 
 
 def test_missing_parent_and_invalid_transitions(client):
-    assert client.post("/company/tasks", json={"product_id": "missing", "title": "Work"}).status_code == 404
+    assert (
+        client.post(
+            "/company/tasks", json={"product_id": "missing", "project_id": "missing", "title": "Work"}
+        ).status_code
+        == 404
+    )
     path = "/company/tasks/" + create(client)["id"]
     for body in [
         {"target": "cancelled"},
@@ -102,17 +145,31 @@ def test_cross_product_status_pagination(client):
 
 @pytest.mark.parametrize("db", [None, InMemoryDb()])
 def test_unsupported_database(db):
-    c = TestClient(AgentOS(company=CompanyConfig(db=db), telemetry=False).get_app())
+    c = TestClient(
+        AgentOS(
+            agents=[Agent(id="writer")],
+            teams=[Team(id="writer", members=[])],
+            workflows=[Workflow(id="writer", steps=[])],
+            company=CompanyConfig(db=db),
+            telemetry=False,
+        ).get_app()
+    )
     for method, path, body in [
         ("get", "/company/tasks", None),
+        ("get", "/company/runs/missing", None),
+        ("post", "/company/runs/missing/cancel", None),
         ("get", "/company/tasks/missing", None),
-        ("post", "/company/tasks", {"product_id": "p", "title": "Work"}),
+        ("post", "/company/tasks", {"product_id": "p", "project_id": "p", "title": "Work"}),
         ("patch", "/company/tasks/missing", {"title": "Work"}),
         ("delete", "/company/tasks/missing", None),
         ("post", "/company/tasks/missing/restore", None),
         ("post", "/company/tasks/missing/transitions", {"target": "cancelled", "reason": "Stop"}),
     ]:
-        assert c.request(method, path, json=body).status_code == 503
+        response = c.request(method, path, json=body)
+        assert response.status_code == 503
+        assert response.json()["detail"] == (
+            "Company requires a database" if db is None else "Company tasks not supported by the configured database"
+        )
 
 
 def test_acceptance_freezes_scope_and_backlog_clears_it(client):
@@ -127,9 +184,10 @@ def test_acceptance_freezes_scope_and_backlog_clears_it(client):
     assert all(backlog[key] is None for key in ["executor_type", "executor_id", "accepted_by", "accepted_at"])
     assert client.patch(path, json={"brief": "Changed"}).status_code == 200
     assert transition(client, path, "ready").status_code == 200
-    assert transition(client, path, "in_progress").status_code == 200
+    assert transition(client, path, "in_progress").status_code == 409
+    reserve_run(client, path)
     assert transition(client, path, "in_review").status_code == 200
-    assert transition(client, path, "in_progress").status_code == 200
+    assert transition(client, path, "in_progress").status_code == 409
 
 
 def test_task_project_must_belong_to_same_product(client):
@@ -148,7 +206,7 @@ def test_task_project_must_belong_to_same_product(client):
     own = client.post("/company/projects", json={"product_id": task["product_id"], "name": "Own"}).json()
     assert client.patch(path, json={"project_id": own["id"]}).status_code == 200
     assert client.get("/company/tasks", params={"project_id": own["id"]}).json()["meta"]["total_count"] == 1
-    assert client.patch(path, json={"project_id": None}).status_code == 200
+    assert client.patch(path, json={"project_id": None}).status_code == 422
 
 
 @pytest.mark.parametrize(

@@ -3,11 +3,12 @@
 import asyncio
 import hashlib
 import os
+import time
 from uuid import uuid4
 
 import pytest
 import pytest_asyncio
-from sqlalchemy import Table, create_engine, text
+from sqlalchemy import Table, create_engine, event, text
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.sandbox import SandboxError
@@ -268,3 +269,62 @@ async def test_configuration_is_validated():
                 PostgresCheckpointStore(db, chunk_bytes=size)
     finally:
         db.db_engine.dispose()
+
+
+async def test_a_reader_fetches_one_chunk_per_query(make, tmp_path, roots):
+    # Drivers prefetch server-side cursors in batches (asyncpg: 50 rows), so a streamed read is not chunk-bounded.
+    store = make()
+    reference = await store.aput(capture(tmp_path / "src", roots))
+    chunks = -(-reference.size // store.chunk_bytes)
+    engine = store.db.db_engine
+    engine = getattr(engine, "sync_engine", engine)
+    reads = []
+
+    def record(conn, cursor, statement, parameters, context, executemany):
+        if f"FROM ai.{make.table}_chunks" in statement:
+            reads.append(statement)
+
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        async with store.aopen_archive(reference) as path:
+            assert hashlib.sha256(path.read_bytes()).hexdigest() == reference.sha256
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+    assert len(reads) >= chunks > 1
+
+
+async def test_cancelling_an_open_leaves_no_copy_behind(make, tmp_path, roots, monkeypatch):
+    store = make(scratch=tmp_path / "scratch")
+    reference = await store.aput(capture(tmp_path / "src", roots))
+    if isinstance(store.db, AsyncPostgresDb):
+        # The async download is interruptible: cancel it while it writes chunks.
+        import agno.sandbox.postgres_checkpoints as module
+
+        thread = module._thread
+
+        async def slow(function, *args, **kwargs):
+            await asyncio.sleep(0.1)
+            return await thread(function, *args, **kwargs)
+
+        monkeypatch.setattr(module, "_thread", slow)
+    else:
+        # A thread cannot be interrupted: cancel after its copy exists, before the caller holds it.
+        download = store._download
+
+        def slow(ref):
+            path = download(ref)
+            time.sleep(0.5)
+            return path
+
+        store._download = slow
+
+    async def open_and_hold():
+        async with store.aopen_archive(reference):
+            await asyncio.sleep(10)
+
+    task = asyncio.create_task(open_and_hold())
+    await asyncio.sleep(0.2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert list((tmp_path / "scratch").iterdir()) == []

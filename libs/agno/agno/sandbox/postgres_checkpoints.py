@@ -6,6 +6,7 @@ rows. Both are written in one transaction, so an interrupted upload leaves nothi
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import tempfile
@@ -21,6 +22,7 @@ from agno.sandbox.checkpoint import (
     CheckpointArchive,
     CheckpointObjectNotFound,
     CheckpointRef,
+    _drain,
     _regular,
     _thread,
 )
@@ -187,8 +189,9 @@ class PostgresCheckpointStore:
     def _head_query(self, reference: CheckpointRef) -> Any:
         return select(self.objects.c.size).where(self.objects.c.sha256 == reference.sha256)
 
-    def _chunks_query(self, reference: CheckpointRef) -> Any:
-        return select(self.chunks.c.data).where(self.chunks.c.sha256 == reference.sha256).order_by(self.chunks.c.seq)
+    def _chunk_query(self, reference: CheckpointRef, seq: int) -> Any:
+        # One row per statement: drivers prefetch server-side cursors in batches, which would not bound memory.
+        return select(self.chunks.c.data).where((self.chunks.c.sha256 == reference.sha256) & (self.chunks.c.seq == seq))
 
     def _claim(self, reference: CheckpointRef) -> Any:
         """Insert the header, or nothing when the object exists. Waits on a concurrent uncommitted put."""
@@ -300,15 +303,14 @@ class PostgresCheckpointStore:
                 with engine.connect().execution_options(isolation_level="REPEATABLE READ") as connection:
                     with connection.begin():
                         self._check(reference, connection.execute(self._head_query(reference)).scalar())
-                        rows = connection.execution_options(stream_results=True, yield_per=1).execute(
-                            self._chunks_query(reference)
-                        )
-                        for data in rows.scalars():
+                        seq = 0
+                        while (data := connection.execute(self._chunk_query(reference, seq)).scalar()) is not None:
                             size += len(data)
                             if size > reference.size:
                                 raise SandboxError("Checkpoint size mismatch")
                             digest.update(data)
                             output.write(data)
+                            seq += 1
                 output.flush()
                 os.fsync(output.fileno())
             self._finish_copy(path, reference, digest, size)
@@ -334,15 +336,18 @@ class PostgresCheckpointStore:
                     async with connection.begin():
                         head = await connection.execute(self._head_query(reference))
                         self._check(reference, head.scalar())
-                        rows = await connection.stream(self._chunks_query(reference))
-                        data: bytes
-                        async for data in rows.scalars():
+                        seq = 0
+                        while True:
+                            data = (await connection.execute(self._chunk_query(reference, seq))).scalar()
+                            if data is None:
+                                break
                             size += len(data)
                             if size > reference.size:
                                 raise SandboxError("Checkpoint size mismatch")
                             digest.update(data)
                             # _thread drains the write before a cancellation closes the file.
                             await _thread(output.write, data)
+                            seq += 1
                 await _thread(output.flush)
                 await _thread(os.fsync, output.fileno())
             self._finish_copy(path, reference, digest, size)
@@ -361,13 +366,25 @@ class PostgresCheckpointStore:
         finally:
             path.unlink(missing_ok=True)
 
+    async def _acopy(self, reference: CheckpointRef) -> Path:
+        """Download a private copy, removing it when cancellation lands before the caller holds it."""
+        if isinstance(self.db, AsyncPostgresDb):
+            task = asyncio.ensure_future(self._adownload(reference))
+        else:
+            task = asyncio.ensure_future(asyncio.to_thread(self._download, reference))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # A thread cannot be interrupted, so it finishes and its copy is removed instead.
+            if isinstance(self.db, AsyncPostgresDb):
+                task.cancel()
+            if await _drain(task) is None and not task.cancelled():
+                task.result().unlink(missing_ok=True)
+            raise
+
     @asynccontextmanager
     async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
-        if isinstance(self.db, AsyncPostgresDb):
-            path = await self._adownload(reference)
-        else:
-            # _thread drains the download before a cancellation propagates.
-            path = await _thread(self._download, reference)
+        path = await self._acopy(reference)
         try:
             yield path
         finally:

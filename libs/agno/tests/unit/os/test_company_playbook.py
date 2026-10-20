@@ -419,7 +419,11 @@ async def test_declared_routines_belong_to_their_declarer(tmp_path):
 
     await arehydrate_product(db, declaration("alice", "first"), registry)
     await arehydrate_product(db, declaration("bob", "retry"), registry)
+    # A retry by another declarer reuses the existing Routine and keeps its owner.
+    await arehydrate_product(db, declaration("bob", "first"), registry)
     await arehydrate_product(db, declaration(None, "code"), registry)
-    owners = {row["name"]: row["user_id"] for row in db.get_schedules()[0]}
+    rows = db.get_schedules()[0]
+    assert len(rows) == 3
+    owners = {row["name"]: row["user_id"] for row in rows}
     assert db.get_product("docs")["user_id"] == "alice"
     assert owners == {"docs.first": "alice", "docs.retry": "bob", "docs.code": "alice"}

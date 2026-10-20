@@ -77,30 +77,42 @@ async def arehydrate_product(
                     raise ValueError("Source id belongs to another Product") from exc
     schedule_db = schedule_db if schedule_db is not None else db
     schedules = ScheduleManager(schedule_db)
-    # Routines belong to their declarer, as on POST /company/routines; code declarations use the Product owner.
+    from agno.db.schemas.scheduler import Schedule
+
+    # An existing Routine keeps its owner on a retry; only a new one belongs to its declarer, as on
+    # POST /company/routines. Code declarations use the Product owner.
     routine_owner = product.user_id if product.user_id is not None else row["user_id"]
+    linked = {}
+    for schedule_id in (row.get("metadata") or {}).get("routine_ids") or []:
+        found = await _call(schedule_db, "get_schedule", schedule_id)
+        if found is not None:
+            linked[found["name"]] = found
     for routine, fields in zip(product.routines, routine_fields):
         fields["cron"] = fields.pop("cron_expr")
-        try:
-            schedule = await schedules.acreate(
-                **fields,
-                user_id=routine_owner,
-                if_exists="skip",
-                provenance={
-                    "managed_by": "company",
-                    "target_type": routine.executor_type,
-                    "target_id": routine.executor_id,
-                },
-            )
-        except Exception as exc:
-            if not is_unique_violation(exc):
-                raise
-            existing = await _call(schedule_db, "get_schedule_by_name", fields["name"], user_id=routine_owner)
-            if existing is None:
-                raise
-            from agno.db.schemas.scheduler import Schedule
-
+        existing = linked.get(fields["name"]) or await _call(
+            schedule_db, "get_schedule_by_name", fields["name"], user_id=row["user_id"]
+        )
+        if existing is not None:
             schedule = Schedule.from_dict(existing)
+        else:
+            try:
+                schedule = await schedules.acreate(
+                    **fields,
+                    user_id=routine_owner,
+                    if_exists="skip",
+                    provenance={
+                        "managed_by": "company",
+                        "target_type": routine.executor_type,
+                        "target_id": routine.executor_id,
+                    },
+                )
+            except Exception as exc:
+                if not is_unique_violation(exc):
+                    raise
+                existing = await _call(schedule_db, "get_schedule_by_name", fields["name"], user_id=routine_owner)
+                if existing is None:
+                    raise
+                schedule = Schedule.from_dict(existing)
         if (
             schedule.managed_by != "company"
             or (schedule.payload or {}).get("metadata", {}).get("product_id") != product_id

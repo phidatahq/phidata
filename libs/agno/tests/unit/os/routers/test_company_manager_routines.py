@@ -15,7 +15,7 @@ from agno.company import Product, Routine
 from agno.company.bootstrap import arehydrate_product, rehydrate_product
 from agno.company.execution import _executor
 from agno.company.manager import CompanyManager
-from agno.company.routines import _routine_executor_endpoint, _RoutineAuthorization
+from agno.company.routines import _routine_executor_endpoint, _routine_failure, _RoutineAuthorization
 from agno.company.scheduler import CompanyScheduleExecutor
 from agno.db.sqlite import SqliteDb
 from agno.models.base import Model
@@ -703,6 +703,102 @@ async def test_status_conflict_is_failed_without_overwriting_human_edit(tmp_path
         result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
         assert result["status"] == "failed"
         assert manager.read_wiki(product["id"], "status.md").content == "Human edit"
+
+
+@pytest.mark.parametrize("mode", ["standalone", "delegate", "runner"])
+async def test_recovered_status_conflict_succeeds(tmp_path, mode):
+    async with system(tmp_path, mode=mode) as s:
+        manager = CompanyManager(s.db)
+        product = manager.create(name="Docs", user_id="alice")
+        manager.read_wiki(product["id"], "status.md")
+        manager.write_wiki(
+            product_id=product["id"], path="status.md", content="Human edit", expected_version=1, user_id="alice"
+        )
+        s.os.product_manager.model = ScriptedModel(
+            [
+                ("update_company_status", {"product_id": product["id"], "content": "Stale", "expected_version": 1}),
+                ("read_company_wiki", {"product_id": product["id"], "path": "status.md"}),
+                (
+                    "update_company_status",
+                    lambda results: {
+                        "product_id": product["id"],
+                        "content": json.loads(results[-1].content)["content"] + "\nReview complete",
+                        "expected_version": json.loads(results[-1].content)["metadata"]["version"],
+                    },
+                ),
+            ]
+        )
+        if mode != "standalone":
+            s.os.manager.offload_tool_results = True
+            name, arguments = (
+                ("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Review Product"})
+                if mode == "delegate"
+                else ("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Review Product"})
+            )
+            s.os.manager.model = ScriptedModel([(name, arguments)])
+        kind, cid = ("agent", PRODUCT_MANAGER_ID) if mode == "standalone" else ("team", MANAGER_TEAM_ID)
+        row = await create_routine(s, product["id"], kind=kind, component_id=cid)
+        result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
+        page = manager.read_wiki(product["id"], "status.md")
+        assert page.content == "Human edit\nReview complete"
+        assert page.metadata.version == 3
+        assert result["status"] == "success", result
+        assert (await ScheduleManager(s.db).aget_runs(row["id"]))[0].status == "success"
+
+
+@pytest.mark.parametrize("mode", ["delegate", "runner"])
+async def test_manager_routine_reports_delegate_provider_failure(tmp_path, mode):
+    class FailingModel(ScriptedModel):
+        def invoke(self, *args, **kwargs):
+            raise RuntimeError("Provider unavailable during product review")
+
+    async with system(tmp_path, mode=mode) as s:
+        product = CompanyManager(s.db).create(name="Docs", user_id="alice")
+        s.os.product_manager.model = FailingModel()
+        s.os.manager.offload_tool_results = True
+        name, arguments = (
+            ("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Review Product"})
+            if mode == "delegate"
+            else ("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Review Product"})
+        )
+        s.os.manager.model = ScriptedModel([(name, arguments)])
+        row = await create_routine(s, product["id"], kind="team", component_id=MANAGER_TEAM_ID)
+        result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
+        assert result["status"] == "failed", result
+        assert "Provider unavailable during product review" in result["error"]
+        assert (await ScheduleManager(s.db).aget_runs(row["id"]))[0].status == "failed"
+
+
+@pytest.mark.parametrize("status", ["ERROR", "FAILED", "CANCELLED"])
+def test_nested_member_terminal_failure_is_not_success(status):
+    output = {"status": "COMPLETED", "member_responses": [{"member_responses": [{"status": status}]}]}
+    assert _routine_failure(output) is not None
+
+
+@pytest.mark.parametrize("case", ["denied", "other_product", "earlier_success", "failed_retry", "invalid_result"])
+def test_status_success_does_not_hide_unrecovered_failure(case):
+    failed = {
+        "tool_name": "update_company_status",
+        "tool_args": {"product_id": "docs", "expected_version": 1},
+        "tool_call_error": True,
+        "result": "version conflict on status.md: expected 1, actual 2",
+    }
+    success = {
+        "tool_name": "update_company_status",
+        "tool_args": {"product_id": "docs", "expected_version": 2},
+        "tool_call_error": False,
+        "result": json.dumps({"path": "status.md", "version": 3}),
+    }
+    if case == "denied":
+        failed["result"] = "Missing permission: wiki:write"
+    elif case == "other_product":
+        success["tool_args"]["product_id"] = "other"
+    elif case == "failed_retry":
+        success["tool_call_error"] = True
+    elif case == "invalid_result":
+        success["result"] = "Update failed"
+    tools = [success, failed] if case == "earlier_success" else [failed, success]
+    assert _routine_failure({"tools": tools}) is not None
 
 
 async def test_no_auth_declared_review_can_run_locally(tmp_path):

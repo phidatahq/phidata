@@ -30,6 +30,44 @@ def _routine_message(product_id: str, instructions: str) -> str:
     return "Operate only on Product " + json.dumps(product_id) + ".\n\n" + instructions
 
 
+def _recovered_status_conflict(tool: Dict[str, Any], later_tools: List[Dict[str, Any]]) -> bool:
+    """Only a later confirmed write to the same Product can recover a status conflict."""
+    import json
+    import re
+
+    # Persisted tool errors carry text, not the original VersionConflictError.
+    # Recognize only the filesystem's conflict messages; permission errors stay fatal.
+    result = tool.get("result")
+    if not isinstance(result, str) or not (
+        re.fullmatch(r"version conflict on status\.md: expected \d+, actual (?:\d+|None)", result)
+        or result == "file already exists: status.md"
+    ):
+        return False
+    product_id = (tool.get("tool_args") or {}).get("product_id")
+    if not product_id:
+        return False
+    for later in later_tools:
+        args = later.get("tool_args") or {}
+        if (
+            later.get("tool_name") != "update_company_status"
+            or later.get("tool_call_error")
+            or args.get("product_id") != product_id
+            or not isinstance(args.get("expected_version"), int)
+        ):
+            continue
+        try:
+            metadata = json.loads(later.get("result") or "")
+        except (ValueError, TypeError):
+            continue
+        if (
+            isinstance(metadata, dict)
+            and metadata.get("path") == "status.md"
+            and metadata.get("version") == args["expected_version"] + 1
+        ):
+            return True
+    return False
+
+
 def _routine_failure(output: Any) -> Optional[str]:
     """Read structured execution results, never infer success from model prose."""
     if hasattr(output, "to_dict"):
@@ -40,7 +78,8 @@ def _routine_failure(output: Any) -> Optional[str]:
             if error:
                 return error
     elif isinstance(output, dict):
-        for tool in output.get("tools") or []:
+        tools = output.get("tools") or []
+        for index, tool in enumerate(tools):
             if tool.get("tool_call_error") and tool.get("tool_name") in {
                 "create_company_product",
                 "create_company_routine",
@@ -52,6 +91,10 @@ def _routine_failure(output: Any) -> Optional[str]:
                 "summarize_company_product",
                 "refresh_company_product",
             }:
+                if tool["tool_name"] == "update_company_status" and _recovered_status_conflict(
+                    tool, tools[index + 1 :]
+                ):
+                    continue
                 return str(tool["tool_name"]) + " failed: " + str(tool.get("result") or "Company operation failed")
             if tool.get("tool_name") in {"run_agent", "run_team", "run_workflow"}:
                 # Studio dispatch returns a structured child result rather than
@@ -77,6 +120,11 @@ def _routine_failure(output: Any) -> Optional[str]:
             error = _routine_failure(output.get(key))
             if error:
                 return error
+        # Native delegation can return a failed child as a successful tool call.
+        # Its structured terminal status remains authoritative even without tools.
+        status = str(output.get("status", "")).upper()
+        if status in {"ERROR", "FAILED", "CANCELLED"}:
+            return str(output.get("error") or output.get("content") or "Routine execution failed with status " + status)
     return None
 
 

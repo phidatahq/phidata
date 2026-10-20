@@ -522,6 +522,64 @@ async def test_an_unpublished_staged_checkpoint_is_deleted(system, monkeypatch):
     assert (await binding(coordinator))["record"]["retired_checkpoints"] == []
 
 
+async def delete_sessions(db, session_ids, user_id=None):
+    if isinstance(db, AsyncPostgresDb):
+        return await db.delete_sessions(session_ids, user_id=user_id)
+    return await asyncio.to_thread(db.delete_sessions, session_ids, user_id)
+
+
+async def delete_session(db, session_id, user_id=None):
+    if isinstance(db, AsyncPostgresDb):
+        return await db.delete_session(session_id, user_id=user_id)
+    return await asyncio.to_thread(db.delete_session, session_id, user_id)
+
+
+def register_cleanup(coordinator, spec):
+    coordinator.agent_ids.add(spec.agent_id)
+    coordinator.store.db.sandbox_coordinators = [coordinator]
+
+
+@pytest.mark.parametrize("bulk", [False, True])
+async def test_deleting_a_session_removes_its_warm_computer_and_every_checkpoint(system, bulk):
+    coordinator, spec, _ = system
+    coordinator.warm_computer_seconds = 300
+    register_cleanup(coordinator, spec)
+    await run(coordinator, spec)
+    await run(coordinator, spec, "second")
+    record = (await binding(coordinator))["record"]
+    computer, references = record["computer"], record["retained_checkpoints"]
+    assert computer is not None and len(references) == 2
+    db = coordinator.store.db
+    if bulk:
+        await delete_sessions(db, [spec.session_id])
+    else:
+        assert await delete_session(db, spec.session_id)
+    assert await coordinator.provider.aget(computer["provider_ref"]) is None
+    assert [await stored(coordinator, reference) for reference in references] == [False, False]
+
+
+async def test_a_delete_scoped_to_another_user_leaves_the_sandbox_alone(system):
+    coordinator, spec, _ = system
+    coordinator.warm_computer_seconds = 300
+    register_cleanup(coordinator, spec)
+    await run(coordinator, spec)
+    record = (await binding(coordinator))["record"]
+    assert not await delete_session(coordinator.store.db, spec.session_id, user_id="someone-else")
+    await delete_sessions(coordinator.store.db, [spec.session_id], user_id="someone-else")
+    assert await coordinator.provider.aget(record["computer"]["provider_ref"]) is not None
+    assert await stored(coordinator, record["checkpoint"])
+
+
+async def test_without_a_registered_coordinator_a_delete_leaves_the_sandbox_alone(system):
+    coordinator, spec, _ = system
+    coordinator.warm_computer_seconds = 300
+    await run(coordinator, spec)
+    record = (await binding(coordinator))["record"]
+    assert await delete_session(coordinator.store.db, spec.session_id)
+    assert await coordinator.provider.aget(record["computer"]["provider_ref"]) is not None
+    assert await stored(coordinator, record["checkpoint"])
+
+
 async def test_completion_without_native_conversation_cannot_publish(system, monkeypatch):
     coordinator, spec, _ = system
     poll = coordinator.client.apoll

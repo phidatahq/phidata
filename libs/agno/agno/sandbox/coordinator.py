@@ -12,7 +12,7 @@ from contextlib import suppress
 from copy import deepcopy
 from dataclasses import asdict
 from queue import Queue
-from typing import Any, AsyncGenerator, Dict, Iterator, Mapping, Optional, Sequence, Union
+from typing import Any, AsyncGenerator, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
@@ -27,7 +27,7 @@ from agno.run.agent import (
     run_output_event_from_dict,
 )
 from agno.run.base import RunStatus
-from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle, _retention
+from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle, _retention, _sync
 from agno.sandbox.checkpoint import CheckpointObjectNotFound, CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
 from agno.sandbox.media import decode_media, encode_media
@@ -83,6 +83,8 @@ class SandboxCoordinator:
         self.client = SandboxRuntimeClient(provider)
         self.lease_seconds, self.poll_wait, self.warm_computer_seconds = lease_seconds, poll_wait, warm_computer_seconds
         self.retain_checkpoints = _retention(retain_checkpoints)
+        # Agents whose sessions this coordinator cleans up when they are deleted.
+        self.agent_ids: Set[str] = set()
 
     async def arun(
         self,
@@ -256,6 +258,27 @@ class SandboxCoordinator:
 
     def sweep_warm(self) -> int:
         return self.store._sync(self.asweep_warm)
+
+    def collect_deleted_sessions(self, connection: Any, session_ids: List[str]) -> List[Dict[str, Any]]:
+        """Read, inside a session delete, what its cascade would otherwise orphan."""
+        return self.store.leftovers(connection, session_ids, sorted(self.agent_ids))
+
+    async def arelease_deleted_sessions(self, leftovers: List[Dict[str, Any]]) -> None:
+        """Remove deleted sessions' computers and checkpoint objects; best-effort after the delete commits."""
+        for leftover in leftovers:
+            if leftover["computer"] is not None:
+                try:
+                    await self.provider.adestroy(SandboxHandle(**leftover["computer"]))
+                except Exception as error:
+                    log_warning(f"Could not remove a deleted session's sandbox computer: {error}")
+            for reference in leftover["checkpoints"]:
+                try:
+                    await self.transfer.store.adelete(CheckpointRef(**reference))
+                except Exception as error:
+                    log_warning(f"Could not delete a deleted session's checkpoint {reference.get('sha256')}: {error}")
+
+    def release_deleted_sessions(self, leftovers: List[Dict[str, Any]]) -> None:
+        _sync(self.arelease_deleted_sessions(leftovers))
 
     def stream(
         self,

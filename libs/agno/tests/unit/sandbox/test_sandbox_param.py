@@ -143,6 +143,17 @@ def test_retain_checkpoints_is_validated_and_reaches_the_coordinator(tmp_path):
     assert _harness.coordinator(ClaudeAgent(id="coder", db=db, sandbox=keep_all)).retain_checkpoints is None
 
 
+def test_coordinator_registers_on_its_database_for_session_delete_cleanup(tmp_path):
+    from agno.db.postgres import PostgresDb
+    from agno.sandbox.checkpoint import FileCheckpointStore
+
+    db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:1/ai")
+    shared = DockerSandbox("agno-sandbox:claude", network="isolated", checkpoints=FileCheckpointStore(tmp_path))
+    first = _harness.coordinator(ClaudeAgent(id="first", db=db, sandbox=shared))
+    assert _harness.coordinator(ClaudeAgent(id="second", db=db, sandbox=shared)) is first
+    assert db.sandbox_coordinators == [first] and first.agent_ids == {"first", "second"}
+
+
 def test_agentos_with_a_durable_queue_refuses_default_checkpoints_at_startup(tmp_path):
     from agno.db.postgres import PostgresDb
     from agno.job_queue import QueueConfig

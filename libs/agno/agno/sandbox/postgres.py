@@ -1275,6 +1275,52 @@ class _SandboxStore:
 
         return await self._transaction(expired)
 
+    def leftovers(self, connection: Connection, session_ids: List[str], agent_ids: List[str]) -> List[Dict[str, Any]]:
+        """The computer and checkpoints each of these sessions leaves behind once it is deleted.
+
+        Runs inside the session delete, before the cascade removes the bindings. The session
+        rows are locked first, the lock the delete takes anyway, so an in-flight turn's
+        operation commits its computer before this reads it.
+        """
+        if not self._tables_ready or not session_ids or not agent_ids:
+            return []
+        connection.execute(
+            select(self.sessions.c.session_id).where(self.sessions.c.session_id.in_(session_ids)).with_for_update()
+        )
+        rows = connection.execute(
+            select(self.bindings.c.session_id, self.bindings.c.record).where(
+                (self.bindings.c.namespace == self.namespace)
+                & self.bindings.c.session_id.in_(session_ids)
+                & self.bindings.c.agent_id.in_(agent_ids)
+            )
+        ).all()
+        found: Dict[str, Dict[str, Any]] = {}
+        for row in rows:
+            session_id, record = str(row[0]), dict(row[1] or {})
+            references = [
+                *_retained(record),
+                record.get("checkpoint"),
+                record.get("staged_checkpoint"),
+                *(record.get("retired_checkpoints") or []),
+            ]
+            computer = record.get("computer") if not record.get("computer_stopped") else None
+            found[session_id] = {"computer": computer, "checkpoints": [ref for ref in references if ref]}
+        if found:
+            # Runs keep the checkpoint they committed, including ones from before retention existed.
+            committed = self.runs.c.run_data["metadata"]["sandbox"]["checkpoint"]
+            for row in connection.execute(
+                select(self.runs.c.session_id, committed).where(self.runs.c.session_id.in_(list(found)))
+            ).all():
+                if isinstance(row[1], dict):
+                    found[str(row[0])]["checkpoints"].append(row[1])
+        for leftover in found.values():
+            unique: List[Dict[str, Any]] = []
+            for reference in leftover["checkpoints"]:
+                if reference not in unique:
+                    unique.append(reference)
+            leftover["checkpoints"] = unique
+        return list(found.values())
+
     async def aretired_checkpoints(self, session_id: str) -> List[Dict[str, Any]]:
         """Checkpoints the session's binding has queued for deletion from the store."""
 

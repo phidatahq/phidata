@@ -710,3 +710,19 @@ runtime errors are excluded from the targeted validation above. No hosted rollou
 or template-runtime restart was performed.
 
 ---
+
+## Prompt simplification, 2026-10-20
+
+### basic_manager.py and manager regressions
+
+**Status:** PASS
+
+**Description:** Constructed the basic example in a temporary directory and ran the
+255 manager tests after shortening shared guidance and moving role-specific rules
+into the existing coordinator and operator prompts.
+
+**Result:** The example retains the 8/24 defaults without explicit overrides.
+All tests and full format/validation scripts pass. Live-model checks above predate
+this simplification and were not rerun.
+
+---

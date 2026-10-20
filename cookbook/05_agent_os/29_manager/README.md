@@ -112,9 +112,10 @@ launch the server. Setting `root` does not enable file writes or shell execution
 The manager is instructed to keep explanations scoped to the question and to
 request concise specialist answers when delegation is necessary. Documentation
 access on the lead lets it answer framework questions without a specialist run.
-The same focus and evidence guidance reaches the builder, operator and attached
-Product Manager. Concept explanations should start with one focused lookup or
-one delegation and aim for at most four total calls, including delegated lookups.
+Short grounding and stopping rules also reach the builder, operator and attached
+Product Manager. The coordinator gives explanations at most four total calls,
+including delegation, member calls and result read-backs, and passes the remaining
+allowance to specialists. Source investigation guidance stays with Platform Manager.
 Building and planning can use the larger configured budgets for validation and writes.
 
 The limits use the existing Agent/Team tool execution mechanism. Each member

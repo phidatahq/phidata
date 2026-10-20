@@ -68,15 +68,20 @@ async def _drain(task: asyncio.Task[Any]) -> Optional[BaseException]:
     return None if task.cancelled() else task.exception()
 
 
-async def _thread(function: Callable[..., _T], *args: Any, **kwargs: Any) -> _T:
+async def _thread(
+    function: Callable[..., _T], *args: Any, release: Optional[Callable[[_T], object]] = None, **kwargs: Any
+) -> _T:
     # Filesystem work cannot be stopped by cancelling its awaiter. Drain it so the
     # caller never races cleanup/retry against a still-writing background thread.
+    # ``release`` frees a result that finished under the cancellation, which the caller never receives.
     task = asyncio.create_task(asyncio.to_thread(function, *args, **kwargs))
     try:
         return await asyncio.shield(task)
     except asyncio.CancelledError as cancelled:
         failure = await _drain(task)
         if failure is None:
+            if release is not None and not task.cancelled():
+                release(task.result())
             raise
         # Cancellation stays the outcome, but the write that died under it is still the
         # useful diagnostic, so chain it on rather than discarding it.

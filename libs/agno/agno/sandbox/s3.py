@@ -10,7 +10,7 @@ from __future__ import annotations
 import hashlib
 import os
 import tempfile
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import ExitStack, asynccontextmanager, contextmanager
 from pathlib import Path
 from typing import Any, AsyncIterator, ContextManager, Dict, Iterator, Optional, Tuple
 
@@ -351,16 +351,21 @@ class S3CheckpointStore:
         finally:
             path.unlink(missing_ok=True)
 
+    def _enter_cached(self, reference: CheckpointRef) -> Tuple[ExitStack, Path]:
+        stack = ExitStack()
+        return stack, stack.enter_context(self._cached(reference))
+
     @asynccontextmanager
     async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
-        # _thread drains the download before a cancellation propagates, so the file is
-        # removed only once nothing is still writing it.
+        # _thread drains the work before a cancellation propagates and releases what it
+        # finished, so nothing is left behind and nothing is removed while still in use.
         if self.cache is not None:
-            opened = await _thread(self._cached, reference)
-            with opened as path:
+            # Entered in the thread: the lease verifies the cached object's digest.
+            stack, path = await _thread(self._enter_cached, reference, release=lambda opened: opened[0].close())
+            with stack:
                 yield path
             return
-        path = await _thread(self._download, reference)
+        path = await _thread(self._download, reference, release=lambda copy: copy.unlink(missing_ok=True))
         try:
             yield path
         finally:

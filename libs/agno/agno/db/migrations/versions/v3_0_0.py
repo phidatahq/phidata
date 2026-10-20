@@ -1229,29 +1229,31 @@ def _migrate_mysql_like_sessions(db: BaseDb, table_name: str) -> bool:
             log_info(f"Table {table_name} has no runs column, skipping migration")
             return False
 
-        # Copy every legacy run into the runs table
-        result = sess.execute(
-            text(f"SELECT session_id, user_id, runs FROM `{db_schema}`.`{table_name}` WHERE runs IS NOT NULL")
-        )
+        # Copy every legacy run into the runs table. An unbuffered MySQL result blocks its
+        # connection until fully read, so the streamed read gets its own connection.
         migrated_runs = 0
-        while True:
-            batch = result.fetchmany(BATCH_SIZE)
-            if not batch:
-                break
+        with db.db_engine.connect() as read_conn:  # type: ignore
+            result = read_conn.execution_options(stream_results=True).execute(
+                text(f"SELECT session_id, user_id, runs FROM `{db_schema}`.`{table_name}` WHERE runs IS NOT NULL")
+            )
+            while True:
+                batch = result.fetchmany(BATCH_SIZE)
+                if not batch:
+                    break
 
-            rows: List[Dict[str, Any]] = []
-            for session_id, user_id, runs in batch:
-                # MySQL JSON columns come back as either dict/list (asyncmy)
-                # or str (pymysql), depending on driver — _build_run_rows handles both.
-                rows.extend(_build_run_rows(runs, session_id, user_id, run_data_as_string=False))
+                rows: List[Dict[str, Any]] = []
+                for session_id, user_id, runs in batch:
+                    # MySQL JSON columns come back as either dict/list (asyncmy)
+                    # or str (pymysql), depending on driver — _build_run_rows handles both.
+                    rows.extend(_build_run_rows(runs, session_id, user_id, run_data_as_string=False))
 
-            if rows:
-                insert_stmt = mysql.insert(runs_table).values(rows)
-                # ON DUPLICATE KEY UPDATE that effectively does nothing: keeps idempotency
-                # without raising on previously-migrated runs.
-                insert_stmt = insert_stmt.on_duplicate_key_update(run_id=insert_stmt.inserted.run_id)
-                sess.execute(insert_stmt)
-                migrated_runs += len(rows)
+                if rows:
+                    insert_stmt = mysql.insert(runs_table).values(rows)
+                    # ON DUPLICATE KEY UPDATE that effectively does nothing: keeps idempotency
+                    # without raising on previously-migrated runs.
+                    insert_stmt = insert_stmt.on_duplicate_key_update(run_id=insert_stmt.inserted.run_id)
+                    sess.execute(insert_stmt)
+                    migrated_runs += len(rows)
 
         log_info(f"-- Copied {migrated_runs} runs from {table_name} into the runs table")
         log_info(
@@ -1300,14 +1302,23 @@ async def _migrate_async_mysql_sessions(db: AsyncBaseDb, table_name: str) -> boo
             log_info(f"Table {table_name} has no runs column, skipping migration")
             return False
 
-        result = await sess.execute(
-            text(f"SELECT session_id, user_id, runs FROM `{db_schema}`.`{table_name}` WHERE runs IS NOT NULL")
-        )
+        # Page by primary key: asyncmy reads a streamed result into memory as fast as the server sends it.
         migrated_runs = 0
+        last_session_id: Optional[str] = None
         while True:
-            batch = result.fetchmany(BATCH_SIZE)
+            after_clause = "" if last_session_id is None else "AND session_id > :after "
+            batch = (
+                await sess.execute(
+                    text(
+                        f"SELECT session_id, user_id, runs FROM `{db_schema}`.`{table_name}` "
+                        f"WHERE runs IS NOT NULL {after_clause}ORDER BY session_id LIMIT {BATCH_SIZE}"
+                    ),
+                    {"after": last_session_id},
+                )
+            ).fetchall()
             if not batch:
                 break
+            last_session_id = batch[-1][0]
 
             rows: List[Dict[str, Any]] = []
             for session_id, user_id, runs in batch:

@@ -271,7 +271,7 @@ class EngineAuthorizationProvider(AuthorizationProvider):
         if ctx.resource_type and ctx.action and _all_in_family(required_scopes, ctx.resource_type):
             return self._engine.check_resource(
                 ctx.resource_type, ctx.resource_id, ctx.action, subject=subject, roles=roles
-            )
+            ) or self._owns_deferred(ctx.resource_type, ctx.action, subject, roles)
         # Otherwise -- a non-resource route, a resource route whose required scopes span
         # more than one action (ctx.action is None), or one that requires a scope from
         # another family -- require ALL of the route's scopes, matching the scope
@@ -286,12 +286,24 @@ class EngineAuthorizationProvider(AuthorizationProvider):
                 action = scope.rsplit(":", 1)[1] if ":" in scope else scope
                 ok = self._engine.check_resource(
                     ctx.resource_type, ctx.resource_id, action, subject=subject, roles=roles
-                )
+                ) or self._owns_deferred(ctx.resource_type, action, subject, roles)
             else:
                 ok = self._engine.check_scope(scope, subject=subject, roles=roles)
+                if not ok and ":" in scope:
+                    ok = self._owns_deferred(_scope_family(scope), scope.rsplit(":", 1)[1], subject, roles)
             if not ok:
                 return False
         return True
+
+    def _owns_deferred(
+        self, resource_type: str, action: str, subject: Optional[str], roles: Optional[List[str]]
+    ) -> bool:
+        """An ``own`` grant passes the gate for owner-checked types; the endpoint checks the row's owner."""
+        from agno.os.scopes import OWN_RESOURCE_ID, OWNER_CHECKED_RESOURCES
+
+        return resource_type in OWNER_CHECKED_RESOURCES and self._engine.check_resource(
+            resource_type, OWN_RESOURCE_ID, action, subject=subject, roles=roles
+        )
 
     def accessible_resource_ids(self, ctx: AuthorizationContext) -> Set[str]:
         if not ctx.resource_type:
@@ -335,18 +347,30 @@ class EngineAuthorizationProvider(AuthorizationProvider):
         if ctx.resource_type and ctx.action and _all_in_family(required_scopes, ctx.resource_type):
             return await self._engine.acheck_resource(
                 ctx.resource_type, ctx.resource_id, ctx.action, subject=subject, roles=roles
-            )
+            ) or await self._aowns_deferred(ctx.resource_type, ctx.action, subject, roles)
         for scope in required_scopes:
             if ctx.resource_type and ctx.resource_id and _scope_family(scope) == ctx.resource_type:
                 action = scope.rsplit(":", 1)[1] if ":" in scope else scope
                 ok = await self._engine.acheck_resource(
                     ctx.resource_type, ctx.resource_id, action, subject=subject, roles=roles
-                )
+                ) or await self._aowns_deferred(ctx.resource_type, action, subject, roles)
             else:
                 ok = await self._engine.acheck_scope(scope, subject=subject, roles=roles)
+                if not ok and ":" in scope:
+                    ok = await self._aowns_deferred(_scope_family(scope), scope.rsplit(":", 1)[1], subject, roles)
             if not ok:
                 return False
         return True
+
+    async def _aowns_deferred(
+        self, resource_type: str, action: str, subject: Optional[str], roles: Optional[List[str]]
+    ) -> bool:
+        """Async twin of :meth:`_owns_deferred`."""
+        from agno.os.scopes import OWN_RESOURCE_ID, OWNER_CHECKED_RESOURCES
+
+        return resource_type in OWNER_CHECKED_RESOURCES and await self._engine.acheck_resource(
+            resource_type, OWN_RESOURCE_ID, action, subject=subject, roles=roles
+        )
 
     async def aaccessible_resource_ids(self, ctx: AuthorizationContext) -> Set[str]:
         if not ctx.resource_type:

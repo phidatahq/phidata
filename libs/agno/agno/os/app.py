@@ -2031,6 +2031,8 @@ class AgentOS:
         # This allows middleware (like JWT) to access these values
         fastapi_app.state.agent_os_id = self.id
         fastapi_app.state.cors_allowed_origins = self.cors_allowed_origins
+        # The role editor lists per-Product grants from the Company database.
+        fastapi_app.state.company_db = self._company_db
 
         # Store internal service token for scheduler auth bypass
         if self._internal_service_token:

@@ -37,6 +37,52 @@ def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -
         raise HTTPException(status_code=403, detail="Cannot modify product owned by another user")
 
 
+async def _require_product_access(request: Request, existing: Dict[str, Any], action: str = "write") -> None:
+    """Refuse a write the caller's Product grant does not cover.
+
+    The grant is ``products:<id|own|*>:<action>``, from token scopes or from the enforcing
+    provider (managed roles, ReBAC). A collection grant such as a bare ``products:<action>``
+    keeps today's meaning, owner-only under user isolation for non-admins. With
+    authorization off, the owner check is unchanged.
+    """
+    from agno.os.auth import _authorization_context, _provider_for, caller_scopes_are_authoritative
+    from agno.os.scopes import OWN_RESOURCE_ID, ResourceGrant, get_resource_grant
+
+    caller = getattr(request.state, "user_id", None)
+    scopes = getattr(request.state, "scopes", None)
+    if caller is None and not scopes:
+        _require_write_ownership(existing, get_scoped_user_id(request))
+        return
+    isolation = bool(getattr(request.state, "user_isolation_enabled", False))
+    if isinstance(scopes, list) and caller_scopes_are_authoritative(request):
+        admin_scope = getattr(request.state, "admin_scope", None)
+        grant = get_resource_grant(
+            scopes,
+            "products",
+            action,
+            user_isolation=isolation,
+            admin_scope=admin_scope if isinstance(admin_scope, str) else None,
+        )
+    else:
+        ctx = _authorization_context(request, resource_type="products", action=action)
+        ids = await _provider_for(request).aaccessible_resource_ids(ctx)
+        # The provider cannot tell a bare collection grant from ``*``; under isolation only an
+        # admin (whom isolation leaves unscoped) keeps every Product.
+        everything = "*" in ids and (not isolation or get_scoped_user_id(request) is None)
+        grant = ResourceGrant(
+            all=everything,
+            own=OWN_RESOURCE_ID in ids or ("*" in ids and not everything),
+            ids=frozenset(ids - {"*", OWN_RESOURCE_ID}),
+        )
+    if grant == ResourceGrant():
+        # No Product grant at all, as on Routine routes that require only Routine scopes: keep
+        # today's owner check rather than turning it into a new scope requirement.
+        _require_write_ownership(existing, get_scoped_user_id(request))
+        return
+    if not grant.allows(existing.get("id"), existing.get("user_id"), caller):
+        raise HTTPException(status_code=403, detail="Cannot " + action + " this product")
+
+
 def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
     """Build Product routes using native async storage or off-thread sync calls."""
     router = APIRouter(prefix="/company", tags=["Products"], dependencies=[Depends(get_scoped_user_id)])
@@ -64,12 +110,14 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
                 status_code=409 if method == "delete" else 422, detail=exc.args[0] if exc.args else str(exc)
             )
 
-    async def _writable(product_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
-        # Company-wide read first, then the ownership check against the scoped caller.
+    async def _writable(
+        product_id: str, request: Request, action: str = "write", include_deleted: bool = False
+    ) -> Dict[str, Any]:
+        # Company-wide read first, then the caller's Product grant against the stored row.
         existing = await _call("get", product_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Product not found")
-        _require_write_ownership(existing, user_id)
+        await _require_product_access(request, existing, action)
         return existing
 
     @router.get("/products", response_model=PaginatedResponse[ProductResponse])
@@ -115,22 +163,21 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def update_product(
         product_id: str, body: ProductUpdate, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        existing = await _writable(product_id, user_id)
+        existing = await _writable(product_id, request)
         fields = body.model_dump(exclude_unset=True)
         if not fields:
             return existing
-        product = await _call("update", product_id, user_id=user_id, **fields)
+        # The grant decided access; the update itself is unscoped so non-owners can apply it.
+        product = await _call("update", product_id, user_id=None, **fields)
         if product is None:
             raise HTTPException(status_code=404, detail="Product not found")
         return product
 
     @router.delete("/products/{product_id}", status_code=204)
     async def delete_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> Response:
-        user_id = get_scoped_user_id(request)
-        await _writable(product_id, user_id)
+        await _writable(product_id, request, "delete")
         try:
-            archived = await _call("delete", product_id, user_id=user_id)
+            archived = await _call("delete", product_id, user_id=None)
         except HTTPException as exc:
             if exc.status_code == 409 and isinstance(exc.detail, dict):
                 # Keep the Task list structured through AgentOS's string error handler.
@@ -142,11 +189,10 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.post("/products/{product_id}/restore", response_model=ProductResponse)
     async def restore_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        existing = await _writable(product_id, user_id, include_deleted=True)
+        existing = await _writable(product_id, request, "delete", include_deleted=True)
         if existing.get("deleted_at") is None:
             raise HTTPException(status_code=409, detail="Product is not archived")
-        product = await _call("restore", product_id, user_id=user_id)
+        product = await _call("restore", product_id, user_id=None)
         if product is None:
             raise HTTPException(status_code=409, detail="Product is not archived")
         return product

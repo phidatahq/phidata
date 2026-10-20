@@ -91,6 +91,13 @@ class AgentOSScope(str, Enum):
     ADMIN = "agent_os:admin"
 
 
+# A per-resource scope whose id is ``own`` grants the caller's own records only, e.g.
+# ``products:own:write``. The route gate cannot see a record's owner, so ``own`` passes the
+# gate only for resource types whose endpoints check ownership against the stored row.
+OWN_RESOURCE_ID = "own"
+OWNER_CHECKED_RESOURCES = frozenset({"products"})
+
+
 @dataclass
 class ParsedScope:
     """Represents a parsed scope with its components."""
@@ -242,6 +249,10 @@ def matches_scope(
     # Action must match
     if user_scope.action != required_scope.action:
         return False
+
+    # ``own`` defers the record check to the endpoint, which compares the stored owner.
+    if user_scope.resource_id == OWN_RESOURCE_ID and user_scope.resource in OWNER_CHECKED_RESOURCES:
+        return True
 
     # If required scope has a resource_id, check it
     if required_scope.resource_id:
@@ -660,6 +671,12 @@ def get_resource_context_from_path(path: str) -> Tuple[Optional[str], Optional[s
     # Anchor to the first path segment to avoid misclassifying paths like
     # /knowledge/agents/sources as "agents" resources. Only /agents, /teams,
     # /workflows (and /a2a/{family}) own the resource type.
+    # Company Product routes carry a record id, so per-Product scopes resolve at the gate.
+    # The bare listing is left unclassified: Product reads are company-wide.
+    product_match = re.match(r"^/company/products/([^/]+)", path)
+    if product_match:
+        return "products", product_match.group(1)
+
     type_match = re.match(r"^/(?:a2a/)?(agents|teams|workflows)(?:/|$)", path)
     if not type_match:
         return None, None
@@ -671,6 +688,70 @@ def get_resource_context_from_path(path: str) -> Tuple[Optional[str], Optional[s
         return resource_type, id_match.group(1)
 
     return resource_type, None
+
+
+@dataclass(frozen=True)
+class ResourceGrant:
+    """Which records of one resource type a caller may act on.
+
+    ``all`` covers every record, ``own`` covers records the caller owns, and ``ids``
+    names records directly. A record is allowed when any of the three covers it.
+    """
+
+    all: bool = False
+    own: bool = False
+    ids: frozenset = frozenset()
+
+    def allows(self, record_id: Optional[str], owner: Optional[str], caller: Optional[str]) -> bool:
+        if self.all or (record_id is not None and record_id in self.ids):
+            return True
+        # Fails closed: a caller without an identity owns nothing, and neither does an owner-less record.
+        return self.own and caller is not None and owner == caller
+
+
+def get_resource_grant(
+    user_scopes: List[str],
+    resource_type: str,
+    action: str,
+    *,
+    user_isolation: bool = False,
+    admin_scope: Optional[str] = None,
+) -> ResourceGrant:
+    """Resolve a caller's scopes for one resource type and action into a :class:`ResourceGrant`.
+
+    ``resource:*:action`` grants every record. ``resource:own:action`` grants the caller's own
+    records, and ``resource:<id>:action`` grants that record. A bare ``resource:action`` keeps
+    its existing meaning: every record, or only the caller's own when ``user_isolation`` is on.
+
+    Examples:
+        >>> get_resource_grant(["products:write"], "products", "write")
+        ResourceGrant(all=True, own=False, ids=frozenset())
+        >>> get_resource_grant(["products:write"], "products", "write", user_isolation=True)
+        ResourceGrant(all=False, own=True, ids=frozenset())
+        >>> get_resource_grant(["products:research:write"], "products", "write", user_isolation=True)
+        ResourceGrant(all=False, own=False, ids=frozenset({'research'}))
+    """
+    all_records = own = False
+    ids: Set[str] = set()
+    for scope in (parse_scope(raw, admin_scope=admin_scope) for raw in user_scopes):
+        if scope.scope_type == "admin":
+            return ResourceGrant(all=True)
+        if LEGACY_RESOURCE_ALIASES.get(scope.resource or "", scope.resource) != resource_type:
+            continue
+        if scope.action != action:
+            continue
+        if scope.is_wildcard_resource:
+            all_records = True
+        elif not scope.resource_id:
+            if user_isolation:
+                own = True
+            else:
+                all_records = True
+        elif scope.resource_id == OWN_RESOURCE_ID:
+            own = True
+        else:
+            ids.add(scope.resource_id)
+    return ResourceGrant(all=all_records, own=own, ids=frozenset(ids))
 
 
 @dataclass

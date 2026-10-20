@@ -7,6 +7,33 @@ import requests
 from agno.tools.fxmacrodata import FXMacroDataTools
 
 
+@pytest.mark.parametrize("key", ["test key", "test\x00key", "test\x7fkey"])
+def test_invalid_key_rejected_before_request(key):
+    with pytest.raises(ValueError):
+        FXMacroDataTools(api_key=key)
+
+
+def test_private_transport_details_not_returned_or_logged(fxmacrodata_tools):
+    with (
+        patch("requests.get", side_effect=requests.ConnectionError("sensitive upstream text")),
+        patch("agno.tools.fxmacrodata.log_error") as logger,
+    ):
+        result = fxmacrodata_tools.get_release_calendar()
+    assert "sensitive upstream text" not in result
+    assert "sensitive upstream text" not in repr(logger.call_args_list)
+
+
+def test_private_base_url_not_returned_or_logged():
+    tools = FXMacroDataTools(api_key="test-key", base_url="https://example.invalid/private-path")
+    with (
+        patch("requests.get", side_effect=requests.ConnectionError("failed")),
+        patch("agno.tools.fxmacrodata.log_error") as logger,
+    ):
+        result = tools.get_release_calendar()
+    assert "private-path" not in result
+    assert "private-path" not in repr(logger.call_args_list)
+
+
 @pytest.fixture
 def fxmacrodata_tools():
     """Fixture for FXMacroDataTools instance with an explicit key."""

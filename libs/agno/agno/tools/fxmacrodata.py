@@ -45,6 +45,8 @@ class FXMacroDataTools(Toolkit):
         """
 
         self.api_key: Optional[str] = (api_key or getenv("FXMACRODATA_API_KEY") or "").strip() or None
+        if self.api_key and any(char.isspace() or not char.isprintable() for char in self.api_key):
+            raise ValueError("FXMacroData API key contains whitespace or control characters")
         self.base_url: str = base_url.rstrip("/")
 
         tools: List[Any] = [
@@ -104,18 +106,20 @@ class FXMacroDataTools(Toolkit):
             status = e.response.status_code if e.response is not None else "unknown"
             if status in (401, 403):
                 log_error(
-                    f"FXMacroData request to {url} was rejected (HTTP {status}). "
+                    f"FXMacroData request was rejected (HTTP {status}). "
                     "Non-USD currencies and market data require an API key; set FXMACRODATA_API_KEY."
                 )
                 return (
                     f"FXMacroData denied the request to {endpoint} (HTTP {status}). "
                     "This data requires an API key. USD data is available without one."
                 )
-            log_error(f"Error making request to {url}: {self._redact(str(e))}")
-            return f"Error making request to {url}: {self._redact(str(e))}"
-        except requests.exceptions.RequestException as e:
-            log_error(f"Error making request to {url}: {self._redact(str(e))}")
-            return f"Error making request to {url}: {self._redact(str(e))}"
+            message = f"Error making request to FXMacroData (HTTP {status})"
+            log_error(message)
+            return message
+        except requests.exceptions.RequestException:
+            message = "Error making request to FXMacroData"
+            log_error(message)
+            return message
 
     def _redact(self, text: str) -> str:
         """Remove the API key from text that may be logged or returned to the agent."""

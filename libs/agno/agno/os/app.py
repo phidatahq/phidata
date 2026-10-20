@@ -708,7 +708,9 @@ class AgentOS:
                 self._manager.team.members.append(self._product_manager)
                 assert isinstance(self._manager.team.instructions, list)
                 self._manager.team.instructions.append(
-                    "Delegate Company planning, playbook updates and decisions to Product Manager."
+                    "Delegate Company Products, Projects, Tasks, Sources, Routines, playbook pages and decisions to "
+                    "Product Manager, including setup requests and questions about their status. Routines are "
+                    "Company schedules: ask Product Manager, not Platform Builder, to create them."
                 )
             else:
                 self.agents = [*(self.agents or []), self._product_manager]

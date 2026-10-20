@@ -354,8 +354,10 @@ and already-created schedules still return 409; a retry never undoes a deliberat
 pause. Resume also repairs a missing Product link before activation.
 
 Routine reads and histories are company-wide, including under user isolation.
-Writes retain scheduler ownership; under user isolation, another user's mutation
-returns 403.
+Like Projects and Tasks, any caller with the Routine write scopes can add a
+Routine to any active Product, including an unowned declared Product; the
+creator owns the new Routine. Writes retain scheduler ownership; under user
+isolation, another user's mutation returns 403, including the Product owner's.
 Pause/resume use scheduler disable/enable and its filtered state response; saved
 authorization claims are never returned. Routine schedule names follow scheduler
 validation, including the 255-character limit on `product_id + "." + name`.

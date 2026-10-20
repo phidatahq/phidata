@@ -1873,9 +1873,9 @@ def _migrate_redis(db: BaseDb, table_type: str, table_name: str) -> bool:
     if table_type != "sessions":
         return False
 
-    sessions = db._get_all_records("sessions")  # type: ignore
+    # One session record in memory at a time, not the whole sessions table
     migrated_runs = 0
-    for session in sessions:
+    for session in db._iter_records("sessions"):  # type: ignore
         legacy_runs = session.get("runs")
         if not legacy_runs:
             continue
@@ -1965,9 +1965,9 @@ def _migrate_valkey(db: BaseDb, table_type: str, table_name: str) -> bool:
 
     from agno.db.valkey.utils import generate_valkey_key, serialize_data  # type: ignore
 
-    sessions = db._get_all_records("sessions")  # type: ignore
+    # One batch of session records in memory at a time, not the whole sessions table
     migrated_runs = 0
-    for session in sessions:
+    for session in db._iter_records("sessions", batch_size=BATCH_SIZE):  # type: ignore
         legacy_runs = session.get("runs")
         if not legacy_runs:
             continue

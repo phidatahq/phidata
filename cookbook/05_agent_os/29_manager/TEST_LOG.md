@@ -667,18 +667,11 @@ and honor explicitly general questions. Basic explanations omit unsolicited code
 
 **Result:** With GPT-6.1 Sol (low reasoning) and disposable storage, framework-only
 checks answered both questions from Agno documentation and preserved an explicitly
-general supervised/unsupervised ML question. The final Best Buy integration run
-passed all five manager cases: learning, configured learning, Agno overview,
-learning machines, and general ML. Checks include delegated call counts, source
-use and a semantic judge; the reported generic-ML answer was separately rejected
-by the judge. An initial integration attempt passed 3/5: overview guidance needed
-more product context, and the judge incorrectly demanded web links for local
-configuration evidence. Both were corrected before the final run.
+general supervised/unsupervised ML question.
 
 The manager unit suite passed 255 tests; full format and validation scripts passed.
 These are local behavioral samples against live docs, not hosted deployment proof
-or a guarantee of factual accuracy on every run. The Best Buy application prompt
-was not enlarged; integration used this checkout as the framework dependency.
+or a guarantee of factual accuracy on every run.
 
 ---
 

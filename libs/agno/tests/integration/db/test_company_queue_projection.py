@@ -58,19 +58,22 @@ async def test_persistent_task_write_failure_finishes_ticket(system, monkeypatch
     run_id = (await client.post(path + "/runs")).json()["run_id"]
     with monkeypatch.context() as outage:
         fail_task_writes(outage, db)
-        if outcome == "completed":
-            assert (await execute(worker))["status"] == "completed"
-        elif outcome == "failed":
+        if outcome == "failed":
 
             async def fail(*args, **kwargs):
                 raise RuntimeError("executor failed")
 
             outage.setattr(components["writer"], "arun", fail)
             assert (await execute(worker))["status"] == "queued"
-            assert (await execute(worker))["status"] == "failed"
-        else:
-            assert await worker.acancel_queued(run_id)
-            assert (await worker.store.get_job(run_id))["status"] == "cancelled"
+        elif outcome == "cancelled":
+            # The CANCELLED run row is written; the ticket waits for its claim to settle it.
+            assert not await worker.acancel_queued(run_id)
+            assert (await worker.store.get_job(run_id))["status"] == "queued"
+        # The ticket is held once; the sweep retries the write from the run row, then finishes it.
+        assert (await execute(worker))["status"] == "running"
+        expire_lease(worker, run_id, max_attempts=1)
+        await worker._sweep_exhausted()
+        assert (await worker.store.get_job(run_id))["status"] == outcome
         saved = await _call(db, "get_task", value["id"])
         assert saved["status"] == "in_progress" and saved["result"] is None
         # The outage persists: the finished ticket is not retried and the run is not replayed.
@@ -153,3 +156,18 @@ async def test_revoked_run_permission_fails_without_retry(system, monkeypatch):
     assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "ERROR"
     assert (await _call(db, "get_task", value["id"]))["result"]["status"] == "ERROR"
     executed.assert_not_called()
+
+
+async def test_scheduler_tools_added_after_queue_fails_without_retry(system, monkeypatch):
+    from agno.tools.scheduler import SchedulerTools
+
+    client, db, worker, _, components = system
+    value = await accepted(client)
+    run_id = (await client.post(f"/company/tasks/{value['id']}/runs")).json()["run_id"]
+    # A redeploy can add SchedulerTools after the ticket was queued; retrying cannot cure that.
+    monkeypatch.setattr(components["writer"], "tools", [SchedulerTools(db=db)])
+    job = await execute(worker)
+    assert job["status"] == "failed" and job["attempt"] == 1 and job["max_attempts"] == 2
+    assert job["error"] == "permanent: Company executors cannot hold SchedulerTools"
+    assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "ERROR"
+    assert (await _call(db, "get_task", value["id"]))["result"]["status"] == "ERROR"

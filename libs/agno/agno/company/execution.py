@@ -430,7 +430,12 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
 
             raise InputCheckError(str(exc)) from exc
     component = await worker._aresolve_job_component(job)
-    _validate_executor_tools(component)
+    try:
+        _validate_executor_tools(component)
+    except ValueError as exc:
+        from agno.exceptions import InputCheckError
+
+        raise InputCheckError(str(exc)) from exc
 
 
 async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None) -> None:
@@ -484,8 +489,8 @@ async def _project_run_before_settle(
         from agno.utils.log import log_error
 
         log_error(
-            f"Company: could not save the Task result for run {job['id']} ({exc}); finishing its queue ticket "
-            "anyway, the Task is rebuilt from the run row by Company recovery"
+            f"Failed to save the Task result for run {job['id']}; finishing its queue ticket so Company "
+            f"recovery rebuilds the Task from the run row: {exc}"
         )
 
 

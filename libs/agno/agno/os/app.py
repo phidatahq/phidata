@@ -695,7 +695,15 @@ class AgentOS:
                 self.registry = Registry()
             self.registry.exclude_components([self._product_manager])
             if self._manager is not None:
+                from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS
+
                 self._manager.product_manager = self._product_manager
+                self._product_manager.tool_call_limit = self._manager.config.member_tool_call_limit
+                assert isinstance(self._product_manager.instructions, str)
+                self._product_manager.instructions = [
+                    self._product_manager.instructions,
+                    FOCUSED_EXECUTION_INSTRUCTIONS,
+                ]
                 assert isinstance(self._manager.team.members, list)
                 self._manager.team.members.append(self._product_manager)
                 assert isinstance(self._manager.team.instructions, list)

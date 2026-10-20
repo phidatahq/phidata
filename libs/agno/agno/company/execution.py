@@ -419,11 +419,16 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
 
     authority = current_authorization()
     if authority is not None:
-        await authority.arequire(
-            {"agent": "agents", "team": "teams", "workflow": "workflows"}[job["component_type"]],
-            "run",
-            job["component_id"],
-        )
+        try:
+            await authority.arequire(
+                {"agent": "agents", "team": "teams", "workflow": "workflows"}[job["component_type"]],
+                "run",
+                job["component_id"],
+            )
+        except PermissionError as exc:
+            from agno.exceptions import InputCheckError
+
+            raise InputCheckError(str(exc)) from exc
     component = await worker._aresolve_job_component(job)
     _validate_executor_tools(component)
 
@@ -465,6 +470,35 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         expected_transitions=task["transitions"],
         **({"checkout": checkout} if checkout is not None else {}),
     )
+
+
+async def _project_run_before_settle(
+    worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None
+) -> None:
+    """Save the Task result before its ticket finishes, unless the run row can rebuild it."""
+    try:
+        await _project_run(worker, job, status, error)
+    except Exception as exc:
+        if not await _run_row_settled(worker, job):
+            raise
+        from agno.utils.log import log_error
+
+        log_error(
+            f"Company: could not save the Task result for run {job['id']} ({exc}); finishing its queue ticket "
+            "anyway, the Task is rebuilt from the run row by Company recovery"
+        )
+
+
+async def _run_row_settled(worker: Any, job: Dict[str, Any]) -> bool:
+    try:
+        component = await worker._aresolve_job_component(job)
+        if component is None:
+            return False
+        output = await component.aget_run_output(job["id"], job["session_id"], user_id=job.get("user_id"))
+    except Exception:
+        return False
+    status = getattr(output, "status", None)
+    return str(getattr(status, "value", status)).upper() in {"COMPLETED", "ERROR", "CANCELLED"}
 
 
 async def _task_input(manager: Any, task: Dict[str, Any]) -> str:

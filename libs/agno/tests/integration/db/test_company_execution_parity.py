@@ -915,10 +915,11 @@ async def test_cancellation_during_execution_projects_task_result(system, monkey
 
 
 @pytest.mark.asyncio
-async def test_cancel_projection_failure_is_recovered_by_queue(system, monkeypatch):
+@pytest.mark.parametrize("run_row", ["readable", "unreadable"])
+async def test_cancel_projection_failure_is_recovered_by_queue(system, monkeypatch, run_row):
     import agno.company.execution as execution
 
-    client, db, worker, os, _ = system
+    client, db, worker, os, components = system
     value = await accepted(client)
     path = f"/company/tasks/{value['id']}"
     response = await client.post(path + "/runs")
@@ -929,11 +930,22 @@ async def test_cancel_projection_failure_is_recovered_by_queue(system, monkeypat
         raise RuntimeError("Task projection interrupted")
 
     monkeypatch.setattr(execution, "_project_run", interrupted)
+    if run_row == "readable":
+        # The CANCELLED run row rebuilds the Task, so the ticket no longer waits for it.
+        assert (await client.post(f"/company/runs/{run_id}/cancel")).status_code == 200
+        assert (await worker.store.get_job(run_id))["status"] == "cancelled"
+        monkeypatch.setattr(execution, "_project_run", project)
+        assert (await client.get(path)).json()["result"]["status"] == "CANCELLED"
+        assert (await client.get("/company/attention")).json()["failed"] == 1
+        return
+    reader = components["writer"].aget_run_output
+    monkeypatch.setattr(components["writer"], "aget_run_output", interrupted)
     with pytest.raises(RuntimeError, match="Task projection interrupted"):
         await client.post(f"/company/runs/{run_id}/cancel")
     assert (await worker.store.get_job(run_id))["status"] == "queued"
     assert (await client.get(path)).json()["result"] is None
     monkeypatch.setattr(execution, "_project_run", project)
+    monkeypatch.setattr(components["writer"], "aget_run_output", reader)
     assert (await execute(worker))["status"] == "cancelled"
     assert (await client.get(path)).json()["result"]["status"] == "CANCELLED"
     assert (await client.get("/company/attention")).json()["failed"] == 1

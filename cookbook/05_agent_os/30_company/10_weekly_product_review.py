@@ -1,4 +1,4 @@
-"""Opt in to a weekly review by the framework Product Manager.
+"""Opt in to a weekly review by the framework Company Manager.
 
 Check configuration without model calls:
     .venv/bin/python cookbook/05_agent_os/30_company/10_weekly_product_review.py --check
@@ -6,7 +6,8 @@ Check configuration without model calls:
 Serve locally and enable Monday reviews at 09:00 Europe/London:
     .venv/bin/python cookbook/05_agent_os/30_company/10_weekly_product_review.py --enable-weekly-review
 
-Add --with-os-manager to also enable coordination. Running scheduled reviews
+Add --with-os-manager to also serve OS Manager; Company Manager still runs the
+review, since OS Manager cannot execute Routines. Running scheduled reviews
 requires provider credentials and makes model calls. This local example has no
 authentication; use the authenticated Routine API for production caller grants.
 """
@@ -58,7 +59,7 @@ def build_os(
             Routine(
                 name="weekly-review",
                 executor_type="agent",
-                executor_id="product-manager-internal",
+                executor_id="company-manager-internal",
                 cron_expr="0 9 * * 1",
                 timezone="Europe/London",
                 instructions=REVIEW,
@@ -102,10 +103,10 @@ if __name__ == "__main__":
                 agent_os.db, product, agent_os.registry, agent_os=agent_os
             )
             schedule = agent_os.db.get_schedule_by_name("documentation.weekly-review")
-            assert schedule["endpoint"] == "/agents/product-manager-internal/runs"
+            assert schedule["endpoint"] == "/agents/company-manager-internal/runs"
             assert schedule["payload"]["metadata"]["auto_accept"] is False
-            assert agent_os.registry.get_agent("product-manager-internal") is None
-            print("Weekly Product Manager review configured; no model calls made.")
+            assert agent_os.registry.get_agent("company-manager-internal") is None
+            print("Weekly Company Manager review configured; no model calls made.")
             agent_os.db.close()
     else:
         agent_os = build_os(

@@ -31,16 +31,17 @@ company-wide for callers with the read scope. With isolation on, writes to
 another owner's Product return 403. Unscoped callers with the write scope can
 change every Product; admins bypass owner isolation.
 
-## Weekly Product Manager review
+## Weekly Company Manager review
 
 `10_weekly_product_review.py` runs a Company Routine with the framework's
-`product-manager-internal` agent. It reads Sources and existing work, proposes
+`company-manager-internal` agent. It reads Sources and existing work, proposes
 only evidence-backed Backlog Tasks, and updates status without accepting work.
 The same declaration works with or without OS Manager; no application agent is
-needed. Use `os-manager-internal` with `executor_type="team"` when a Routine
-needs broader coordination. Both managers stay out of Studio's reusable registry.
-Product Manager is also served through its normal agent routes when it is an
-OS Manager member; Platform Builder and Platform Manager stay internal.
+needed. Company Manager is the only framework manager that can run a Routine:
+OS Manager, Platform Builder and Platform Manager can change the platform, and
+Routines run unattended on Source content, so they are refused as executors.
+Company Manager stays out of Studio's reusable registry and is served through
+its normal agent routes, including when it is an OS Manager member.
 
 Check both configurations without model calls or an active scheduler:
 
@@ -51,7 +52,7 @@ Check both configurations without model calls or an active scheduler:
 
 Start the local server with `--enable-weekly-review` to opt in to Monday reviews
 at 09:00 `Europe/London`. Use `--source /absolute/path/to/docs.md` to select a
-local Source, and `--with-os-manager` to add coordination. Scheduled runs require
+local Source, and `--with-os-manager` to serve OS Manager alongside it. Scheduled runs require
 provider credentials and incur model usage. Automatic acceptance remains off.
 Omitting the opt-in flag creates no new Routine; it does not remove a previously
 saved schedule. Pause an existing Routine through its Company API/UI control.
@@ -117,12 +118,12 @@ Project still required to belong to the same Product. Manager and storage
 methods retain explicit owner filters for direct callers.
 
 
-## Playbook and Product Manager
+## Playbook and Company Manager
 
 | File | Demonstrates |
 | --- | --- |
 | `04_manage_playbook.py` | Sync/async wiki namespaces, atomic page creation, version conflicts and the learning decision log without a model. |
-| `05_product_manager.py` | Model resolution, a standalone Product Manager, bounded Company tools and explicit MCP publication without a model call. |
+| `05_company_manager.py` | Model resolution, a standalone Company Manager, bounded Company tools and explicit MCP publication without a model call. |
 
 Each Product has a durable wiki namespace with `brief.md` (human direction) and
 `status.md` (current work). A second namespace holds company context. Default
@@ -148,11 +149,13 @@ ID when supplying decision tools. Standalone CompanyTools and direct MCP calls
 leave agent attribution unset. The log is append-only: later outcomes are new
 entries that reference the original decision.
 
-Product Manager uses `CompanyConfig(model=...)`, otherwise the first declared
+Company Manager uses `CompanyConfig(model=...)`, otherwise the first declared
 registry model. If neither exists, its unavailable reason appears in diagnostics
-and manual APIs still work. With OS Manager enabled it is an internal member;
-otherwise it is a standalone agent, available at `GET /agents/product-manager-internal`
-and `POST /agents/product-manager-internal/runs`. Its id is reserved and its tools stay out of
+and manual APIs still work. It is served at `GET /agents/company-manager-internal`
+and `POST /agents/company-manager-internal/runs`, and is also an OS Manager member
+when OS Manager is enabled. It was previously named Company Manager with the id
+`product-manager-internal`; that id stays reserved, and `AgentOS.product_manager`
+remains a deprecated alias of `AgentOS.company_manager`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
 updates `status.md` with a version check, and logs decisions through its learning
 machine. It can read Sources and add website Sources with permission and Product
@@ -234,7 +237,7 @@ same session and owner in both isolation modes. The ordinary session ownership
 check still rejects unrelated sessions. For a legacy session created by a starter,
 Company recovers with the recorded reservation identity and transfers an idle
 session to the Task owner only after matching its original reservation and run. Engineering executors cannot be started yet. Framework-reserved executors,
-including Product Manager and OS Manager, cannot be accepted or started as
+including Company Manager and OS Manager, cannot be accepted or started as
 Task executors.
 
 Executor input contains only the Task brief, its evidence and the current
@@ -336,7 +339,7 @@ instead of silently dropping its Routine. Give it `CompanyTools(db)` and
 `load_routine_skills()` for reader, Intake and Summary tools. AgentOS binds its
 interfaces to custom `CompanyTools(db)` executors automatically; an explicit
 `interfaces=` override is preserved, and `summary_tools=False` disables delivery.
-Product Manager has no outbound Summary tool. Enable the existing AgentOS scheduler and queue to run schedules; the
+Company Manager has no outbound Summary tool. Enable the existing AgentOS scheduler and queue to run schedules; the
 cookbook only creates and inspects them. Scheduling alone never grants acceptance.
 The OS scheduler database owns Routine definitions/history even with a separate
 Company database. `metadata.routine_ids` links them to Products.
@@ -385,7 +388,7 @@ such a rejection. It stores hashes and links, without copying document content
 into the Task. Reuse the issue key across content and wording edits; a distinct issue
 has a distinct key. Database uniqueness remains scoped to the Product.
 Routines must use evidence-backed Intake: plain `propose_company_task` and
-Company service Task creation reject Routine authority. Human and Product Manager
+Company service Task creation reject Routine authority. Human and Company Manager
 proposals retain their normal behavior.
 
 `/company/routines` wraps the scheduler. Writes require both `routines:write`
@@ -429,7 +432,7 @@ success. No live messages are sent by this cookbook.
 
 Task evidence identity and deduplication are part of the initial Company schema.
 Task responses expose `origin`, `routine_id` and `dedupe_key`. Human-created Tasks
-have origin `human`, Product Manager proposals have `product_manager`, and Routine
+have origin `human`, Company Manager proposals have `product_manager`, and Routine
 proposals have `routine` with the trusted Routine id.
 Automatic acceptance is opt-in as described below.
 
@@ -635,7 +638,7 @@ checking the caller's authority.
 In a local deployment with authentication disabled, API callers are trusted
 operators, as for the existing scheduler. Code/YAML declarations remain
 proposal-only: write an automatic authorization through the human API.
-Executors and Product Manager retain no `schedules:write` or SchedulerTools.
+Executors and Company Manager retain no `schedules:write` or SchedulerTools.
 Private authorization is removed from public payloads and executor input;
 Routine metadata is data, never a source of broader executor authority.
 
@@ -673,7 +676,7 @@ are protected. The Refresh Skill updates status.md to reflect the remaining work
 The maintenance tool requires Routine authority, Product ownership when
 isolation applies, `products:read`, `projects:read`, `projects:delete`,
 `tasks:read`, `tasks:delete`, `wiki:read` and `wiki:write` on the saved caller.
-No scheduler-write grant is added. Product Manager does not receive maintenance
+No scheduler-write grant is added. Company Manager does not receive maintenance
 or outbound Summary tools. Existing schedule instructions retain the scheduler's
 snapshot behavior; apply the revised Refresh Skill through an authorized PATCH.
 
@@ -770,7 +773,7 @@ when its policy sets `complete_projects: true`.
 A custom Routine does maintenance only when it calls the Refresh tool, and
 Summary bookkeeping only when it calls the Summary tool.
 
-Product Manager and executors can call `add_company_source(product_id, reference, config=None)`
+Company Manager and executors can call `add_company_source(product_id, reference, config=None)`
 when granted `sources:write` and permitted to write the Product. Repository and
 path Sources remain human-added. Source storage has a single existing JSON
 field, `config`: server-stamped `config.metadata.agent_id` or

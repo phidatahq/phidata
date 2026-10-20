@@ -17,7 +17,7 @@ from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.job_queue import QueueConfig
 from agno.os import AgentOS, Authorization, CompanyConfig, OSManager
 from agno.os.job_queue import QueueWorker, resolve_queue_store
-from agno.registry._reserved import MANAGER_TEAM_ID, PRODUCT_MANAGER_ID
+from agno.registry._reserved import COMPANY_MANAGER_ID, MANAGER_TEAM_ID
 from agno.run import RunContext
 from agno.run.authorization import current_authorization
 from tests.integration.db.test_company_execution_parity import SimpleClient, execute
@@ -34,7 +34,7 @@ db = company_db
 
 
 @pytest.mark.parametrize("backend", ["sqlite", "async_sqlite", "postgres", "async_postgres"])
-@pytest.mark.parametrize("mode", ["standalone", "member", "delegate"])
+@pytest.mark.parametrize("mode", ["standalone", "member"])
 async def test_manager_review_through_durable_queue(tmp_path, backend, mode):
     schema = "manager_routine_" + uuid4().hex
     queue_db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:5532/ai", db_schema=schema)
@@ -82,22 +82,16 @@ async def test_manager_review_through_durable_queue(tmp_path, backend, mode):
         observed.append((_agno_run_context.user_id, authority.context.principal_id, authority.product_id))
         return "Restored authority observed"
 
-    os.product_manager.tools.append(observe_queue_authority)
+    os.company_manager.tools.append(observe_queue_authority)
     try:
         product = await _call(manager, "create", name="Docs", user_id="alice")
         project = await _call(manager, "create_project", product_id=product["id"], name="Guides", user_id="alice")
         path = tmp_path / "source.md"
         path.write_text("The released API needs a guide.")
         source = await _call(manager, "create_source", product_id=product["id"], type="markdown", reference=str(path))
-        os.product_manager.model = ScriptedModel(
+        os.company_manager.model = ScriptedModel(
             [("observe_queue_authority", {})] + review_steps(product, project, source, path)
         )
-        kind, cid = "agent", PRODUCT_MANAGER_ID
-        if mode == "delegate":
-            kind, cid = "team", MANAGER_TEAM_ID
-            os.manager.model = ScriptedModel(
-                [("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Review this Product"})]
-            )
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             jobs = []
 
@@ -120,7 +114,7 @@ async def test_manager_review_through_durable_queue(tmp_path, backend, mode):
             response = await client.post(
                 "/company/routines",
                 headers=headers(),
-                json={"product_id": product["id"], **declaration(kind, cid).model_dump()},
+                json={"product_id": product["id"], **declaration().model_dump()},
             )
             assert response.status_code == 201, response.text
             row = queue_db.get_schedule(response.json()["id"])
@@ -146,7 +140,7 @@ async def test_manager_review_through_durable_queue(tmp_path, backend, mode):
         queue_db.close()
 
 
-@pytest.mark.parametrize("mode", ["standalone", "member", "coordinator"])
+@pytest.mark.parametrize("mode", ["standalone", "member"])
 @pytest.mark.parametrize("use_async", [False, True])
 async def test_chat_declarations_use_owned_managers(db, use_async, mode, tmp_path):
     from tests.integration.db.test_company_chat_products import context, invoke
@@ -159,8 +153,18 @@ async def test_chat_declarations_use_owned_managers(db, use_async, mode, tmp_pat
         manager=OSManager(model=ScriptedModel(), access_docs=False) if mode != "standalone" else None,
         telemetry=False,
     )
-    tools = os.product_manager.tools[0]
-    kind, cid = ("team", MANAGER_TEAM_ID) if mode == "coordinator" else ("agent", PRODUCT_MANAGER_ID)
+    tools = os.company_manager.tools[0]
+    with pytest.raises(ValueError, match="Only the Company Manager"):
+        await invoke(
+            tools,
+            "create_company_product",
+            use_async,
+            name="Coordinated",
+            routines=[declaration("team", MANAGER_TEAM_ID).model_dump()],
+            _agno_run_context=context(),
+        )
+    assert (await _call(db, "get_products"))[1] == 0
+    kind, cid = "agent", COMPANY_MANAGER_ID
     routine = declaration(kind, cid).model_dump()
     product = await invoke(
         tools, "create_company_product", use_async, name="Docs", routines=[routine], _agno_run_context=context()
@@ -176,10 +180,16 @@ async def test_chat_declarations_use_owned_managers(db, use_async, mode, tmp_pat
         _agno_run_context=context(),
     )
     assert second["target_id"] == cid
-    if mode == "coordinator":
-        os._manager = None
-    else:
-        os._product_manager = None
+    with pytest.raises(ValueError, match="Only the Company Manager"):
+        await invoke(
+            tools,
+            "create_company_routine",
+            use_async,
+            product_id=product["id"],
+            **{**declaration("team", MANAGER_TEAM_ID).model_dump(exclude={"auto_accept"}), "name": "coordinated"},
+            _agno_run_context=context(),
+        )
+    os._company_manager = None
     with pytest.raises(ValueError, match="unavailable"):
         await invoke(
             tools,

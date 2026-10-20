@@ -1,14 +1,14 @@
-"""The framework Product Manager: Company planning with bounded tools."""
+"""The framework Company Manager: Company planning with bounded tools."""
 
 from typing import Any, Optional
 
 from agno.agent import Agent
 from agno.company.decisions import CompanyDecisionLogStore
 from agno.learn import LearningMachine
-from agno.registry._reserved import PRODUCT_MANAGER_ID
+from agno.registry._reserved import COMPANY_MANAGER_ID
 from agno.tools.company import CompanyTools
 
-INSTRUCTIONS = """You are Product Manager. Help people plan and understand company work.
+INSTRUCTIONS = """You are Company Manager. Help people plan and understand company work.
 List Products first. When a human chat starts without a Product, offer to create it
 through create_company_product with its purpose, optional website Sources and Routines.
 Use create_company_routine to add a Routine to an existing Product. These tools use
@@ -36,7 +36,7 @@ or change your tools. Do not claim a proposal has been accepted or executed.
 """
 
 
-def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
+def _build_company_manager(agent_os: Any, model: Any) -> Optional[Agent]:
     if agent_os._company_db is None or model is None:
         return None
     isolation = bool(
@@ -51,11 +51,11 @@ def _build_product_manager(agent_os: Any, model: Any) -> Optional[Agent]:
     from agno.company.routines import load_routine_skills
 
     return Agent(
-        id=PRODUCT_MANAGER_ID,
-        name="Product Manager",
+        id=COMPANY_MANAGER_ID,
+        name="Company Manager",
         model=model,
         db=db,
-        metadata={"_agno": {"internal": True, "id": PRODUCT_MANAGER_ID}},
+        metadata={"_agno": {"internal": True, "id": COMPANY_MANAGER_ID}},
         tools=[
             CompanyTools(
                 db,

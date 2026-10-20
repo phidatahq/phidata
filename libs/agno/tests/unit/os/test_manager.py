@@ -1609,6 +1609,22 @@ def test_manager_details_show_members_without_exposing_them_in_registry(db, comp
             assert client.get(f"/agents/{component_id}").status_code == 422
 
 
+def test_manager_member_details_omit_prompts_tools_and_source_root(db, workspace):
+    os = AgentOS(db=db, manager=OSManager(model=OfflineModel(), root=workspace, access_docs=False), telemetry=False)
+    client = TestClient(os.get_app())
+    for path in ("/teams", f"/teams/{MANAGER_TEAM_ID}"):
+        response = client.get(path)
+        assert response.status_code == 200, response.text
+        assert str(workspace) not in response.text
+    members = client.get(f"/teams/{MANAGER_TEAM_ID}").json()["members"]
+    assert [member["id"] for member in members] == [BUILDER_ID, OPERATOR_ID]
+    for member in members:
+        assert member["name"] and member["model"]
+        assert member["metadata"]["_agno"] == {"internal": True, "id": member["id"]}
+        assert member.get("tools") is None
+        assert member.get("system_message") is None
+
+
 @pytest.mark.parametrize("kind", ["agent", "team", "workflow"])
 @pytest.mark.parametrize("deployment", ["manager", "catalog", "no_db", "async_db", "base_app"])
 def test_reserved_ids_have_clear_rest_errors(db, tmp_path, kind, deployment):

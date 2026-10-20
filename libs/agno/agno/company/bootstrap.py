@@ -77,12 +77,14 @@ async def arehydrate_product(
                     raise ValueError("Source id belongs to another Product") from exc
     schedule_db = schedule_db if schedule_db is not None else db
     schedules = ScheduleManager(schedule_db)
+    # Routines belong to their declarer, as on POST /company/routines; code declarations use the Product owner.
+    routine_owner = product.user_id if product.user_id is not None else row["user_id"]
     for routine, fields in zip(product.routines, routine_fields):
         fields["cron"] = fields.pop("cron_expr")
         try:
             schedule = await schedules.acreate(
                 **fields,
-                user_id=row["user_id"],
+                user_id=routine_owner,
                 if_exists="skip",
                 provenance={
                     "managed_by": "company",
@@ -93,7 +95,7 @@ async def arehydrate_product(
         except Exception as exc:
             if not is_unique_violation(exc):
                 raise
-            existing = await _call(schedule_db, "get_schedule_by_name", fields["name"], user_id=row["user_id"])
+            existing = await _call(schedule_db, "get_schedule_by_name", fields["name"], user_id=routine_owner)
             if existing is None:
                 raise
             from agno.db.schemas.scheduler import Schedule

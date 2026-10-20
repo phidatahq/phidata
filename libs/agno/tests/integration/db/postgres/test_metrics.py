@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import List
 
 import pytest
+from sqlalchemy import text
 
 from agno.db.base import SessionType
 from agno.db.postgres.postgres import PostgresDb
@@ -592,3 +593,59 @@ def test_metrics_calculation_multiple_days(postgres_db_real: PostgresDb):
     metrics_sorted = sorted(metrics2, key=lambda x: x["date"])
     assert metrics_sorted[0]["agent_runs_count"] == 2
     assert metrics_sorted[1]["agent_runs_count"] == 3
+
+
+# One more session than a 65,535-parameter query can list next to the model and provider keys
+SESSIONS_PAST_PARAMETER_LIMIT = 65_534
+
+
+def test_calculate_metrics_past_query_parameter_limit(postgres_db_real: PostgresDb):
+    """Metrics cover every session and run even when they outnumber a query's parameter limit"""
+    sessions_table = postgres_db_real._get_table("sessions", create_table_if_not_found=True)
+    runs_table = postgres_db_real._get_table("runs", create_table_if_not_found=True)
+    created_at = _noon_utc(1)
+
+    with postgres_db_real.Session() as sess, sess.begin():
+        sess.execute(
+            sessions_table.insert(),
+            [
+                {"session_id": f"s_{i}", "session_type": "agent", "created_at": created_at}
+                for i in range(SESSIONS_PAST_PARAMETER_LIMIT)
+            ],
+        )
+        sess.execute(
+            runs_table.insert(),
+            [
+                {
+                    "run_id": f"r_{i}",
+                    "session_id": f"s_{i}",
+                    "run_type": "agent",
+                    "run_data": {"model": "gpt-5.5", "model_provider": "OpenAI"},
+                    "created_at": created_at,
+                }
+                for i in range(SESSIONS_PAST_PARAMETER_LIMIT)
+            ],
+        )
+
+    result = postgres_db_real.calculate_metrics()
+
+    assert result is not None
+    assert len(result) == 1
+    assert result[0]["agent_sessions_count"] == SESSIONS_PAST_PARAMETER_LIMIT
+    assert result[0]["agent_runs_count"] == SESSIONS_PAST_PARAMETER_LIMIT
+    assert result[0]["model_metrics"] == [
+        {"model_id": "gpt-5.5", "model_provider": "OpenAI", "count": SESSIONS_PAST_PARAMETER_LIMIT}
+    ]
+
+
+def test_calculate_metrics_raises_when_first_session_date_cannot_be_read(postgres_db_real: PostgresDb):
+    """A failed read of the first session's date surfaces as an error instead of an empty metrics refresh"""
+    session = AgentSession(session_id="test_session_1", agent_id="test_agent_1", created_at=_noon_utc(1))
+    postgres_db_real.upsert_session(session)
+
+    sessions_table = postgres_db_real._get_table("sessions")
+    with postgres_db_real.db_engine.begin() as conn:
+        conn.execute(text(f"ALTER TABLE {sessions_table.fullname} DROP COLUMN created_at"))
+
+    with pytest.raises(Exception, match="created_at"):
+        postgres_db_real.calculate_metrics()

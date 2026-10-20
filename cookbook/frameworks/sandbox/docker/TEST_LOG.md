@@ -387,3 +387,23 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 **Result:** The first open downloaded the object (25 ms); the next four and the other store's open came from the cache (7 to 16 ms) with the download count staying at one. The cache directory held the object under its digest. After `delete`, the next open raised `CheckpointObjectNotFound` despite the cached copy, since the bucket is consulted first. Unit tests for the cache (`test_s3_store.py`): downloaded once, served to async opens, a corrupt entry fetched again, a deleted object not hidden, eviction within the budget while an open lease keeps reading, and the uncached copy landing in `scratch=` read-only. 15 tests pass.
 
 ---
+
+### sandbox_postgres_checkpoints.py (2026-10-20)
+
+**Status:** PASS (fixture runtime, `agno-sandbox:pgstore` built from this branch, a fresh `agno_pgstore` database on the local pgvector container)
+
+**Description:** `PostgresCheckpointStore(db)` on the agent's own `PostgresDb`, passed as `checkpoints=` to a `DockerSandbox` running `FixtureAgent`. Turn 1 checkpoints to Postgres, the computer kept warm for the next turn is destroyed, and turn 2 on the same session runs on a new computer. Turn 2's checkpoint is opened through `agent.open_run_checkpoint` and restored to a directory.
+
+**Result:** Turn 1 stored a 633-byte checkpoint as one header row and one chunk row. Turn 2 reported `resumed: False`, passed the fixture's native-session check (which fails the turn when native state did not come back), and its checkpoint's `fixture-effects.txt` listed both turns' run ids in order. The shared `ai` database could not be used: its `agno_sessions_sandbox_bindings` table is from an older build and the coordinator refuses it, as designed.
+
+---
+
+### PostgresCheckpointStore and the existing suites under it (2026-10-20)
+
+**Status:** PASS
+
+**Description:** `libs/agno/tests/integration/sandbox/test_postgres_checkpoints.py` against real Postgres through both `PostgresDb` and `AsyncPostgresDb` (23 cases): contract round trip across several chunks, a second store instance restoring what the first stored, no chunk writes when the object exists, four concurrent puts of the same bytes storing one object, a source that changes mid-put rolling back the header with every chunk, a tampered chunk caught on open while verify answers from the header, a truncated object and a wrong header size, missing objects through every access, delete idempotent and cascading, a reader keeping its read-only copy after the object is deleted, the object limit applied before touching the database, `STORAGE EXTERNAL` on the chunk column, sync methods refused on `AsyncPostgresDb`, and constructor validation. Each of four guards (readback digest check, source-change check, `ON CONFLICT DO NOTHING` on the header, the storage DDL) was removed in turn and its tests failed. Then the Docker transfer, coordinator, AgentOS and checkpoint-access suites with `AGNO_TEST_CHECKPOINT_DB_URL` set, so every `checkpoint_store` fixture is a `PostgresCheckpointStore`, with Redis for the AgentOS durable-queue cases.
+
+**Result:** 23 store cases passed. `test_transfer.py` 4 passed; `test_coordinator.py` 84 passed, 10 skipped; `test_agentos.py` 39 passed, 1 skipped; `test_checkpoint_access.py` 8 passed, 2 skipped (that suite builds its own `FileCheckpointStore`, so it does not exercise this store). The skips are `AGNO_TEST_LIVE_REPOSITORY` cases and the sync `stream()` cases that do not apply to `AsyncPostgresDb`.
+
+---

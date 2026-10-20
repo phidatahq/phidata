@@ -1644,3 +1644,182 @@ async def test_reserved_errors_match_sync_and_async_os_lookup(db, tmp_path, kind
         assert sync_error.value.detail == async_error.value.detail
     assert getattr(utils, f"get_{kind}_by_id")("missing", db=os_db) is None
     assert await getattr(utils, f"get_{kind}_by_id_async")("missing", db=os_db) is None
+
+
+@pytest.mark.parametrize("field", ["tool_call_limit", "member_tool_call_limit"])
+@pytest.mark.parametrize("value", [-1, 1.5, True, "8"])
+def test_manager_rejects_invalid_tool_limits(field, value):
+    with pytest.raises(ValueError, match=field):
+        OSManager(**{field: value})
+
+
+@pytest.mark.parametrize(
+    "limits",
+    [
+        {},
+        {"tool_call_limit": 2, "member_tool_call_limit": 3},
+        {"tool_call_limit": None, "member_tool_call_limit": None},
+        {"tool_call_limit": 0, "member_tool_call_limit": 0},
+    ],
+)
+def test_manager_limits_cover_company_members_without_changing_application_agents(db, limits):
+    from agno.os import CompanyConfig
+
+    config = OSManager(model=OfflineModel(), instructions="Application context", **limits)
+    application_agent = Agent(id="application", model=OfflineModel())
+    os = AgentOS(
+        db=db, agents=[application_agent], manager=config, company=CompanyConfig(model=OfflineModel()), telemetry=False
+    )
+    assert os.manager.tool_call_limit == limits.get("tool_call_limit", 8)
+    assert len(os.manager.members) == 3
+    assert all(member.tool_call_limit == limits.get("member_tool_call_limit", 24) for member in os.manager.members)
+    assert application_agent.tool_call_limit is None
+    assert "Application context" in os.manager.instructions
+    assert all("Application context" not in member.instructions for member in os.manager.members)
+    os.resync(os.get_app())
+    assert all(member.tool_call_limit == config.member_tool_call_limit for member in os.manager.members)
+    assert application_agent.tool_call_limit is None
+
+
+class BudgetProbeModel(OfflineModel):
+    """Request more tools than allowed, then expose the refused call in the answer."""
+
+    def __init__(self, tool_name, arguments, calls_per_turn=1):
+        super().__init__()
+        self.tool_name = tool_name
+        self.arguments = arguments
+        self.calls_per_turn = calls_per_turn
+        self.calls = 0
+
+    def invoke(self, messages, *args, **kwargs):
+        from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS
+
+        system = "\n".join(m.content for m in messages if m.role == "system" and isinstance(m.content, str))
+        assert FOCUSED_EXECUTION_INSTRUCTIONS in system
+        self.calls += 1
+        assert self.calls <= 5, "Budget refusal must reach the model"
+        if any(m.role == "tool" and "Tool call limit reached" in str(m.content) for m in messages):
+            return ModelResponse(
+                content="Investigation limit reached; reporting verified evidence only.",
+                role="assistant",
+                response_usage=MessageMetrics(),
+            )
+        return ModelResponse(
+            role="assistant",
+            response_usage=MessageMetrics(),
+            tool_calls=[
+                {
+                    "id": f"probe-{self.calls}-{i}",
+                    "type": "function",
+                    "function": {"name": self.tool_name, "arguments": json.dumps(self.arguments)},
+                }
+                for i in range(self.calls_per_turn)
+            ],
+        )
+
+    async def ainvoke(self, *args, **kwargs):
+        return self.invoke(*args, **kwargs)
+
+    def invoke_stream(self, *args, **kwargs):
+        yield self.invoke(*args, **kwargs)
+
+    async def ainvoke_stream(self, *args, **kwargs):
+        yield self.invoke(*args, **kwargs)
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+@pytest.mark.parametrize("stream", [False, True])
+@pytest.mark.parametrize("calls_per_turn", [1, 4])
+@pytest.mark.parametrize("target", [MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID])
+async def test_manager_executes_no_more_than_configured_limit(db, use_async, stream, calls_per_turn, target):
+    from agno.os import CompanyConfig
+
+    os = AgentOS(
+        db=db,
+        manager=OSManager(model=OfflineModel(), tool_call_limit=2, member_tool_call_limit=2),
+        company=CompanyConfig(model=OfflineModel()),
+        telemetry=False,
+    )
+    owner = os.manager if target == MANAGER_TEAM_ID else manager_member(os, target)
+    calls = []
+
+    def focused_lookup() -> str:
+        """Look up the requested concept."""
+        calls.append("lookup")
+        return "Learning stores information for later retrieval; it does not retrain model weights."
+
+    owner.tools.append(focused_lookup)
+    owner.model = BudgetProbeModel("focused_lookup", {}, calls_per_turn)
+    # Reuse the same manager: limits must reset between user turns.
+    for turn in range(2):
+        owner.model.calls = 0
+        kwargs = dict(session_id=f"budget-{turn}", user_id="alice", stream=stream)
+        if use_async:
+            if stream:
+                result = [event async for event in owner.arun("How does learning work?", **kwargs)]
+            else:
+                result = await owner.arun("How does learning work?", **kwargs)
+        elif stream:
+            result = list(owner.run("How does learning work?", **kwargs))
+        else:
+            result = owner.run("How does learning work?", **kwargs)
+        assert result
+        assert len(calls) == 2 * (turn + 1)
+        assert owner.model.calls == (4 if calls_per_turn == 1 else 2)
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+async def test_manager_limits_apply_on_both_sides_of_delegation(db, use_async):
+    os = AgentOS(
+        db=db, manager=OSManager(model=OfflineModel(), tool_call_limit=1, member_tool_call_limit=2), telemetry=False
+    )
+    member = manager_member(os, OPERATOR_ID)
+    calls = []
+
+    def focused_lookup() -> str:
+        """Read the relevant configuration."""
+        calls.append("lookup")
+        return "Verified configuration"
+
+    member.tools.append(focused_lookup)
+    member.model = BudgetProbeModel("focused_lookup", {})
+    os.manager.model = BudgetProbeModel(
+        "delegate_task_to_member",
+        {
+            "member_id": OPERATOR_ID,
+            "task": "Read the learning configuration; at most two lookups, then report evidence.",
+        },
+    )
+    result = (
+        await os.manager.arun("Explain this configuration")
+        if use_async
+        else os.manager.run("Explain this configuration")
+    )
+    assert result.content
+    assert calls == ["lookup", "lookup"]
+    assert member.model.calls == 4  # One delegation, two executions, one refusal, then an answer.
+    assert os.manager.model.calls == 3  # The second delegation is refused.
+
+
+def test_explanation_guidance_reaches_only_documentation_roles(db):
+    from agno.os import CompanyConfig
+    from agno.os.manager.prompts import EXPLANATION_INSTRUCTIONS, FOCUSED_EXECUTION_INSTRUCTIONS
+
+    os = AgentOS(
+        db=db, manager=OSManager(model=OfflineModel()), company=CompanyConfig(model=OfflineModel()), telemetry=False
+    )
+    assert EXPLANATION_INSTRUCTIONS in os.manager.instructions
+    assert EXPLANATION_INSTRUCTIONS in manager_member(os, OPERATOR_ID).instructions
+    for member_id in (BUILDER_ID, PRODUCT_MANAGER_ID):
+        instructions = manager_member(os, member_id).instructions
+        assert FOCUSED_EXECUTION_INSTRUCTIONS in instructions
+        assert EXPLANATION_INSTRUCTIONS not in instructions
+
+
+def test_standalone_product_manager_keeps_its_existing_execution_policy(db):
+    from agno.os import CompanyConfig
+    from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS
+
+    os = AgentOS(db=db, company=CompanyConfig(model=OfflineModel()), telemetry=False)
+    assert os.product_manager.tool_call_limit is None
+    assert FOCUSED_EXECUTION_INSTRUCTIONS not in os.product_manager.instructions

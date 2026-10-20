@@ -128,6 +128,21 @@ def test_default_checkpoints_are_refused_under_a_queue_worker(tmp_path, monkeypa
         _harness.coordinator(agent)
 
 
+def test_retain_checkpoints_is_validated_and_reaches_the_coordinator(tmp_path):
+    from agno.db.postgres import PostgresDb
+    from agno.sandbox.checkpoint import FileCheckpointStore
+
+    for invalid in (0, -1, 1.5, True):
+        with pytest.raises(ValueError, match="retain_checkpoints"):
+            DockerSandbox("agno-sandbox:claude", retain_checkpoints=invalid)
+    assert DockerSandbox("agno-sandbox:claude").retain_checkpoints == 3
+    db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:1/ai")
+    keep_all = DockerSandbox(
+        "agno-sandbox:claude", network="isolated", checkpoints=FileCheckpointStore(tmp_path), retain_checkpoints=None
+    )
+    assert _harness.coordinator(ClaudeAgent(id="coder", db=db, sandbox=keep_all)).retain_checkpoints is None
+
+
 def test_agentos_with_a_durable_queue_refuses_default_checkpoints_at_startup(tmp_path):
     from agno.db.postgres import PostgresDb
     from agno.job_queue import QueueConfig

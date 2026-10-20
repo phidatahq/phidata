@@ -171,7 +171,12 @@ def coordinator(agent: "BaseExternalAgent") -> "SandboxCoordinator":
     for db, existing in built:
         if db is agent.db:
             return existing
-    result = SandboxCoordinator(agent.db, sandbox, sandbox.checkpoint_transfer(store(agent)))  # type: ignore[arg-type]
+    result = SandboxCoordinator(
+        agent.db,  # type: ignore[arg-type]
+        sandbox,
+        sandbox.checkpoint_transfer(store(agent)),
+        retain_checkpoints=sandbox.retain_checkpoints,
+    )
     built.append((agent.db, result))
     return result
 

@@ -12,7 +12,7 @@ import math
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
-from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, TypeVar, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, TypeVar, Union
 from uuid import uuid4
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
@@ -66,6 +66,24 @@ _RUNTIME_RUN_FIELDS = frozenset(
         "last_checkpoint_at_message_index",
     )
 )
+
+
+def _retained(record: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The checkpoints a binding keeps, oldest first; a binding from before retention keeps its current one."""
+    kept = record.get("retained_checkpoints")
+    if kept is None:
+        kept = [record["checkpoint"]] if record.get("checkpoint") else []
+    return list(kept)
+
+
+def _retire(record: Dict[str, Any], *references: Optional[Dict[str, Any]]) -> None:
+    """Queue checkpoints for deletion from the store, never one the binding still keeps."""
+    kept = [*_retained(record), record.get("checkpoint")]
+    retired = list(record.get("retired_checkpoints") or [])
+    for reference in references:
+        if reference and reference not in kept and reference not in retired:
+            retired.append(reference)
+    record["retired_checkpoints"] = retired
 
 
 async def _drain(task: "asyncio.Future[Any]") -> None:
@@ -530,6 +548,7 @@ class _SandboxStore:
             epoch = row["epoch"] if reused_lease else row["epoch"] + 1
             opened_turn = not active
             if not active:
+                _retire(record, record.get("staged_checkpoint"))
                 # A computer kept warm by the last commit stays with its generation; the coordinator
                 # decides whether it is still usable. Otherwise the turn gets a fresh generation.
                 warm = (
@@ -740,7 +759,13 @@ class _SandboxStore:
     def confirm_stopped(self, lease: SandboxLease, provider_ref: str) -> SandboxState:
         return self._sync(self.aconfirm_stopped, lease, provider_ref)
 
-    async def acommit(self, lease: SandboxLease, *, keep_computer_until: Optional[float] = None) -> Dict[str, Any]:
+    async def acommit(
+        self,
+        lease: SandboxLease,
+        *,
+        keep_computer_until: Optional[float] = None,
+        retain_checkpoints: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """Publish the staged result and checkpoint with the run, atomically.
 
         Raises SandboxRunFinished if another writer finished the run first. Cleanup is
@@ -750,6 +775,9 @@ class _SandboxStore:
         ``keep_computer_until`` keeps the turn's computer bound to the session, paused or
         idle, so the next turn may resume it instead of restoring the checkpoint. The
         checkpoint is still the recovery point; the computer is only a shortcut to it.
+
+        ``retain_checkpoints`` bounds how many committed checkpoints the session keeps;
+        older ones are queued in ``retired_checkpoints`` for the coordinator to delete.
         """
 
         def commit(connection: Connection) -> Tuple[bool, Dict[str, Any]]:
@@ -762,6 +790,7 @@ class _SandboxStore:
                 raise SandboxError("Durable completion requires staged recovery bytes and confirmed compute cleanup")
             previous_run, session = self._service_run(connection, lease)
             if str(previous_run["status"]).upper() in _FINISHED:
+                _retire(record, record.get("staged_checkpoint"))
                 record.update(phase="idle", result=None, staged_checkpoint=None, warm_until=None)
                 connection.execute(
                     update(self.bindings)
@@ -811,9 +840,12 @@ class _SandboxStore:
                 .values(session_data=self._json(session_data), updated_at=int(time.time()))
             )
             native = result["session"].get("session_data") or {}
+            kept = [*_retained(record), record["staged_checkpoint"]]
+            dropped = kept[:-retain_checkpoints] if retain_checkpoints is not None else []
             record.update(
                 phase="idle",
                 checkpoint=record["staged_checkpoint"],
+                retained_checkpoints=kept[len(dropped) :],
                 # Native conversation ids the checkpoint holds; the next turn requires exactly these.
                 native={key: native[key] for key in NATIVE_SESSION_KEYS.values() if native.get(key)},
                 checkpoint_identity=record.get("staged_identity"),
@@ -822,6 +854,7 @@ class _SandboxStore:
                 staged_checkpoint=None,
                 warm_until=keep_computer_until,
             )
+            _retire(record, *dropped)
             connection.execute(
                 update(self.bindings)
                 .where(self._key(lease.session_id))
@@ -835,8 +868,16 @@ class _SandboxStore:
             raise SandboxRunFinished(run)
         return run
 
-    def commit(self, lease: SandboxLease, *, keep_computer_until: Optional[float] = None) -> Dict[str, Any]:
-        return self._sync(self.acommit, lease, keep_computer_until=keep_computer_until)
+    def commit(
+        self,
+        lease: SandboxLease,
+        *,
+        keep_computer_until: Optional[float] = None,
+        retain_checkpoints: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        return self._sync(
+            self.acommit, lease, keep_computer_until=keep_computer_until, retain_checkpoints=retain_checkpoints
+        )
 
     async def abegin_stop(
         self, lease: SandboxLease, *, status: str, reason: str, retryable: bool = False
@@ -913,6 +954,8 @@ class _SandboxStore:
                 if record.get("stop_retryable"):
                     # Lets the queue's next attempt of this run reopen it.
                     record["retryable_failure"] = {"run_id": lease.run_id, "queue_attempt": lease.queue_attempt}
+            # A stopped turn never publishes its staged checkpoint.
+            _retire(record, record.get("staged_checkpoint"))
             record.update(phase="idle", result=None, staged_checkpoint=None, warm_until=None)
             connection.execute(
                 update(self.bindings)
@@ -1231,6 +1274,35 @@ class _SandboxStore:
             return [tuple(row) for row in rows]
 
         return await self._transaction(expired)
+
+    async def aretired_checkpoints(self, session_id: str) -> List[Dict[str, Any]]:
+        """Checkpoints the session's binding has queued for deletion from the store."""
+
+        def read(connection: Connection) -> List[Dict[str, Any]]:
+            row = connection.execute(select(self.bindings.c.record).where(self._key(session_id))).first()
+            return list((row[0] or {}).get("retired_checkpoints") or []) if row is not None else []
+
+        await self._ensure_tables()
+        return await self._transaction(read)
+
+    async def aforget_checkpoints(self, session_id: str, references: List[Dict[str, Any]]) -> None:
+        """Drop references whose objects were deleted from the binding's retired queue."""
+
+        def forget(connection: Connection) -> None:
+            row = (
+                connection.execute(select(self.bindings).where(self._key(session_id)).with_for_update())
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                return
+            record = dict(row["record"])
+            record["retired_checkpoints"] = [
+                reference for reference in record.get("retired_checkpoints") or [] if reference not in references
+            ]
+            connection.execute(update(self.bindings).where(self._key(session_id)).values(record=self._json(record)))
+
+        await self._transaction(forget)
 
     async def arelinquish(self, lease: SandboxLease) -> None:
         """Detach the coordinator after draining its control calls; preserve ongoing execution."""

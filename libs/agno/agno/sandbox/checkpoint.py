@@ -81,7 +81,12 @@ async def _thread(
         failure = await _drain(task)
         if failure is None:
             if release is not None and not task.cancelled():
-                release(task.result())
+                try:
+                    release(task.result())
+                except Exception as error:
+                    # The cancellation stays the outcome; a cleanup that failed under it is
+                    # chained on as the diagnostic, never raised in its place.
+                    raise cancelled from error
             raise
         # Cancellation stays the outcome, but the write that died under it is still the
         # useful diagnostic, so chain it on rather than discarding it.

@@ -12,7 +12,7 @@ import os
 import tempfile
 from contextlib import ExitStack, asynccontextmanager, contextmanager
 from pathlib import Path
-from typing import Any, AsyncIterator, ContextManager, Dict, Iterator, Optional, Tuple
+from typing import Any, AsyncIterator, Dict, Iterator, Optional, Tuple
 
 from agno.sandbox.base import SandboxError
 from agno.sandbox.checkpoint import (
@@ -287,24 +287,36 @@ class S3CheckpointStore:
             path.unlink(missing_ok=True)
             raise
 
-    def _cached(self, reference: CheckpointRef) -> ContextManager[Path]:
-        """Open the object from the cache, filling it from the bucket when it is not there.
+    def _open_cached(self, reference: CheckpointRef) -> Tuple[ExitStack, Path]:
+        """Lease the object from the cache, filling it from the bucket when it is not there.
 
         The bucket is still asked whether the object exists, so a checkpoint retention
-        removed is reported missing even while a copy lingers here. A cache entry that no
-        longer matches its digest is dropped and fetched again.
+        removed is reported missing even while a copy lingers here. The lease checks the
+        cached bytes against the digest, once; an entry that fails that check is dropped
+        and fetched again, and one evicted between the fill and the lease is fetched again.
+        The returned stack holds the lease; closing it releases the lease, never the object.
         """
         assert self.cache is not None
         self.verify(reference)
-        try:
-            self.cache.verify(reference)
-        except CheckpointObjectNotFound:
-            self._fill(reference)
-        except SandboxError:
-            self.cache.delete(reference)
-            self._fill(reference)
-        os.utime(self.cache.root / reference.sha256)
-        return self.cache.open_archive(reference)
+        target = self.cache.root / reference.sha256
+        for attempt in range(2):
+            if not target.exists():
+                self._fill(reference)
+            stack = ExitStack()
+            try:
+                path = stack.enter_context(self.cache.open_archive(reference))
+            except CheckpointObjectNotFound:
+                if attempt:
+                    raise
+                continue
+            except SandboxError:
+                if attempt:
+                    raise
+                self.cache.delete(reference)
+                continue
+            os.utime(target)
+            return stack, path
+        raise AssertionError("unreachable")
 
     def _fill(self, reference: CheckpointRef) -> None:
         path = self._download(reference)
@@ -342,7 +354,8 @@ class S3CheckpointStore:
     @contextmanager
     def open_archive(self, reference: CheckpointRef) -> Iterator[Path]:
         if self.cache is not None:
-            with self._cached(reference) as path:
+            stack, path = self._open_cached(reference)
+            with stack:
                 yield path
             return
         path = self._download(reference)
@@ -351,17 +364,13 @@ class S3CheckpointStore:
         finally:
             path.unlink(missing_ok=True)
 
-    def _enter_cached(self, reference: CheckpointRef) -> Tuple[ExitStack, Path]:
-        stack = ExitStack()
-        return stack, stack.enter_context(self._cached(reference))
-
     @asynccontextmanager
     async def aopen_archive(self, reference: CheckpointRef) -> AsyncIterator[Path]:
         # _thread drains the work before a cancellation propagates and releases what it
         # finished, so nothing is left behind and nothing is removed while still in use.
         if self.cache is not None:
             # Entered in the thread: the lease verifies the cached object's digest.
-            stack, path = await _thread(self._enter_cached, reference, release=lambda opened: opened[0].close())
+            stack, path = await _thread(self._open_cached, reference, release=lambda opened: opened[0].close())
             with stack:
                 yield path
             return

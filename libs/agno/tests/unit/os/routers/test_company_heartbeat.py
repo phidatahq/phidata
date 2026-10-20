@@ -409,6 +409,71 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
     db.close()
 
 
+def test_members_add_routines_to_products_they_do_not_own_under_isolation(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from agno.os.config import AuthorizationConfig
+
+    secret = "member-routines-isolation-secret"
+    scopes = [
+        "products:read",
+        "products:write",
+        "products:delete",
+        "routines:read",
+        "routines:write",
+        "schedules:write",
+    ]
+
+    def headers(user):
+        claims = {
+            "sub": user,
+            "aud": "member-routines",
+            "scopes": [*scopes, "agents:reader:run"],
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+        return {"Authorization": "Bearer " + jwt.encode(claims, secret, algorithm="HS256")}
+
+    db = SqliteDb(db_file=str(tmp_path / "members.db"))
+    os = AgentOS(
+        id="member-routines",
+        db=db,
+        agents=[Agent(id="reader", telemetry=False)],
+        company=CompanyConfig(products=[Product(id="declared", name="Declared")]),
+        telemetry=False,
+        authorization=True,
+        authorization_config=AuthorizationConfig(verification_keys=[secret], algorithm="HS256", user_isolation=True),
+    )
+    body = dict(name="intake", template="intake", executor_type="agent", executor_id="reader")
+    with TestClient(os.get_app()) as client:
+        owned = client.post("/company/products", headers=headers("alice"), json={"name": "Alice's"}).json()
+        for product_id in ("declared", owned["id"]):
+            created = client.post("/company/routines", headers=headers("bob"), json={**body, "product_id": product_id})
+            assert created.status_code == 201, created.text
+            routine = created.json()
+            assert routine["user_id"] == "bob"
+            assert routine["id"] in db.get_product(product_id)["metadata"]["routine_ids"]
+            path = "/company/routines/" + routine["id"]
+            # The creator manages their Routine; the Product owner does not inherit it.
+            assert (
+                client.patch(path, headers=headers("bob"), json={"instructions": "Report changes"}).status_code == 200
+            )
+            assert client.post(path + "/pause", headers=headers("bob")).json()["enabled"] is False
+            assert client.post(path + "/resume", headers=headers("bob")).json()["enabled"] is True
+            assert client.post(path + "/pause", headers=headers("alice")).status_code == 403
+        # Product writes stay owner-only.
+        assert client.patch("/company/products/declared", headers=headers("bob"), json={"name": "x"}).status_code == 403
+        assert (
+            client.patch("/company/products/" + owned["id"], headers=headers("bob"), json={"name": "x"}).status_code
+            == 403
+        )
+        client.delete("/company/products/" + owned["id"], headers=headers("alice")).raise_for_status()
+        archived = client.post("/company/routines", headers=headers("bob"), json={**body, "product_id": owned["id"]})
+        assert archived.status_code == 404
+    db.close()
+
+
 @pytest.mark.parametrize("failure", ["create_schedule", "add_product_routine"])
 def test_setup_retry_repairs_partial_records_and_retains_edits(system, tmp_path, monkeypatch, failure):
     client, os, db = system
@@ -871,12 +936,9 @@ def test_pending_routine_creation_cannot_be_recovered_by_another_creator(tmp_pat
         assert pending["user_id"] == "alice"
         monkeypatch.setattr(db, "add_product_routine", original)
         bob = client.post("/company/routines", json=body, headers=headers("bob"))
-        if isolation:
-            assert bob.status_code == 403
-        else:
-            # Scheduler names are per creator: Bob can create his own, but cannot recover Alice's.
-            assert bob.status_code == 201, bob.text
-            assert bob.json()["id"] != pending["id"]
+        # Scheduler names are per creator: Bob can create his own, but cannot recover Alice's.
+        assert bob.status_code == 201, bob.text
+        assert bob.json()["id"] != pending["id"] and bob.json()["user_id"] == "bob"
         assert db.get_schedule(pending["id"])["enabled"] is False
         alice = client.post("/company/routines", json=body, headers=headers("alice"))
         assert alice.status_code == 201, alice.text

@@ -965,7 +965,8 @@ def test_internal_identity_metadata_reaches_discovery_detail_and_runs(db, worksp
         rows += client.get("/agents").json() + client.get("/teams").json()
         team = client.get(f"/teams/{MANAGER_TEAM_ID}").json()
         rows.append(team)
-        assert not team.get("members")
+        assert [member["id"] for member in team["members"]] == [BUILDER_ID, OPERATOR_ID]
+        rows.extend(team["members"])
         assert [agent["id"] for agent in config["agents"]] == ["ordinary"]
         assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
         assert not {BUILDER_ID, OPERATOR_ID}.intersection(config["manifest"])
@@ -1568,16 +1569,44 @@ def test_manager_member_confirmation_continues_through_manager(db, stream):
     assert any(run.get("agent_id") == OPERATOR_ID for run in history)
 
 
-@pytest.mark.asyncio
-async def test_team_detail_hides_only_framework_owned_members():
-    from agno.os.routers.teams.schema import TeamResponse
-    from agno.team import Team
+@pytest.mark.parametrize("company_enabled", [False, True])
+def test_manager_details_show_members_without_exposing_them_in_registry(db, company_enabled):
+    from agno.company import CompanyConfig
 
-    member = Agent(id=OPERATOR_ID, model=OfflineModel())
-    team = Team(id="ordinary", members=[member], model=OfflineModel())
-    assert (await TeamResponse.from_team(team)).members
-    member._registry_excluded = True
-    assert not (await TeamResponse.from_team(team)).members
+    ordinary = Agent(id="ordinary", model=OfflineModel())
+    registry = Registry(models=[OfflineModel()])
+    os = AgentOS(
+        db=db,
+        agents=[ordinary],
+        registry=registry,
+        manager=OSManager(access_docs=False),
+        company=CompanyConfig() if company_enabled else None,
+        telemetry=False,
+    )
+    app = os.get_app()
+    client = TestClient(app)
+    expected_ids = [BUILDER_ID, OPERATOR_ID, *([PRODUCT_MANAGER_ID] if company_enabled else [])]
+    expected_names = ["Platform Builder", "Platform Manager", *(["Product Manager"] if company_enabled else [])]
+
+    for resync in (False, True):
+        if resync:
+            os.resync(app)
+        detail = client.get(f"/teams/{MANAGER_TEAM_ID}")
+        assert detail.status_code == 200, detail.text
+        listing = client.get("/teams")
+        assert listing.status_code == 200, listing.text
+        listed_manager = next(team for team in listing.json() if team["id"] == MANAGER_TEAM_ID)
+        for team in (detail.json(), listed_manager):
+            assert [member["id"] for member in team["members"]] == expected_ids
+            assert [member["name"] for member in team["members"]] == expected_names
+
+        assert [agent.id for agent in registry.agents] == ["ordinary"]
+        assert registry.teams == []
+        assert all(registry.is_component_excluded(member) for member in os.manager.members)
+        assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
+        assert [agent["id"] for agent in client.get("/config").json()["agents"]] == ["ordinary"]
+        for component_id in (BUILDER_ID, OPERATOR_ID):
+            assert client.get(f"/agents/{component_id}").status_code == 422
 
 
 @pytest.mark.parametrize("kind", ["agent", "team", "workflow"])

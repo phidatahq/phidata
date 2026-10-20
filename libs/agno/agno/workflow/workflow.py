@@ -46,6 +46,7 @@ from agno.media.storage.base import AsyncMediaStorage, MediaStorage
 from agno.metrics import RunMetrics, SessionMetrics
 from agno.models.message import Message
 from agno.registry import Registry
+from agno.registry._reserved import RESERVED_MANAGER_IDS, _reserved_manager_id_message
 from agno.run import CancellationStage, RunContext, RunStatus
 from agno.run.agent import (
     RunCancelledEvent as AgentRunCancelledEvent,
@@ -1514,6 +1515,11 @@ class Workflow:
         Returns:
             The workflow loaded from the database or None if not found.
         """
+        from agno.exceptions import ComponentRehydrationError
+
+        if id in RESERVED_MANAGER_IDS:
+            raise ComponentRehydrationError(_reserved_manager_id_message(id))
+
         if published_only and version is None and label is None:
             # Dispatch semantics on demand: resolve strictly through the live
             # pointer instead of the current-or-latest-draft read fallback.
@@ -11960,9 +11966,13 @@ def get_workflow_by_id(
         Workflow instance or None.
 
     Raises:
-        ComponentRehydrationError: If strict and a registry reference cannot be resolved.
+        ComponentRehydrationError: If the ID is reserved for OS Manager, or if strict
+            and a registry reference cannot be resolved.
     """
     from agno.exceptions import ComponentRehydrationError
+
+    if id in RESERVED_MANAGER_IDS:
+        raise ComponentRehydrationError(_reserved_manager_id_message(id))
 
     try:
         from agno.utils.component_scope import component_owner_scope
@@ -12050,6 +12060,7 @@ def get_workflows(
         exclude_component_ids: Component IDs to exclude from results.
         user_id: If set, only load workflows owned by this user, unowned (shared), or published.
     """
+    exclude_component_ids = set(exclude_component_ids or ()) | RESERVED_MANAGER_IDS
     workflows: List[Workflow] = []
     try:
         from agno.utils.component_scope import component_owner_scope

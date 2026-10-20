@@ -1536,6 +1536,12 @@ class OpenAIResponses(Model):
             if stream_event.response.usage is not None:
                 model_response.response_usage = self._get_metrics(stream_event.response.usage)
 
+        # 5b. A stream cut short by max_output_tokens or a content filter ends as
+        # response.incomplete. It carries the same usage envelope, so record it.
+        elif stream_event.type == "response.incomplete":
+            if stream_event.response.usage is not None:
+                model_response.response_usage = self._get_metrics(stream_event.response.usage)
+
         return model_response, tool_use
 
     def _get_metrics(self, response_usage: ResponseUsage) -> MessageMetrics:

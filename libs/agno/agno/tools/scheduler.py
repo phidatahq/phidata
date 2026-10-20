@@ -26,7 +26,7 @@ from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 from urllib.parse import unquote, urlsplit
 
-from agno.db.schemas.scheduler import RUN_ENDPOINT_RE, Schedule, match_run_endpoint
+from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID, RUN_ENDPOINT_RE, Schedule, match_run_endpoint
 from agno.registry._reserved import RESERVED_MEMBER_IDS
 from agno.run import RunContext
 from agno.run.authorization import public_payload, requires_permission
@@ -42,6 +42,22 @@ def _manager_member_refusal(endpoint: str) -> Optional[str]:
     if len(parts) >= 2 and parts[0] in ("agents", "teams", "workflows") and parts[1] in RESERVED_MEMBER_IDS:
         return "Manager specialists are internal. Schedule OS Manager instead."
     return None
+
+
+def _company_routine_refusal(schedule: Any) -> Optional[str]:
+    """Company Routines stay linked to their Product, so only Company may change them."""
+    if (
+        schedule is None
+        or getattr(schedule, "managed_by", None) != "company"
+        or schedule.id == COMPANY_AUTOMATION_SCHEDULE_ID
+    ):
+        return None
+    return json.dumps(
+        {
+            "error": f"Schedule {schedule.id} is a Company Routine. Change it through Company Routines.",
+            "error_type": "company_routine",
+        }
+    )
 
 
 def _parse_target_archived_reason(disabled_reason: Optional[str]) -> Optional[Tuple[str, str]]:
@@ -769,6 +785,9 @@ class SchedulerTools(Toolkit):
             str: JSON string confirming deletion.
         """
         try:
+            routine_refusal = _company_routine_refusal(self.manager.get(schedule_id, user_id=self._owner(run_context)))
+            if routine_refusal:
+                return routine_refusal
             deleted = self.manager.delete(schedule_id, user_id=self._owner(run_context))
             if deleted:
                 return json.dumps({"status": "deleted", "id": schedule_id})
@@ -791,6 +810,9 @@ class SchedulerTools(Toolkit):
             existing = self.manager.get(schedule_id, user_id=self._owner(run_context))
             if existing is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
+            routine_refusal = _company_routine_refusal(existing)
+            if routine_refusal:
+                return routine_refusal
             private_target = _manager_member_refusal(existing.endpoint)
             if private_target:
                 return json.dumps({"error": private_target, "error_type": "target_internal"})
@@ -871,6 +893,9 @@ class SchedulerTools(Toolkit):
             str: JSON string with the updated schedule details.
         """
         try:
+            routine_refusal = _company_routine_refusal(self.manager.get(schedule_id, user_id=self._owner(run_context)))
+            if routine_refusal:
+                return routine_refusal
             schedule = self.manager.disable(schedule_id, user_id=self._owner(run_context))
             if schedule is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
@@ -1149,6 +1174,11 @@ class SchedulerTools(Toolkit):
             str: JSON string confirming deletion.
         """
         try:
+            routine_refusal = _company_routine_refusal(
+                await self.manager.aget(schedule_id, user_id=self._owner(run_context))
+            )
+            if routine_refusal:
+                return routine_refusal
             deleted = await self.manager.adelete(schedule_id, user_id=self._owner(run_context))
             if deleted:
                 return json.dumps({"status": "deleted", "id": schedule_id})
@@ -1171,6 +1201,9 @@ class SchedulerTools(Toolkit):
             existing = await self.manager.aget(schedule_id, user_id=self._owner(run_context))
             if existing is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})
+            routine_refusal = _company_routine_refusal(existing)
+            if routine_refusal:
+                return routine_refusal
             private_target = _manager_member_refusal(existing.endpoint)
             if private_target:
                 return json.dumps({"error": private_target, "error_type": "target_internal"})
@@ -1251,6 +1284,11 @@ class SchedulerTools(Toolkit):
             str: JSON string with the updated schedule details.
         """
         try:
+            routine_refusal = _company_routine_refusal(
+                await self.manager.aget(schedule_id, user_id=self._owner(run_context))
+            )
+            if routine_refusal:
+                return routine_refusal
             schedule = await self.manager.adisable(schedule_id, user_id=self._owner(run_context))
             if schedule is None:
                 return json.dumps({"error": f"Schedule not found: {schedule_id}"})

@@ -126,6 +126,17 @@ def validate(agent: "BaseExternalAgent") -> None:
     submission(agent, "validate", {})
 
 
+def check_queue_checkpoints(agent: "BaseExternalAgent") -> None:
+    """Refuse the host-local checkpoint default for an agent a durable queue serves."""
+    if _sandbox(agent).checkpoints is None:
+        # A durable queue hands retries to any replica, and a replica cannot restore from this
+        # host's disk; refusing here is cheaper than a recovery that fails later somewhere else.
+        raise ValueError(
+            f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}, which other queue replicas cannot "
+            "read and which does not survive losing this host; pass checkpoints= to the sandbox"
+        )
+
+
 def store(agent: "BaseExternalAgent") -> "CheckpointStore":
     """The checkpoint store this agent's turns write to: the sandbox's own, else the file default.
 
@@ -142,12 +153,7 @@ def store(agent: "BaseExternalAgent") -> "CheckpointStore":
     from agno.sandbox.checkpoint import FileCheckpointStore
 
     if get_active_queue_worker() is not None:
-        # A durable queue hands retries to any replica, and a replica cannot restore from this
-        # host's disk; refusing here is cheaper than a recovery that fails later somewhere else.
-        raise ValueError(
-            f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}, which other queue replicas cannot "
-            "read and which does not survive losing this host; pass checkpoints= to the sandbox"
-        )
+        check_queue_checkpoints(agent)
     log_warning(
         f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}; pass checkpoints= to the sandbox before "
         "running more than one host"

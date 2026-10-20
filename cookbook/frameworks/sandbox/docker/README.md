@@ -30,7 +30,7 @@ AGNO_TEST_SANDBOX_SUBNET=10.213.0.0/22 AGNO_TEST_RUNTIME_IMAGE=agno-sandbox:loca
 
 Every process sharing the host's bridge must use the same subnet; remove the bridge with `remove_network` while nothing is attached before changing it.
 
-`sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. It names its checkpoint store explicitly: with a queue, any replica may run the next attempt, so the default host-local store is refused.
+`sandbox_claude_agentos.py` serves the same agent through AgentOS with a durable queue (Postgres and Redis). Every API request submits to the queue, a dropped connection does not cancel the turn, and a second request on the same session waits for the first. With a queue, any replica may run the next attempt, so AgentOS refuses the host-local default store at startup. Set `AGNO_SANDBOX_CHECKPOINT_BUCKET` to keep checkpoints in S3, which every replica can read; unset, the cookbook names a directory on this host, which only a single replica can use.
 
 ## Checkpoints in S3
 

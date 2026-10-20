@@ -28,12 +28,17 @@ from agno.run.agent import (
 )
 from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
-from agno.sandbox.checkpoint import CheckpointRef
+from agno.sandbox.checkpoint import CheckpointObjectNotFound, CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
 from agno.sandbox.media import decode_media, encode_media
 from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore, _settled
 from agno.sandbox.protocol import NATIVE_SESSION_KEYS
 from agno.sandbox.transfer import CheckpointTransfer
+
+_CHECKPOINT_MISSING = (
+    "This session's sandbox checkpoint is missing from checkpoint storage, so its workspace and conversation "
+    "cannot be restored; start a new session, and check that every replica uses the same checkpoints= store"
+)
 
 
 class SandboxCoordinator:
@@ -501,6 +506,16 @@ class SandboxCoordinator:
                         restored = await self.transfer.arestore(handle, CheckpointRef(**record["checkpoint"]))
                         if restored.get("binding") != record.get("checkpoint_identity"):
                             raise SandboxError("Checkpoint manifest does not match committed session identity")
+                except CheckpointObjectNotFound:
+                    # No retry can bring the object back; stop the turn instead of failing every attempt.
+                    record.update(
+                        phase="stopping",
+                        stop_status="ERROR",
+                        stop_reason=_CHECKPOINT_MISSING,
+                        computer=asdict(handle),
+                        computer_stopped=False,
+                    )
+                    return record
                 except BaseException:
                     await self.provider.adestroy(handle)
                     raise

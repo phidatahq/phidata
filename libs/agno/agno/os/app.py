@@ -1171,6 +1171,8 @@ class AgentOS:
 
                     # Fail at startup, not on the first run, when the sandbox has no Postgres to coordinate on.
                     _harness._check_db(entry)
+                    if self.queue is not None and self.queue.durable:
+                        _harness.check_queue_checkpoints(entry)
 
         # Manager specialists need normal initialization, but are not served agents.
         agents_to_initialize = [*self._agents, *(self._manager.agents if self._manager else [])]

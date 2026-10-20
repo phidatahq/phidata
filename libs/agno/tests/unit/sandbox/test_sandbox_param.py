@@ -128,6 +128,24 @@ def test_default_checkpoints_are_refused_under_a_queue_worker(tmp_path, monkeypa
         _harness.coordinator(agent)
 
 
+def test_agentos_with_a_durable_queue_refuses_default_checkpoints_at_startup(tmp_path):
+    from agno.db.postgres import PostgresDb
+    from agno.job_queue import QueueConfig
+    from agno.os import AgentOS
+    from agno.sandbox.checkpoint import FileCheckpointStore
+
+    db = PostgresDb(db_url="postgresql+psycopg://ai:ai@localhost:1/ai")
+    unset = ClaudeAgent(id="coder", db=db, sandbox=DockerSandbox("agno-sandbox:claude", network="isolated"))
+    with pytest.raises(ValueError, match="checkpoints="):
+        AgentOS(agents=[unset], db=db, queue=QueueConfig(durable=True), telemetry=False)
+    named = DockerSandbox("agno-sandbox:claude", network="isolated", checkpoints=FileCheckpointStore(tmp_path))
+    AgentOS(
+        agents=[ClaudeAgent(id="coder", db=db, sandbox=named)], db=db, queue=QueueConfig(durable=True), telemetry=False
+    )
+    # Without a durable queue the host-local default stays allowed.
+    AgentOS(agents=[unset], db=db, telemetry=False)
+
+
 @pytest.mark.asyncio
 async def test_sandbox_env_overrides_the_host_model_key(coordinator, monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "host-key")

@@ -318,6 +318,8 @@ Coordinator review follow-up: native transcript-mirror warnings and lost pre-che
 
 **Result:** Passed. The background turn COMPLETED with a checkpoint on the run row; the streamed turn returned four events ending in RunCompleted with the file name from turn 1; no containers were left running and the server log had no errors.
 
+Re-run on 20 October 2026 with the store chosen by `AGNO_SANDBOX_CHECKPOINT_BUCKET` (unset, so the single-replica local directory), on a fresh database and a dedicated Redis. AgentOS started, and a background turn COMPLETED with a checkpoint on the run row. Then the session's warm container and its checkpoint object were removed, and a second turn ended ERROR with the missing-checkpoint message, `retryable` false, its ticket failed after one attempt, and no container left for the session. The S3 branch was not run.
+
 ---
 
 ### Warm turns: session_computer.py, cancel_turn.py, resume_after_disconnect.py

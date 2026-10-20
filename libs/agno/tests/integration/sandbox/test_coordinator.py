@@ -430,6 +430,21 @@ async def test_restore_missing_native_state_fails_before_the_turn_runs(system, m
     assert await recovered_effects(coordinator, root) == ["first"]
 
 
+async def test_missing_checkpoint_object_ends_the_turn_without_a_retry(system):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    committed = (await binding(coordinator))["record"]["checkpoint"]
+    await coordinator.transfer.store.adelete(CheckpointRef(**committed))
+    second = await run(coordinator, spec, "second")
+    assert second.status == RunStatus.error and "checkpoint is missing" in second.content
+    assert second.metadata["retryable"] is False
+    record = (await binding(coordinator))["record"]
+    assert record["phase"] == "idle" and record["checkpoint"] == committed
+    # The computer created for the restore is retired with the turn.
+    assert len(handles_of(coordinator)) == 2
+    assert await coordinator.provider.aget(handles_of(coordinator)[1].provider_ref) is None
+
+
 async def test_completion_without_native_conversation_cannot_publish(system, monkeypatch):
     coordinator, spec, _ = system
     poll = coordinator.client.apoll

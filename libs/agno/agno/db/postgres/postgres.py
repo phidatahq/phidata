@@ -2948,7 +2948,7 @@ class PostgresDb(BaseDb):
                 return starting_date
 
         # 2. No metrics records. Return the date of the first recorded session.
-        # Queried directly rather than through get_sessions, which hides read errors behind an empty result
+        # Queried directly rather than through get_sessions, which also counts and loads runs
         sessions_table = self._get_table(table_type="sessions")
         if sessions_table is None:
             return None

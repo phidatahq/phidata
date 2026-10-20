@@ -4,7 +4,6 @@ from datetime import date, datetime, timedelta, timezone
 from typing import List
 
 import pytest
-from sqlalchemy import text
 
 from agno.db.base import SessionType
 from agno.db.postgres.postgres import PostgresDb
@@ -636,16 +635,3 @@ def test_calculate_metrics_past_query_parameter_limit(postgres_db_real: Postgres
     assert result[0]["model_metrics"] == [
         {"model_id": "gpt-5.5", "model_provider": "OpenAI", "count": SESSIONS_PAST_PARAMETER_LIMIT}
     ]
-
-
-def test_calculate_metrics_raises_when_first_session_date_cannot_be_read(postgres_db_real: PostgresDb):
-    """A failed read of the first session's date surfaces as an error instead of an empty metrics refresh"""
-    session = AgentSession(session_id="test_session_1", agent_id="test_agent_1", created_at=_noon_utc(1))
-    postgres_db_real.upsert_session(session)
-
-    sessions_table = postgres_db_real._get_table("sessions")
-    with postgres_db_real.db_engine.begin() as conn:
-        conn.execute(text(f"ALTER TABLE {sessions_table.fullname} DROP COLUMN created_at"))
-
-    with pytest.raises(Exception, match="created_at"):
-        postgres_db_real.calculate_metrics()

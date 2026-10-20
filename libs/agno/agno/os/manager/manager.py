@@ -9,6 +9,7 @@ from agno.agent import Agent
 from agno.os.manager.config import OSManager
 from agno.os.manager.prompts import (
     BUILDER_INSTRUCTIONS,
+    EXPLANATION_INSTRUCTIONS,
     FOCUSED_EXECUTION_INSTRUCTIONS,
     MANAGER_INSTRUCTIONS,
     OPERATOR_INSTRUCTIONS,
@@ -213,7 +214,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
 
     operator_tools = [AgentOSTools(db=db), _diagnostics_tool(agent_os, config.required_env)]
     docs_tools: List[Any] = []
-    operator_instructions = [OPERATOR_INSTRUCTIONS, FOCUSED_EXECUTION_INSTRUCTIONS]
+    operator_instructions = [OPERATOR_INSTRUCTIONS, FOCUSED_EXECUTION_INSTRUCTIONS, EXPLANATION_INSTRUCTIONS]
     if workspace is not None:
         operator_tools.extend(workspace.get_tools())
         operator_instructions.append(workspace.instructions())
@@ -245,7 +246,7 @@ def _build_manager(agent_os: "AgentOS", config: OSManager) -> _Manager:
     )
 
     members: List[Any] = [builder, operator]
-    instructions: List[str] = [MANAGER_INSTRUCTIONS, FOCUSED_EXECUTION_INSTRUCTIONS]
+    instructions: List[str] = [MANAGER_INSTRUCTIONS, FOCUSED_EXECUTION_INSTRUCTIONS, EXPLANATION_INSTRUCTIONS]
     if config.instructions:
         instructions.append(config.instructions)
     team = Team(

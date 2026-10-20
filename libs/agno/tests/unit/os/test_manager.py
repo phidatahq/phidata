@@ -1801,6 +1801,21 @@ async def test_manager_limits_apply_on_both_sides_of_delegation(db, use_async):
     assert os.manager.model.calls == 3  # The second delegation is refused.
 
 
+def test_explanation_guidance_reaches_only_documentation_roles(db):
+    from agno.os import CompanyConfig
+    from agno.os.manager.prompts import EXPLANATION_INSTRUCTIONS, FOCUSED_EXECUTION_INSTRUCTIONS
+
+    os = AgentOS(
+        db=db, manager=OSManager(model=OfflineModel()), company=CompanyConfig(model=OfflineModel()), telemetry=False
+    )
+    assert EXPLANATION_INSTRUCTIONS in os.manager.instructions
+    assert EXPLANATION_INSTRUCTIONS in manager_member(os, OPERATOR_ID).instructions
+    for member_id in (BUILDER_ID, PRODUCT_MANAGER_ID):
+        instructions = manager_member(os, member_id).instructions
+        assert FOCUSED_EXECUTION_INSTRUCTIONS in instructions
+        assert EXPLANATION_INSTRUCTIONS not in instructions
+
+
 def test_standalone_product_manager_keeps_its_existing_execution_policy(db):
     from agno.os import CompanyConfig
     from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS

@@ -719,3 +719,21 @@ All tests and full format/validation scripts pass. Live-model checks above preda
 this simplification and were not rerun.
 
 ---
+
+## Shared prompt scope, 2026-10-20
+
+### Manager regressions
+
+**Status:** PASS
+
+**Description:** Reduced the shared member guidance to scope, stopping, evidence
+and execution rules. Framework-explanation guidance now reaches only the lead and
+Platform Manager, which have documentation access, and no longer names specific
+questions. Removed the four-call explanation allowance, which asked the lead to
+count member calls and read-backs it cannot observe.
+
+**Result:** The manager unit suite passes, including a new check that Platform
+Builder and Product Manager receive the shared rules but not the explanation
+guidance. Live-model checks were not rerun for this change.
+
+---

@@ -2915,10 +2915,18 @@ class Workflow:
 
         try:
             return func(**call_kwargs)
-        except TypeError:
-            # If signature inspection fails, fall back to original method
-            logger.exception("Function signature inspection failed. Falling back to original calling convention.")
-            return func(**kwargs)
+        except TypeError as exc:
+            # call_kwargs is built from inspect.signature, so a TypeError raised by a
+            # call that binds fine comes from the function's body and must propagate:
+            # re-invoking here would run its side effects twice (a charge, an email, a
+            # DB write) or hide the real error behind a misleading one. Fall back to
+            # the original calling convention only when the call cannot bind.
+            try:
+                sig.bind(**call_kwargs)
+            except TypeError:
+                logger.exception("Function signature inspection failed. Falling back to original calling convention.")
+                return func(**kwargs)
+            raise
 
     def _accumulate_partial_step_data(
         self, event: Union[RunContentEvent, TeamRunContentEvent], partial_step_content: str
@@ -3892,18 +3900,24 @@ class Workflow:
             else:
                 # For regular async functions, await the result
                 return await func(**call_kwargs)  # type: ignore
-        except TypeError as e:
-            # If signature inspection fails, fall back to original method
-            log_warning(
-                f"Async function signature inspection failed. Falling back to original calling convention.: {str(e)}"
-            )
+        except TypeError as exc:
+            # See _call_custom_function: a TypeError from a call that binds fine comes
+            # from the function's body and must propagate — re-invoking would run its
+            # side effects twice. Fall back only when the call cannot bind.
+            try:
+                sig.bind(**call_kwargs)
+            except TypeError:
+                log_warning(
+                    f"Async function signature inspection failed. Falling back to original calling convention.: {str(exc)}"
+                )
 
-            if isasyncgenfunction(func):
-                # For async generators, use the same signature inspection logic in fallback
-                return func(**call_kwargs)  # type: ignore
-            else:
-                # For regular async functions, use the same signature inspection logic in fallback
-                return await func(**call_kwargs)  # type: ignore
+                if isasyncgenfunction(func):
+                    # For async generators, use the same signature inspection logic in fallback
+                    return func(**call_kwargs)  # type: ignore
+                else:
+                    # For regular async functions, use the same signature inspection logic in fallback
+                    return await func(**call_kwargs)  # type: ignore
+            raise
 
     async def _aload_or_create_session(
         self, session_id: str, user_id: Optional[str], session_state: Optional[Dict[str, Any]]

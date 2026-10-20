@@ -681,3 +681,32 @@ or a guarantee of factual accuracy on every run. The Best Buy application prompt
 was not enlarged; integration used this checkout as the framework dependency.
 
 ---
+
+## Template without appended manager instructions, 2026-10-20
+
+**Status:** PASS for four manager scenarios; Company proposal state check failed.
+
+**Description:** Removed Railway's entire application manager prompt and exercised
+its existing isolated PostgreSQL cases with GPT-6.1 Sol. The unknown-file
+configuration lookup initially spent its budget listing/searching. A follow-up
+found the definitions but passed four calls to a specialist in addition to the
+delegation. Shared framework guidance now prioritizes reading definitions after
+one targeted search and subtracts the delegation from the explanation budget.
+Basic explanations explicitly stay within 200 words unless more detail is asked.
+
+**Result:** Targeted runs passed learning explanation, configured learning,
+README onboarding and read-only diagnostics without application-component
+execution. The template supplied no manager instructions or configuration-path
+hint. The configured-learning answer passed both evidence/budget checks and its
+semantic judge. The separate Product Manager fixture produced one unaccepted
+Project/Task with correct source evidence, but its strict business-state check
+failed after a decision-log write; this is not a full release-suite pass.
+
+The template's 26 offline/PostgreSQL tests and full formatting/type checks passed
+before concurrent template refactoring. The framework manager suite passed 255
+tests and full format/validation passed. A superseded rehearsal was invalidated
+by changing its test environment installation while it was still running; those
+runtime errors are excluded from the targeted validation above. No hosted rollout
+or template-runtime restart was performed.
+
+---

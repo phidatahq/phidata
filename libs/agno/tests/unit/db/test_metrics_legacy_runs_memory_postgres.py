@@ -23,6 +23,7 @@ from agno.db.migrations.manager import MigrationManager
 pytest.importorskip("psycopg")
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb  # noqa: E402
+from agno.session.agent import AgentSession  # noqa: E402
 
 DB_URL = "postgresql+psycopg://ai:ai@localhost:5532/ai"
 SESSIONS_TABLE = "agno_sessions"
@@ -143,12 +144,16 @@ async def test_metrics_count_migrated_and_unmigrated_runs_once(schema, mode):
     await _migrate(schema)
     # Added after the migration, so these runs exist only in the legacy column
     _seed_legacy_sessions(schema, SMALL_SESSIONS, first=SMALL_SESSIONS + 1)
+    # Written by v3 after the upgrade, so its legacy runs column is NULL
+    PostgresDb(db_url=DB_URL, db_schema=schema, session_table=SESSIONS_TABLE).upsert_session(
+        AgentSession(session_id="v3_session", agent_id="a1", user_id="u1", created_at=int(time.time()) - 86400)
+    )
 
     result = await _calculate_metrics(_db(mode, schema))
 
     assert result is not None and len(result) == 1
     expected_runs = 2 * SMALL_SESSIONS * RUNS_PER_SESSION
-    assert result[0]["agent_sessions_count"] == 2 * SMALL_SESSIONS
+    assert result[0]["agent_sessions_count"] == 2 * SMALL_SESSIONS + 1
     assert result[0]["agent_runs_count"] == expected_runs
     assert result[0]["model_metrics"] == [{"model_id": "gpt-5.5", "model_provider": "OpenAI", "count": expected_runs}]
 

@@ -2904,7 +2904,7 @@ class PostgresDb(BaseDb):
                     legacy_run = func.jsonb_array_elements(
                         case(
                             (func.jsonb_typeof(legacy_runs) == "array", legacy_runs),
-                            else_=sa_cast("[]", postgresql.JSONB),
+                            else_=func.jsonb_build_array(),
                         ),
                         type_=postgresql.JSONB,
                     ).column_valued("legacy_run", joins_implicitly=True)

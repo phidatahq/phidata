@@ -341,6 +341,10 @@ class DockerCheckpointTransfer:
                 raise SandboxError("Restore requires an empty, unused generation")
             await self._pause(handle)
             try:
+                # This is the in-computer restore: docker cp extracts the tar as written, so
+                # symlinks to absolute paths, such as a virtualenv's interpreter link, come back
+                # verbatim. Moving this onto CheckpointArchive.restore would drop them unless it
+                # passed absolute_links=True.
                 await self._copy(handle, "-", handle.provider_ref + ":/workspace", input_file=root / "workspace.tar")
                 await self._copy(handle, "-", handle.provider_ref + ":/runtime/native", input_file=root / "native.tar")
                 await self._unpause(handle)

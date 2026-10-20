@@ -21,6 +21,14 @@ def _routine_provenance(routine: Any) -> Dict[str, str]:
     return {"managed_by": "company", "target_type": routine.executor_type, "target_id": routine.executor_id}
 
 
+def _without_routine_links(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Routine links change only through Routine create and removal, never a metadata edit."""
+    metadata = fields.get("metadata")
+    if not isinstance(metadata, dict) or "routine_ids" not in metadata:
+        return fields
+    return {**fields, "metadata": {key: value for key, value in metadata.items() if key != "routine_ids"}}
+
+
 def _project_proposal_id(product_id: str, name: str) -> Optional[str]:
     from uuid import NAMESPACE_URL, uuid5
 
@@ -183,9 +191,9 @@ class CompanyManager:
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        """Update name, purpose or metadata on an active Product."""
+        """Update name, purpose or metadata on an active Product; linked Routine ids are kept."""
         validate_product_fields(fields)
-        return self.db.update_product(product_id, user_id=user_id, **fields)
+        return self.db.update_product(product_id, user_id=user_id, **_without_routine_links(fields))
 
     def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
         """Archive a Product and its children atomically; active Tasks raise ValueError."""
@@ -1074,9 +1082,9 @@ class AsyncCompanyManager:
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     async def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        """Update name, purpose or metadata on an active Product."""
+        """Update name, purpose or metadata on an active Product; linked Routine ids are kept."""
         validate_product_fields(fields)
-        return await self.db.update_product(product_id, user_id=user_id, **fields)
+        return await self.db.update_product(product_id, user_id=user_id, **_without_routine_links(fields))
 
     async def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
         """Archive a Product and its children atomically; active Tasks raise ValueError."""

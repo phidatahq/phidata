@@ -349,3 +349,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All 82 manager Routine tests passed on Python 3.12 and Python 3.10, including 13 new regression cases; seven new cases failed before the fix. Another 729 Company, manager and scheduler unit cases passed. SQLite chat integration passed nine cases, with three unsupported synchronous-tool/asynchronous-database cases skipped. Both cookbook checks, the full format script, clean Python 3.10 validation and whitespace checks passed. Formatting-only changes to two unrelated baseline files were excluded. PostgreSQL queue integration was not rerun for this follow-up. No paid model calls.
 
 ---
+
+### 05_company_manager.py and 10_weekly_product_review.py — Company Manager rename and Routine executor rule (2026-10-20)
+
+**Status:** PASS
+
+**Description:** Product Manager is renamed Company Manager (`company-manager-internal`); `product-manager-internal` stays reserved and `AgentOS.product_manager` is a deprecated alias. Company Manager is the only framework manager that can execute a Routine. Ran `05_company_manager.py`, `10_weekly_product_review.py --check` and `--check --with-os-manager`.
+
+**Result:** All three runs passed without model calls; both weekly variants persist `/agents/company-manager-internal/runs`. Offline tests cover refusal of OS Manager, both specialists and the legacy id through the endpoint resolver, bootstrap, the Routine API and human chat tools, with no partial Product written.
+
+---

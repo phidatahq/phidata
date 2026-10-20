@@ -176,23 +176,18 @@ async def _afailed_routines(db: Any, products: Any) -> int:
 
 
 def _routine_executor_endpoint(executor_type: str, executor_id: str, registry: Any, *, agent_os: Any = None) -> str:
-    from agno.registry._reserved import MANAGER_TEAM_ID, PRODUCT_MANAGER_ID, RESERVED_MANAGER_IDS
+    from agno.registry._reserved import COMPANY_MANAGER_ID, RESERVED_MANAGER_IDS
 
-    if executor_id == PRODUCT_MANAGER_ID:
+    if executor_id == COMPANY_MANAGER_ID:
         if executor_type != "agent":
-            raise ValueError("Product Manager Routine executor_type must be 'agent'")
-        component = agent_os.product_manager if agent_os is not None else None
+            raise ValueError("Company Manager Routine executor_type must be 'agent'")
+        component = agent_os.company_manager if agent_os is not None else None
         if component is None:
-            reason = getattr(agent_os, "product_manager_unavailable_reason", None)
-            raise ValueError(reason or "Product Manager unavailable: configure CompanyConfig on the owning AgentOS")
-    elif executor_id == MANAGER_TEAM_ID:
-        if executor_type != "team":
-            raise ValueError("OS Manager Routine executor_type must be 'team'")
-        component = agent_os.manager if agent_os is not None else None
-        if component is None:
-            raise ValueError("OS Manager unavailable: configure AgentOS(manager=OSManager(...))")
+            reason = getattr(agent_os, "company_manager_unavailable_reason", None)
+            raise ValueError(reason or "Company Manager unavailable: configure CompanyConfig on the owning AgentOS")
     elif executor_id in RESERVED_MANAGER_IDS:
-        raise ValueError("Manager specialists are internal and cannot execute Routines")
+        # OS Manager and its specialists can edit the platform; Routines run unattended on untrusted Sources.
+        raise ValueError("Only the Company Manager can execute Routines among framework managers")
     else:
         component = getattr(registry, "get_" + executor_type)(executor_id) if registry else None
         if component is None:

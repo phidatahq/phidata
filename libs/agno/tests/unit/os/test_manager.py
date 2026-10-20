@@ -20,7 +20,13 @@ from agno.os.config import AgentOSConfig, Manifest
 from agno.os.manager.config import MANAGER_TEAM_NAME
 from agno.os.utils import AgnoHTTPException
 from agno.registry import Registry
-from agno.registry._reserved import BUILDER_ID, MANAGER_TEAM_ID, OPERATOR_ID, PRODUCT_MANAGER_ID
+from agno.registry._reserved import (
+    BUILDER_ID,
+    COMPANY_MANAGER_ID,
+    LEGACY_PRODUCT_MANAGER_ID,
+    MANAGER_TEAM_ID,
+    OPERATOR_ID,
+)
 from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -676,7 +682,13 @@ def test_disabled_manager_needs_neither_a_model_nor_a_workspace(db, enabled):
     os = AgentOS(db=db, manager=enabled, telemetry=False)
     assert os.manager is None
     assert not os.agents and not os.teams
-    assert os.registry.excluded_component_ids == {MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID}
+    assert os.registry.excluded_component_ids == {
+        MANAGER_TEAM_ID,
+        BUILDER_ID,
+        OPERATOR_ID,
+        COMPANY_MANAGER_ID,
+        LEGACY_PRODUCT_MANAGER_ID,
+    }
 
 
 @pytest.mark.parametrize("invalid", ["true", {}, 1, 0])
@@ -790,7 +802,7 @@ def test_registry_exclusion_surface_is_public_and_read_only():
     registry = Registry()
     registry.reserve_component_ids(["reserved-id", ""])
     assert registry.excluded_component_ids == frozenset(
-        {"reserved-id", MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID}
+        {"reserved-id", MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, COMPANY_MANAGER_ID, LEGACY_PRODUCT_MANAGER_ID}
     )
     with pytest.raises(AttributeError):
         registry.excluded_component_ids.add("other")  # type: ignore[attr-defined]

@@ -23,11 +23,18 @@ from agno.models.message import MessageMetrics
 from agno.models.response import ModelResponse
 from agno.os import AgentOS, Authorization, CompanyConfig, OSManager
 from agno.registry import Registry
-from agno.registry._reserved import BUILDER_ID, MANAGER_TEAM_ID, OPERATOR_ID, PRODUCT_MANAGER_ID
+from agno.registry._reserved import (
+    BUILDER_ID,
+    COMPANY_MANAGER_ID,
+    LEGACY_PRODUCT_MANAGER_ID,
+    MANAGER_TEAM_ID,
+    OPERATOR_ID,
+)
 from agno.run import RunContext
 from agno.run.authorization import AUTHORIZATION_KEY, current_authorization
 from agno.scheduler import ScheduleManager
 from agno.tools.scheduler import SchedulerTools
+from agno.tools.studio import StudioTools
 
 SECRET = "company-manager-routines-offline-key-32-characters"
 SCOPES = [
@@ -47,9 +54,9 @@ SCOPES = [
     "schedules:read",
     "schedules:write",
     "sessions:read",
-    "agents:product-manager-internal:read",
+    "agents:company-manager-internal:read",
     "teams:os-manager-internal:read",
-    "agents:product-manager-internal:run",
+    "agents:company-manager-internal:run",
     "teams:os-manager-internal:run",
 ]
 
@@ -113,7 +120,7 @@ def headers(user="alice", scopes=None):
     }
 
 
-def declaration(kind="agent", component_id=PRODUCT_MANAGER_ID, **kwargs):
+def declaration(kind="agent", component_id=COMPANY_MANAGER_ID, **kwargs):
     return Routine(
         name="weekly-review",
         executor_type=kind,
@@ -170,7 +177,7 @@ async def system(tmp_path, *, mode="standalone", identity="scope", isolation=Tru
     db.close()
 
 
-async def create_routine(s, product_id, *, kind="agent", component_id=PRODUCT_MANAGER_ID):
+async def create_routine(s, product_id, *, kind="agent", component_id=COMPANY_MANAGER_ID):
     response = await s.client.post(
         "/company/routines",
         headers=s.headers,
@@ -186,49 +193,74 @@ def test_owned_resolution_serving_and_resync(tmp_path, enabled):
     os = make_os(db, manager=enabled)
     for _ in range(2):
         os.resync(os.get_app())
-    pm = os.product_manager
+    pm = os.company_manager
     assert sum(agent is pm for agent in os._agents) == 1
-    assert os.registry.get_agent(PRODUCT_MANAGER_ID) is None
+    assert os.registry.get_agent(COMPANY_MANAGER_ID) is None
     assert os.registry.get_team(MANAGER_TEAM_ID) is None
     assert not os.registry.tools
-    assert _routine_executor_endpoint("agent", PRODUCT_MANAGER_ID, os.registry, agent_os=os) == (
-        "/agents/" + PRODUCT_MANAGER_ID + "/runs"
+    assert _routine_executor_endpoint("agent", COMPANY_MANAGER_ID, os.registry, agent_os=os) == (
+        "/agents/" + COMPANY_MANAGER_ID + "/runs"
     )
     if enabled:
         assert sum(member is pm for member in os.manager.members) == 1
-        assert _routine_executor_endpoint("team", MANAGER_TEAM_ID, os.registry, agent_os=os) == (
-            "/teams/" + MANAGER_TEAM_ID + "/runs"
-        )
-    else:
-        with pytest.raises(ValueError, match="OS Manager unavailable"):
-            _routine_executor_endpoint("team", MANAGER_TEAM_ID, os.registry, agent_os=os)
     for cid in (BUILDER_ID, OPERATOR_ID):
         assert all(agent.id != cid for agent in os._agents)
-        with pytest.raises(ValueError, match="internal"):
-            _routine_executor_endpoint("agent", cid, os.registry, agent_os=os)
-    for kind, cid in (("agent", PRODUCT_MANAGER_ID), ("team", MANAGER_TEAM_ID)):
+    for kind, cid in (("agent", COMPANY_MANAGER_ID), ("team", MANAGER_TEAM_ID)):
         with pytest.raises(ValueError):
             _executor(os.registry, kind, cid)
     db.close()
 
 
-@pytest.mark.parametrize("kind,cid", [("team", PRODUCT_MANAGER_ID), ("agent", MANAGER_TEAM_ID)])
-def test_wrong_type_and_reserved_registry_fallback_are_refused(tmp_path, kind, cid):
+def test_wrong_type_and_reserved_registry_fallback_are_refused(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "reserved.db"))
     os = make_os(db, manager=True)
     with pytest.raises(ValueError, match="executor_type"):
-        _routine_executor_endpoint(kind, cid, os.registry, agent_os=os)
+        _routine_executor_endpoint("team", COMPANY_MANAGER_ID, os.registry, agent_os=os)
     # Even a corrupted registry cannot substitute for the owning AgentOS.
-    registry = SimpleNamespace(get_agent=lambda _: os.product_manager, get_team=lambda _: os.manager)
-    for kind, cid in (("agent", PRODUCT_MANAGER_ID), ("team", MANAGER_TEAM_ID)):
-        with pytest.raises(ValueError, match="unavailable"):
-            _routine_executor_endpoint(kind, cid, registry)
+    registry = SimpleNamespace(get_agent=lambda _: os.company_manager, get_team=lambda _: os.manager)
+    with pytest.raises(ValueError, match="unavailable"):
+        _routine_executor_endpoint("agent", COMPANY_MANAGER_ID, registry)
+    db.close()
+
+
+@pytest.mark.parametrize(
+    "kind,cid",
+    [
+        ("team", MANAGER_TEAM_ID),
+        ("agent", BUILDER_ID),
+        ("agent", OPERATOR_ID),
+        ("agent", LEGACY_PRODUCT_MANAGER_ID),
+    ],
+)
+@pytest.mark.parametrize("enabled", [False, True])
+def test_only_company_manager_can_execute_routines(tmp_path, kind, cid, enabled):
+    db = SqliteDb(db_file=str(tmp_path / "only.db"))
+    os = make_os(db, manager=enabled)
+    # A registry that would hand back the live manager must not be consulted for reserved IDs.
+    registry = SimpleNamespace(get_agent=lambda _: os.company_manager, get_team=lambda _: os.manager)
+    for candidate in (os.registry, registry):
+        with pytest.raises(ValueError, match="Only the Company Manager"):
+            _routine_executor_endpoint(kind, cid, candidate, agent_os=os)
+    with pytest.raises(ValueError, match="Only the Company Manager"):
+        rehydrate_product(db, Product(name="Docs", routines=[declaration(kind, cid)]), os.registry, agent_os=os)
+    assert db.get_products()[1] == 0
+    db.close()
+
+
+def test_product_manager_names_remain_deprecated_aliases(tmp_path):
+    db = SqliteDb(db_file=str(tmp_path / "alias.db"))
+    os = make_os(db)
+    assert os.product_manager is os.company_manager is not None
+    assert os.company_manager.name == "Company Manager" and os.company_manager.id == COMPANY_MANAGER_ID
+    missing = AgentOS(db=db, company=CompanyConfig(), telemetry=False)
+    assert missing.product_manager_unavailable_reason == missing.company_manager_unavailable_reason
+    assert missing.company_manager_unavailable_reason.startswith("Company Manager unavailable")
     db.close()
 
 
 @pytest.mark.parametrize("mode", ["sync", "async", "lifespan", "yaml"])
-@pytest.mark.parametrize("kind,cid", [("agent", PRODUCT_MANAGER_ID), ("team", MANAGER_TEAM_ID)])
-def test_declarations_bootstrap_and_restart(tmp_path, mode, kind, cid):
+def test_declarations_bootstrap_and_restart(tmp_path, mode):
+    kind, cid = "agent", COMPANY_MANAGER_ID
     db = SqliteDb(db_file=str(tmp_path / "bootstrap.db"))
     product = Product(id="docs", name="Docs", user_id="alice", routines=[declaration(kind, cid)])
     os = make_os(db, manager=True, products=[product] if mode == "lifespan" else [])
@@ -280,19 +312,19 @@ async def test_api_create_patch_resume_and_unavailable_manager(tmp_path):
         product = CompanyManager(s.db).create(name="Docs", user_id="alice")
         row = await create_routine(s, product["id"])
         path = "/company/routines/" + row["id"]
+        assert row["endpoint"] == "/agents/" + COMPANY_MANAGER_ID + "/runs"
+        before = s.db.get_schedule(row["id"])
         response = await s.client.patch(
             path, headers=s.headers, json={"executor_type": "team", "executor_id": MANAGER_TEAM_ID}
         )
-        assert response.status_code == 200, response.text
-        assert response.json()["endpoint"] == "/teams/" + MANAGER_TEAM_ID + "/runs"
-        before = s.db.get_schedule(row["id"])
-        response = await s.client.patch(path, headers=s.headers, json={"executor_id": PRODUCT_MANAGER_ID})
+        assert response.status_code == 422 and "Only the Company Manager" in response.text
+        response = await s.client.patch(path, headers=s.headers, json={"executor_type": "team"})
         assert response.status_code == 422 and "executor_type" in response.text
         assert s.db.get_schedule(row["id"]) == before
         assert (await s.client.post(path + "/pause", headers=s.headers)).status_code == 200
-        s.os._manager = None
+        s.os._company_manager = None
         response = await s.client.post(path + "/resume", headers=s.headers)
-        assert response.status_code == 422 and "OS Manager unavailable" in response.text
+        assert response.status_code == 422 and "Company Manager unavailable" in response.text
         assert not s.db.get_schedule(row["id"])["enabled"]
         response = await s.client.post(
             "/company/routines",
@@ -344,10 +376,10 @@ def review_steps(product, project, source, path):
     ]
 
 
-@pytest.mark.parametrize("mode", ["standalone", "member", "delegate", "runner"])
+@pytest.mark.parametrize("mode", ["standalone", "member"])
 @pytest.mark.parametrize("identity", ["scope", "managed"])
 @pytest.mark.parametrize("isolation", [False, True])
-async def test_scheduled_review_persists_evidence_and_delegated_authority(tmp_path, mode, identity, isolation):
+async def test_scheduled_review_persists_evidence_and_caller_authority(tmp_path, mode, identity, isolation):
     async with system(tmp_path, mode=mode, identity=identity, isolation=isolation) as s:
         manager = CompanyManager(s.db)
         product = manager.create(name="Docs", user_id="alice")
@@ -371,21 +403,12 @@ async def test_scheduled_review_persists_evidence_and_delegated_authority(tmp_pa
             )
             return "Observed injected authority"
 
-        s.os.product_manager.tools.append(observe_authority)
-        s.os.product_manager.model = ScriptedModel(
+        s.os.company_manager.tools.append(observe_authority)
+        s.os.company_manager.model = ScriptedModel(
             [("observe_authority", {"_agno_run_context": {"user_id": "mallory"}})]
             + review_steps(product, project, source, path)
         )
-        if mode == "delegate":
-            s.os.manager.model = ScriptedModel(
-                [("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Review this Product"})]
-            )
-        elif mode == "runner":
-            s.os.manager.model = ScriptedModel(
-                [("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Review this Product"})]
-            )
-        kind, cid = ("team", MANAGER_TEAM_ID) if mode in ("delegate", "runner") else ("agent", PRODUCT_MANAGER_ID)
-        row = await create_routine(s, product["id"], kind=kind, component_id=cid)
+        row = await create_routine(s, product["id"])
         for _ in range(2):
             response = await s.client.post("/company/routines/" + row["id"] + "/trigger", headers=s.headers)
             assert response.status_code == 200, response.text
@@ -409,42 +432,32 @@ async def test_scheduled_review_persists_evidence_and_delegated_authority(tmp_pa
 def test_recursive_scheduler_tools_validation_is_preserved(tmp_path):
     db = SqliteDb(db_file=str(tmp_path / "tools.db"))
     os = make_os(db, manager=True)
-    os.product_manager.tools.append(SchedulerTools(db=db))
-    for kind, cid in (("agent", PRODUCT_MANAGER_ID), ("team", MANAGER_TEAM_ID)):
-        with pytest.raises(ValueError, match="cannot hold SchedulerTools"):
-            _routine_executor_endpoint(kind, cid, os.registry, agent_os=os)
+    os.company_manager.tools.append(SchedulerTools(db=db))
+    with pytest.raises(ValueError, match="cannot hold SchedulerTools"):
+        _routine_executor_endpoint("agent", COMPANY_MANAGER_ID, os.registry, agent_os=os)
     db.close()
 
 
-@pytest.mark.parametrize("mode", ["standalone", "delegate", "runner"])
+@pytest.mark.parametrize("mode", ["standalone", "member"])
 @pytest.mark.parametrize("identity", ["scope", "managed"])
 @pytest.mark.parametrize("isolation", [False, True])
-async def test_delegated_status_write_never_gains_permission(tmp_path, mode, identity, isolation):
+async def test_routine_status_write_never_gains_permission(tmp_path, mode, identity, isolation):
     scopes = [scope for scope in SCOPES if scope != "wiki:write"]
     async with system(tmp_path, mode=mode, identity=identity, isolation=isolation, scopes=scopes) as s:
         manager = CompanyManager(s.db)
         product = manager.create(name="Docs", user_id="alice")
         before = manager.read_wiki(product["id"], "status.md")
-        s.os.product_manager.model = ScriptedModel(
+        s.os.company_manager.model = ScriptedModel(
             [("update_company_status", {"product_id": product["id"], "content": "Unauthorized", "expected_version": 1})]
         )
-        if mode == "delegate":
-            s.os.manager.model = ScriptedModel(
-                [("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Update status"})]
-            )
-        elif mode == "runner":
-            s.os.manager.model = ScriptedModel(
-                [("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Update status"})]
-            )
-        kind, cid = ("agent", PRODUCT_MANAGER_ID) if mode == "standalone" else ("team", MANAGER_TEAM_ID)
-        row = await create_routine(s, product["id"], kind=kind, component_id=cid)
+        row = await create_routine(s, product["id"])
         result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
         assert manager.read_wiki(product["id"], "status.md") == before
         assert result["status"] == "failed", json.dumps(result)
 
 
-@pytest.mark.parametrize("mode", ["delegate", "runner"])
-async def test_routine_mutation_fence_survives_delegation_even_for_admin(tmp_path, mode):
+@pytest.mark.parametrize("mode", ["standalone", "member"])
+async def test_routine_mutation_fence_holds_even_for_admin(tmp_path, mode):
     async with system(tmp_path, mode=mode, scopes=["agent_os:admin"]) as s:
         manager = CompanyManager(s.db)
         product = manager.create(name="Docs", user_id="alice")
@@ -458,17 +471,13 @@ async def test_routine_mutation_fence_survives_delegation_even_for_admin(tmp_pat
                 lambda: manager.transition_task(task_id=task["id"], target="ready", reason="Routine"),
                 lambda: manager.transition_task(task_id=task["id"], target="done", reason="Routine"),
                 lambda: manager.transition_project(project_id=project["id"], target="done", reason="Routine"),
-                lambda: (
-                    next(member for member in s.os.manager.members if member.id == BUILDER_ID)
-                    .tools[0]
-                    .create_schedule(
-                        name="forbidden",
-                        cron="0 0 * * *",
-                        target_type="agent",
-                        target_id=PRODUCT_MANAGER_ID,
-                        message="Run again",
-                        _agno_run_context=_agno_run_context,
-                    )
+                lambda: StudioTools(registry=s.os.registry, db=s.db, schedules=True).create_schedule(
+                    name="forbidden",
+                    cron="0 0 * * *",
+                    target_type="agent",
+                    target_id=COMPANY_MANAGER_ID,
+                    message="Run again",
+                    _agno_run_context=_agno_run_context,
                 ),
             ]
             for action in actions:
@@ -480,48 +489,14 @@ async def test_routine_mutation_fence_survives_delegation_even_for_admin(tmp_pat
                     raise RuntimeError("An exposed mutation unexpectedly succeeded")
             return "All unauthorized mutations refused"
 
-        s.os.product_manager.tools.append(check_forbidden_mutations)
-        s.os.product_manager.model = ScriptedModel([("check_forbidden_mutations", {})])
-        name, arguments = (
-            ("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Attempt mutations"})
-            if mode == "delegate"
-            else ("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Attempt mutations"})
-        )
-        s.os.manager.model = ScriptedModel([(name, arguments)])
-        row = await create_routine(s, product["id"], kind="team", component_id=MANAGER_TEAM_ID)
+        s.os.company_manager.tools.append(check_forbidden_mutations)
+        s.os.company_manager.model = ScriptedModel([("check_forbidden_mutations", {})])
+        row = await create_routine(s, product["id"])
         result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
         assert result["status"] == "success", result
         assert observed == ["alice"] * 4
         assert manager.get_task(task["id"]) == task
         assert s.db.get_project(project["id"]) == project
-        assert s.db.get_schedule_by_name("forbidden") is None
-
-
-async def test_builder_cannot_mutate_schedules_from_manager_routine(tmp_path):
-    async with system(tmp_path, mode="delegate", scopes=["agent_os:admin"]) as s:
-        product = CompanyManager(s.db).create(name="Docs", user_id="alice")
-        builder = next(member for member in s.os.manager.members if member.id == BUILDER_ID)
-        builder.model = ScriptedModel(
-            [
-                (
-                    "create_schedule",
-                    {
-                        "name": "forbidden",
-                        "cron": "0 0 * * *",
-                        "target_type": "agent",
-                        "target_id": PRODUCT_MANAGER_ID,
-                        "message": "Run again",
-                    },
-                )
-            ]
-        )
-        s.os.manager.model = ScriptedModel(
-            [("delegate_task_to_member", {"member_id": BUILDER_ID, "task": "Create a schedule"})]
-        )
-        row = await create_routine(s, product["id"], kind="team", component_id=MANAGER_TEAM_ID)
-        result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
-        output = await s.os.manager.aget_run_output(result["run_id"], session_id=result["session_id"], user_id="alice")
-        assert "Company executors cannot change schedules" in json.dumps(output.to_dict())
         assert s.db.get_schedule_by_name("forbidden") is None
 
 
@@ -535,7 +510,7 @@ async def test_other_product_source_and_status_are_refused(tmp_path, owner):
         path.write_text("Other Product source")
         source = manager.create_source(product_id=other["id"], type="markdown", reference=str(path))
         before = manager.read_wiki(other["id"], "status.md")
-        s.os.product_manager.model = ScriptedModel(
+        s.os.company_manager.model = ScriptedModel(
             [
                 ("read_company_source", {"source_id": source["id"], "path": path.name}),
                 (
@@ -548,7 +523,7 @@ async def test_other_product_source_and_status_are_refused(tmp_path, owner):
         result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
         assert result["status"] == "failed", result
         assert manager.read_wiki(other["id"], "status.md") == before
-        output = await s.os.product_manager.aget_run_output(
+        output = await s.os.company_manager.aget_run_output(
             result["run_id"], session_id=result["session_id"], user_id="alice"
         )
         assert "Routine authority is restricted to its configured Product" in json.dumps(output.to_dict())
@@ -560,20 +535,20 @@ async def test_configuration_requires_target_run_permission(tmp_path, identity):
     scopes = [scope for scope in SCOPES if not scope.endswith(":run")]
     async with system(tmp_path, identity=identity, mode="member", scopes=scopes) as s:
         product = CompanyManager(s.db).create(name="Docs", user_id="alice")
-        for kind, cid in (("agent", PRODUCT_MANAGER_ID), ("team", MANAGER_TEAM_ID)):
-            response = await s.client.post(
-                "/company/routines",
-                headers=s.headers,
-                json={"product_id": product["id"], **declaration(kind, cid).model_dump()},
-            )
-            assert response.status_code == 403, response.text
+        response = await s.client.post(
+            "/company/routines",
+            headers=s.headers,
+            json={"product_id": product["id"], **declaration().model_dump()},
+        )
+        assert response.status_code == 403, response.text
         assert not (s.db.get_product(product["id"]).get("metadata") or {}).get("routine_ids")
 
 
-@pytest.mark.parametrize("kind,cid", [("agent", PRODUCT_MANAGER_ID), ("team", MANAGER_TEAM_ID)])
 @pytest.mark.parametrize("stage", ["draft", "published", "archived"])
-async def test_legacy_catalog_cannot_replace_owned_or_unavailable_manager(tmp_path, kind, cid, stage):
+async def test_legacy_catalog_cannot_replace_owned_or_unavailable_manager(tmp_path, stage):
     from agno.db.base import ComponentType
+
+    kind, cid = "agent", COMPANY_MANAGER_ID
 
     async with system(tmp_path, mode="member") as s:
         s.db.upsert_component(component_id=cid, component_type=ComponentType(kind), user_id="alice")
@@ -663,8 +638,8 @@ async def test_concurrent_reviews_keep_private_sessions_and_owners_separate(tmp_
             observed.append((_agno_run_context.user_id, authority.context.principal_id, authority.product_id))
             return "Caller observed"
 
-        s.os.product_manager.tools.append(observe_caller)
-        s.os.product_manager.model = ScriptedModel([("observe_caller", {})])
+        s.os.company_manager.tools.append(observe_caller)
+        s.os.company_manager.model = ScriptedModel([("observe_caller", {})])
         schedules = []
         for user, product in products.items():
             response = await s.client.post(
@@ -679,7 +654,7 @@ async def test_concurrent_reviews_keep_private_sessions_and_owners_separate(tmp_
         assert sorted(observed) == [(user, user, products[user]["id"]) for user in ("alice", "bob")]
         assert results[0]["session_id"] != results[1]["session_id"]
         alice = results[0]
-        route = "/agents/" + PRODUCT_MANAGER_ID + "/runs/" + alice["run_id"]
+        route = "/agents/" + COMPANY_MANAGER_ID + "/runs/" + alice["run_id"]
         assert (
             await s.client.get(route, headers=headers("alice"), params={"session_id": alice["session_id"]})
         ).status_code == 200
@@ -696,7 +671,7 @@ async def test_status_conflict_is_failed_without_overwriting_human_edit(tmp_path
         manager.write_wiki(
             product_id=product["id"], path="status.md", content="Human edit", expected_version=1, user_id="alice"
         )
-        s.os.product_manager.model = ScriptedModel(
+        s.os.company_manager.model = ScriptedModel(
             [("update_company_status", {"product_id": product["id"], "content": "Stale review", "expected_version": 1})]
         )
         row = await create_routine(s, product["id"])
@@ -705,7 +680,7 @@ async def test_status_conflict_is_failed_without_overwriting_human_edit(tmp_path
         assert manager.read_wiki(product["id"], "status.md").content == "Human edit"
 
 
-@pytest.mark.parametrize("mode", ["standalone", "delegate", "runner"])
+@pytest.mark.parametrize("mode", ["standalone", "member"])
 async def test_recovered_status_conflict_succeeds(tmp_path, mode):
     async with system(tmp_path, mode=mode) as s:
         manager = CompanyManager(s.db)
@@ -714,7 +689,7 @@ async def test_recovered_status_conflict_succeeds(tmp_path, mode):
         manager.write_wiki(
             product_id=product["id"], path="status.md", content="Human edit", expected_version=1, user_id="alice"
         )
-        s.os.product_manager.model = ScriptedModel(
+        s.os.company_manager.model = ScriptedModel(
             [
                 ("update_company_status", {"product_id": product["id"], "content": "Stale", "expected_version": 1}),
                 ("read_company_wiki", {"product_id": product["id"], "path": "status.md"}),
@@ -728,16 +703,7 @@ async def test_recovered_status_conflict_succeeds(tmp_path, mode):
                 ),
             ]
         )
-        if mode != "standalone":
-            s.os.manager.offload_tool_results = True
-            name, arguments = (
-                ("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Review Product"})
-                if mode == "delegate"
-                else ("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Review Product"})
-            )
-            s.os.manager.model = ScriptedModel([(name, arguments)])
-        kind, cid = ("agent", PRODUCT_MANAGER_ID) if mode == "standalone" else ("team", MANAGER_TEAM_ID)
-        row = await create_routine(s, product["id"], kind=kind, component_id=cid)
+        row = await create_routine(s, product["id"])
         result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
         page = manager.read_wiki(product["id"], "status.md")
         assert page.content == "Human edit\nReview complete"
@@ -746,23 +712,16 @@ async def test_recovered_status_conflict_succeeds(tmp_path, mode):
         assert (await ScheduleManager(s.db).aget_runs(row["id"]))[0].status == "success"
 
 
-@pytest.mark.parametrize("mode", ["delegate", "runner"])
-async def test_manager_routine_reports_delegate_provider_failure(tmp_path, mode):
+@pytest.mark.parametrize("mode", ["standalone", "member"])
+async def test_company_manager_routine_reports_provider_failure(tmp_path, mode):
     class FailingModel(ScriptedModel):
         def invoke(self, *args, **kwargs):
             raise RuntimeError("Provider unavailable during product review")
 
     async with system(tmp_path, mode=mode) as s:
         product = CompanyManager(s.db).create(name="Docs", user_id="alice")
-        s.os.product_manager.model = FailingModel()
-        s.os.manager.offload_tool_results = True
-        name, arguments = (
-            ("delegate_task_to_member", {"member_id": PRODUCT_MANAGER_ID, "task": "Review Product"})
-            if mode == "delegate"
-            else ("run_agent", {"agent_id": PRODUCT_MANAGER_ID, "message": "Review Product"})
-        )
-        s.os.manager.model = ScriptedModel([(name, arguments)])
-        row = await create_routine(s, product["id"], kind="team", component_id=MANAGER_TEAM_ID)
+        s.os.company_manager.model = FailingModel()
+        row = await create_routine(s, product["id"])
         result = await s.executor.execute(s.db.get_schedule(row["id"]), s.db, release_schedule=False)
         assert result["status"] == "failed", result
         assert "Provider unavailable during product review" in result["error"]
@@ -821,7 +780,7 @@ async def test_no_auth_declared_review_can_run_locally(tmp_path):
     db.close()
 
 
-@pytest.mark.parametrize("component_id", [PRODUCT_MANAGER_ID, MANAGER_TEAM_ID])
+@pytest.mark.parametrize("component_id", [COMPANY_MANAGER_ID, LEGACY_PRODUCT_MANAGER_ID, MANAGER_TEAM_ID])
 def test_user_components_cannot_claim_manager_ids(component_id):
     component = Agent(id=component_id, model=ScriptedModel())
     with pytest.raises(ValueError, match="reserved"):
@@ -838,14 +797,33 @@ async def test_human_chat_configures_owned_manager_routine(tmp_path, mode, tool)
         if tool == "create_company_routine":
             product = CompanyManager(s.db).create(name="Docs", user_id="alice")
             kwargs = {"product_id": product["id"], **declaration().model_dump(exclude={"auto_accept"})}
-        s.os.product_manager.model = ScriptedModel([(tool, kwargs)])
+        s.os.company_manager.model = ScriptedModel([(tool, kwargs)])
         response = await s.client.post(
-            "/agents/" + PRODUCT_MANAGER_ID + "/runs", headers=s.headers, data={"message": "Set up a weekly review"}
+            "/agents/" + COMPANY_MANAGER_ID + "/runs", headers=s.headers, data={"message": "Set up a weekly review"}
         )
         assert response.status_code == 200, response.text
         products, total = s.db.get_products()
         assert total == 1
         row = s.db.get_schedule(products[0]["metadata"]["routine_ids"][0])
-        assert row["target_id"] == PRODUCT_MANAGER_ID and row["user_id"] == "alice"
+        assert row["target_id"] == COMPANY_MANAGER_ID and row["user_id"] == "alice"
         assert row["payload"][AUTHORIZATION_KEY]["context"]["principal_id"] == "alice"
         assert row["payload"]["metadata"]["auto_accept"] is False
+
+
+@pytest.mark.parametrize("tool", ["run_agent", "run_team", "run_workflow"])
+@pytest.mark.parametrize(
+    "result,failed",
+    [
+        ({"error": "Agent 'missing' not found"}, True),
+        ({"agent_id": "child", "status": "ERROR", "content": "boom"}, True),
+        ({"agent_id": "child", "status": "CANCELLED", "content": None}, True),
+        ({"agent_id": "child", "status": "COMPLETED", "content": "done"}, False),
+        ("not json", False),
+    ],
+)
+def test_studio_dispatch_failures_fail_the_routine(tool, result, failed):
+    payload = result if isinstance(result, str) else json.dumps(result)
+    output = {"tools": [{"tool_name": tool, "result": payload}]}
+    assert bool(_routine_failure(output)) is failed
+    assert bool(_routine_failure({"member_responses": [output]})) is failed
+    assert _routine_failure({"tools": [{"tool_name": tool, "tool_call_error": True, "result": "raised"}]})

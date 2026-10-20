@@ -2274,52 +2274,53 @@ def _migrate_dynamodb(db: BaseDb, table_type: str, table_name: str) -> bool:
     # Ensure runs table exists
     db._get_table("runs", create_table_if_not_found=True)  # type: ignore
 
-    # Scan all sessions
-    items: List[Dict[str, Any]] = []
-    try:
-        response = client.scan(TableName=table_name)
-        items.extend(response.get("Items", []))
-        while "LastEvaluatedKey" in response:
-            response = client.scan(TableName=table_name, ExclusiveStartKey=response["LastEvaluatedKey"])
-            items.extend(response.get("Items", []))
-    except Exception as e:
-        log_error(f"Failed to scan {table_name} during v3 migration: {str(e)}")
-        return False
-
+    # Copy page by page so memory is bounded by one scan page, not the table
     migrated = 0
-    for item in items:
-        runs_attr = item.get("runs")
-        if runs_attr is None:
-            continue
+    scan_kwargs: Dict[str, Any] = {"TableName": table_name}
+    while True:
+        try:
+            response = client.scan(**scan_kwargs)
+        except Exception as e:
+            log_error(f"Failed to scan {table_name} during v3 migration: {str(e)}")
+            return False
 
-        legacy: Any = None
-        if "S" in runs_attr:
-            try:
-                legacy = _json.loads(runs_attr["S"])
-            except (_json.JSONDecodeError, TypeError):
-                legacy = None
-        elif "L" in runs_attr:
-            legacy = runs_attr["L"]
+        for item in response.get("Items", []):
+            runs_attr = item.get("runs")
+            if runs_attr is None:
+                continue
 
-        if not legacy:
-            continue
+            legacy: Any = None
+            if "S" in runs_attr:
+                try:
+                    legacy = _json.loads(runs_attr["S"])
+                except (_json.JSONDecodeError, TypeError):
+                    legacy = None
+            elif "L" in runs_attr:
+                legacy = runs_attr["L"]
 
-        session_id = item.get("session_id", {}).get("S")
-        user_id = item.get("user_id", {}).get("S")
-        if not session_id:
-            continue
+            if not legacy:
+                continue
 
-        rows = _build_run_rows(legacy, session_id, user_id, run_data_as_string=False)
-        for row in rows:
-            payload = {k: v for k, v in row.items() if v is not None}
-            if "run_data" in payload and isinstance(payload["run_data"], (dict, list)):
-                payload["run_data"] = _json.dumps(payload["run_data"])
-            dynamo_item = _serialize_to_dynamo_item_minimal(payload)
-            # Propagates on non-transient failure so a partial migration aborts
-            # loudly rather than silently dropping runs. Safe to re-run (the
-            # conditional write skips already-migrated runs).
-            if _dynamo_put_run_with_retry(client, runs_table, dynamo_item):
-                migrated += 1
+            session_id = item.get("session_id", {}).get("S")
+            user_id = item.get("user_id", {}).get("S")
+            if not session_id:
+                continue
+
+            rows = _build_run_rows(legacy, session_id, user_id, run_data_as_string=False)
+            for row in rows:
+                payload = {k: v for k, v in row.items() if v is not None}
+                if "run_data" in payload and isinstance(payload["run_data"], (dict, list)):
+                    payload["run_data"] = _json.dumps(payload["run_data"])
+                dynamo_item = _serialize_to_dynamo_item_minimal(payload)
+                # Propagates on non-transient failure so a partial migration aborts
+                # loudly rather than silently dropping runs. Safe to re-run (the
+                # conditional write skips already-migrated runs).
+                if _dynamo_put_run_with_retry(client, runs_table, dynamo_item):
+                    migrated += 1
+
+        if "LastEvaluatedKey" not in response:
+            break
+        scan_kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
 
     log_info(
         f"-- Copied {migrated} runs into {runs_table}. The legacy 'runs' attribute on each session item "

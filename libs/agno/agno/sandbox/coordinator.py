@@ -28,7 +28,7 @@ from agno.run.agent import (
 )
 from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle
-from agno.sandbox.checkpoint import CheckpointRef
+from agno.sandbox.checkpoint import CheckpointContentError, CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
 from agno.sandbox.media import decode_media, encode_media
 from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore, _settled
@@ -730,7 +730,21 @@ class SandboxCoordinator:
                 digest = hashlib.sha256(
                     json.dumps(record["result"], sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
                 ).hexdigest()
-                reference = await self.transfer.acapture(handle, state={"binding": identity, "result_sha256": digest})
+                try:
+                    reference = await self.transfer.acapture(
+                        handle, state={"binding": identity, "result_sha256": digest}
+                    )
+                except CheckpointContentError as error:
+                    # Capturing the same files again fails the same way; a retry would only keep the session busy.
+                    record.update(
+                        phase="stopping",
+                        stop_status="ERROR",
+                        stop_reason=(
+                            "Completed turn's files cannot be checkpointed, so they were discarded and the session "
+                            f"continues from the previous checkpoint: {error}"
+                        )[:8192],
+                    )
+                    return record
                 await self.transfer.store.averify(reference)
                 record.update(staged_checkpoint=asdict(reference), staged_identity=identity)
             await self.transfer.store.averify(CheckpointRef(**record["staged_checkpoint"]))

@@ -329,3 +329,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All 164 focused queue and sandbox unit cases and all 309 queue-store parity/Company admission integration cases passed, with no skips. New coverage checks errors across sync/async PostgreSQL, Redis and in-memory stores, and matching listing results with both flag values on in-memory, fake/real Redis and sync/async PostgreSQL. Full format, clean Python 3.10 validation and whitespace checks passed. No model calls were made.
 
 ---
+
+### 10_weekly_product_review.py — framework manager Routine executors (2026-10-20)
+
+**Status:** PASS
+
+**Description:** Checked the opt-in weekly Product Manager review with OS Manager disabled and enabled using `--check` and `--check --with-os-manager`. Both construct and persist the owned-manager schedule without running a model. Offline scripted-model tests exercise bootstrap, API and human chat configuration, native/Studio delegation, queued execution, caller permissions, Product restrictions, private run ownership, reserved-ID collisions, evidence-backed intake, deduplication and versioned status updates.
+
+**Result:** On main base `cb14cab365`, all 1,059 affected unit cases passed, including the 69 manager Routine cases; those 69 also passed in a clean Python 3.10 environment. All 409 selected existing Routine/heartbeat/automatic-execution integration cases passed. The new manager queue/configuration tests and existing chat tests passed 176 cases, with 52 unsupported synchronous-tool/asynchronous-database combinations skipped. The 18 supported chat cases passed again after isolating their schedule database fixture. Integration coverage uses sync/async SQLite and PostgreSQL Company stores and a real PostgreSQL durable worker. Full format, clean CI-dependency validation and whitespace checks passed. The shared Python 3.12 environment's nine mypy diagnostics also reproduce on the unchanged original base; the clean validation gate has none. No paid model calls. Live proposal quality and semantic duplicate detection are not evaluated by scripted responses.
+
+---

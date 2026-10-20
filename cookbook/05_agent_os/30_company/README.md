@@ -31,6 +31,49 @@ company-wide for callers with the read scope. With isolation on, writes to
 another owner's Product return 403. Unscoped callers with the write scope can
 change every Product; admins bypass owner isolation.
 
+## Weekly Product Manager review
+
+`10_weekly_product_review.py` runs a Company Routine with the framework's
+`product-manager-internal` agent. It reads Sources and existing work, proposes
+only evidence-backed Backlog Tasks, and updates status without accepting work.
+The same declaration works with or without OS Manager; no application agent is
+needed. Use `os-manager-internal` with `executor_type="team"` when a Routine
+needs broader coordination. Both managers stay out of Studio's reusable registry.
+Product Manager is also served through its normal agent routes when it is an
+OS Manager member; Platform Builder and Platform Manager stay internal.
+
+Check both configurations without model calls or an active scheduler:
+
+```bash
+.venv/bin/python cookbook/05_agent_os/30_company/10_weekly_product_review.py --check
+.venv/bin/python cookbook/05_agent_os/30_company/10_weekly_product_review.py --check --with-os-manager
+```
+
+Start the local server with `--enable-weekly-review` to opt in to Monday reviews
+at 09:00 `Europe/London`. Use `--source /absolute/path/to/docs.md` to select a
+local Source, and `--with-os-manager` to add coordination. Scheduled runs require
+provider credentials and incur model usage. Automatic acceptance remains off.
+Omitting the opt-in flag creates no new Routine; it does not remove a previously
+saved schedule. Pause an existing Routine through its Company API/UI control.
+
+The example uses SQLite and no authentication for local development. For an
+authorized deployment, use PostgreSQL and configure the Routine through the
+existing authenticated Routine API, setup API or human Company chat so the
+caller's grant is saved.
+A code/YAML declaration's `user_id` is attribution, not a grant. An authorized
+execution-changing PATCH (for example, updating `instructions`) can authorize an
+existing declared Routine. A timing-only edit does not replace its authority.
+For direct Python bootstrap or `CompanyManager.create_routine`, pass the owning
+`AgentOS` as `agent_os=agent_os` when selecting a framework manager.
+
+The caller needs Routine/schedule configuration permissions and the target's
+agent/team run permission; scheduled result polling also needs the target's read
+permission. Grant only the Company tools the review uses: Sources and existing
+work reads, proposal writes, wiki reads/writes and decision recall. Delegation
+retains those grants and Routine restrictions. Company-wide collaborative reads
+keep their existing visibility; Source contents and mutations retain Product
+checks, and private sessions retain the deployment's ownership isolation.
+
 ## Work records
 
 | File | Demonstrates |

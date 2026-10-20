@@ -702,8 +702,9 @@ class AgentOS:
                 self._manager.team.instructions.append(
                     "Delegate Company planning, playbook updates and decisions to Product Manager."
                 )
-            else:
-                self.agents = [*(self.agents or []), self._product_manager]
+            # Serve the same owned agent even when it is also a manager member.
+            # Routine runs use the normal agent routes and their per-run copies.
+            self.agents = [*(self.agents or []), self._product_manager]
 
         self._initialize_agents()
         self._initialize_teams()
@@ -1172,8 +1173,10 @@ class AgentOS:
                     # Fail at startup, not on the first run, when the sandbox has no Postgres to coordinate on.
                     _harness._check_db(entry)
 
-        # Manager specialists need normal initialization, but are not served agents.
-        agents_to_initialize = [*self._agents, *(self._manager.agents if self._manager else [])]
+        # Product Manager is both served and a member; initialize each object once.
+        agents_to_initialize = list(
+            {id(agent): agent for agent in [*self._agents, *(self._manager.agents if self._manager else [])]}.values()
+        )
         if not agents_to_initialize:
             return
 
@@ -1489,6 +1492,8 @@ class AgentOS:
         """Give Company toolkits this OS's configured transports and blocking result checks."""
         if self.company is None:
             return
+        from weakref import ref
+
         from agno.company.routines import _RoutineResultGuardrail
         from agno.tools.company import CompanyTools
 
@@ -1505,6 +1510,8 @@ class AgentOS:
                     if toolkit.registry is None:
                         toolkit.registry = self.registry
                     toolkit._schedule_db = self.db
+                    # Keep owner lookup live without copying the OS into per-run toolkits.
+                    toolkit._agent_os_ref = ref(self)
                     toolkit._automation_history_retention_days = company.automation_history_retention_days
                     toolkit.user_isolation = toolkit.user_isolation or bool(
                         self.user_isolation

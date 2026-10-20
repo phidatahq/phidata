@@ -34,7 +34,7 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     assert pm.learning.decision_log.db is db
     assert pm not in registry.agents and not registry.tools
     assert (pm in os.manager.members) if manager else (pm in os._agents)
-    assert (pm not in os._agents) if manager else True
+    assert sum(agent is pm for agent in os._agents) == 1
     os.resync(os.get_app())
     assert pm not in registry.agents and not registry.tools
     tools = pm.tools[0]

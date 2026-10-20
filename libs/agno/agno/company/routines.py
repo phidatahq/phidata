@@ -48,10 +48,29 @@ def _routine_failure(output: Any) -> Optional[str]:
                 "read_company_source",
                 "intake_company_source",
                 "propose_company_task",
+                "update_company_status",
                 "summarize_company_product",
                 "refresh_company_product",
             }:
                 return str(tool["tool_name"]) + " failed: " + str(tool.get("result") or "Company operation failed")
+            if tool.get("tool_name") in {"run_agent", "run_team", "run_workflow"}:
+                # Studio dispatch returns a structured child result rather than
+                # adding it to native Team member_responses.
+                import json
+
+                result = tool.get("result")
+                if isinstance(result, str):
+                    try:
+                        result = json.loads(result)
+                    except (ValueError, TypeError):
+                        result = None
+                if tool.get("tool_call_error") or (
+                    isinstance(result, dict)
+                    and (
+                        result.get("error") or str(result.get("status", "")).upper() in {"ERROR", "FAILED", "CANCELLED"}
+                    )
+                ):
+                    return str(tool["tool_name"]) + " failed: " + str(result or "Routine delegation failed")
         if output.get("success") is False:
             return str(output.get("error") or "Routine step failed")
         for key in ("member_responses", "step_results", "steps"):
@@ -108,10 +127,28 @@ async def _afailed_routines(db: Any, products: Any) -> int:
     return failed
 
 
-def _routine_executor_endpoint(executor_type: str, executor_id: str, registry: Any) -> str:
-    component = getattr(registry, "get_" + executor_type)(executor_id) if registry else None
-    if component is None:
-        raise ValueError("Routine executor is missing from the registry")
+def _routine_executor_endpoint(executor_type: str, executor_id: str, registry: Any, *, agent_os: Any = None) -> str:
+    from agno.registry._reserved import MANAGER_TEAM_ID, PRODUCT_MANAGER_ID, RESERVED_MANAGER_IDS
+
+    if executor_id == PRODUCT_MANAGER_ID:
+        if executor_type != "agent":
+            raise ValueError("Product Manager Routine executor_type must be 'agent'")
+        component = agent_os.product_manager if agent_os is not None else None
+        if component is None:
+            reason = getattr(agent_os, "product_manager_unavailable_reason", None)
+            raise ValueError(reason or "Product Manager unavailable: configure CompanyConfig on the owning AgentOS")
+    elif executor_id == MANAGER_TEAM_ID:
+        if executor_type != "team":
+            raise ValueError("OS Manager Routine executor_type must be 'team'")
+        component = agent_os.manager if agent_os is not None else None
+        if component is None:
+            raise ValueError("OS Manager unavailable: configure AgentOS(manager=OSManager(...))")
+    elif executor_id in RESERVED_MANAGER_IDS:
+        raise ValueError("Manager specialists are internal and cannot execute Routines")
+    else:
+        component = getattr(registry, "get_" + executor_type)(executor_id) if registry else None
+        if component is None:
+            raise ValueError("Routine executor is missing from the registry")
     _validate_executor_tools(component)
     endpoint = f"/{executor_type}s/{executor_id}/runs"
     if RUN_ENDPOINT_RE.fullmatch(endpoint) is None:
@@ -119,8 +156,8 @@ def _routine_executor_endpoint(executor_type: str, executor_id: str, registry: A
     return endpoint
 
 
-def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[str, Any]:
-    endpoint = _routine_executor_endpoint(routine.executor_type, routine.executor_id, registry)
+def _schedule_fields(product_id: str, routine: Routine, registry: Any, *, agent_os: Any = None) -> Dict[str, Any]:
+    endpoint = _routine_executor_endpoint(routine.executor_type, routine.executor_id, registry, agent_os=agent_os)
     instructions = routine.instructions
     if instructions is None and routine.template is not None:
         skill = load_routine_skills().get_skill(routine.template)
@@ -147,11 +184,13 @@ def _schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[s
     return fields
 
 
-def _declared_schedule_fields(product_id: str, routine: Routine, registry: Any) -> Dict[str, Any]:
+def _declared_schedule_fields(
+    product_id: str, routine: Routine, registry: Any, *, agent_os: Any = None
+) -> Dict[str, Any]:
     """Schedule fields for a declared Routine; automatic acceptance needs the Routine API's authorization."""
     if routine.auto_accept:
         raise ValueError("Authorize automatic acceptance through the Routine API")
-    return _schedule_fields(product_id, routine, registry)
+    return _schedule_fields(product_id, routine, registry, agent_os=agent_os)
 
 
 class _RoutineAuthorization(_ExecutorAuthorization):

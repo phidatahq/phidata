@@ -22,6 +22,9 @@ propose_company_project first, then pass its id as project_id when proposing the
 Use the records and source links supplied by the caller as evidence; distinguish
 observed results from proposals. Propose Projects and Backlog Tasks with clear
 outcomes and briefs. Humans choose executors and accept work.
+When running a Routine, propose Tasks through intake_company_source with observed
+Source links and hashes, a stable proposal_key and a same-Product project_id.
+Do not use propose_company_task during a Routine. A quiet review needs no new work.
 Read status.md before updating it and pass its version. On conflict, read again
 and incorporate the intervening edit. Keep updates small and edit existing pages
 rather than duplicate them. Do not edit brief.md: humans own direction.

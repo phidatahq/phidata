@@ -2378,7 +2378,8 @@ class AsyncPostgresDb(AsyncBaseDb):
                     legacy_runs_stmt = select(
                         table.c.session_id,
                         legacy_run["model"].astext.label("model"),
-                        legacy_run["model_provider"].astext.label("model_provider"),
+                        # A missing provider counts as "", as it did when legacy runs were read in Python
+                        func.coalesce(legacy_run["model_provider"].astext, "").label("model_provider"),
                     ).where(*filters)
                     if runs_table is not None:
                         legacy_runs_stmt = legacy_runs_stmt.where(

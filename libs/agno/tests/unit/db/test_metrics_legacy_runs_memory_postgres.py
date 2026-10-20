@@ -153,6 +153,27 @@ async def test_metrics_count_migrated_and_unmigrated_runs_once(schema, mode):
     assert result[0]["model_metrics"] == [{"model_id": "gpt-5.5", "model_provider": "OpenAI", "count": expected_runs}]
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("mode", ["sync", "async"])
+async def test_metrics_default_missing_legacy_model_provider_to_empty(schema, mode):
+    """A legacy run without model_provider is reported with an empty provider, not "None"."""
+    _seed_legacy_sessions(schema, 1)
+    engine = create_engine(DB_URL)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(f'UPDATE "{schema}"."{SESSIONS_TABLE}" SET runs = :runs'),
+                {"runs": '[{"run_id": "r1", "model": "test-model"}]'},
+            )
+    finally:
+        engine.dispose()
+
+    result = await _calculate_metrics(_db(mode, schema))
+
+    assert result is not None and len(result) == 1
+    assert result[0]["model_metrics"] == [{"model_id": "test-model", "model_provider": "", "count": 1}]
+
+
 # ---------------------------------------------------------------------------
 # Memory is bounded by what metrics need, not by the legacy column
 # ---------------------------------------------------------------------------

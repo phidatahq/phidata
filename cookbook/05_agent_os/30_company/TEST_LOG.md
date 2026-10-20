@@ -339,3 +339,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** On main base `cb14cab365`, all 1,059 affected unit cases passed, including the 69 manager Routine cases; those 69 also passed in a clean Python 3.10 environment. All 409 selected existing Routine/heartbeat/automatic-execution integration cases passed. The new manager queue/configuration tests and existing chat tests passed 176 cases, with 52 unsupported synchronous-tool/asynchronous-database combinations skipped. The 18 supported chat cases passed again after isolating their schedule database fixture. Integration coverage uses sync/async SQLite and PostgreSQL Company stores and a real PostgreSQL durable worker. Full format, clean CI-dependency validation and whitespace checks passed. The shared Python 3.12 environment's nine mypy diagnostics also reproduce on the unchanged original base; the clean validation gate has none. No paid model calls. Live proposal quality and semantic duplicate detection are not evaluated by scripted responses.
 
 ---
+
+### 10_weekly_product_review.py — Routine result recovery follow-up (2026-10-20)
+
+**Status:** PASS
+
+**Description:** Rechecked both `--check` configurations after correcting Routine result reporting. Regression tests verify that a status version conflict can recover through a confirmed later write to the same Product, while denied writes and unresolved conflicts remain failures. Native and Studio delegation report provider failures, and nested failed or cancelled member results remain failures.
+
+**Result:** All 82 manager Routine tests passed on Python 3.12 and Python 3.10, including 13 new regression cases; seven new cases failed before the fix. Another 729 Company, manager and scheduler unit cases passed. SQLite chat integration passed nine cases, with three unsupported synchronous-tool/asynchronous-database cases skipped. Both cookbook checks, the full format script, clean Python 3.10 validation and whitespace checks passed. Formatting-only changes to two unrelated baseline files were excluded. PostgreSQL queue integration was not rerun for this follow-up. No paid model calls.
+
+---

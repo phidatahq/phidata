@@ -51,7 +51,6 @@ from agno.db.utils import (
     drop_legacy_metrics,
     filter_context_runs,
     merge_runs_table_with_legacy_blob,
-    runs_for_metrics,
 )
 from agno.run.agent import RunOutput
 from agno.run.base import RunStatus
@@ -295,6 +294,21 @@ class SurrealDb(BaseDb):
         )
         rows = [desurrealize_run_row(r) for r in rows_raw]
         return [r["run_data"] for r in rows if "run_data" in r]
+
+    def _get_session_run_models(self, session_id: str) -> List[Dict[str, Any]]:
+        """Each run of a session reduced to what metrics read, in the query: a session can hold many runs."""
+        runs_table = self._get_table("runs", create_table_if_not_found=False)
+        rows = self._query(
+            "SELECT run_data.run_id AS run_id, run_data.model AS model, run_data.model_provider AS model_provider "
+            f"FROM {runs_table} WHERE session_id = $sid",
+            {"sid": session_id},
+            dict,
+        )
+        # A run without a provider counts as "", as it did when whole runs were read
+        return [
+            {**row, "model_provider": "" if row.get("model_provider") is None else row["model_provider"]}
+            for row in rows
+        ]
 
     def _get_sessions_runs_data(self, session_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         if not session_ids:
@@ -1383,9 +1397,7 @@ class SurrealDb(BaseDb):
                 for s in sessions:
                     sid = s.get("session_id")
                     if sid:
-                        s["runs"] = merge_runs_table_with_legacy_blob(
-                            runs_for_metrics(self._get_session_runs_data(sid)), s.get("runs")
-                        )
+                        s["runs"] = merge_runs_table_with_legacy_blob(self._get_session_run_models(sid), s.get("runs"))
 
             all_sessions_data = fetch_all_sessions_data(
                 sessions=sessions,  # Added parameter name for clarity

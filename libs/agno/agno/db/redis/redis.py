@@ -404,13 +404,17 @@ class RedisDb(BaseDb):
         """Get raw run_data dicts for several sessions, grouped by session_id."""
         return {sid: self._get_session_runs_data(sid) for sid in session_ids}
 
-    def _iter_records(self, table_type: str, max_batch_bytes: int = 1_000_000) -> Iterator[Dict[str, Any]]:
-        """Yield every record of a table type, raising on read errors.
+    def _iter_records(self, table_type: str) -> Iterator[Dict[str, Any]]:
+        """Yield every record of a table type, raising on read errors."""
+        keys = get_all_keys_for_table(redis_client=self.redis_client, prefix=self.db_prefix, table_type=table_type)
+        yield from self._iter_values(keys)
+
+    def _iter_values(self, keys: List[Any], max_batch_bytes: int = 1_000_000) -> Iterator[Dict[str, Any]]:
+        """Yield the records stored under the given keys, raising on read errors.
 
         Values are read in batches capped by their stored size, not their count: a session still holding
-        legacy runs can be megabytes, so a fixed number of them could not be held at once.
+        legacy runs, or a run with a long output, can be megabytes, so a fixed number could not be held at once.
         """
-        keys = get_all_keys_for_table(redis_client=self.redis_client, prefix=self.db_prefix, table_type=table_type)
         for start in range(0, len(keys), 1000):
             chunk = keys[start : start + 1000]
             pipeline = self.redis_client.pipeline(transaction=False)
@@ -437,16 +441,19 @@ class RedisDb(BaseDb):
                 yield deserialize_data(data)  # type: ignore
 
     def _get_session_run_models(self, session_id: str) -> List[Dict[str, Any]]:
-        """Each run of a session reduced to what metrics read, without holding the runs' output."""
+        """Each run of a session reduced to what metrics read, as it is read: a session can hold many runs."""
         run_ids = list(self.redis_client.zrange(self._runs_by_session_index_key(session_id), 0, -1))  # type: ignore[arg-type]
-        if not run_ids:
-            return []
-        pipeline = self.redis_client.pipeline(transaction=False)
-        for rid in run_ids:
-            run_id = rid.decode() if isinstance(rid, bytes) else str(rid)
-            pipeline.get(generate_redis_key(prefix=self.db_prefix, table_type="runs", key_id=run_id))
-        rows = [deserialize_data(data) for data in pipeline.execute() if data]  # type: ignore
-        return runs_for_metrics([row["run_data"] for row in rows if row.get("run_data") is not None], None)
+        keys = [
+            generate_redis_key(
+                prefix=self.db_prefix, table_type="runs", key_id=rid.decode() if isinstance(rid, bytes) else str(rid)
+            )
+            for rid in run_ids
+        ]
+        models: List[Dict[str, Any]] = []
+        for row in self._iter_values(keys):
+            if row.get("run_data") is not None:
+                models.extend(runs_for_metrics([row["run_data"]], None))
+        return models
 
     def _delete_session_runs(self, session_id: str) -> int:
         """Delete every run row associated with a session (and the session's run index)."""
@@ -1421,7 +1428,7 @@ class RedisDb(BaseDb):
         try:
             # Each record is reduced as it is read: its legacy runs, kept on the session record until
             # cleanup_legacy_runs_field(), would otherwise all be held at once
-            all_sessions = []
+            all_sessions: List[Dict[str, Any]] = []
             for session in self._iter_records("sessions"):
                 created_at = session.get("created_at", 0)
                 if start_timestamp is not None and created_at < start_timestamp:

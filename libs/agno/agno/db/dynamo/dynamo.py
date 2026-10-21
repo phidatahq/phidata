@@ -278,6 +278,30 @@ class DynamoDb(BaseDb):
         rows.sort(key=lambda r: (r.get("run_index") or 0, r.get("created_at") or 0))
         return [r["run_data"] for r in rows if "run_data" in r]
 
+    def _get_session_run_models(self, session_id: str) -> List[Dict[str, Any]]:
+        """Each run of a session reduced to what metrics read, a query page at a time: a session can hold many runs."""
+        table_name = self._get_table("runs", create_table_if_not_found=False)
+        query_kwargs: Dict[str, Any] = dict(
+            TableName=table_name,
+            IndexName="session_id-created_at-index",
+            KeyConditionExpression="session_id = :sid",
+            ExpressionAttributeValues={":sid": {"S": session_id}},
+        )
+        models: List[Dict[str, Any]] = []
+        try:
+            response = self.client.query(**query_kwargs)
+            while True:
+                for item in response.get("Items", []):
+                    row = deserialize_from_dynamodb_item(item)
+                    if "run_data" in row:
+                        models.extend(runs_for_metrics([row["run_data"]]))
+                if "LastEvaluatedKey" not in response:
+                    break
+                response = self.client.query(**query_kwargs, ExclusiveStartKey=response["LastEvaluatedKey"])
+        except self.client.exceptions.ResourceNotFoundException:
+            return []
+        return models
+
     def _get_sessions_runs_data(self, session_ids: List[str]) -> Dict[str, List[Dict[str, Any]]]:
         if not session_ids:
             return {}
@@ -1791,7 +1815,7 @@ class DynamoDb(BaseDb):
         """
         try:
             table_name = self._get_table("sessions")
-            all_sessions = []
+            all_sessions: List[Dict[str, Any]] = []
 
             # Query sessions by different types within the time range. Each page is reduced as it arrives:
             # legacy runs, kept on the session item until cleanup_legacy_runs_field(), would otherwise all
@@ -1829,9 +1853,7 @@ class DynamoDb(BaseDb):
             # Attach runs from the runs table, merged with the legacy runs. Read one session at a time, so
             # the runs' output is never held for every session at once
             for s in all_sessions:
-                s["runs"] = merge_runs_table_with_legacy_blob(
-                    runs_for_metrics(self._get_session_runs_data(s["session_id"])), s["runs"]
-                )
+                s["runs"] = merge_runs_table_with_legacy_blob(self._get_session_run_models(s["session_id"]), s["runs"])
 
             return all_sessions
 

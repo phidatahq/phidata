@@ -247,7 +247,9 @@ def _set_legacy_surreal(db, session_id: str, runs: List[Dict[str, Any]]) -> None
     from surrealdb import RecordID
 
     # SurrealDB keys a session by its record id; there is no session_id field to match on
-    db.client.query("UPDATE $record SET runs = $runs", {"record": RecordID(db._get_table("sessions"), session_id), "runs": runs})
+    db.client.query(
+        "UPDATE $record SET runs = $runs", {"record": RecordID(db._get_table("sessions"), session_id), "runs": runs}
+    )
 
 
 class Backend:
@@ -330,6 +332,7 @@ def seed(
     legacy: bool = True,
     table_runs: bool = False,
     provider: bool = True,
+    runs_per_session: int = RUNS_PER_SESSION,
 ) -> int:
     """Add agent sessions created yesterday; return the bytes of runs JSON they carry.
 
@@ -341,7 +344,7 @@ def seed(
     payload = 0
     for s in range(first, first + sessions):
         session_id = f"s{s}"
-        runs = [_run(session_id, r, run_bytes, provider) for r in range(RUNS_PER_SESSION)]
+        runs = [_run(session_id, r, run_bytes, provider) for r in range(runs_per_session)]
         db.upsert_session(
             AgentSession(
                 session_id=session_id,
@@ -552,4 +555,37 @@ def test_metrics_refresh_memory_does_not_grow_with_the_runs(ns, backend, state):
     assert growth < payload * MAX_GROWTH_FRACTION, (
         f"{backend} metrics refresh grew peak memory by {growth / 1e6:.0f} MB with "
         f"{payload / 1e6:.0f} MB of runs; the refresh is holding whole runs"
+    )
+
+
+# One session with as many runs as all of LARGE_SESSIONS have together
+RUNS_IN_ONE_LARGE_SESSION = LARGE_SESSIONS * RUNS_PER_SESSION
+
+
+@pytest.mark.parametrize("backend", list(BACKENDS))
+def test_metrics_refresh_memory_does_not_grow_with_one_large_session(ns, backend):
+    """A session's runs are reduced as they are read, not held whole until the session is done."""
+    payload = seed(
+        BACKENDS[backend],
+        ns,
+        1,
+        run_bytes=RUN_BYTES,
+        legacy=False,
+        table_runs=True,
+        runs_per_session=RUNS_IN_ONE_LARGE_SESSION,
+    )
+
+    done = subprocess.run(
+        [sys.executable, "-c", _CHILD, os.path.dirname(__file__), backend, ns],
+        capture_output=True,
+        text=True,
+        timeout=900,
+    )
+
+    assert done.returncode == 0, done.stderr[-2000:]
+    runs_counted, growth = (int(line) for line in done.stdout.strip().splitlines()[-2:])
+    assert runs_counted == RUNS_IN_ONE_LARGE_SESSION
+    assert growth < payload * MAX_GROWTH_FRACTION, (
+        f"{backend} metrics refresh grew peak memory by {growth / 1e6:.0f} MB for one session with "
+        f"{payload / 1e6:.0f} MB of runs; the session's runs are held whole"
     )

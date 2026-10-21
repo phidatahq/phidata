@@ -7,10 +7,10 @@ from pydantic import BaseModel
 from agno.models.anthropic import Claude as AnthropicClaude
 from agno.utils.log import log_debug
 from agno.utils.models.claude import (
-    drop_unsupported_sampling_params,
     format_tools_for_model,
     resolve_http_client,
     route_sampling_params_to_extra_body,
+    route_thinking_budget_to_adaptive,
 )
 
 try:
@@ -142,8 +142,8 @@ class Claude(AnthropicClaude):
         if self.request_params:
             _request_params.update(self.request_params)
 
-        route_sampling_params_to_extra_body(_request_params)
-        drop_unsupported_sampling_params(_request_params, self.id)
+        route_thinking_budget_to_adaptive(_request_params, model_id=self.id)
+        route_sampling_params_to_extra_body(_request_params, model_id=self.id)
 
         if _request_params:
             log_debug(f"Calling {self.provider} with request parameters: {_request_params}", log_level=2)

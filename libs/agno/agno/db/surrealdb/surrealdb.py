@@ -1370,7 +1370,7 @@ class SurrealDb(BaseDb):
         try:
             table = self._get_table("metrics")  # Removed create_table_if_not_found parameter
 
-            starting_date = get_metrics_calculation_starting_date(self.client, table, self.get_sessions)
+            starting_date = get_metrics_calculation_starting_date(self.client, table, self._get_table("sessions"))
 
             if starting_date is None:
                 log_info("No session data found. Won't calculate metrics.")

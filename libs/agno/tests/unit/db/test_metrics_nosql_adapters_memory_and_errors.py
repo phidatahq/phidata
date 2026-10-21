@@ -398,6 +398,20 @@ def test_metrics_count_migrated_unmigrated_and_v3_runs_once(ns, backend):
     assert _model_metrics(result) == [("gpt-5.5", "", RUNS_PER_SESSION), ("gpt-5.5", "OpenAI", tracked_runs)]
 
 
+@pytest.mark.parametrize("backend", list(BACKENDS))
+def test_metrics_start_from_the_first_session_of_any_type(ns, backend):
+    """A store with no agent sessions still gets metrics: the first refresh starts at its first session of any type."""
+    from agno.session.team import TeamSession
+
+    b = BACKENDS[backend]
+    b.make(ns).upsert_session(TeamSession(session_id="t1", team_id="team-1", user_id="u1", created_at=_created_at()))
+
+    result = calculate(b, ns)
+
+    assert result is not None and len(result) == 1
+    assert result[0]["team_sessions_count"] == 1
+
+
 # What each adapter reported, before runs were reduced as read, for a runs-table run without a provider
 PROVIDERLESS_TABLE_RUN = {
     "redis": "None",

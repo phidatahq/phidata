@@ -1,10 +1,9 @@
 from datetime import date, datetime, timezone
 from textwrap import dedent
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from surrealdb import BlockingHttpSurrealConnection, BlockingWsSurrealConnection, RecordID
 
-from agno.db.base import SessionType
 from agno.db.surrealdb import utils
 from agno.db.surrealdb.models import desurrealize_session, surrealize_dates
 from agno.db.surrealdb.queries import WhereClause
@@ -78,7 +77,7 @@ def _stored_day(value: Any) -> Optional[date]:
 
 
 def get_metrics_calculation_starting_date(
-    client: Union[BlockingWsSurrealConnection, BlockingHttpSurrealConnection], table: str, get_sessions: Callable
+    client: Union[BlockingWsSurrealConnection, BlockingHttpSurrealConnection], table: str, sessions_table: str
 ) -> Optional[date]:
     """Get the first date for which metrics calculation is needed:
 
@@ -131,16 +130,14 @@ def get_metrics_calculation_starting_date(
     if starting_date is not None:
         return starting_date
 
-    # 2. No metrics records. Return the date of the first recorded session
-    first_session, _ = get_sessions(
-        session_type=SessionType.AGENT,  # this is ignored because of component_id=None and deserialize=False
-        sort_by="created_at",
-        sort_order="asc",
-        limit=1,
-        component_id=None,
-        deserialize=False,
+    # 2. No metrics records. Return the date of the first recorded session, of any type. Queried directly:
+    # get_sessions attaches every run of the session it returns, and filters by its session type
+    first_session = utils.query(
+        client,
+        f"SELECT created_at FROM {sessions_table} WHERE created_at IS NOT NONE ORDER BY created_at ASC LIMIT 1",
+        {},
+        dict,
     )
-    assert isinstance(first_session, list)
 
     first_session_date = first_session[0]["created_at"] if first_session else None
 

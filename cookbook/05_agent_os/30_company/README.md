@@ -41,7 +41,7 @@ needed. Company Manager is the only framework manager that can run a Routine:
 OS Manager, Platform Builder and Platform Manager can change the platform, and
 Routines run unattended on Source content, so they are refused as executors.
 Company Manager stays out of Studio's reusable registry and is served through
-its normal agent routes, including when it is an OS Manager member.
+its normal agent routes whether or not OS Manager is enabled.
 
 Check both configurations without model calls or an active scheduler:
 
@@ -152,8 +152,10 @@ entries that reference the original decision.
 Company Manager uses `CompanyConfig(model=...)`, otherwise the first declared
 registry model. If neither exists, its unavailable reason appears in diagnostics
 and manual APIs still work. It is served at `GET /agents/company-manager-internal`
-and `POST /agents/company-manager-internal/runs`, and is also an OS Manager member
-when OS Manager is enabled. It was previously named Company Manager with the id
+and `POST /agents/company-manager-internal/runs`. When OS Manager is enabled it also
+gets a separate Company Manager member that carries the manager's tool-call limit and
+focused instructions; the served agent, which direct chat and Routines use, keeps its
+own policy. It was previously named Product Manager with the id
 `product-manager-internal`; that id stays reserved, and `AgentOS.product_manager`
 remains a deprecated alias of `AgentOS.company_manager`. Its id is reserved and its tools stay out of
 the registry. It proposes Projects and Backlog Tasks, edits owned proposals,
@@ -400,8 +402,10 @@ and already-created schedules still return 409; a retry never undoes a deliberat
 pause. Resume also repairs a missing Product link before activation.
 
 Routine reads and histories are company-wide, including under user isolation.
-Writes retain scheduler ownership; under user isolation, another user's mutation
-returns 403.
+Like Projects and Tasks, any caller with the Routine write scopes can add a
+Routine to any active Product, including an unowned declared Product; the
+creator owns the new Routine. Writes retain scheduler ownership; under user
+isolation, another user's mutation returns 403, including the Product owner's.
 Pause/resume use scheduler disable/enable and its filtered state response; saved
 authorization claims are never returned. Routine schedule names follow scheduler
 validation, including the 255-character limit on `product_id + "." + name`.

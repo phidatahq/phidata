@@ -359,3 +359,13 @@ No paid model calls or real outbound notification deliveries were exercised.
 **Result:** All three runs passed without model calls; both weekly variants persist `/agents/company-manager-internal/runs`. Offline tests cover refusal of OS Manager, both specialists and the legacy id through the endpoint resolver, bootstrap, the Routine API and human chat tools, with no partial Product written.
 
 ---
+
+### 05_company_manager.py and 10_weekly_product_review.py — merge with main and separate manager member (2026-10-21)
+
+**Status:** PASS
+
+**Description:** Merged main (Routine linkage and ownership, OS Manager tool budgets) into the Company Manager Routine branch. With OS Manager enabled, the team now holds its own Company Manager member carrying `member_tool_call_limit` and focused instructions, while the served Company Manager used by chat and Routines keeps its standalone policy. Ran `05_company_manager.py`, `10_weekly_product_review.py --check` and `--check --with-os-manager`.
+
+**Result:** All three runs passed without model calls. A new regression case fails when the member and served agent are the same object (the served agent inherits the member limit) and passes with separate instances.
+
+---

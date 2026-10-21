@@ -5,6 +5,7 @@ import json
 import os
 import time
 from dataclasses import dataclass, field, replace
+from pathlib import Path
 from typing import Dict
 from uuid import uuid4
 
@@ -252,6 +253,58 @@ async def test_lost_compute_before_checkpoint_fails_without_model_replay(system,
     assert output.status == RunStatus.error and "will not be repeated" in output.content
     assert output.metadata["retryable"] is False
     assert (await binding(coordinator))["record"]["checkpoint"] is None
+
+
+def before_result(coordinator, monkeypatch, command):
+    """Run ``command`` in the turn's computer once it has finished, before its result is staged."""
+    poll = coordinator.client.apoll
+    outputs = []
+
+    async def finish(execution, **kwargs):
+        page = await poll(execution, **kwargs)
+        if page.result is not None and not outputs:
+            outputs.append(await coordinator.provider.aexec(execution.computer, command))
+        return page
+
+    monkeypatch.setattr(coordinator.client, "apoll", finish)
+    return outputs
+
+
+async def test_a_virtualenv_in_the_workspace_checkpoints_and_runs_on_new_compute(system, monkeypatch):
+    coordinator, spec, root = system
+    made = before_result(coordinator, monkeypatch, ["python", "-m", "venv", "--without-pip", "/workspace/.venv"])
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    assert made[0].exit_code == 0
+    used = before_result(
+        coordinator, monkeypatch, ["/workspace/.venv/bin/python", "-c", "import sys; print(sys.prefix)"]
+    )
+    assert (await run(coordinator, spec, "second")).status == RunStatus.completed
+    assert used[0].exit_code == 0 and used[0].stdout.strip() == "/workspace/.venv"
+    first, second = handles_of(coordinator)
+    assert second.generation > first.generation
+    # The host-side extraction leaves the interpreter link out rather than pointing it at this host.
+    workspace = await restored_workspace(coordinator, root)
+    assert (workspace / ".venv/pyvenv.cfg").is_file()
+    links = [Path(parent, name) for parent, dirs, files in os.walk(workspace) for name in dirs + files]
+    links = [path for path in links if path.is_symlink()]
+    assert links and not any(os.readlink(path).startswith("/") for path in links)
+
+
+async def test_files_that_cannot_be_checkpointed_end_the_turn_and_release_the_session(system, monkeypatch):
+    coordinator, spec, root = system
+    assert (await run(coordinator, spec)).status == RunStatus.completed
+    before = (await binding(coordinator))["record"]
+    before_result(coordinator, monkeypatch, ["mkfifo", "/workspace/pipe"])
+    failed = await run(coordinator, spec, "second")
+    assert failed.status == RunStatus.error and "workspace/pipe" in failed.content
+    assert failed.metadata["retryable"] is False
+    after = (await binding(coordinator))["record"]
+    assert after["phase"] == "idle" and after["computer"] is None
+    assert after["checkpoint"] == before["checkpoint"]
+    monkeypatch.undo()
+    assert (await run(coordinator, spec, "second")).status == RunStatus.error
+    assert (await run(coordinator, spec, "third")).status == RunStatus.completed
+    assert await recovered_effects(coordinator, root) == ["first", "third"]
 
 
 async def test_restore_manifest_mismatch_is_rejected_before_execution(system, monkeypatch):

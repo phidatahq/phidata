@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from agno.db.base import AsyncBaseDb
 from agno.db.schemas.tasks import task_run_id
+from agno.exceptions import InputCheckError
 from agno.registry._reserved import RESERVED_MANAGER_IDS
 from agno.run.authorization import RunAuthorization
 
@@ -30,6 +31,10 @@ class _TaskRunConflict(ValueError):
 
 class _TaskRunUnavailable(ValueError):
     """The original execution store or component is unavailable for recovery."""
+
+
+class _TaskRunRefused(InputCheckError):
+    """A claimed Task run may no longer start; the queue fails it without retrying."""
 
 
 def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional[str], accepting: bool = False) -> Any:
@@ -404,17 +409,13 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
         or task["executor_id"] != job["component_id"]
         or task["executor_type"] != job["component_type"]
     ):
-        from agno.exceptions import InputCheckError
-
-        raise InputCheckError("Task acceptance was changed or revoked")
+        raise _TaskRunRefused("Task acceptance was changed or revoked")
     from agno.company.routines import _check_automatic_policy
 
     try:
         await _check_automatic_policy(getattr(worker, "_company_schedule_db", None), task)
     except ValueError as exc:
-        from agno.exceptions import InputCheckError
-
-        raise InputCheckError(str(exc)) from exc
+        raise _TaskRunRefused(str(exc)) from exc
     from agno.run.authorization import current_authorization
 
     authority = current_authorization()
@@ -426,9 +427,7 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
                 job["component_id"],
             )
         except PermissionError as exc:
-            from agno.exceptions import InputCheckError
-
-            raise InputCheckError(str(exc)) from exc
+            raise _TaskRunRefused(str(exc)) from exc
     component = await worker._aresolve_job_component(job)
     _validate_executor_tools(component)
 

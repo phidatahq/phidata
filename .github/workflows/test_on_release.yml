@@ -1320,8 +1320,8 @@ jobs:
   # -rs prints the skip reasons: a suite that quietly stops running is the
   # failure mode this job exists to prevent.
   #
-  # The test_company_* suites run in test-company-1 and test-company-2 instead:
-  # with them this job needed ~37 min and was killed at its timeout.
+  # The Company suites run in test-company-1 and test-company-2 instead: with
+  # them this job needed ~37 min and was killed at its timeout.
   test-db:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -1371,15 +1371,30 @@ jobs:
           --ignore=./libs/agno/tests/integration/db/async_mysql \
           --ignore=./libs/agno/tests/integration/db/surrealdb \
           --ignore=./libs/agno/tests/integration/db/valkey \
-          --ignore-glob='*/integration/db/test_company_*.py' \
+          --ignore=./libs/agno/tests/integration/db/test_company_execution_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_actor_owner_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_archive_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_chat_products.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_checkout_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_failure_recovery.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_heartbeat_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_manager_routines.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_playbook_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_replica_offboarding.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_retention_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_review_regressions.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_routines_parity.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_run_database_restart.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_sandbox_admission.py \
+          --ignore=./libs/agno/tests/integration/db/test_company_task_identity_recovery.py \
           ./libs/agno/tests/integration/db
 
   # Run the Company suites against a real Postgres, split across two jobs.
   #
   # Every Company test runs on sqlite, async_sqlite, postgres and async_postgres
   # and builds its own AgentOS app and queue schema, so together they take ~33 min.
-  # test-company-1 runs the largest file; test-company-2 runs every other
-  # test_company_* file, so a new one is picked up without editing this workflow.
+  # test-company-1 runs the largest file and test-company-2 the rest; test-db
+  # ignores every file listed here, so a new Company suite runs there until moved.
   test-company-1:
     runs-on: ubuntu-latest
     timeout-minutes: 30 # Green runs are expected at ~16 min
@@ -1464,9 +1479,21 @@ jobs:
           AGNO_TELEMETRY: false
         run: |
           source .venv/bin/activate
-          # --ignore does not apply to files named on the command line, so drop it from the list
-          python -m pytest -rs \
-          $(ls ./libs/agno/tests/integration/db/test_company_*.py | grep -v test_company_execution_parity.py)
+          python -m pytest -rs ./libs/agno/tests/integration/db/test_company_actor_owner_parity.py \
+          ./libs/agno/tests/integration/db/test_company_archive_parity.py \
+          ./libs/agno/tests/integration/db/test_company_chat_products.py \
+          ./libs/agno/tests/integration/db/test_company_checkout_parity.py \
+          ./libs/agno/tests/integration/db/test_company_failure_recovery.py \
+          ./libs/agno/tests/integration/db/test_company_heartbeat_parity.py \
+          ./libs/agno/tests/integration/db/test_company_manager_routines.py \
+          ./libs/agno/tests/integration/db/test_company_playbook_parity.py \
+          ./libs/agno/tests/integration/db/test_company_replica_offboarding.py \
+          ./libs/agno/tests/integration/db/test_company_retention_parity.py \
+          ./libs/agno/tests/integration/db/test_company_review_regressions.py \
+          ./libs/agno/tests/integration/db/test_company_routines_parity.py \
+          ./libs/agno/tests/integration/db/test_company_run_database_restart.py \
+          ./libs/agno/tests/integration/db/test_company_sandbox_admission.py \
+          ./libs/agno/tests/integration/db/test_company_task_identity_recovery.py
 
   # Run the DbFileSystem suite against a real Postgres (both dialects).
   #

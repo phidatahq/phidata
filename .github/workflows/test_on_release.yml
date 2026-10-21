@@ -7,8 +7,6 @@ on:
     branches:
       - "*release*" # Run on release-* format
       - "release/*" # Run on release/1.2.3 branch format
-      - "feat/sandbox"
-      - "fix/fastapi-omitted-bool-form-defaults"
       - "ci/split-company-db-tests"
   workflow_dispatch: # Allows manual triggering
     inputs:

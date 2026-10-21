@@ -16,7 +16,7 @@ from pydantic import BeforeValidator
 
 from agno.company.declarations import Product, Routine, Source
 from agno.company.manager import AsyncCompanyManager, CompanyManager
-from agno.company.playbook import _require_owner
+from agno.company.routines import _require_routine_product, _RoutineAuthorization
 from agno.db.base import AsyncBaseDb
 from agno.run.authorization import current_authorization, requires_permission
 from agno.tools import Toolkit
@@ -190,6 +190,9 @@ class CompanyTools(Toolkit):
                 return None
         if self.user_isolation or (isinstance(user, str) and user.startswith("sa:")):
             if not user:
+                if isinstance(authority, _RoutineAuthorization) and authority.original is None:
+                    # An unowned Routine fires unscoped like any unowned schedule, still bound to its Product.
+                    return None
                 raise PermissionError("Caller identity is required under user isolation")
             return user
         return None
@@ -607,31 +610,31 @@ class CompanyTools(Toolkit):
     def edit_company_project(
         self, project_id: str, name: str, outcome: str, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Edit a proposed Project owned by the caller; accepted work stays frozen."""
+        """Edit a proposed Project; accepted work stays frozen."""
         _permission("projects", "write", _agno_run_context)
         manager = self._sync()
         row = manager.get_project(project_id)
         if row is None:
             raise LookupError("Project not found")
-        user = self._scoped_user(_agno_run_context)
-        _require_owner(row, user)
+        self._scoped_user(_agno_run_context)
+        _require_routine_product(row["product_id"])
         if row["status"] != "proposed":
             raise ValueError("Only proposed Projects may be edited by Company tools")
         return _public_json(
-            manager.update_project(project_id, user_id=user, expected_status="proposed", name=name, outcome=outcome)
+            manager.update_project(project_id, user_id=None, expected_status="proposed", name=name, outcome=outcome)
         )
 
     @requires_permission()
     def edit_company_task(self, task_id: str, title: str, brief: str, _agno_run_context: Optional[Any] = None) -> str:
-        """Edit the title and brief of owned Backlog work; never change lifecycle or ownership."""
+        """Edit the title and brief of Backlog work; never change lifecycle or ownership."""
         _permission("tasks", "write", _agno_run_context)
         manager = self._sync()
         row = manager.get_task(task_id)
         if row is None:
             raise LookupError("Task not found")
-        user = self._scoped_user(_agno_run_context)
-        _require_owner(row, user)
-        return _public_json(manager.update_task(task_id, user_id=user, title=title, brief=brief))
+        self._scoped_user(_agno_run_context)
+        _require_routine_product(row["product_id"])
+        return _public_json(manager.update_task(task_id, user_id=None, title=title, brief=brief))
 
     @requires_permission()
     def list_company_wiki(
@@ -897,19 +900,19 @@ class CompanyTools(Toolkit):
     async def aedit_company_project(
         self, project_id: str, name: str, outcome: str, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Edit a proposed Project owned by the caller; accepted work stays frozen."""
+        """Edit a proposed Project; accepted work stays frozen."""
         await _apermission("projects", "write", _agno_run_context)
         manager = self._async()
         row = await manager.get_project(project_id)
         if row is None:
             raise LookupError("Project not found")
-        user = self._scoped_user(_agno_run_context)
-        _require_owner(row, user)
+        self._scoped_user(_agno_run_context)
+        _require_routine_product(row["product_id"])
         if row["status"] != "proposed":
             raise ValueError("Only proposed Projects may be edited by Company tools")
         return _public_json(
             await manager.update_project(
-                project_id, user_id=user, expected_status="proposed", name=name, outcome=outcome
+                project_id, user_id=None, expected_status="proposed", name=name, outcome=outcome
             )
         )
 
@@ -917,15 +920,15 @@ class CompanyTools(Toolkit):
     async def aedit_company_task(
         self, task_id: str, title: str, brief: str, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """Edit the title and brief of owned Backlog work; never change lifecycle or ownership."""
+        """Edit the title and brief of Backlog work; never change lifecycle or ownership."""
         await _apermission("tasks", "write", _agno_run_context)
         manager = self._async()
         row = await manager.get_task(task_id)
         if row is None:
             raise LookupError("Task not found")
-        user = self._scoped_user(_agno_run_context)
-        _require_owner(row, user)
-        return _public_json(await manager.update_task(task_id, user_id=user, title=title, brief=brief))
+        self._scoped_user(_agno_run_context)
+        _require_routine_product(row["product_id"])
+        return _public_json(await manager.update_task(task_id, user_id=None, title=title, brief=brief))
 
     @requires_permission()
     async def alist_company_wiki(

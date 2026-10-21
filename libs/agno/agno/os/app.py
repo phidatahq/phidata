@@ -695,15 +695,26 @@ class AgentOS:
                 self.registry = Registry()
             self.registry.exclude_components([self._company_manager])
             if self._manager is not None:
-                self._manager.company_manager = self._company_manager
+                from agno.company.company_manager import _build_company_manager
+                from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS
+
+                # A separate member keeps the manager's execution policy off the served
+                # Company Manager, which direct chat and Routines run.
+                member = _build_company_manager(self, self._company_manager.model)
+                assert member is not None
+                member.tool_call_limit = self._manager.config.member_tool_call_limit
+                assert isinstance(member.instructions, str)
+                member.instructions = [member.instructions, FOCUSED_EXECUTION_INSTRUCTIONS]
+                self.registry.exclude_components([member])
+                self._manager.company_manager = member
                 assert isinstance(self._manager.team.members, list)
-                self._manager.team.members.append(self._company_manager)
+                self._manager.team.members.append(member)
                 assert isinstance(self._manager.team.instructions, list)
                 self._manager.team.instructions.append(
-                    "Delegate Company planning, playbook updates and decisions to Company Manager."
+                    "Delegate Company Products, Projects, Tasks, Sources, Routines, playbook pages and decisions to "
+                    "Company Manager, including setup requests and questions about their status. Routines are "
+                    "Company schedules: ask Company Manager, not Platform Builder, to create them."
                 )
-            # Serve the same owned agent even when it is also a manager member.
-            # Routine runs use the normal agent routes and their per-run copies.
             self.agents = [*(self.agents or []), self._company_manager]
 
         self._initialize_agents()
@@ -1187,10 +1198,8 @@ class AgentOS:
                     # Fail at startup, not on the first run, when the sandbox has no Postgres to coordinate on.
                     _harness._check_db(entry)
 
-        # Company Manager is both served and a member; initialize each object once.
-        agents_to_initialize = list(
-            {id(agent): agent for agent in [*self._agents, *(self._manager.agents if self._manager else [])]}.values()
-        )
+        # Manager specialists need normal initialization, but are not served agents.
+        agents_to_initialize = [*self._agents, *(self._manager.agents if self._manager else [])]
         if not agents_to_initialize:
             return
 

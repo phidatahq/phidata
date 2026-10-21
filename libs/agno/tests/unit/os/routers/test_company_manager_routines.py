@@ -202,7 +202,9 @@ def test_owned_resolution_serving_and_resync(tmp_path, enabled):
         "/agents/" + COMPANY_MANAGER_ID + "/runs"
     )
     if enabled:
-        assert sum(member is pm for member in os.manager.members) == 1
+        members = [member for member in os.manager.members if member.id == COMPANY_MANAGER_ID]
+        assert len(members) == 1 and members[0] is not pm
+        assert all(agent is not members[0] for agent in os._agents)
     for cid in (BUILDER_ID, OPERATOR_ID):
         assert all(agent.id != cid for agent in os._agents)
     for kind, cid in (("agent", COMPANY_MANAGER_ID), ("team", MANAGER_TEAM_ID)):

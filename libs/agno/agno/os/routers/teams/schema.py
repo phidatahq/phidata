@@ -284,29 +284,15 @@ class TeamResponse(BaseModel):
         if team.model and team.model.provider is not None:
             _team_model_data["provider"] = team.model.provider
 
-        from agno.registry._reserved import RESERVED_MEMBER_IDS
+        from agno.registry._reserved import is_framework_owned
 
         members: List[Union[AgentResponse, TeamResponse]] = []
         for member in team.members if isinstance(team.members, list) else []:
-            if isinstance(member, Agent) and member.id in RESERVED_MEMBER_IDS and member._registry_excluded:
-                # Framework specialists show identity only: their prompts can carry the server's source root.
-                members.append(
-                    AgentResponse(
-                        id=member.id,
-                        name=member.name,
-                        db_id=member.db.id if member.db else None,
-                        description=member.description,
-                        role=member.role,
-                        model=ModelResponse(
-                            name=member.model.name, model=member.model.id, provider=member.model.provider
-                        )
-                        if member.model
-                        else None,
-                        metadata=member.metadata,
-                    )
-                )
-            elif isinstance(member, Agent):
+            if isinstance(member, Agent):
                 agent_response = await AgentResponse.from_agent(member)
+                if is_framework_owned(member):
+                    # Built-in members can carry the server's source root in their instructions.
+                    agent_response.system_message = None
                 members.append(agent_response)
             if isinstance(member, Team):
                 team_response = await TeamResponse.from_team(member)

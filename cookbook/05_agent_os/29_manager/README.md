@@ -160,7 +160,8 @@ composition are fixed. Its members are:
 
 Only OS Manager is exposed as a standalone target in config, discovery, REST and MCP.
 Platform Builder and Platform Manager appear as nested members in `/teams` and
-`/teams/os-manager-internal`, so the team graph shows its composition. They remain
+`/teams/os-manager-internal`, so the team graph shows its composition. Built-in members,
+including Product Manager, list their model and tools but not their instructions. They remain
 excluded from the application registry, `/config` agent list and `/agents`, and
 their standalone agent routes return 422 with an explanation that the component
 ID is reserved. OS Manager delegates to them; their child runs and tool results remain

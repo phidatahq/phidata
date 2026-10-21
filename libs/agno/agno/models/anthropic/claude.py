@@ -126,7 +126,7 @@ class Claude(Model):
         "claude-opus-4-0",
     }
 
-    id: str = "claude-sonnet-4-5-20250929"
+    id: str = "claude-sonnet-5-5"
     name: str = "Claude"
     provider: str = "Anthropic"
 
@@ -590,7 +590,7 @@ class Claude(Model):
         if self.request_params:
             _request_params.update(self.request_params)
 
-        return route_sampling_params_to_extra_body(_request_params)
+        return route_sampling_params_to_extra_body(_request_params, model_id=self.id)
 
     @staticmethod
     def _extract_container_id_from_messages(messages: List["Message"]) -> Optional[str]:

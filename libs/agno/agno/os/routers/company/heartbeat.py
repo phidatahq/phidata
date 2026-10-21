@@ -215,7 +215,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
     @router.post("/routines", status_code=201, response_model=RoutineResponse)
     async def create_routine(body: RoutineCreate, request: Request, _: bool = Depends(auth)):
         await product(body.product_id, request, owned=False)
-        fields = await call(_schedule_fields, body.product_id, body, agent_os.registry)
+        fields = await call(_schedule_fields, body.product_id, body, agent_os.registry, agent_os=agent_os)
         if body.auto_accept:
             from agno.company.routines import _authorize_auto_accept
 
@@ -251,7 +251,9 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         if "executor_type" in updates or "executor_id" in updates:
             executor_type = updates.pop("executor_type", row["target_type"])
             executor_id = updates.pop("executor_id", row["target_id"])
-            updates["endpoint"] = await call(_routine_executor_endpoint, executor_type, executor_id, agent_os.registry)
+            updates["endpoint"] = await call(
+                _routine_executor_endpoint, executor_type, executor_id, agent_os.registry, agent_os=agent_os
+            )
             payload = updates.get("payload", row["payload"])
             policy = payload["metadata"].get("auto_accept")
             if policy:
@@ -280,6 +282,12 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         row = await routine(routine_id, request)
         product_id = row["payload"]["metadata"]["product_id"]
         await product(product_id, request, owned=False)
+        from agno.registry._reserved import RESERVED_MANAGER_IDS
+
+        if row["target_id"] in RESERVED_MANAGER_IDS:
+            await call(
+                _routine_executor_endpoint, row["target_type"], row["target_id"], agent_os.registry, agent_os=agent_os
+            )
         await call(db.add_product_routine, product_id, routine_id)
         return await routine_response(await call(handlers["enable_schedule"], routine_id, request))
 
@@ -309,7 +317,9 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
                 await authority.arequire("schedules", "write")
                 await authority.arequire("routines", "write")
             for declaration in body.routines:
-                fields = await call(_schedule_fields, "company-setup", declaration, agent_os.registry)
+                fields = await call(
+                    _schedule_fields, "company-setup", declaration, agent_os.registry, agent_os=agent_os
+                )
                 await _require_endpoint_permission(request, fields["endpoint"], "POST")
         existing = await call(manager.get, "company-setup", include_deleted=True)
         if existing is not None:
@@ -327,6 +337,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             agent_os.registry,
             schedule_db=schedule_db,
             scoped_user_id=get_scoped_user_id(request),
+            agent_os=agent_os,
         )
 
     return router

@@ -626,7 +626,7 @@ def test_custom_company_tools_resolve_os_interfaces_and_human_origin(tmp_path, m
         telemetry=False,
     )
     assert toolkit.interfaces is os.interfaces
-    assert "summarize_company_product" not in os.product_manager.tools[0].functions
+    assert "summarize_company_product" not in os.company_manager.tools[0].functions
     delivery = AsyncMock()
     monkeypatch.setattr("agno.company.summary.adeliver_summary", delivery)
     with TestClient(os.get_app()) as client:

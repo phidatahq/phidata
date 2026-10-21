@@ -13,13 +13,21 @@ from agno.scheduler import ScheduleManager
 
 
 async def arehydrate_product(
-    db: Any, product: Product, registry: Any = None, schedule_db: Any = None, scoped_user_id: Optional[str] = None
+    db: Any,
+    product: Product,
+    registry: Any = None,
+    schedule_db: Any = None,
+    scoped_user_id: Optional[str] = None,
+    *,
+    agent_os: Any = None,
 ):
     """Insert declared records once, repair interrupted linking, and retain later edits."""
     import time
 
     product_id = product.id or str(uuid5(NAMESPACE_URL, "agno:company:product:" + product.name))
-    routine_fields = [_declared_schedule_fields(product_id, routine, registry) for routine in product.routines]
+    routine_fields = [
+        _declared_schedule_fields(product_id, routine, registry, agent_os=agent_os) for routine in product.routines
+    ]
     row = await _call(db, "get_product", product_id, include_deleted=True)
     if row is None:
         try:
@@ -123,11 +131,19 @@ async def arehydrate_product(
 
 
 def rehydrate_product(
-    db: Any, product: Product, registry: Any = None, schedule_db: Any = None, scoped_user_id: Optional[str] = None
+    db: Any,
+    product: Product,
+    registry: Any = None,
+    schedule_db: Any = None,
+    scoped_user_id: Optional[str] = None,
+    *,
+    agent_os: Any = None,
 ):
     """Synchronous startup counterpart; use arehydrate_product inside an event loop."""
     return asyncio.run(
-        arehydrate_product(db, product, registry, schedule_db=schedule_db, scoped_user_id=scoped_user_id)
+        arehydrate_product(
+            db, product, registry, schedule_db=schedule_db, scoped_user_id=scoped_user_id, agent_os=agent_os
+        )
     )
 
 
@@ -135,5 +151,7 @@ def rehydrate_product(
 async def _company_lifespan(app: Any, agent_os: Any):
     for declaration in agent_os.company.products:
         product = declaration if isinstance(declaration, Product) else Product.model_validate(declaration)
-        await arehydrate_product(agent_os._company_db, product, agent_os.registry, schedule_db=agent_os.db)
+        await arehydrate_product(
+            agent_os._company_db, product, agent_os.registry, schedule_db=agent_os.db, agent_os=agent_os
+        )
     yield

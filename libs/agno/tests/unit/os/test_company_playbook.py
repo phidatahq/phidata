@@ -1,4 +1,4 @@
-"""Company playbook, bounded tools and framework Product Manager contracts."""
+"""Company playbook, bounded tools and framework Company Manager contracts."""
 
 import inspect
 import json
@@ -12,13 +12,13 @@ from agno.db.sqlite import SqliteDb
 from agno.models.openai import OpenAIResponses
 from agno.os import AgentOS, CompanyConfig, OSManager
 from agno.registry import Registry
-from agno.registry._reserved import PRODUCT_MANAGER_ID
+from agno.registry._reserved import COMPANY_MANAGER_ID
 from agno.run import RunContext
 from agno.tools.company import CompanyTools
 
 
 @pytest.mark.parametrize("manager", [False, True])
-def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
+def test_company_manager_assembly_and_model_precedence(tmp_path, manager):
     db = SqliteDb(db_file=str(tmp_path / "os.db"))
     first, override = OpenAIResponses(id="first"), OpenAIResponses(id="override")
     registry = Registry(models=[first])
@@ -29,13 +29,15 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
         manager=OSManager(access_docs=False) if manager else None,
         telemetry=False,
     )
-    pm = os.product_manager
-    assert pm.id == PRODUCT_MANAGER_ID and pm.model is override
+    pm = os.company_manager
+    assert pm.id == COMPANY_MANAGER_ID and pm.model is override
     assert pm.learning.decision_log.db is db
     assert pm not in registry.agents and not registry.tools
-    assert (pm in os.manager.members) if manager else (pm in os._agents)
-    assert (pm not in os._agents) if manager else True
+    assert sum(agent is pm for agent in os._agents) == 1
     if manager:
+        member = next(m for m in os.manager.members if m.id == COMPANY_MANAGER_ID)
+        assert member is not pm and member not in os._agents and member not in registry.agents
+        assert member.model is override and member.tools[0] is not pm.tools[0]
         delegation = os.manager.instructions[-1]
         assert "Routines" in delegation and "Tasks" in delegation and "not Platform Builder" in delegation
     os.resync(os.get_app())
@@ -53,7 +55,7 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
         "search_company_decisions",
     }
     inherited = AgentOS(db=db, registry=Registry(models=[first, override]), company=CompanyConfig(), telemetry=False)
-    assert inherited.product_manager.model is first
+    assert inherited.company_manager.model is first
 
 
 def test_company_tools_published_only_over_mcp_are_bound(tmp_path):
@@ -77,16 +79,16 @@ def test_company_tools_published_only_over_mcp_are_bound(tmp_path):
 def test_no_model_manual_api_and_disabled_company(tmp_path, caplog):
     db = SqliteDb(db_file=str(tmp_path / "no-model.db"))
     os = AgentOS(db=db, company=CompanyConfig(), telemetry=False)
-    assert not any("Product Manager unavailable" in record.message for record in caplog.records)
-    assert os.product_manager is None and "CompanyConfig(model=" in os.product_manager_unavailable_reason
+    assert not any("Company Manager unavailable" in record.message for record in caplog.records)
+    assert os.company_manager is None and "CompanyConfig(model=" in os.company_manager_unavailable_reason
     assert any(c.name == "company" and c.status == "WARN" for c in os.run_diagnostics().checks)
     assert TestClient(os.get_app()).post("/company/decisions", json={"decision": "manual"}).status_code == 201
     disabled = AgentOS(db=db, telemetry=False)
     assert not any(getattr(route, "path", "").startswith("/company") for route in disabled.get_app().routes)
     with pytest.raises(ValueError, match="reserved"):
-        AgentOS(db=db, agents=[Agent(id=PRODUCT_MANAGER_ID)], telemetry=False)
+        AgentOS(db=db, agents=[Agent(id=COMPANY_MANAGER_ID)], telemetry=False)
     with pytest.raises(ValueError, match="reserved"):
-        Registry(agents=[Agent(id=PRODUCT_MANAGER_ID)])
+        Registry(agents=[Agent(id=COMPANY_MANAGER_ID)])
 
 
 @pytest.mark.asyncio
@@ -133,7 +135,7 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
     )
     assert entry["user_id"] == "alice" and entry["session_id"] == "s"
     assert entry["agent_id"] is None
-    assert manager.list_decisions(agent_id=PRODUCT_MANAGER_ID, session_id="s")[1] == 0
+    assert manager.list_decisions(agent_id=COMPANY_MANAGER_ID, session_id="s")[1] == 0
     for function in tools.get_async_functions().values():
         function.process_entrypoint()
         properties = function.parameters.get("properties", {})
@@ -181,7 +183,7 @@ async def test_direct_mcp_has_only_bounded_tools(tmp_path):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("mode", ["sync", "async", "http"])
-async def test_product_manager_runs_tools_with_injected_identity(tmp_path, mode):
+async def test_company_manager_runs_tools_with_injected_identity(tmp_path, mode):
     from agno.models.base import Model
     from agno.models.message import MessageMetrics
     from agno.models.response import ModelResponse
@@ -257,7 +259,7 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, mode)
         assert response.status_code == 201 and response.json()["agent_id"] is None
     if mode == "http":
         with TestClient(os.get_app()) as client:
-            route = "/agents/" + PRODUCT_MANAGER_ID
+            route = "/agents/" + COMPANY_MANAGER_ID
             assert client.get(route).status_code == 200
             response = client.post(
                 route + "/runs",
@@ -267,17 +269,17 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, mode)
             assert response.json()["content"] == "Proposal recorded"
             created = client.post(
                 "/components",
-                json={"component_id": PRODUCT_MANAGER_ID, "component_type": "agent", "name": "Impersonator"},
+                json={"component_id": COMPANY_MANAGER_ID, "component_type": "agent", "name": "Impersonator"},
             )
             assert created.status_code == 409, created.text
-            assert client.patch("/components/" + PRODUCT_MANAGER_ID, json={"name": "Changed"}).status_code == 404
-            assert client.delete("/components/" + PRODUCT_MANAGER_ID).status_code == 404
-            assert db.get_component(PRODUCT_MANAGER_ID) is None
+            assert client.patch("/components/" + COMPANY_MANAGER_ID, json={"name": "Changed"}).status_code == 404
+            assert client.delete("/components/" + COMPANY_MANAGER_ID).status_code == 404
+            assert db.get_component(COMPANY_MANAGER_ID) is None
             assert client.get(route).status_code == 200
     elif mode == "async":
-        await os.product_manager.arun("Plan the release", user_id="alice", session_id="planning")
+        await os.company_manager.arun("Plan the release", user_id="alice", session_id="planning")
     else:
-        os.product_manager.run("Plan the release", user_id="alice", session_id="planning")
+        os.company_manager.run("Plan the release", user_id="alice", session_id="planning")
     m = CompanyManager(db)
     tasks, total = m.list_tasks()
     assert total == 1 and tasks[0]["user_id"] == "alice" and tasks[0]["status"] == "backlog"
@@ -285,8 +287,8 @@ async def test_product_manager_runs_tools_with_injected_identity(tmp_path, mode)
     decisions, total = m.list_decisions()
     assert total == 2
     own = next(decision for decision in decisions if decision.decision == "Review first")
-    assert own.user_id == "alice" and own.session_id == "planning" and own.agent_id == PRODUCT_MANAGER_ID
-    assert m.list_decisions(agent_id=PRODUCT_MANAGER_ID)[1] == 1
+    assert own.user_id == "alice" and own.session_id == "planning" and own.agent_id == COMPANY_MANAGER_ID
+    assert m.list_decisions(agent_id=COMPANY_MANAGER_ID)[1] == 1
 
 
 @pytest.mark.asyncio
@@ -318,18 +320,18 @@ async def test_tools_and_automatic_recall_require_scopes(tmp_path):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("fresh", [False, True])
-async def test_served_product_manager_resolution_and_catalog_fence(tmp_path, fresh):
+async def test_served_company_manager_resolution_and_catalog_fence(tmp_path, fresh):
     from agno.os.utils import AgnoHTTPException, get_agent_by_id, get_agent_by_id_async
 
     db = SqliteDb(db_file=str(tmp_path / "resolution.db"))
     os = AgentOS(db=db, company=CompanyConfig(model=OpenAIResponses(id="offline")), telemetry=False)
     for resolver in (get_agent_by_id, get_agent_by_id_async):
-        result = resolver(PRODUCT_MANAGER_ID, agents=os._agents, db=db, create_fresh=fresh)
+        result = resolver(COMPANY_MANAGER_ID, agents=os._agents, db=db, create_fresh=fresh)
         result = await result if inspect.isawaitable(result) else result
-        assert result.id == PRODUCT_MANAGER_ID
-        assert (result is not os.product_manager) == fresh
+        assert result.id == COMPANY_MANAGER_ID
+        assert (result is not os.company_manager) == fresh
         with pytest.raises(AgnoHTTPException, match="reserved"):
-            result = resolver(PRODUCT_MANAGER_ID, agents=[], db=db)
+            result = resolver(COMPANY_MANAGER_ID, agents=[], db=db)
             if inspect.isawaitable(result):
                 await result
     db.close()

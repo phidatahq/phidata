@@ -309,7 +309,7 @@ class CreationModel(OfflineModel):
 
 
 @pytest.mark.asyncio
-async def test_product_manager_runtime_injects_caller_and_parses_declarations(db):
+async def test_company_manager_runtime_injects_caller_and_parses_declarations(db):
     from agno.run.authorization import authorization_scope
 
     os = AgentOS(
@@ -319,7 +319,7 @@ async def test_product_manager_runtime_injects_caller_and_parses_declarations(db
         telemetry=False,
     )
     with authorization_scope(lambda: context().authorization):
-        output = await os.product_manager.arun("Set up a Product for our docs site", user_id="ana")
+        output = await os.company_manager.arun("Set up a Product for our docs site", user_id="ana")
     assert output.tools and not output.tools[0].tool_call_error, output
     async with AsyncClient(transport=ASGITransport(app=os.get_app()), base_url="http://test") as client:
         products = (await client.get("/company/products")).json()["data"]

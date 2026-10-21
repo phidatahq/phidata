@@ -494,7 +494,7 @@ def test_reasoning_streaming_delivers_more_events_than_non_streaming():
 
     agent = _get_reasoning_streaming_agent()
 
-    prompt = "What is 12 * 8?"
+    prompt = "What is 25 * 37? Show your reasoning step by step."
 
     # Non-streaming mode
     non_streaming_response = agent.run(prompt, stream=False)

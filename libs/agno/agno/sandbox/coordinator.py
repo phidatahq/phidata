@@ -28,7 +28,7 @@ from agno.run.agent import (
 )
 from agno.run.base import RunStatus
 from agno.sandbox.base import Sandbox, SandboxError, SandboxHandle, _retention, _sync
-from agno.sandbox.checkpoint import CheckpointObjectNotFound, CheckpointRef
+from agno.sandbox.checkpoint import CheckpointContentError, CheckpointObjectNotFound, CheckpointRef
 from agno.sandbox.client import RuntimeExecution, SandboxRuntimeClient
 from agno.sandbox.media import decode_media, encode_media
 from agno.sandbox.postgres import SandboxLease, SandboxLeaseLost, SandboxRunFinished, _drain, _SandboxStore, _settled

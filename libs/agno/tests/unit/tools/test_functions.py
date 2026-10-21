@@ -1,9 +1,9 @@
 import sys
 from inspect import isasyncgen, isawaitable
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Annotated, Any, Callable, Dict, List, Optional, Union
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, BeforeValidator, ValidationError
 
 import agno.tools.function as function_module
 from agno.models.message import Message
@@ -4464,3 +4464,38 @@ async def test_a_warm_entry_is_not_served_once_a_hook_rewrites_the_argument_asyn
     assert first.result == "data for 123"
     assert second.result == "data for profile-v2"
     assert executions == ["123", "profile-v2"]
+
+
+@pytest.mark.parametrize("from_callable", [False, True])
+@pytest.mark.parametrize("strict", [False, True])
+def test_annotated_optional_schema_and_validation(from_callable, strict):
+    def empty_to_none(value):
+        return None if value == "" else value
+
+    def lookup(
+        query: Annotated[Optional[str], BeforeValidator(empty_to_none)] = None,
+        limit: Annotated[Optional[int], BeforeValidator(empty_to_none)] = None,
+        context: Annotated[Optional[RunContext], "injected identity"] = None,
+    ):
+        """Look up records.
+
+        Args:
+            query: Optional search text.
+            limit: Optional result count.
+        """
+        return query, limit
+
+    if from_callable:
+        function = Function.from_callable(lookup, strict=strict)
+    else:
+        function = Function(name="lookup", entrypoint=lookup)
+        function.process_entrypoint(strict=strict)
+    properties = function.parameters["properties"]
+    assert set(properties) == {"query", "limit"}
+    for name, kind in (("query", "string"), ("limit", "integer")):
+        assert properties[name]["anyOf"] == [{"type": kind}, {"type": "null"}]
+        assert properties[name]["description"]
+    assert function.parameters["required"] == (["query", "limit"] if strict else [])
+    assert function.entrypoint(query="", limit="") == (None, None)
+    assert function.entrypoint(query=None, limit=None) == (None, None)
+    assert function.entrypoint(query="SDK", limit=5) == ("SDK", 5)

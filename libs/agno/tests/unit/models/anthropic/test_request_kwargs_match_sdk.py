@@ -79,6 +79,7 @@ CONFIGURATIONS = {
 
 # A model that still takes temperature/top_p/top_k, and one that rejects them, in each
 # provider's own ID format -- the capability is read off the ID, so the formats matter.
+# Thinking budgets were removed in the same release, so the same pair covers them too.
 SAMPLING_SUPPORTED_IDS = {
     "anthropic": "claude-sonnet-4-6",
     "aws": "global.anthropic.claude-sonnet-4-6-v1:0",

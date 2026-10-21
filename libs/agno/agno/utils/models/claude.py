@@ -935,9 +935,10 @@ def route_sampling_params_to_extra_body(
         return request_params
 
     if model_id is not None and not supports_sampling_params(model_id):
+        names = ", ".join(sorted(moved))
         log_warning(
-            f"{model_id} rejects any request that sets {', '.join(sorted(moved))}; dropped from this "
-            "request. Guide the model through its prompt instead."
+            f"{model_id} rejects {names}, so the request is sent without {names}. "
+            "Guide the model through its prompt instead."
         )
         return request_params
 

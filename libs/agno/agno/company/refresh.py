@@ -77,7 +77,8 @@ async def arefresh_product(manager: Any, product_id: str, user_id: Optional[str]
             ):
                 continue
             # Recheck terminal state and age in the existing soft-delete statement.
-            if await _call(manager, "delete_" + kind, record["id"], updated_before=cutoff):
+            # Owner-scoped like the archive routes: another user's work stays.
+            if await _call(manager, "delete_" + kind, record["id"], user_id=user_id, updated_before=cutoff):
                 result["archived_" + kind + "s"].append(record["id"])
 
     from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID

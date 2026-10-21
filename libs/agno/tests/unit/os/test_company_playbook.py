@@ -35,6 +35,9 @@ def test_product_manager_assembly_and_model_precedence(tmp_path, manager):
     assert pm not in registry.agents and not registry.tools
     assert (pm in os.manager.members) if manager else (pm in os._agents)
     assert (pm not in os._agents) if manager else True
+    if manager:
+        delegation = os.manager.instructions[-1]
+        assert "Routines" in delegation and "Tasks" in delegation and "not Platform Builder" in delegation
     os.resync(os.get_app())
     assert pm not in registry.agents and not registry.tools
     tools = pm.tools[0]
@@ -108,9 +111,12 @@ async def test_tools_identity_fence_and_learning(tmp_path, use_async):
     )
     assert task["status"] == "backlog" and task["user_id"] == "alice"
     assert json.loads(await invoke("list_company_tasks", _agno_run_context=bob))["meta"]["total_count"] == 1
-    with pytest.raises(PermissionError):
-        await invoke("edit_company_task", task["id"], "stolen", "no", _agno_run_context=bob)
+    # Edits are collaborative, as on PATCH /company/tasks; ownership does not move.
+    edited = json.loads(await invoke("edit_company_task", task["id"], "Draft v2", "bob's", _agno_run_context=bob))
+    assert edited["title"] == "Draft v2" and edited["user_id"] == "alice"
     await invoke("edit_company_task", task["id"], "Draft", "better", _agno_run_context=alice)
+    renamed = json.loads(await invoke("edit_company_project", project["id"], "Launch", "Ship", _agno_run_context=bob))
+    assert renamed["name"] == "Launch" and renamed["user_id"] == "alice"
     manager.transition_task(
         task_id=task["id"],
         target="ready",
@@ -327,3 +333,97 @@ async def test_served_product_manager_resolution_and_catalog_fence(tmp_path, fre
             if inspect.isawaitable(result):
                 await result
     db.close()
+
+
+def _owner_less_routine_authority(product_id):
+    from agno.os.authz.run_context import restore_authorization
+
+    # The snapshot the scheduler sends for a company schedule with no owner and no stored grant.
+    return restore_authorization(
+        None,
+        {
+            "context": {"principal_id": None},
+            "service_account": True,
+            "enforce_tools": True,
+            "company_routine": True,
+            "company_routine_unscoped": True,
+            "company_routine_id": "declared-intake",
+            "company_product_id": product_id,
+        },
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("use_async", [False, True])
+async def test_owner_less_routine_runs_unscoped_on_its_product_under_isolation(tmp_path, use_async):
+    from agno.run.authorization import authorization_scope
+
+    db = SqliteDb(db_file=str(tmp_path / "declared.db"))
+    manager = CompanyManager(db)
+    declared = manager.create(name="Declared")
+    other = manager.create(name="Other", user_id="alice")
+    tools = CompanyTools(db, user_isolation=True)
+    run = RunContext(run_id="r", session_id="s")
+
+    async def status(product_id):
+        version = manager.read_wiki(product_id, "status.md").metadata.version
+        if use_async:
+            return await tools.aupdate_company_status(product_id, "Checked", version, _agno_run_context=run)
+        return tools.update_company_status(product_id, "Checked", version, _agno_run_context=run)
+
+    with authorization_scope(lambda: _owner_less_routine_authority(declared["id"])):
+        assert json.loads(await status(declared["id"]))["path"] == "status.md"
+        with pytest.raises(PermissionError, match="configured Product"):
+            await status(other["id"])
+    with pytest.raises(PermissionError, match="Caller identity is required"):
+        await status(declared["id"])
+
+
+def test_refresh_archives_only_the_callers_finished_work(tmp_path):
+    import time
+
+    from agno.company.refresh import refresh_product
+
+    db = SqliteDb(db_file=str(tmp_path / "refresh.db"))
+    manager = CompanyManager(db)
+    product = manager.create(name="SDK", user_id="alice", metadata={"archive_window_days": 0})
+    project = manager.create_project(product_id=product["id"], name="Release", user_id="alice")
+    tasks = {
+        owner: manager.create_task(product_id=product["id"], title=owner, project_id=project["id"], user_id=owner)
+        for owner in ("alice", "bob")
+    }
+    for task in tasks.values():
+        manager.transition_task(task_id=task["id"], target="cancelled", reason="Dropped")
+    time.sleep(1.1)
+
+    assert refresh_product(manager, product["id"], user_id="alice")["archived_tasks"] == [tasks["alice"]["id"]]
+    assert refresh_product(manager, product["id"])["archived_tasks"] == [tasks["bob"]["id"]]
+
+
+@pytest.mark.asyncio
+async def test_declared_routines_belong_to_their_declarer(tmp_path):
+    from agno.agent import Agent
+    from agno.company import Product, Routine
+    from agno.company.bootstrap import arehydrate_product
+
+    db = SqliteDb(db_file=str(tmp_path / "setup.db"))
+    registry = Registry(agents=[Agent(id="reader")])
+
+    def declaration(user_id, routine):
+        return Product(
+            id="docs",
+            name="Docs",
+            user_id=user_id,
+            routines=[Routine(name=routine, template="intake", executor_type="agent", executor_id="reader")],
+        )
+
+    await arehydrate_product(db, declaration("alice", "first"), registry)
+    await arehydrate_product(db, declaration("bob", "retry"), registry)
+    # A retry by another declarer reuses the existing Routine and keeps its owner.
+    await arehydrate_product(db, declaration("bob", "first"), registry)
+    await arehydrate_product(db, declaration(None, "code"), registry)
+    rows = db.get_schedules()[0]
+    assert len(rows) == 3
+    owners = {row["name"]: row["user_id"] for row in rows}
+    assert db.get_product("docs")["user_id"] == "alice"
+    assert owners == {"docs.first": "alice", "docs.retry": "bob", "docs.code": "alice"}

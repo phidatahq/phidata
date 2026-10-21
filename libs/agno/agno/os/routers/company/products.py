@@ -1,13 +1,14 @@
 """Product CRUD routes for the opt-in Company domain.
 
 Products are company-wide records: every caller with the read scope sees every
-Product, whether or not user isolation is on. Isolation scopes writes only, so a
-non-admin caller can change a Product only when they own it, as with published
-components.
+Product, whether or not user isolation is on. Writes take per-record grants
+(see :mod:`agno.os.authz.records`): ``products:<id>:<action>`` covers one
+Product, ``products:own:<action>`` the caller's own, and a collection grant
+covers every Product, narrowed to the caller's own under user isolation.
 """
 
 import asyncio
-from typing import Any, Dict, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
@@ -15,6 +16,7 @@ from fastapi.responses import JSONResponse
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.os.auth import get_authentication_dependency
+from agno.os.authz.records import RecordOwner, RecordType, record_owner_scope
 from agno.os.middleware.user_scope import get_scoped_user_id
 from agno.os.routers.company.schema import ProductCreate, ProductResponse, ProductUpdate
 from agno.os.schema import PaginatedResponse, PaginationInfo
@@ -35,6 +37,40 @@ def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -
         raise HTTPException(status_code=403, detail="Cannot modify unowned product")
     if owner != user_id:
         raise HTTPException(status_code=403, detail="Cannot modify product owned by another user")
+
+
+def product_record_type(db: Union[BaseDb, AsyncBaseDb]) -> RecordType:
+    """Register Products with the route gate so writes take per-Product grants."""
+    path = r"^/company/products/([^/]+)"
+    if isinstance(db, AsyncBaseDb):
+        amanager = AsyncCompanyManager(db)
+
+        def unavailable(*_: Any) -> Any:
+            raise RuntimeError("Product grants on an async database need the async route gate")
+
+        async def aowner(product_id: str) -> RecordOwner:
+            row = await amanager.get(product_id, include_deleted=True)
+            return row is not None, row.get("user_id") if row else None
+
+        async def arecord_ids() -> List[str]:
+            rows, _ = await amanager.list(limit=1000)
+            return [row["id"] for row in rows]
+
+        return RecordType(
+            name="products", path=path, owner=unavailable, aowner=aowner, arecord_ids=arecord_ids, label="product"
+        )
+
+    manager = CompanyManager(db)
+
+    def owner(product_id: str) -> RecordOwner:
+        row = manager.get(product_id, include_deleted=True)
+        return row is not None, row.get("user_id") if row else None
+
+    def record_ids() -> List[str]:
+        rows, _ = manager.list(limit=1000)
+        return [row["id"] for row in rows]
+
+    return RecordType(name="products", path=path, owner=owner, record_ids=record_ids, label="product")
 
 
 def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
@@ -64,13 +100,21 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
                 status_code=409 if method == "delete" else 422, detail=exc.args[0] if exc.args else str(exc)
             )
 
-    async def _writable(product_id: str, user_id: Optional[str], include_deleted: bool = False) -> Dict[str, Any]:
-        # Company-wide read first, then the ownership check against the scoped caller.
+    async def _writable(
+        product_id: str, request: Request, include_deleted: bool = False
+    ) -> Tuple[Dict[str, Any], Optional[str]]:
+        """The Product and the owner to scope the write to, or None for an unscoped write."""
         existing = await _call("get", product_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Product not found")
+        decided, owner = record_owner_scope(request)
+        if decided:
+            # The route gate checked the caller's Product grant against this record.
+            return existing, owner
+        # Without the gate (authorization off), user isolation is the only control.
+        user_id = get_scoped_user_id(request)
         _require_write_ownership(existing, user_id)
-        return existing
+        return existing, user_id
 
     @router.get("/products", response_model=PaginatedResponse[ProductResponse])
     async def list_products(
@@ -115,8 +159,7 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def update_product(
         product_id: str, body: ProductUpdate, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        existing = await _writable(product_id, user_id)
+        existing, user_id = await _writable(product_id, request)
         fields = body.model_dump(exclude_unset=True)
         if not fields:
             return existing
@@ -127,8 +170,7 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.delete("/products/{product_id}", status_code=204)
     async def delete_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> Response:
-        user_id = get_scoped_user_id(request)
-        await _writable(product_id, user_id)
+        _product, user_id = await _writable(product_id, request)
         try:
             archived = await _call("delete", product_id, user_id=user_id)
         except HTTPException as exc:
@@ -142,8 +184,7 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
 
     @router.post("/products/{product_id}/restore", response_model=ProductResponse)
     async def restore_product(product_id: str, request: Request, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        existing = await _writable(product_id, user_id, include_deleted=True)
+        existing, user_id = await _writable(product_id, request, include_deleted=True)
         if existing.get("deleted_at") is None:
             raise HTTPException(status_code=409, detail="Product is not archived")
         product = await _call("restore", product_id, user_id=user_id)

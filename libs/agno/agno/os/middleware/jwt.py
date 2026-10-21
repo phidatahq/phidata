@@ -20,6 +20,7 @@ from agno.os.auth import (
     aprovision_user_with_default_role,
     build_insufficient_permissions_detail,
 )
+from agno.os.authz.records import RecordGrant, RecordType, get_record_types, match_record_route
 from agno.os.middleware.cors import OriginPolicy
 from agno.os.scopes import (
     AgentOSScope,
@@ -850,6 +851,107 @@ class AuthMiddleware(BaseHTTPMiddleware):
         log_warning(f"authorization provider raised during route authorization; denying: {error}")
         return RouteScopeCheck(allowed=False, required_scopes=required_scopes, reason="provider_error")
 
+    @staticmethod
+    def _record_type_for(
+        request: Request,
+        method: str,
+        record: Optional[Tuple["RecordType", str]],
+        required_scopes: List[str],
+        action: Optional[str],
+    ) -> Optional["RecordType"]:
+        """The record type the gate decides per record for this request, if any.
+
+        A route whose required scopes are about a registered type, addressing one of its
+        records or creating one, for one of the type's per-record actions. Reads are not
+        narrowed, and a route under a record's path that requires another family's scope
+        (a Product's wiki pages need ``wiki:write``) is decided as written.
+        """
+        if action is None:
+            return None
+        families = {scope.split(":", 1)[0] for scope in required_scopes}
+        if record is not None:
+            record_type: Optional[RecordType] = record[0]
+        elif method == "POST" and len(families) == 1:
+            record_type = get_record_types(request).get(next(iter(families)))
+        else:
+            return None
+        if record_type is None or families != {record_type.name} or action not in record_type.actions:
+            return None
+        return record_type
+
+    @staticmethod
+    def _record_grant(request: Request, ids: Set[str]) -> "RecordGrant":
+        from agno.os.middleware.user_scope import get_scoped_user_id
+
+        grant = RecordGrant.from_ids(ids)
+        if not getattr(request.state, "user_isolation_enabled", False):
+            return grant
+        try:
+            unscoped = get_scoped_user_id(request) is None
+        except Exception:
+            unscoped = False  # isolation without an identity: the caller owns nothing
+        return grant if unscoped else grant.isolated()
+
+    @staticmethod
+    def _grant_decision(
+        request: Request, grant: "RecordGrant", record_id: Optional[str], allowed: bool
+    ) -> Optional[bool]:
+        """The decision when the record's owner is not needed, else None."""
+        request.state.record_grant_decided = True
+        request.state.record_owner = None
+        request.state.record_denial = None
+        if record_id is None:
+            # Creating a record: an ``own`` grant may create records the caller then owns.
+            return allowed or grant.own
+        if grant.every or record_id in grant.ids:
+            # Covered by the grant; the provider's own decision still applies its deny rules.
+            return allowed
+        return None if grant.own else False
+
+    @staticmethod
+    def _owner_decision(request: Request, record_type: "RecordType", record_owner: Tuple[bool, Optional[str]]) -> bool:
+        exists, owner = record_owner
+        if not exists:
+            return True  # the endpoint answers 404
+        caller = getattr(request.state, "user_id", None)
+        request.state.record_owner = caller
+        if caller is not None and owner == caller:
+            return True
+        request.state.record_denial = record_type.owner_denial(owner)
+        return False
+
+    def _decide_record(
+        self,
+        request: Request,
+        provider: Any,
+        ctx: Any,
+        record_type: "RecordType",
+        record_id: Optional[str],
+        allowed: bool,
+    ) -> bool:
+        ids = provider.accessible_resource_ids(replace(ctx, resource_type=record_type.name, resource_id=None))
+        grant = self._record_grant(request, ids)
+        decision = self._grant_decision(request, grant, record_id, allowed)
+        if decision is not None:
+            return decision
+        return self._owner_decision(request, record_type, record_type.owner(record_id))  # type: ignore[arg-type]
+
+    async def _adecide_record(
+        self,
+        request: Request,
+        provider: Any,
+        ctx: Any,
+        record_type: "RecordType",
+        record_id: Optional[str],
+        allowed: bool,
+    ) -> bool:
+        ids = await provider.aaccessible_resource_ids(replace(ctx, resource_type=record_type.name, resource_id=None))
+        grant = self._record_grant(request, ids)
+        decision = self._grant_decision(request, grant, record_id, allowed)
+        if decision is not None:
+            return decision
+        return self._owner_decision(request, record_type, await record_type.aowner_of(record_id))  # type: ignore[arg-type]
+
     def _authorize_route(
         self,
         request: Request,
@@ -880,7 +982,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not required_scopes:
             return RouteScopeCheck(allowed=True, required_scopes=required_scopes)
 
-        resource_type, resource_id = get_resource_context_from_path(path)
+        record = match_record_route(request, path)
+        resource_type, resource_id = (record[0].name, record[1]) if record else get_resource_context_from_path(path)
 
         provider = resolve_authorization_provider(request)
         ctx = AuthorizationContext(
@@ -894,6 +997,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         )
         try:
             allowed = provider.authorize_route(ctx, required_scopes)
+            record_type = self._record_type_for(request, method, record, required_scopes, ctx.action)
+            if record_type is not None:
+                allowed = self._decide_record(request, provider, ctx, record_type, resource_id, allowed)
         except Exception as e:
             return self._provider_error_check(required_scopes, e)
 
@@ -948,7 +1054,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if not required_scopes:
             return RouteScopeCheck(allowed=True, required_scopes=required_scopes)
 
-        resource_type, resource_id = get_resource_context_from_path(path)
+        record = match_record_route(request, path)
+        resource_type, resource_id = (record[0].name, record[1]) if record else get_resource_context_from_path(path)
 
         provider = resolve_authorization_provider(request)
         ctx = AuthorizationContext(
@@ -962,6 +1069,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
         )
         try:
             allowed = await provider.aauthorize_route(ctx, required_scopes)
+            record_type = self._record_type_for(request, method, record, required_scopes, ctx.action)
+            if record_type is not None:
+                allowed = await self._adecide_record(request, provider, ctx, record_type, resource_id, allowed)
         except Exception as e:
             return self._provider_error_check(required_scopes, e)
 
@@ -1182,6 +1292,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     token_scopes_ignored=role_store is not None and not role_store.trust_token_scopes,
                 )
             )
+            record_denial = getattr(request.state, "record_denial", None)
+            if record_denial:
+                # The caller holds the scope; an ``own`` grant did not cover this record.
+                return self._create_error_response(403, record_denial, origin, cors_allowed_origins)
             return self._create_error_response(
                 403,
                 "Insufficient permissions",
@@ -1366,6 +1480,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     token_scopes_ignored=role_store is not None and not role_store.trust_token_scopes,
                 )
             )
+            record_denial = getattr(request.state, "record_denial", None)
+            if record_denial:
+                # The caller holds the scope; an ``own`` grant did not cover this record.
+                return self._create_error_response(403, record_denial, origin, cors_allowed_origins)
             return self._create_error_response(
                 403,
                 "Insufficient permissions",

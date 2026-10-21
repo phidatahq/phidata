@@ -88,7 +88,10 @@ def test_assembly_builds_one_map_for_all_consumers(tmp_path, monkeypatch, compan
         catalog = {item["raw"] for item in response.json()}
         assert "custom:read" in catalog
         assert {scope for scope in catalog if scope.startswith("products:")} == (
-            {"products:read", "products:write", "products:delete"} if company else set()
+            # Per-record grants add ``own``; this deployment has no Products to name.
+            {"products:read", "products:write", "products:delete", "products:own:write", "products:own:delete"}
+            if company
+            else set()
         )
         middleware = app.middleware_stack
         while not isinstance(middleware, AuthMiddleware):

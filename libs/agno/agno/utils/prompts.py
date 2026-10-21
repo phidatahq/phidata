@@ -4,6 +4,7 @@ from typing import Type, Union
 from pydantic import BaseModel
 
 from agno.utils.log import log_warning
+from agno.utils.models.schema_utils import unwrap_json_schema_response_format
 
 
 def get_json_output_prompt(output_schema: Union[str, list, dict, BaseModel]) -> str:
@@ -23,8 +24,11 @@ def get_json_output_prompt(output_schema: Union[str, list, dict, BaseModel]) -> 
             json_output_prompt += f"\n{json.dumps(output_schema, ensure_ascii=False)}"
             json_output_prompt += "\n</json_fields>"
         elif isinstance(output_schema, dict):
+            inline = unwrap_json_schema_response_format(output_schema)
             json_output_prompt += "\n<json_fields>"
-            json_output_prompt += f"\n{json.dumps(output_schema, ensure_ascii=False)}"
+            json_output_prompt += (
+                f"\n{json.dumps(inline.schema if inline is not None else output_schema, ensure_ascii=False)}"
+            )
             json_output_prompt += "\n</json_fields>"
         elif (isinstance(output_schema, type) and issubclass(output_schema, BaseModel)) or isinstance(
             output_schema, BaseModel

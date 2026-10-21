@@ -29,6 +29,7 @@ from agno.utils.gemini import (
     prepare_response_schema,
 )
 from agno.utils.log import log_debug, log_error, log_info, log_warning
+from agno.utils.models.schema_utils import unwrap_json_schema_response_format
 from agno.utils.tokens import count_schema_tokens, count_text_tokens, count_tool_tokens
 
 _FUNCTION_RESPONSE_MEDIA_TYPES = {
@@ -333,6 +334,11 @@ class Gemini(Model):
             # Convert Pydantic model using our hybrid approach
             # This will handle complex schemas with nested models, dicts, and circular refs
             config["response_schema"] = prepare_response_schema(response_format)
+        elif isinstance(response_format, dict):
+            inline = unwrap_json_schema_response_format(response_format)
+            if inline is not None:
+                config["response_mime_type"] = "application/json"  # type: ignore
+                config["response_json_schema"] = inline.schema  # type: ignore
 
         # Add thinking configuration
         thinking_config_params: Dict[str, Any] = {}

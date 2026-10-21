@@ -1977,6 +1977,109 @@ class TestCoverageFields:
         _data(studio_refs.edit_agent("shaped", output_schema_name=""))
         assert "output_schema_name" not in _data(studio_refs.get_component("shaped"))
 
+    INLINE_SCHEMA = {
+        "title": "Weather Report",
+        "type": "object",
+        "properties": {"city": {"type": "string"}, "temp_c": {"type": "number"}},
+        "required": ["city", "temp_c"],
+    }
+
+    def test_inline_output_schema_is_stored_canonically_and_read_back_plain(self, studio_refs, db):
+        _data(
+            studio_refs.create_agent(
+                name="inline", instructions="i", model_id="gpt-5.4", output_schema=self.INLINE_SCHEMA
+            )
+        )
+        stored = db.get_config(component_id="inline", version=1)["config"]["output_schema"]
+        assert stored == {
+            "type": "json_schema",
+            "json_schema": {"name": "Weather_Report", "schema": self.INLINE_SCHEMA},
+        }
+        got = _data(studio_refs.get_component("inline"))
+        assert got["output_schema"] == self.INLINE_SCHEMA
+        assert "output_schema_name" not in got
+
+    def test_inline_output_schema_rehydrates_without_registration(self, studio_refs, db, registry):
+        from agno.os.utils import get_agent_by_id
+
+        _data(
+            studio_refs.create_agent(
+                name="inline", instructions="i", model_id="gpt-5.4", output_schema=self.INLINE_SCHEMA, publish=True
+            )
+        )
+        agent = get_agent_by_id("inline", agents=None, db=db, registry=registry)
+        assert agent.output_schema["json_schema"]["schema"] == self.INLINE_SCHEMA
+
+    def test_inline_output_schema_replaces_and_detaches(self, studio_refs):
+        _data(
+            studio_refs.create_agent(name="inline", instructions="i", model_id="gpt-5.4", output_schema_name="Report")
+        )
+        _data(studio_refs.edit_agent("inline", output_schema=self.INLINE_SCHEMA))
+        got = _data(studio_refs.get_component("inline"))
+        assert got["output_schema"] == self.INLINE_SCHEMA
+        assert "output_schema_name" not in got
+
+        _data(studio_refs.edit_agent("inline", output_schema={}))
+        assert "output_schema" not in _data(studio_refs.get_component("inline"))
+
+    def test_output_schema_name_detach_clears_an_inline_schema(self, studio_refs):
+        _data(
+            studio_refs.create_agent(
+                name="inline", instructions="i", model_id="gpt-5.4", output_schema=self.INLINE_SCHEMA
+            )
+        )
+        _data(studio_refs.edit_agent("inline", output_schema_name=""))
+        assert "output_schema" not in _data(studio_refs.get_component("inline"))
+
+    def test_wrapped_inline_schema_is_normalized(self, studio_refs, db):
+        flat = {"type": "json_schema", "name": "Weather", "schema": self.INLINE_SCHEMA}
+        _data(studio_refs.create_agent(name="inline", instructions="i", model_id="gpt-5.4", output_schema=flat))
+        stored = db.get_config(component_id="inline", version=1)["config"]["output_schema"]
+        assert stored == {"type": "json_schema", "json_schema": {"name": "Weather", "schema": self.INLINE_SCHEMA}}
+
+    def test_inline_output_schema_on_a_team(self, studio_refs, db):
+        _data(studio_refs.create_agent(name="member", instructions="i", model_id="gpt-5.4"))
+        _data(
+            studio_refs.create_team(
+                name="crew",
+                instructions="i",
+                member_ids=["member"],
+                model_id="gpt-5.4",
+                output_schema=self.INLINE_SCHEMA,
+            )
+        )
+        assert _data(studio_refs.get_component("crew"))["output_schema"] == self.INLINE_SCHEMA
+
+    def test_inline_output_schema_and_name_together_is_invalid(self, studio_refs):
+        error = _error(
+            studio_refs.create_agent(
+                name="x",
+                instructions="i",
+                model_id="gpt-5.4",
+                output_schema=self.INLINE_SCHEMA,
+                output_schema_name="Report",
+            )
+        )
+        assert error["code"] == "invalid_request"
+
+    def test_inline_output_schema_must_have_an_object_root(self, studio_refs):
+        error = _error(
+            studio_refs.create_agent(
+                name="x", instructions="i", model_id="gpt-5.4", output_schema={"type": "array", "items": {}}
+            )
+        )
+        assert error["code"] == "invalid_request"
+
+    def test_async_create_forwards_inline_output_schema(self, studio_refs):
+        _data(
+            asyncio.run(
+                studio_refs.acreate_agent(
+                    name="inline", instructions="i", model_id="gpt-5.4", output_schema=self.INLINE_SCHEMA
+                )
+            )
+        )
+        assert _data(studio_refs.get_component("inline"))["output_schema"] == self.INLINE_SCHEMA
+
     def test_reasoning_model_attaches_and_detaches(self, studio_refs):
         _data(
             studio_refs.create_agent(name="thinker", instructions="i", model_id="gpt-5.4", reasoning_model_id="gpt-5.5")

@@ -10,6 +10,9 @@ from agno.utils.models.schema_utils import (
     get_dict_value_type,
     get_response_schema_for_provider,
     is_dict_field,
+    is_object_schema,
+    json_schema_response_format,
+    unwrap_json_schema_response_format,
 )
 
 
@@ -214,3 +217,44 @@ def test_multiple_dict_types():
     assert "rating" not in required_fields
     assert "scores" not in required_fields
     assert "metadata" not in required_fields
+
+
+OBJECT_SCHEMA = {"type": "object", "properties": {"city": {"type": "string"}}}
+
+
+def test_json_schema_response_format_wraps_in_the_canonical_shape():
+    assert json_schema_response_format(OBJECT_SCHEMA, name="Weather") == {
+        "type": "json_schema",
+        "json_schema": {"name": "Weather", "schema": OBJECT_SCHEMA},
+    }
+
+
+def test_json_schema_response_format_names_from_title_and_sanitizes():
+    schema = {**OBJECT_SCHEMA, "title": "Weather Report!" + "x" * 80}
+    name = json_schema_response_format(schema)["json_schema"]["name"]
+    assert name.startswith("Weather_Report_")
+    assert len(name) == 64
+
+
+def test_json_schema_response_format_defaults_the_name():
+    assert json_schema_response_format(OBJECT_SCHEMA)["json_schema"]["name"] == "output"
+
+
+def test_unwrap_reads_the_nested_and_flat_shapes():
+    nested = {"type": "json_schema", "json_schema": {"name": "W", "schema": OBJECT_SCHEMA, "strict": True}}
+    flat = {"type": "json_schema", "name": "W", "schema": OBJECT_SCHEMA}
+    assert unwrap_json_schema_response_format(nested) == ("W", OBJECT_SCHEMA, True)
+    assert unwrap_json_schema_response_format(flat) == ("W", OBJECT_SCHEMA, None)
+
+
+def test_unwrap_ignores_other_dicts():
+    assert unwrap_json_schema_response_format({"type": "json_object"}) is None
+    assert unwrap_json_schema_response_format(OBJECT_SCHEMA) is None
+    assert unwrap_json_schema_response_format({"type": "json_schema", "json_schema": {"name": "W"}}) is None
+
+
+def test_is_object_schema():
+    assert is_object_schema(OBJECT_SCHEMA)
+    assert is_object_schema({"properties": {"a": {"type": "string"}}})
+    assert not is_object_schema({"type": "array", "items": {}})
+    assert not is_object_schema({"type": "string"})

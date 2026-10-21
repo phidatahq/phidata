@@ -27,6 +27,7 @@ from agno.models.response import ModelResponse, ModelResponseEvent, ToolExecutio
 from agno.run.agent import RunOutput
 from agno.utils.gemini import inject_agno_client_header
 from agno.utils.log import log_debug, log_error, log_info, log_warning
+from agno.utils.models.schema_utils import unwrap_json_schema_response_format
 
 try:
     from google import genai
@@ -557,8 +558,16 @@ class GeminiInteractions(Model):
                     "schema": response_format.model_json_schema(),
                 }
             elif isinstance(response_format, dict):
-                # Raw dict passed through (could be TextResponseFormatParam, etc.)
-                kwargs["response_format"] = response_format
+                inline = unwrap_json_schema_response_format(response_format)
+                if inline is not None:
+                    kwargs["response_format"] = {
+                        "type": "text",
+                        "mime_type": "application/json",
+                        "schema": inline.schema,
+                    }
+                else:
+                    # Raw dict passed through (could be TextResponseFormatParam, etc.)
+                    kwargs["response_format"] = response_format
 
         # Tools - already formatted by _format_tools() via the base class before invoke() is called
         # Add built-in tools that are model-specific (not from the agent's tool list)

@@ -1,3 +1,4 @@
+import copy
 import json
 from collections.abc import AsyncIterator
 from dataclasses import asdict, dataclass
@@ -27,6 +28,7 @@ from agno.utils.models.claude import (
     serialize_content_blocks,
     supports_prefill,
 )
+from agno.utils.models.schema_utils import unwrap_json_schema_response_format
 from agno.utils.tokens import count_schema_tokens
 
 try:
@@ -372,6 +374,21 @@ class Claude(Model):
             # Claude only supports json_schema, not json_object
             if response_format.get("type") == "json_object":
                 return None
+            if isinstance(response_format.get("json_schema"), dict):
+                # The OpenAI-style nested shape agno uses for inline schemas
+                inline = unwrap_json_schema_response_format(response_format)
+                if inline is None:
+                    return response_format
+                try:
+                    from anthropic import transform_schema
+
+                    schema = transform_schema(inline.schema)
+                except (ImportError, AttributeError, ValueError):
+                    schema = copy.deepcopy(inline.schema)
+                if "additionalProperties" not in schema:
+                    schema["additionalProperties"] = False
+                self._ensure_additional_properties_false(schema)
+                return {"type": "json_schema", "schema": schema}
             return response_format
 
         return None

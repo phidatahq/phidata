@@ -11,6 +11,7 @@ from agno.models.base import Model
 from agno.models.message import Message
 from agno.models.response import ModelResponse
 from agno.utils.log import log_debug, log_warning
+from agno.utils.models.schema_utils import unwrap_json_schema_response_format
 from agno.utils.reasoning import extract_thinking_content
 
 try:
@@ -225,6 +226,10 @@ class Ollama(Model):
             format_schema = response_format.model_json_schema()
             if "format" not in request_kwargs:
                 request_kwargs["format"] = format_schema
+        elif isinstance(response_format, dict):
+            inline = unwrap_json_schema_response_format(response_format)
+            if inline is not None and "format" not in request_kwargs:
+                request_kwargs["format"] = inline.schema
         return request_kwargs
 
     def invoke(

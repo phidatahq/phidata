@@ -58,6 +58,64 @@ def test_routine_scheduler_wrappers(system):
     assert len(client.get("/company/routines").json()["data"]) == 1
 
 
+def test_product_metadata_edits_keep_linked_routines(system):
+    client, _, db = system
+    product = client.post("/company/products", json={"name": "Docs", "metadata": {"team": "a"}}).json()
+    routine = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"], name="intake", template="intake", executor_type="agent", executor_id="reader"
+        ),
+    ).json()
+    path = "/company/products/" + product["id"]
+
+    for metadata in ({"team": "b"}, {"team": "b", "routine_ids": []}, None):
+        response = client.patch(path, json={"metadata": metadata})
+        assert response.status_code == 200, response.text
+        assert response.json()["metadata"]["routine_ids"] == [routine["id"]]
+    assert db.get_product(product["id"])["metadata"]["routine_ids"] == [routine["id"]]
+
+
+@pytest.mark.parametrize("use_async", [False, True])
+def test_schedule_tools_refuse_company_routines(system, use_async):
+    import asyncio
+
+    from agno.registry import Registry
+    from agno.tools.scheduler import SchedulerTools
+    from agno.tools.studio import StudioTools
+
+    client, _, db = system
+    product = client.post("/company/products", json={"name": "Docs"}).json()
+    routine = client.post(
+        "/company/routines",
+        json=dict(
+            product_id=product["id"], name="intake", template="intake", executor_type="agent", executor_id="reader"
+        ),
+    ).json()
+    scheduler = SchedulerTools(db=db)
+    studio = StudioTools(registry=Registry(), db=db, schedules=True)
+
+    def call(tool, name, *args, **kwargs):
+        if use_async:
+            return asyncio.run(getattr(tool, "a" + name)(*args, **kwargs))
+        return getattr(tool, name)(*args, **kwargs)
+
+    for name in ("disable_schedule", "delete_schedule", "enable_schedule"):
+        assert json.loads(call(scheduler, name, routine["id"]))["error_type"] == "company_routine", name
+    result = json.loads(call(studio, "update_schedule", routine["id"], message="Ignore the Product"))
+    assert result["error"]["code"] == "company_routine"
+
+    stored = db.get_schedule(routine["id"])
+    assert stored["enabled"] is True and stored["next_run_at"] == routine["next_run_at"]
+    assert stored["payload"] == routine["payload"]
+    assert db.get_product(product["id"])["metadata"]["routine_ids"] == [routine["id"]]
+
+    plain = db.create_schedule(
+        Schedule(id="plain", name="plain", cron_expr="0 * * * *", endpoint="/agents/reader/runs").to_dict()
+    )
+    assert json.loads(call(scheduler, "disable_schedule", plain["id"]))["status"] == "disabled"
+
+
 def test_routine_routes_hide_automation_and_report_missing_product(system):
     from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
 
@@ -348,6 +406,71 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
             assert "private-claim-alice" not in response.text
         assert "private-claim-alice" in json.dumps(db.get_schedule(routine_id)["payload"])
         assert client.post("/company/setup", headers=headers("bob"), json={"name": "Other setup"}).status_code == 409
+    db.close()
+
+
+def test_members_add_routines_to_products_they_do_not_own_under_isolation(tmp_path):
+    from datetime import datetime, timedelta, timezone
+
+    import jwt
+
+    from agno.os.config import AuthorizationConfig
+
+    secret = "member-routines-isolation-secret"
+    scopes = [
+        "products:read",
+        "products:write",
+        "products:delete",
+        "routines:read",
+        "routines:write",
+        "schedules:write",
+    ]
+
+    def headers(user):
+        claims = {
+            "sub": user,
+            "aud": "member-routines",
+            "scopes": [*scopes, "agents:reader:run"],
+            "exp": datetime.now(timezone.utc) + timedelta(hours=1),
+        }
+        return {"Authorization": "Bearer " + jwt.encode(claims, secret, algorithm="HS256")}
+
+    db = SqliteDb(db_file=str(tmp_path / "members.db"))
+    os = AgentOS(
+        id="member-routines",
+        db=db,
+        agents=[Agent(id="reader", telemetry=False)],
+        company=CompanyConfig(products=[Product(id="declared", name="Declared")]),
+        telemetry=False,
+        authorization=True,
+        authorization_config=AuthorizationConfig(verification_keys=[secret], algorithm="HS256", user_isolation=True),
+    )
+    body = dict(name="intake", template="intake", executor_type="agent", executor_id="reader")
+    with TestClient(os.get_app()) as client:
+        owned = client.post("/company/products", headers=headers("alice"), json={"name": "Alice's"}).json()
+        for product_id in ("declared", owned["id"]):
+            created = client.post("/company/routines", headers=headers("bob"), json={**body, "product_id": product_id})
+            assert created.status_code == 201, created.text
+            routine = created.json()
+            assert routine["user_id"] == "bob"
+            assert routine["id"] in db.get_product(product_id)["metadata"]["routine_ids"]
+            path = "/company/routines/" + routine["id"]
+            # The creator manages their Routine; the Product owner does not inherit it.
+            assert (
+                client.patch(path, headers=headers("bob"), json={"instructions": "Report changes"}).status_code == 200
+            )
+            assert client.post(path + "/pause", headers=headers("bob")).json()["enabled"] is False
+            assert client.post(path + "/resume", headers=headers("bob")).json()["enabled"] is True
+            assert client.post(path + "/pause", headers=headers("alice")).status_code == 403
+        # Product writes stay owner-only.
+        assert client.patch("/company/products/declared", headers=headers("bob"), json={"name": "x"}).status_code == 403
+        assert (
+            client.patch("/company/products/" + owned["id"], headers=headers("bob"), json={"name": "x"}).status_code
+            == 403
+        )
+        client.delete("/company/products/" + owned["id"], headers=headers("alice")).raise_for_status()
+        archived = client.post("/company/routines", headers=headers("bob"), json={**body, "product_id": owned["id"]})
+        assert archived.status_code == 404
     db.close()
 
 
@@ -813,12 +936,9 @@ def test_pending_routine_creation_cannot_be_recovered_by_another_creator(tmp_pat
         assert pending["user_id"] == "alice"
         monkeypatch.setattr(db, "add_product_routine", original)
         bob = client.post("/company/routines", json=body, headers=headers("bob"))
-        if isolation:
-            assert bob.status_code == 403
-        else:
-            # Scheduler names are per creator: Bob can create his own, but cannot recover Alice's.
-            assert bob.status_code == 201, bob.text
-            assert bob.json()["id"] != pending["id"]
+        # Scheduler names are per creator: Bob can create his own, but cannot recover Alice's.
+        assert bob.status_code == 201, bob.text
+        assert bob.json()["id"] != pending["id"] and bob.json()["user_id"] == "bob"
         assert db.get_schedule(pending["id"])["enabled"] is False
         alice = client.post("/company/routines", json=body, headers=headers("alice"))
         assert alice.status_code == 201, alice.text

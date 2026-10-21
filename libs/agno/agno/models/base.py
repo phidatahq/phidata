@@ -599,11 +599,28 @@ class Model(ABC):
             return str(fn.get("name", ""))
         return str(t.get("name", ""))
 
+    def supports_tool_search(self) -> bool:
+        """Whether this model can search deferred tools (see agno.tools.tool_search).
+
+        Providers that support it override this and honor the ``defer_loading`` key that
+        _format_tools then sets next to ``function`` (with ``tool_search_group``, the deferred
+        tool's toolkit, for providers that group deferred tools).
+        """
+        return False
+
     def _format_tools(self, tools: Optional[List[Union[Function, dict]]]) -> List[Dict[str, Any]]:
         _tool_dicts = []
+        defer = self.supports_tool_search()
         for tool in tools or []:
             if isinstance(tool, Function):
-                _tool_dicts.append({"type": "function", "function": tool.to_dict()})
+                tool_dict: Dict[str, Any] = {"type": "function", "function": tool.to_dict()}
+                # Siblings of "function", so providers that forward the function dict never see them.
+                if defer and tool.defer_loading:
+                    tool_dict["defer_loading"] = True
+                    if tool._tool_search_group is not None:
+                        key, name, summary = tool._tool_search_group
+                        tool_dict["tool_search_group"] = {"key": key, "name": name, "description": summary}
+                _tool_dicts.append(tool_dict)
             else:
                 # If a dict is passed, it is a builtin tool
                 _tool_dicts.append(tool)

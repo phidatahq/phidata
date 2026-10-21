@@ -365,6 +365,10 @@ def count_tool_tokens(
     tool_dicts = []
     for tool in tools:
         if isinstance(tool, Function):
+            # A deferred tool's definition stays out of the context window until a tool search loads it.
+            # The flag is only still set here when the run's model supports tool search.
+            if tool.defer_loading:
+                continue
             tool_dicts.append(tool.to_dict())
         else:
             tool_dicts.append(tool)

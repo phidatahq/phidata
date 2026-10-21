@@ -12,7 +12,7 @@ from agno.models.anthropic import Claude as AnthropicClaude
 from agno.models.message import Message
 from agno.utils.http import get_default_async_client, get_default_sync_client
 from agno.utils.log import log_debug, log_warning
-from agno.utils.models.claude import format_tools_for_model, resolve_http_client, route_sampling_params_to_extra_body
+from agno.utils.models.claude import resolve_http_client, route_sampling_params_to_extra_body
 
 try:
     from anthropic import AnthropicFoundry, AsyncAnthropicFoundry
@@ -161,8 +161,10 @@ class Claude(AnthropicClaude):
         if system:
             request_kwargs["system"] = system
 
-        if tools:
-            request_kwargs["tools"] = format_tools_for_model(tools)
+        # Format tools (strict mode, and the tool search tool when tools are deferred)
+        formatted_tools = self._format_request_tools(tools, messages)
+        if formatted_tools:
+            request_kwargs["tools"] = formatted_tools
 
         self._apply_cache_tools(request_kwargs)
 

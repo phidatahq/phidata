@@ -46,6 +46,7 @@ from agno.run.team import (
 from agno.session import TeamSession, WorkflowSession
 from agno.tools import Toolkit
 from agno.tools.function import Function
+from agno.tools.tool_search import tool_search_from_config, tool_search_to_config
 from agno.utils.agent import (
     aget_last_run_output_util,
     aget_run_output_util,
@@ -697,6 +698,8 @@ def to_dict(team: "Team") -> Dict[str, Any]:
         config["tool_choice"] = team.tool_choice
     if team.tool_call_limit is not None:
         config["tool_call_limit"] = team.tool_call_limit
+    if team.tool_search is not None:
+        config["tool_search"] = tool_search_to_config(team.tool_search)
     if team.get_member_information_tool:
         config["get_member_information_tool"] = team.get_member_information_tool
 
@@ -1379,6 +1382,7 @@ def from_dict(
             tools=config.get("tools"),
             tool_call_limit=config.get("tool_call_limit"),
             tool_choice=config.get("tool_choice"),
+            tool_search=tool_search_from_config(config.get("tool_search")),
             get_member_information_tool=config.get("get_member_information_tool", False),
             # --- Schema settings ---
             input_schema=config.get("input_schema"),

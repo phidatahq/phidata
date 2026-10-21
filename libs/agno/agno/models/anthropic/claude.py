@@ -18,6 +18,7 @@ from agno.utils.log import log_debug, log_error, log_warning
 from agno.utils.models.claude import (
     MCPServerConfiguration,
     _validate_cache_ttl_order,
+    add_tool_search,
     build_system_blocks,
     format_messages,
     format_tools_for_model,
@@ -26,6 +27,7 @@ from agno.utils.models.claude import (
     serialize_content_blocks,
     supports_prefill,
 )
+from agno.utils.models.claude import supports_tool_search as claude_supports_tool_search
 from agno.utils.tokens import count_schema_tokens
 
 try:
@@ -141,6 +143,9 @@ class Claude(Model):
     cache_system_prompt: Optional[bool] = False
     extended_cache_time: Optional[bool] = False
     cache_tools: bool = False
+    # Search variant used when tools are deferred (see agno.tools.tool_search): "bm25" searches
+    # with natural-language queries, "regex" with Python regex patterns (exact names included).
+    tool_search_variant: Literal["bm25", "regex"] = "bm25"
     # Optional multi-block system prompt with per-block cache control.
     # Appended after the agent-built system message in the Anthropic ``system``
     # array. See SystemPromptBlock for cache/ttl semantics. May be a list, or a
@@ -232,6 +237,10 @@ class Claude(Model):
         if self.id.startswith(self.NON_STRUCTURED_OUTPUT_PREFIXES):
             return False
         return True
+
+    def supports_tool_search(self) -> bool:
+        """Claude Opus 4.5, Sonnet 4.5, Haiku 4.5 and newer support tool search and defer_loading."""
+        return claude_supports_tool_search(self.id)
 
     def _using_structured_outputs(
         self,
@@ -498,7 +507,10 @@ class Claude(Model):
         anthropic_tools = None
         if tools:
             formatted_tools = self._format_tools(tools)
-            anthropic_tools = format_tools_for_model(formatted_tools)
+            # Deferred tools stay out of the context window until a search loads them
+            anthropic_tools = [
+                tool for tool in format_tools_for_model(formatted_tools) or [] if not tool.get("defer_loading")
+            ]
 
         kwargs: Dict[str, Any] = {"messages": anthropic_messages, "model": self.id}
         system = self._build_system(system_prompt)
@@ -526,7 +538,10 @@ class Claude(Model):
         anthropic_tools = None
         if tools:
             formatted_tools = self._format_tools(tools)
-            anthropic_tools = format_tools_for_model(formatted_tools)
+            # Deferred tools stay out of the context window until a search loads them
+            anthropic_tools = [
+                tool for tool in format_tools_for_model(formatted_tools) or [] if not tool.get("defer_loading")
+            ]
 
         kwargs: Dict[str, Any] = {"messages": anthropic_messages, "model": self.id}
         system = self._build_system(system_prompt)
@@ -605,10 +620,30 @@ class Claude(Model):
                 return container_id
         return None
 
+    def _format_request_tools(
+        self, tools: Optional[List[Dict[str, Any]]], messages: Optional[List[Message]] = None
+    ) -> Optional[List[Dict[str, Any]]]:
+        """The Anthropic ``tools`` for a request, shared by every Claude provider class.
+
+        On models with tool search, deferred tools get the tool search tool, and tools that earlier
+        searches in ``messages`` returned stay defined (see add_tool_search).
+        """
+        formatted_tools = format_tools_for_model(tools) if tools else None
+        if self.supports_tool_search():
+            formatted_tools = add_tool_search(formatted_tools or [], self.tool_search_variant, messages) or None
+        return formatted_tools
+
     def _apply_cache_tools(self, request_kwargs: Dict[str, Any]) -> None:
-        """Tag the last tool with cache_control when cache_tools is enabled."""
-        if self.cache_tools and "tools" in request_kwargs and request_kwargs["tools"]:
-            request_kwargs["tools"][-1]["cache_control"] = {"type": "ephemeral"}
+        """Tag the last loaded tool with cache_control when cache_tools is enabled.
+
+        Deferred tools are skipped: the API rejects cache_control on a defer_loading tool, and
+        deferred tools are kept out of the cached prefix anyway.
+        """
+        if self.cache_tools and request_kwargs.get("tools"):
+            for tool in reversed(request_kwargs["tools"]):
+                if not tool.get("defer_loading"):
+                    tool["cache_control"] = {"type": "ephemeral"}
+                    break
 
     def _build_system(self, system_message: str) -> List[Dict[str, Any]]:
         """Assemble the Anthropic ``system`` array.
@@ -692,8 +727,9 @@ class Claude(Model):
                 tools = [code_execution_tool]
 
         # Format tools (this will handle strict mode)
-        if tools:
-            request_kwargs["tools"] = format_tools_for_model(tools)
+        formatted_tools = self._format_request_tools(tools, messages)
+        if formatted_tools:
+            request_kwargs["tools"] = formatted_tools
 
         self._apply_cache_tools(request_kwargs)
 

@@ -62,6 +62,13 @@ class AzureOpenAIResponses(OpenAIResponses):
             return self.is_reasoning_model
         return super()._using_reasoning_model()
 
+    def supports_tool_search(self) -> bool:
+        """Off: deployment names do not identify the model, and hosted tool search on Azure is unverified.
+
+        Deferred tools load normally.
+        """
+        return False
+
     def __deepcopy__(self, memo: dict) -> AzureOpenAIResponses:
         """Create a deep copy that preserves client references.
 

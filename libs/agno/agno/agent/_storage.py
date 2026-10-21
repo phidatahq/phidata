@@ -34,6 +34,7 @@ from agno.registry.registry import Registry, _memory_manager_resource_name
 from agno.run.agent import RunOutput
 from agno.session import AgentSession, TeamSession, WorkflowSession
 from agno.tools.function import Function
+from agno.tools.tool_search import tool_search_from_config, tool_search_to_config
 from agno.tools.toolkit import Toolkit
 from agno.utils.agent import (
     aget_last_run_output_util,
@@ -1040,6 +1041,8 @@ def to_dict(agent: Agent) -> Dict[str, Any]:
         config["tool_call_limit"] = agent.tool_call_limit
     if agent.tool_choice is not None:
         config["tool_choice"] = agent.tool_choice
+    if agent.tool_search is not None:
+        config["tool_search"] = tool_search_to_config(agent.tool_search)
 
     # --- Reasoning settings ---
     if agent.reasoning_model is not None:
@@ -1499,6 +1502,7 @@ def from_dict(
         tools=config.get("tools"),
         tool_call_limit=config.get("tool_call_limit"),
         tool_choice=config.get("tool_choice"),
+        tool_search=tool_search_from_config(config.get("tool_search")),
         # --- Reasoning settings ---
         reasoning_model=config.get("reasoning_model"),
         # --- Followup settings ---

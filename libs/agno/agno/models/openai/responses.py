@@ -1,7 +1,8 @@
 import asyncio
+import re
 import time
 from dataclasses import dataclass, field
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Tuple, Type, Union
+from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, Set, Tuple, Type, Union
 
 import httpx
 from pydantic import BaseModel
@@ -26,6 +27,61 @@ try:
     from openai.types.responses import Response, ResponseReasoningItem, ResponseStreamEvent, ResponseUsage
 except ImportError as e:
     raise ImportError("`openai` not installed. Please install using `pip install openai -U`") from e
+
+# "gpt-<major>" or "gpt-<major>.<minor>", e.g. "gpt-5.4-mini", "gpt-5.5", "gpt-6-astra"
+_GPT_VERSION = re.compile(r"^gpt-(\d+)(?:\.(\d+))?(?:[-_]|$)")
+
+
+def supports_tool_search(model_id: str) -> bool:
+    """Return True for OpenAI models with hosted tool search on the Responses API: GPT-5.4 and later."""
+    match = _GPT_VERSION.match(model_id)
+    if match is None:
+        return False
+    major, minor = int(match.group(1)), int(match.group(2) or 0)
+    return major > 5 or (major == 5 and minor >= 4)
+
+
+_NAMESPACE_INVALID_CHARS = re.compile(r"[^a-zA-Z0-9_-]")
+
+
+class _Namespaces:
+    """The namespace tools holding one request's deferred tools: one per toolkit, in first-seen order."""
+
+    def __init__(self) -> None:
+        self._by_key: Dict[Any, Dict[str, Any]] = {}
+        self._names: Set[str] = set()
+
+    def __bool__(self) -> bool:
+        return bool(self._by_key)
+
+    def add(self, group: Dict[str, Any], tool: Dict[str, Any], formatted_tools: List[Dict[str, Any]]) -> None:
+        namespace = self._by_key.get(group.get("key"))
+        if namespace is None:
+            base = _NAMESPACE_INVALID_CHARS.sub("_", str(group.get("name") or ""))[:60] or "tools"
+            name, suffix = base, 2
+            # Two toolkits may share a name; each still gets its own namespace
+            while name in self._names:
+                name, suffix = f"{base}_{suffix}", suffix + 1
+            self._names.add(name)
+            namespace = {"type": "namespace", "name": name, "description": group.get("description") or "", "tools": []}
+            self._by_key[group.get("key")] = namespace
+            formatted_tools.append(namespace)
+        namespace["tools"].append(tool)
+
+    def describe(self) -> None:
+        """Describe each namespace by its toolkit's summary plus the names of its tools.
+
+        The model sees only this until it searches, and a summary written for people (often the first
+        paragraph of an MCP server's instructions) may not say what the tools do; the names do.
+        """
+        for namespace in self._by_key.values():
+            # Sorted, so the namespace is the same whatever order the tools arrived in (prompt cache)
+            namespace["tools"].sort(key=lambda tool: str(tool.get("name")))
+            names = ", ".join(str(tool.get("name")) for tool in namespace["tools"])
+            summary = namespace["description"].rstrip()
+            if summary and not summary.endswith((".", "!", "?")):
+                summary += "."
+            namespace["description"] = (f"{summary} Tools: {names}" if summary else f"Tools: {names}")[:1000]
 
 
 @dataclass
@@ -108,6 +164,14 @@ class OpenAIResponses(Model):
     def _using_reasoning_model(self) -> bool:
         """Return True if the contextual used model is a known reasoning model."""
         return self.id.startswith(("o3", "o4-mini", "gpt-5", "gpt-6"))
+
+    def supports_tool_search(self) -> bool:
+        """GPT-5.4 and later search deferred tools with the hosted tool_search tool.
+
+        The search's tool_search_call / tool_search_output items need no handling here: chained turns
+        keep them server side, and a replayed history is accepted without them.
+        """
+        return supports_tool_search(self.id)
 
     def _effective_store(self) -> Optional[bool]:
         """The store value sent on the wire. Background mode requires provider storage."""
@@ -599,26 +663,53 @@ class OpenAIResponses(Model):
     def _format_tool_params(
         self, messages: List[Message], tools: Optional[List[Union[Function, Dict[str, Any]]]] = None
     ) -> List[Dict[str, Any]]:
-        """Format the tool parameters for the OpenAI Responses API."""
-        formatted_tools = []
+        """Format the tool parameters for the OpenAI Responses API.
+
+        Deferred tools from one toolkit go into a namespace named after it: the model then sees only
+        the namespace's name and description until a search loads its functions, where a deferred
+        function on its own still shows its name and description.
+        """
+        formatted_tools: List[Dict[str, Any]] = []
+        namespaces = _Namespaces()
         if tools:
             for _tool in tools:
+                group: Optional[Dict[str, Any]] = None
                 if isinstance(_tool, Function):
                     _tool_dict = _tool.to_dict()
                     _tool_dict["type"] = "function"
                     for prop in _tool_dict.get("parameters", {}).get("properties", {}).values():
                         if isinstance(prop.get("type", ""), list):
                             prop["type"] = prop["type"][0]
-                    formatted_tools.append(_tool_dict)
+                    if _tool.defer_loading and self.supports_tool_search():
+                        _tool_dict["defer_loading"] = True
+                        if _tool._tool_search_group is not None:
+                            key, name, summary = _tool._tool_search_group
+                            group = {"key": key, "name": name, "description": summary}
                 elif _tool.get("type") == "function":
                     _tool_dict = _tool.get("function", {})
                     _tool_dict["type"] = "function"
                     for prop in _tool_dict.get("parameters", {}).get("properties", {}).values():
                         if isinstance(prop.get("type", ""), list):
                             prop["type"] = prop["type"][0]
-                    formatted_tools.append(_tool_dict)
+                    # Set by Model._format_tools only when this model supports tool search
+                    if _tool.get("defer_loading") is True:
+                        _tool_dict["defer_loading"] = True
+                        group = _tool.get("tool_search_group")
                 else:
                     formatted_tools.append(_tool)
+                    continue
+
+                if group is not None:
+                    namespaces.add(group, _tool_dict, formatted_tools)
+                else:
+                    formatted_tools.append(_tool_dict)
+            namespaces.describe()
+
+        # Deferred tools are only reachable through the hosted tool search
+        if (namespaces or any(t.get("defer_loading") for t in formatted_tools)) and not any(
+            t.get("type") == "tool_search" for t in formatted_tools
+        ):
+            formatted_tools.append({"type": "tool_search"})
 
         # Only upload files to vector store when file_search tool is present.
         # Otherwise, files will be embedded inline via _format_messages().

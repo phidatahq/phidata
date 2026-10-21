@@ -678,6 +678,8 @@ def get_system_message(
             run_context=run_context,
         )
 
+    system_message_content += _get_tool_context_for_system_message(team)
+
     return Message(role=team.system_message_role, content=system_message_content.strip())
 
 
@@ -934,7 +936,23 @@ async def aget_system_message(
             run_context=run_context,
         )
 
+    system_message_content += _get_tool_context_for_system_message(team)
+
     return Message(role=team.system_message_role, content=system_message_content.strip())
+
+
+def _get_tool_context_for_system_message(team: "Team") -> str:
+    """Server-sent instructions and the searchable-tools index, added after state-variable formatting.
+
+    Both can carry third-party text (e.g. from an MCP server), whose {name} / $name placeholders must
+    never be filled in from session state, dependencies or metadata.
+    """
+    content = ""
+    if team._server_instructions:
+        content += f"\n\n{team._server_instructions}"
+    if team._tool_search_index:
+        content += f"\n\n{team._tool_search_index}"
+    return content
 
 
 def _get_formatted_session_state_for_system_message(team: "Team", session_state: Dict[str, Any]) -> str:

@@ -73,6 +73,7 @@ from agno.session.summary import SessionSummary
 from agno.skills import Skills
 from agno.tools import Toolkit
 from agno.tools.function import Function
+from agno.tools.tool_search import ToolSearch
 from agno.utils.log import log_warning
 from agno.utils.safe_formatter import SafeFormatter
 
@@ -206,6 +207,12 @@ class Agent:
 
     # A function that acts as middleware and is called around tool calls.
     tool_hooks: Optional[List[Callable]] = None
+
+    # How tools marked defer_loading are offered: their definitions stay out of the context until the
+    # model finds them with tool search (on models that support it), and a short index of what can be
+    # searched goes into the system prompt. None or True: on whenever a tool is deferred, with the
+    # default ToolSearch(). False: deferred tools load normally. See agno.tools.tool_search.
+    tool_search: Optional[Union[bool, ToolSearch]] = None
 
     # --- Agent Hooks ---
     # Functions called right after agent-session is loaded, before processing starts
@@ -463,6 +470,7 @@ class Agent:
         tool_call_limit: Optional[int] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         tool_hooks: Optional[List[Callable]] = None,
+        tool_search: Optional[Union[bool, ToolSearch]] = None,
         pre_hooks: Optional[List[Union[Callable[..., Any], BaseGuardrail, BaseEval]]] = None,
         post_hooks: Optional[List[Union[Callable[..., Any], BaseGuardrail, BaseEval]]] = None,
         reasoning_model: Optional[Union[Model, str]] = None,
@@ -641,6 +649,7 @@ class Agent:
         self.tool_call_limit = tool_call_limit
         self.tool_choice = tool_choice
         self.tool_hooks = tool_hooks
+        self.tool_search = tool_search
 
         self.pre_hooks = pre_hooks
         self.post_hooks = post_hooks
@@ -724,6 +733,9 @@ class Agent:
         self._cached_session_db: Optional[Union[BaseDb, AsyncBaseDb]] = None
 
         self._tool_instructions: Optional[List[str]] = None
+        # Searchable-tools index and server-sent instructions for the system prompt, rebuilt with the tools
+        self._tool_search_index: Optional[str] = None
+        self._server_instructions: Optional[str] = None
         self._team: Optional[Any] = None
 
         self._formatter: Optional[SafeFormatter] = None

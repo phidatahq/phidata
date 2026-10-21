@@ -44,3 +44,11 @@ class OpenResponses(OpenAIResponses):
         this if they support specific reasoning models.
         """
         return False
+
+    def supports_tool_search(self) -> bool:
+        """
+        Off for compatible providers: OpenAI's hosted tool_search tool is not part of the Open
+        Responses spec, and a model id such as "openai/gpt-5.4" says nothing about the provider.
+        Deferred tools load normally. Subclasses can override this when their provider supports it.
+        """
+        return False

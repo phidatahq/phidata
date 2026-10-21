@@ -269,6 +269,7 @@ class MCPTools(Toolkit):
         headers: Optional[dict[str, Any]] = None,
         header_provider: Optional[Callable[..., dict[str, Any]]] = None,
         protocol_mode: Literal["legacy", "auto"] = "legacy",
+        use_server_instructions: bool = False,
         **kwargs,
     ):
         """
@@ -306,6 +307,17 @@ class MCPTools(Toolkit):
                 long-lived and liveness checks work. "auto" negotiates the newest era both
                 sides support; the 2026-07-28 era is sessionless, so a server that gates on
                 initialize, keeps per-session state, or elicits mid-tool needs "legacy".
+            use_server_instructions: If True, add the instructions the MCP server returns when it
+                connects to the system prompt, in their own block. They are third-party text, so this
+                is off by default, their markup is escaped, and state variables in them are never
+                resolved. Independently, when the toolkit's tools are deferred, the first paragraph of
+                those instructions summarizes the server in the searchable-tools index unless
+                `tool_search_description` is set.
+
+        Deferral (see agno.tools.tool_search) takes the Toolkit arguments `defer_loading`,
+        `deferred_tools`, `always_loaded_tools` and `tool_search_description`. Like
+        `requires_confirmation_tools`, the tool lists use the server's tool names, before
+        `tool_name_prefix` is applied.
         """
         # Extract these before super().__init__() to bypass early validation
         # (tools aren't available until build_tools() is called)
@@ -313,6 +325,8 @@ class MCPTools(Toolkit):
         external_execution_required_tools = kwargs.pop("external_execution_required_tools", None)
         stop_after_tool_call_tools = kwargs.pop("stop_after_tool_call_tools", None)
         show_result_tools = kwargs.pop("show_result_tools", None)
+        deferred_tools = kwargs.pop("deferred_tools", None)
+        always_loaded_tools = kwargs.pop("always_loaded_tools", None)
 
         super().__init__(
             name=name or get_default_toolkit_name(url=url, command=command, server_params=server_params),
@@ -342,6 +356,12 @@ class MCPTools(Toolkit):
         self.external_execution_required_tools = external_execution_required_tools or []
         self.stop_after_tool_call_tools = stop_after_tool_call_tools or []
         self.show_result_tools = show_result_tools or []
+        self.deferred_tools = deferred_tools or []
+        self.always_loaded_tools = always_loaded_tools or []
+        # What the server reports about itself when it connects (MCP InitializeResult)
+        self.use_server_instructions = use_server_instructions
+        self.server_name: Optional[str] = None
+        self.server_instructions: Optional[str] = None
         self.refresh_connection = refresh_connection
         self.tool_name_prefix = tool_name_prefix
         self.protocol_mode = protocol_mode
@@ -883,6 +903,35 @@ class MCPTools(Toolkit):
 
         self._initialized = False
 
+    def _capture_server_info(self, initialize_result: Any = None) -> None:
+        """Keep the server's name and instructions from the MCP handshake.
+
+        A caller-supplied ClientSession returns the InitializeResult from initialize(). A fastmcp
+        Client handshakes on entry and exposes ``server_info`` / ``instructions`` for both protocol
+        eras (its ``initialize_result`` is None on a sessionless connection).
+        """
+        name: Any = None
+        instructions: Any = None
+        try:
+            source: Any = initialize_result if initialize_result is not None else self.session
+            instructions = getattr(source, "instructions", None)
+            name = getattr(getattr(source, "server_info", None), "name", None)
+        except Exception as e:
+            # Server metadata is optional; never let a malformed handshake cost the toolkit its tools
+            log_debug(f"Could not read server info for {self.name}: {e}")
+        self.server_name = name if isinstance(name, str) and name else None
+        self.server_instructions = (
+            instructions.strip() if isinstance(instructions, str) and instructions.strip() else None
+        )
+
+    def get_tool_search_summary(self) -> Optional[str]:
+        """The caller's tool_search_description, else the instructions the server sent when it connected."""
+        return self.tool_search_description or self.server_instructions
+
+    def get_server_instructions(self) -> Optional[str]:
+        """The server's instructions, when use_server_instructions is on."""
+        return self.server_instructions if self.use_server_instructions else None
+
     async def build_tools(self) -> None:
         """Build the tools for the MCP toolkit"""
         if self.session is None:
@@ -951,6 +1000,8 @@ class MCPTools(Toolkit):
                         external_execution=tool_name in self.external_execution_required_tools,
                         stop_after_tool_call=stop_after,
                         show_result=show_result,
+                        # Deferred behind tool search: defer_loading / deferred_tools / always_loaded_tools
+                        defer_loading=self._resolve_defer_loading(tool_name),
                         # Apply toolkit-level cache settings
                         cache_results=self.cache_results,
                         cache_dir=self.cache_dir,
@@ -980,8 +1031,10 @@ class MCPTools(Toolkit):
             # (sessionless) era there is no initialize step to repeat -- calling it there
             # raises. Anything else, including a caller-supplied ClientSession, still
             # needs the explicit call.
+            initialize_result = None
             if not _is_fastmcp_client(self.session):
-                await self.session.initialize()
+                initialize_result = await self.session.initialize()
+            self._capture_server_info(initialize_result)
 
             await self.build_tools()
 

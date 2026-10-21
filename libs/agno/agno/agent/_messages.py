@@ -1080,6 +1080,15 @@ def get_system_message(
             run_context=run_context,
         )
 
+    # 3.3.6 Then add the instructions servers behind toolkits sent (e.g. MCP servers, when opted in) and
+    # the index of deferred tools the model can search for. Both sit with the tool instructions, ahead
+    # of the per-run content below, and after state-variable formatting: they can carry third-party
+    # text, whose {name} / $name placeholders must never be filled in from session state.
+    if agent._server_instructions:
+        system_message_content += f"{agent._server_instructions}\n\n"
+    if agent._tool_search_index:
+        system_message_content += f"{agent._tool_search_index}\n\n"
+
     # 3.3.7 Then add the expected output
     if agent.expected_output is not None:
         system_message_content += f"<expected_output>\n{agent.expected_output.strip()}\n</expected_output>\n\n"
@@ -1376,6 +1385,15 @@ async def aget_system_message(
             system_message_content,
             run_context=run_context,
         )
+
+    # 3.3.6 Then add the instructions servers behind toolkits sent (e.g. MCP servers, when opted in) and
+    # the index of deferred tools the model can search for. Both sit with the tool instructions, ahead
+    # of the per-run content below, and after state-variable formatting: they can carry third-party
+    # text, whose {name} / $name placeholders must never be filled in from session state.
+    if agent._server_instructions:
+        system_message_content += f"{agent._server_instructions}\n\n"
+    if agent._tool_search_index:
+        system_message_content += f"{agent._tool_search_index}\n\n"
 
     # 3.3.7 Then add the expected output
     if agent.expected_output is not None:

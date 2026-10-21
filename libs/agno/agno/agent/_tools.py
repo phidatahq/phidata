@@ -14,6 +14,7 @@ from typing import (
     List,
     Optional,
     Set,
+    Tuple,
     Union,
     cast,
 )
@@ -33,6 +34,7 @@ from agno.run.messages import RunMessages
 from agno.session import AgentSession
 from agno.tools import Toolkit
 from agno.tools.function import Function, entrypoint_accepts_media
+from agno.tools.tool_search import DeferredTools, server_instructions_snippet
 from agno.tools.toolkit import (
     ToolkitKey,
     _emits_toolkit_instructions,
@@ -482,6 +484,19 @@ def parse_tools(
     _toolkit_instruction_keys: Set[ToolkitKey] = set()
     _source_toolkit_last_index, _source_toolkit_members, _toolkit_keys = _group_source_toolkits(tools)
     agent._tool_instructions = []
+    # Deferred tools stay deferred only when tool search is on and the model can search
+    deferred_tools = DeferredTools(model, agent.tool_search)
+    # Third-party instructions from the servers behind toolkits, rendered in their own block
+    server_instructions: List[Tuple[str, str]] = []
+    _server_instruction_toolkits: Set[int] = set()
+
+    def add_server_instructions(toolkit: Toolkit) -> None:
+        if id(toolkit) in _server_instruction_toolkits:
+            return
+        _server_instruction_toolkits.add(id(toolkit))
+        text = toolkit.get_server_instructions()
+        if text:
+            server_instructions.append((toolkit.name, text))
 
     def toolkit_key(toolkit: Toolkit) -> ToolkitKey:
         # The key folds the toolkit's whole function surface; memoized so one
@@ -556,6 +571,7 @@ def parse_tools(
                     _func.strict = True
                 if agent.tool_hooks is not None:
                     _func.tool_hooks = agent.tool_hooks
+                deferred_tools.add(_func, toolkit=tool)
                 _functions.append(_func)
                 log_debug(f"Added tool {name} from {tool.name}")
 
@@ -565,6 +581,7 @@ def parse_tools(
 
             # Add instructions from the toolkit
             add_toolkit_instructions(tool)
+            add_server_instructions(tool)
 
         elif isinstance(tool, Function):
             source_toolkit = tool.source_toolkit if isinstance(tool.source_toolkit, Toolkit) else None
@@ -575,6 +592,7 @@ def parse_tools(
                 log_warning(f"Duplicate tool name '{tool.name}' already registered on agent; skipping the duplicate.")
                 if emit_toolkit_instructions and source_toolkit is not None:
                     add_toolkit_instructions(source_toolkit)
+                    add_server_instructions(source_toolkit)
                 continue
             _function_names.append(tool.name)
 
@@ -590,6 +608,7 @@ def parse_tools(
                 tool.strict = True
             if agent.tool_hooks is not None:
                 tool.tool_hooks = agent.tool_hooks
+            deferred_tools.add(tool, toolkit=source_toolkit)
             _functions.append(tool)
             log_debug(f"Added tool {tool.name}")
 
@@ -603,6 +622,7 @@ def parse_tools(
             # instruction order, and only once.
             if emit_toolkit_instructions and source_toolkit is not None:
                 add_toolkit_instructions(source_toolkit)
+                add_server_instructions(source_toolkit)
 
         elif callable(tool):
             try:
@@ -646,6 +666,8 @@ def parse_tools(
             except Exception as e:
                 log_warning(f"Could not add tool {tool}: {str(e)}")
 
+    agent._tool_search_index = deferred_tools.get_system_prompt_snippet()
+    agent._server_instructions = server_instructions_snippet(server_instructions)
     return _functions
 
 
@@ -659,6 +681,8 @@ def determine_tools_for_model(
     async_mode: bool = False,
 ) -> List[Union[Function, dict]]:
     _functions: List[Union[Function, dict]] = []
+    agent._tool_search_index = None
+    agent._server_instructions = None
 
     # Get Agent tools
     if processed_tools is not None and len(processed_tools) > 0:

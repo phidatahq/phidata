@@ -10,6 +10,7 @@ if TYPE_CHECKING:
     from agno.offload.store import ResultStore
     from agno.team.mode import TeamMode
     from agno.team.team import Team
+    from agno.tools.tool_search import ToolSearch
 
 from os import getenv
 from typing import (
@@ -136,6 +137,7 @@ def __init__(
     tool_call_limit: Optional[int] = None,
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
     tool_hooks: Optional[List[Callable]] = None,
+    tool_search: Optional[Union[bool, "ToolSearch"]] = None,
     pre_hooks: Optional[List[Union[Callable[..., Any], BaseGuardrail, BaseEval]]] = None,
     post_hooks: Optional[List[Union[Callable[..., Any], BaseGuardrail, BaseEval]]] = None,
     input_schema: Optional[Type[BaseModel]] = None,
@@ -317,6 +319,7 @@ def __init__(
     team.tool_choice = tool_choice
     team.tool_call_limit = tool_call_limit
     team.tool_hooks = tool_hooks
+    team.tool_search = tool_search
 
     # Initialize hooks
     team.pre_hooks = pre_hooks

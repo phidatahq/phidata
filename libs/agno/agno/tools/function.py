@@ -1145,6 +1145,9 @@ RUNTIME_ONLY_FIELDS = (
     # A code-declared trait that discovery reports; the live registry Function
     # owns it, not the persisted config.
     "has_side_effects",
+    # How the tool is offered to the model (deferred behind tool search or not),
+    # declared in code alongside the tool.
+    "defer_loading",
     # Presentation for people and clients, declared in code alongside the tool.
     # Restored from the live Function so a reloaded component publishes the same
     # title and behaviour hints a fresh one does.
@@ -1280,6 +1283,11 @@ class Function(BaseModel):
     # Set via the @approval decorator, not directly via @tool().
     approval_type: Optional[str] = None
 
+    # If True, the tool is still sent to the model provider, but its full definition stays out of
+    # the model's context until the model finds it with tool search. Honored only when the model
+    # supports tool search; elsewhere the tool loads normally. See agno.tools.tool_search.
+    defer_loading: Optional[bool] = None
+
     # Name of the Toolkit this function was flattened from, if any. Set by
     # Registry.rehydrate_function and read by the agent/team storage serializers
     # so toolkit attribution survives load -> save round trips. Excluded from
@@ -1307,6 +1315,11 @@ class Function(BaseModel):
     # Parameters process_entrypoint kept out of the model-facing schema because the
     # framework supplies them, by name or by type annotation (e.g. `ctx: RunContext`).
     _framework_params: Optional[Set[str]] = None
+
+    # The toolkit a deferred tool belongs to on this run, as (group key, toolkit name, one-line summary).
+    # Set by agno.tools.tool_search on the run's copy; providers that group deferred tools (OpenAI
+    # namespaces) read it.
+    _tool_search_group: Optional[Tuple[int, str, Optional[str]]] = None
 
     # Media context that the function is associated with
     _images: Optional[Sequence[Image]] = None

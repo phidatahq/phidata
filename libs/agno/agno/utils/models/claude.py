@@ -39,8 +39,25 @@ _PREFILL_SUPPORTED_ALIASES = {
 }
 
 
-def supports_prefill(model_id: str) -> bool:
-    """Return True if the given model ID supports assistant message prefill.
+# Models without tool search: Claude 3 and earlier, and the Claude 4.0 / 4.1 families
+# ("claude-opus-4-2" catches dated 4.0 IDs such as "claude-opus-4-20250514"). Tool search
+# arrived with Opus 4.5, Sonnet 4.5 and Haiku 4.5, and every newer model supports it.
+_TOOL_SEARCH_UNSUPPORTED_PREFIXES = (
+    "claude-instant",
+    "claude-2",
+    "claude-3",
+    "claude-opus-4-0",
+    "claude-opus-4-1",
+    "claude-opus-4-2",
+    "claude-sonnet-4-0",
+    "claude-sonnet-4-1",
+    "claude-sonnet-4-2",
+)
+_TOOL_SEARCH_UNSUPPORTED_ALIASES = {"claude-opus-4", "claude-sonnet-4"}
+
+
+def _core_model_id(model_id: str) -> str:
+    """Strip provider prefixes and version suffixes from a Claude model ID.
 
     Handles provider-specific ID formats:
       - Anthropic direct:  "claude-sonnet-4-5-20250929"
@@ -57,11 +74,25 @@ def supports_prefill(model_id: str) -> bool:
     # Strip Bedrock version suffix (e.g. "claude-sonnet-4-5-20250929-v1:0")
     if ":0" in core_id:
         core_id = core_id.split("-v")[0] if "-v" in core_id else core_id.split(":")[0]
+    return core_id
+
+
+def supports_prefill(model_id: str) -> bool:
+    """Return True if the given model ID supports assistant message prefill."""
+    core_id = _core_model_id(model_id)
 
     if not core_id.startswith("claude"):
         return True  # Non-Claude models are unaffected — don't inject trailing messages
 
     return core_id in _PREFILL_SUPPORTED_ALIASES or core_id.startswith(_PREFILL_SUPPORTED_PREFIXES)
+
+
+def supports_tool_search(model_id: str) -> bool:
+    """Return True if the given Claude model ID supports the tool search tool and defer_loading."""
+    core_id = _core_model_id(model_id)
+    if not core_id.startswith("claude"):
+        return False
+    return core_id not in _TOOL_SEARCH_UNSUPPORTED_ALIASES and not core_id.startswith(_TOOL_SEARCH_UNSUPPORTED_PREFIXES)
 
 
 @dataclass
@@ -847,8 +878,67 @@ def format_tools_for_model(tools: Optional[List[Dict[str, Any]]] = None) -> Opti
         if strict_mode is True:
             tool["strict"] = True
 
+        # Set by Model._format_tools only on models that support tool search
+        if tool_def.get("defer_loading") is True:
+            tool["defer_loading"] = True
+
         parsed_tools.append(tool)
     return parsed_tools
+
+
+def _tool_search_tool(variant: str) -> Dict[str, Any]:
+    return {"type": f"tool_search_tool_{variant}_20251119", "name": f"tool_search_tool_{variant}"}
+
+
+def _referenced_tool_names(messages: Optional[List[Message]]) -> List[str]:
+    """Names of tools that earlier tool searches in the history returned as tool_reference blocks."""
+    names: List[str] = []
+    for message in messages or []:
+        provider_data = message.provider_data or {}
+        blocks = provider_data.get("content_blocks") or provider_data.get("server_tool_blocks") or []
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("type") != "tool_search_tool_result":
+                continue
+            content = block.get("content")
+            if not isinstance(content, dict):
+                continue
+            for reference in content.get("tool_references") or []:
+                name = reference.get("tool_name") if isinstance(reference, dict) else None
+                if name and name not in names:
+                    names.append(name)
+    return names
+
+
+def add_tool_search(
+    tools: List[Dict[str, Any]], variant: str = "bm25", messages: Optional[List[Message]] = None
+) -> List[Dict[str, Any]]:
+    """Make an Anthropic tools list with deferred tools valid for the API.
+
+    Adds the tool search tool (the API rejects a request whose tools are all deferred, and deferred
+    tools are only reachable through search) unless one is already present. Tools that an earlier
+    search in the history returned but that are no longer offered (an MCP server dropped them, or the
+    tool set changed between runs) get a deferred stub, since the API rejects a tool_reference to a
+    missing tool. Calling a stub fails like any unknown tool.
+    """
+    referenced = _referenced_tool_names(messages)
+    if not referenced and not any(tool.get("defer_loading") for tool in tools):
+        return tools
+    result = list(tools)
+    offered = {tool.get("name") for tool in result}
+    for name in referenced:
+        if name not in offered:
+            log_debug(f"Tool '{name}' was found by an earlier tool search but is no longer available")
+            result.append(
+                {
+                    "name": name,
+                    "description": "This tool is no longer available.",
+                    "input_schema": {"type": "object", "properties": {}},
+                    "defer_loading": True,
+                }
+            )
+    if not any(str(tool.get("type", "")).startswith("tool_search_tool_") for tool in result):
+        result.append(_tool_search_tool(variant))
+    return result
 
 
 # Sampling parameters the Anthropic SDK stopped declaring on its request methods in

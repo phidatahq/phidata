@@ -131,6 +131,10 @@ class Toolkit:
         cache_dir: Optional[str] = None,
         timeout: Optional[int] = None,
         auto_register: bool = True,
+        defer_loading: bool = False,
+        deferred_tools: Optional[List[str]] = None,
+        always_loaded_tools: Optional[List[str]] = None,
+        tool_search_description: Optional[str] = None,
     ):
         """Initialize a new Toolkit.
 
@@ -159,6 +163,12 @@ class Toolkit:
             auto_register (bool): Whether to automatically register all methods in the class.
             stop_after_tool_call_tools (Optional[List[str]]): List of function names that should stop the agent after execution.
             show_result_tools (Optional[List[str]]): List of function names whose results should be shown.
+            defer_loading (bool): Defer every tool in the toolkit: the model sees it only after finding it
+                with tool search, on models that support tool search. See agno.tools.tool_search.
+            deferred_tools (Optional[List[str]]): Defer only these tools.
+            always_loaded_tools (Optional[List[str]]): With defer_loading=True, keep these tools loaded.
+            tool_search_description (Optional[str]): One line describing what the toolkit can do, shown in
+                the searchable-tools index when its tools are deferred.
         """
         self.name: str = name
         self.id: str = id if id is not None else generate_id_from_name(name)
@@ -176,6 +186,11 @@ class Toolkit:
 
         self.stop_after_tool_call_tools: list[str] = stop_after_tool_call_tools or []
         self.show_result_tools: list[str] = show_result_tools or []
+
+        self.defer_loading: bool = defer_loading
+        self.deferred_tools: list[str] = deferred_tools or []
+        self.always_loaded_tools: list[str] = always_loaded_tools or []
+        self.tool_search_description: Optional[str] = tool_search_description
 
         self._check_tools_filters(
             available_tools=[self._get_tool_name(tool) for tool in self.tools],
@@ -257,6 +272,41 @@ class Toolkit:
             if missing_show_result:
                 log_warning(f"Show result tool(s) not present in the toolkit: {', '.join(missing_show_result)}")
 
+        # getattr: subclasses may run these checks before Toolkit.__init__ has set the lists.
+        for label, names in (
+            ("Deferred", getattr(self, "deferred_tools", [])),
+            ("Always loaded", getattr(self, "always_loaded_tools", [])),
+        ):
+            missing = set(names) - set(available_tools)
+            if names and missing:
+                log_warning(f"{label} tool(s) not present in the toolkit: {', '.join(sorted(missing))}")
+
+    def _resolve_defer_loading(self, tool_name: str, declared: Optional[bool] = None) -> Optional[bool]:
+        """Whether a tool registered by this toolkit is deferred behind tool search.
+
+        A value declared on the tool itself (@tool(defer_loading=...)) wins, then always_loaded_tools,
+        then deferred_tools / defer_loading.
+        """
+        if declared is not None:
+            return declared
+        if tool_name in self.always_loaded_tools:
+            return None
+        if self.defer_loading or tool_name in self.deferred_tools:
+            return True
+        return None
+
+    def get_tool_search_summary(self) -> Optional[str]:
+        """One line describing the toolkit for the searchable-tools index, or None to list tool names."""
+        return self.tool_search_description
+
+    def get_server_instructions(self) -> Optional[str]:
+        """Instructions from the server behind this toolkit (for example an MCP server) for the system prompt.
+
+        Unlike ``instructions``, this is third-party text: the Agent or Team adds it in its own block, with
+        markup escaped and without resolving state variables in it. None by default.
+        """
+        return None
+
     def _register_tools(self) -> None:
         """Register all sync tools."""
         for tool in self.tools:
@@ -312,6 +362,7 @@ class Toolkit:
                 external_execution=tool_name in self.external_execution_required_tools,
                 stop_after_tool_call=tool_name in self.stop_after_tool_call_tools,
                 show_result=tool_name in self.show_result_tools or tool_name in self.stop_after_tool_call_tools,
+                defer_loading=self._resolve_defer_loading(tool_name),
             )
 
             if is_async:
@@ -428,6 +479,7 @@ class Toolkit:
             user_input_schema=function.user_input_schema,
             external_execution=external_execution,
             approval_type=function.approval_type,
+            defer_loading=self._resolve_defer_loading(tool_name, function.defer_loading),
             cache_results=function.cache_results if function.cache_results else self.cache_results,
             cache_dir=function.cache_dir if function.cache_dir else self.cache_dir,
             cache_ttl=function.cache_ttl if function.cache_ttl != 3600 else self.cache_ttl,

@@ -73,6 +73,7 @@ from agno.team import (
 from agno.team.mode import TeamMode
 from agno.tools import Toolkit
 from agno.tools.function import Function
+from agno.tools.tool_search import ToolSearch
 from agno.utils.log import (
     log_error,
     log_warning,
@@ -282,6 +283,10 @@ class Team:
     tool_call_limit: Optional[int] = None
     # A list of hooks to be called before and after the tool call
     tool_hooks: Optional[List[Callable]] = None
+    # How tools marked defer_loading are offered: their definitions stay out of the context until the
+    # model finds them with tool search (on models that support it). None or True: on whenever a tool
+    # is deferred. False: deferred tools load normally. See agno.tools.tool_search.
+    tool_search: Optional[Union[bool, ToolSearch]] = None
 
     # --- Team Hooks ---
     # Functions called right after team session is loaded, before processing starts
@@ -435,6 +440,9 @@ class Team:
     _cached_session_db: Optional[Union[BaseDb, AsyncBaseDb]] = None
     # Tool instructions
     _tool_instructions: Optional[List[str]] = None
+    # Searchable-tools index and server-sent instructions for the system prompt, rebuilt with the tools
+    _tool_search_index: Optional[str] = None
+    _server_instructions: Optional[str] = None
     # Member response model
     _member_response_model: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None
     # Safe formatter for template resolution
@@ -537,6 +545,7 @@ class Team:
         tool_call_limit: Optional[int] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         tool_hooks: Optional[List[Callable]] = None,
+        tool_search: Optional[Union[bool, ToolSearch]] = None,
         pre_hooks: Optional[List[Union[Callable[..., Any], BaseGuardrail, BaseEval]]] = None,
         post_hooks: Optional[List[Union[Callable[..., Any], BaseGuardrail, BaseEval]]] = None,
         input_schema: Optional[Type[BaseModel]] = None,
@@ -656,6 +665,7 @@ class Team:
             tool_call_limit=tool_call_limit,
             tool_choice=tool_choice,
             tool_hooks=tool_hooks,
+            tool_search=tool_search,
             pre_hooks=pre_hooks,
             post_hooks=post_hooks,
             input_schema=input_schema,

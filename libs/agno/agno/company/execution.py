@@ -478,7 +478,7 @@ async def _project_run_before_settle(
     try:
         await _project_run(worker, job, status, error)
     except Exception as exc:
-        if not await _run_row_settled(worker, job):
+        if not await _run_row_settled(worker, job) or not await _reservation_recorded(worker, job):
             raise
         from agno.utils.log import log_error
 
@@ -498,6 +498,15 @@ async def _run_row_settled(worker: Any, job: Dict[str, Any]) -> bool:
         return False
     status = getattr(output, "status", None)
     return str(getattr(status, "value", status)).upper() in {"COMPLETED", "ERROR", "CANCELLED"}
+
+
+async def _reservation_recorded(worker: Any, job: Dict[str, Any]) -> bool:
+    """Company recovery finds a Task only through the run id its reservation recorded."""
+    try:
+        task = await _call(worker._company_db, "get_task", job["payload"]["company_task_id"])
+    except Exception:
+        return False
+    return task is not None and task.get("job_id") == job["id"]
 
 
 async def _task_input(manager: Any, task: Dict[str, Any]) -> str:

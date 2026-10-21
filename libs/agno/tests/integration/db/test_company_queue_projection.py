@@ -88,6 +88,29 @@ async def test_persistent_task_write_failure_finishes_ticket(system, monkeypatch
     assert saved["status"] == ("in_review" if outcome == "completed" else "in_progress")
 
 
+async def test_unrecorded_reservation_keeps_ticket_for_recovery(system, monkeypatch):
+    client, db, worker, _, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    with monkeypatch.context() as outage:
+        mock = AsyncMock if isinstance(db, AsyncBaseDb) else Mock
+        outage.setattr(db, "start_task_run", mock(side_effect=RuntimeError("Company database unavailable")))
+        # The ticket commits, then recording the Task's reservation fails.
+        with pytest.raises(RuntimeError, match="Company database unavailable"):
+            await client.post(path + "/runs")
+        assert (await execute(worker))["status"] == "queued"
+        run_id = (await execute(worker))["id"]
+        assert (await _call(db, "get_run", run_id, deserialize=False))["status"] == "ERROR"
+        assert (await _call(db, "get_task", value["id"]))["job_id"] is None
+        # Recovery finds Tasks by their reservation, so the ticket must not finish without it.
+        assert (await worker.store.get_job(run_id))["status"] == "running"
+    expire_lease(worker, run_id)
+    await worker._sweep_exhausted()
+    assert (await worker.store.get_job(run_id))["status"] == "failed"
+    saved = await _call(db, "get_task", value["id"])
+    assert saved["job_id"] == run_id and saved["result"]["status"] == "ERROR"
+
+
 @pytest.mark.parametrize("failure", ["task_write", "task_write_and_run_read"])
 async def test_swept_company_failure_does_not_block_other_claims(system, monkeypatch, failure):
     import agno.company.execution as execution

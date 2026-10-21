@@ -168,6 +168,30 @@ def test_sampling_params_are_dropped_for_a_model_that_rejects_them(provider):
     assert "extra_body" not in kwargs
 
 
+@pytest.mark.parametrize("provider", list(PROVIDERS))
+def test_a_thinking_budget_becomes_adaptive_for_a_model_that_rejects_it(provider):
+    """Claude 4.7 removed thinking budgets with the sampling parameters; a budget is a 400 there."""
+    model = _model_class(provider)(
+        id=SAMPLING_REJECTING_IDS[provider], thinking={"type": "enabled", "budget_tokens": 1024}
+    )
+
+    kwargs = model._prepare_request_kwargs("sys")
+
+    assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert model.thinking == {"type": "enabled", "budget_tokens": 1024}, "the model's own field was mutated"
+
+
+@pytest.mark.parametrize("provider", list(PROVIDERS))
+def test_a_thinking_budget_is_kept_for_a_model_that_accepts_it(provider):
+    model = _model_class(provider)(
+        id=SAMPLING_SUPPORTED_IDS[provider], thinking={"type": "enabled", "budget_tokens": 1024}
+    )
+
+    kwargs = model._prepare_request_kwargs("sys")
+
+    assert kwargs["thinking"] == {"type": "enabled", "budget_tokens": 1024}
+
+
 def test_the_default_model_is_not_a_retired_one():
     """A default that reaches its retirement date fails every run that did not set an id."""
     assert Claude().id == "claude-sonnet-5-5"

@@ -10,6 +10,7 @@ import json
 from dataclasses import asdict
 from typing import Annotated, Any, Dict, List, Optional
 from uuid import uuid4
+from weakref import ReferenceType
 
 from pydantic import BeforeValidator
 
@@ -141,6 +142,7 @@ class CompanyTools(Toolkit):
         self.interfaces = interfaces if interfaces is not None else []
         self._automation_history_retention_days = 30
         self._schedule_db = db
+        self._agent_os_ref: Optional[ReferenceType[Any]] = None
         self.db = db
         self.registry = registry
         self.user_isolation = user_isolation
@@ -298,7 +300,9 @@ class CompanyTools(Toolkit):
         product_id = str(uuid4())
         plans = []
         for routine in product.routines:
-            fields = _declared_schedule_fields(product_id, routine, self.registry)
+            fields = _declared_schedule_fields(
+                product_id, routine, self.registry, agent_os=self._agent_os_ref() if self._agent_os_ref else None
+            )
             self._routine_check(routine, _agno_run_context)(fields)
             plans.append((routine, fields))
         manager = self._sync()
@@ -357,6 +361,7 @@ class CompanyTools(Toolkit):
                 user_id=_identity(_agno_run_context),
                 scoped_user_id=self._scoped_user(_agno_run_context),
                 check=self._routine_check(routine, _agno_run_context),
+                agent_os=self._agent_os_ref() if self._agent_os_ref else None,
             )
         )
 
@@ -393,7 +398,9 @@ class CompanyTools(Toolkit):
         product_id = str(uuid4())
         plans = []
         for routine in product.routines:
-            fields = _declared_schedule_fields(product_id, routine, self.registry)
+            fields = _declared_schedule_fields(
+                product_id, routine, self.registry, agent_os=self._agent_os_ref() if self._agent_os_ref else None
+            )
             await self._aroutine_check(routine, _agno_run_context)(fields)
             plans.append((routine, fields))
         manager = self._async()
@@ -460,6 +467,7 @@ class CompanyTools(Toolkit):
                 user_id=_identity(_agno_run_context),
                 scoped_user_id=self._scoped_user(_agno_run_context),
                 check=check,
+                agent_os=self._agent_os_ref() if self._agent_os_ref else None,
             )
         )
 

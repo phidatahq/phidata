@@ -87,11 +87,12 @@ class CompanyManager:
         user_id: Optional[str] = None,
         scoped_user_id: Optional[str] = None,
         check: Optional[Callable[[Dict[str, Any]], None]] = None,
+        agent_os: Any = None,
     ) -> Dict[str, Any]:
         """Create and link a Routine owned by ``user_id``; ``check`` sees the schedule fields before any write.
 
         Any writer may add a Routine to a Product, as with Projects and Tasks; ``scoped_user_id`` is kept for
-        callers and does not restrict which Product the Routine joins.
+        callers and does not restrict which Product the Routine joins. Supply ``agent_os`` to target Company Manager.
         """
         from agno.company.declarations import Routine
         from agno.company.routines import _declared_schedule_fields, _require_routine_product
@@ -101,7 +102,7 @@ class CompanyManager:
             raise LookupError("Product not found")
         _require_routine_product(product_id)
         routine = Routine.model_validate(routine)
-        fields = _declared_schedule_fields(product_id, routine, self.registry)
+        fields = _declared_schedule_fields(product_id, routine, self.registry, agent_os=agent_os)
         if check is not None:
             check(fields)
         return self._write_routine(product_id, routine, fields, user_id)
@@ -978,11 +979,12 @@ class AsyncCompanyManager:
         user_id: Optional[str] = None,
         scoped_user_id: Optional[str] = None,
         check: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+        agent_os: Any = None,
     ) -> Dict[str, Any]:
         """Create and link a Routine owned by ``user_id``; ``check`` sees the schedule fields before any write.
 
         Any writer may add a Routine to a Product, as with Projects and Tasks; ``scoped_user_id`` is kept for
-        callers and does not restrict which Product the Routine joins.
+        callers and does not restrict which Product the Routine joins. Supply ``agent_os`` to target Company Manager.
         """
         from agno.company.declarations import Routine
         from agno.company.routines import _declared_schedule_fields, _require_routine_product
@@ -992,7 +994,7 @@ class AsyncCompanyManager:
             raise LookupError("Product not found")
         _require_routine_product(product_id)
         routine = Routine.model_validate(routine)
-        fields = _declared_schedule_fields(product_id, routine, self.registry)
+        fields = _declared_schedule_fields(product_id, routine, self.registry, agent_os=agent_os)
         if check is not None:
             await check(fields)
         return await self._write_routine(product_id, routine, fields, user_id)

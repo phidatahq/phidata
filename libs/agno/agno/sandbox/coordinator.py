@@ -667,9 +667,15 @@ class SandboxCoordinator:
             # A cancel issued elsewhere, by the cancel endpoint or another replica, fences this
             # lease and retires this computer, so this attempt fails with a lost lease or a dead
             # transport. Report the cancellation the caller asked for rather than the failure it
-            # caused, so the queue settles its ticket as cancelled instead of failed.
-            if not isinstance(error, RunCancelledException) and await ais_cancelled(run_id):
-                raise RunCancelledException("Run cancelled elsewhere") from error
+            # caused, so the queue settles its ticket as cancelled instead of failed. Another
+            # replica's cancel intent may never reach this process, so the binding decides too.
+            if not isinstance(error, RunCancelledException):
+                cancelled = await ais_cancelled(run_id)
+                if not cancelled:
+                    with suppress(Exception):
+                        cancelled = await self.store.acancelled_elsewhere(session_id, run_id)
+                if cancelled:
+                    raise RunCancelledException("Run cancelled elsewhere") from error
             raise
         except asyncio.CancelledError:
             from agno.run.cancel import ais_cancelled

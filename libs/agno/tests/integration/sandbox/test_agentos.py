@@ -592,6 +592,40 @@ async def test_remote_cancel_fences_the_worker_without_failing_its_ticket(servic
         assert await _harness.coordinator(agent).provider.aget(handle.provider_ref) is None
 
 
+@pytest.mark.parametrize("max_attempts", [1, 2])
+@pytest.mark.parametrize(
+    "service",
+    [
+        pytest.param({"adapter": PostgresDb, "use_redis": False}, id="sync-local"),
+        pytest.param({"adapter": AsyncPostgresDb, "use_redis": False}, id="async-local"),
+    ],
+    indirect=True,
+)
+async def test_cancel_on_another_replica_without_redis_settles_the_ticket_cancelled(service, max_attempts):
+    client, agent, app, handles = service
+    agent.delay = 20
+    app.state.queue_worker.config.max_attempts = max_attempts
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "cancel", "session_id": "session", "stream": "false", "background": "true"},
+    )
+    run_id = response.json()["run_id"]
+
+    async def allocated():
+        while not handles:
+            await asyncio.sleep(0.05)
+
+    await asyncio.wait_for(allocated(), 10)
+    await asyncio.sleep(1)
+    # What another replica's cancel endpoint does without Redis: fence the lease and remove the
+    # computer through Postgres, while its cancel intent stays in that replica's own memory.
+    await _harness.acancel_unowned_row(agent, run_id)
+    job = await settled(app, run_id)
+    assert job["status"] == "cancelled", job
+    assert job["attempt"] == 1, job
+    assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
+
+
 PNG = b"\x89PNG\r\n\x1a\nfixture"
 
 

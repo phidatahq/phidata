@@ -29,7 +29,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from agno.os.auth import aprovision_user_with_default_role
 from agno.os.middleware.jwt import build_jwt_middleware_kwargs
 from agno.os.middleware.jwt import is_reserved_principal as _is_reserved_principal
-from agno.os.scopes import DENIES_CLAIM, apply_scope_denies
+from agno.os.scopes import DENIES_CLAIM, apply_scope_denies, has_denies, restrict_scope_claims
 from agno.utils.log import log_warning
 
 
@@ -160,9 +160,10 @@ class JWTBearerTokenVerifier(TokenVerifier):
         # user_id here and client_id below falls back to "agno-jwt" only as the pydantic-
         # required client_id string -- the bridge keys identity off ``sub``.
         safe_claims = {k: v for k, v in payload.items() if k not in RESERVED_MARKER_CLAIMS}
-        if payload.get(DENIES_CLAIM) is not None:
-            # extract_claims removed the denied grants; keep the raw scopes out of claims too.
-            safe_claims["scopes"] = list(claims.get("scopes") or [])
+        # extract_claims removed the denied grants; keep the raw scopes out of claims too.
+        safe_claims = restrict_scope_claims(
+            safe_claims, list(claims.get("scopes") or []), getattr(self._validator, "scopes_claim", "scopes")
+        )
         return AccessToken(
             token=token,
             client_id=str(user_id) if user_id is not None else "agno-jwt",
@@ -334,13 +335,15 @@ class _MarkerScrubbingProvider(AuthProvider):
         update: Dict[str, Any] = {}
         if any(marker in claims for marker in RESERVED_MARKER_CLAIMS):
             update["claims"] = {k: v for k, v in claims.items() if k not in RESERVED_MARKER_CLAIMS}
-        if claims.get(DENIES_CLAIM) is not None:
+        if has_denies(claims.get(DENIES_CLAIM)):
             # Same rewrite as the agno JWT paths, so a token verified by an external
-            # provider cannot reach a grant its own denies claim names.
+            # provider cannot reach a grant its own denies claim names. The provider may
+            # have read its scopes from scope, scp or permissions; each one present is
+            # rewritten.
             update["scopes"] = apply_scope_denies(
                 list(access_token.scopes or []), claims.get(DENIES_CLAIM), self._admin_scope
             )
-            update["claims"] = {**update.get("claims", claims), "scopes": update["scopes"]}
+            update["claims"] = restrict_scope_claims(update.get("claims", claims), update["scopes"])
         if update:
             return access_token.model_copy(update=update)
         return access_token

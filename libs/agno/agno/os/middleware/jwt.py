@@ -30,6 +30,7 @@ from agno.os.scopes import (
     get_required_scopes_for_route,
     get_resource_context_from_path,
     has_required_scopes,
+    restrict_scope_claims,
 )
 from agno.os.service_accounts import SERVICE_ACCOUNT_PRINCIPAL_PREFIX, authenticate_service_account_request
 from agno.os.service_accounts import TOKEN_PREFIX as SERVICE_ACCOUNT_TOKEN_PREFIX
@@ -1668,11 +1669,9 @@ class AuthMiddleware(BaseHTTPMiddleware):
             request.state.session_id = session_id
             request.state.scopes = scopes
             # Full decoded JWT for factory ctx.trusted.claims. When the token has denies, its
-            # scopes claim carries the restricted list too, so nothing reading claims sees
+            # scope claims carry the restricted list too, so nothing reading claims sees
             # the denied grants.
-            request.state.claims = (
-                {**payload, self.scopes_claim: scopes} if payload.get(DENIES_CLAIM) is not None else payload
-            )
+            request.state.claims = restrict_scope_claims(payload, scopes, self.scopes_claim)
             request.state.audience = audience
             request.state.authorization_enabled = self.authorization or False
             # Expose admin scope so downstream helpers (e.g. get_scoped_user_id)

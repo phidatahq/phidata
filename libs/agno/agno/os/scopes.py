@@ -26,10 +26,9 @@ import fnmatch
 import re
 from dataclasses import dataclass
 from enum import Enum
-from functools import lru_cache
 from typing import Any, Dict, FrozenSet, Iterable, List, Optional, Set, Tuple
 
-from agno.utils.log import log_debug
+from agno.utils.log import log_debug, log_warning
 
 # Legacy resource name aliases — keep tokens issued before a rename working.
 # Keys are the legacy resource names, values are the current names.
@@ -760,10 +759,42 @@ def check_route_scopes(
 DENIES_CLAIM = "denies"
 
 
-@lru_cache(maxsize=1)
+# Claim keys issuers use for granted scopes. When a token has denies, each of these
+# present in a claims copy is rewritten, so the copy never shows a denied grant.
+SCOPE_CLAIM_KEYS = ("scopes", "scope", "scp", "permissions")
+# OAuth issuers write these as one space-delimited string.
+_SPACE_DELIMITED_SCOPE_CLAIMS = ("scope", "scp")
+
+
 def _default_known_scopes() -> FrozenSet[str]:
     """Every scope the default route mappings require, Company routes included."""
     return frozenset(s for required in get_default_scope_mappings(company=True).values() for s in required)
+
+
+def has_denies(denies: Any) -> bool:
+    """Whether a raw ``denies`` claim value changes a token's scopes under :func:`apply_scope_denies`."""
+    return denies is not None and denies != []
+
+
+def restrict_scope_claims(claims: Dict[str, Any], scopes: List[str], scopes_claim: str = "scopes") -> Dict[str, Any]:
+    """
+    Copy of a token's claims whose scope claims carry ``scopes``, the list
+    :func:`apply_scope_denies` returned for the token.
+
+    ``scopes_claim`` is always written. Every other key in :data:`SCOPE_CLAIM_KEYS` is
+    rewritten when present. Returns ``claims`` itself when the token has no denies.
+    """
+    if not has_denies(claims.get(DENIES_CLAIM)):
+        return claims
+    restricted = dict(claims)
+    for key in dict.fromkeys((scopes_claim, *SCOPE_CLAIM_KEYS)):
+        if key != scopes_claim and key not in claims:
+            continue
+        if key in _SPACE_DELIMITED_SCOPE_CLAIMS and isinstance(claims.get(key), str):
+            restricted[key] = " ".join(scopes)
+        else:
+            restricted[key] = list(scopes)
+    return restricted
 
 
 def apply_scope_denies(
@@ -808,12 +839,13 @@ def apply_scope_denies(
         >>> apply_scope_denies(["agents:*:run"], ["agents:x:run"])
         []
     """
-    if denies is None or denies == []:
+    if not has_denies(denies):
         return scopes
     if isinstance(denies, str):
         denies = [denies]
     if not isinstance(denies, list) or not all(isinstance(d, str) for d in denies):
-        log_debug("JWT denies claim is not a list of strings; granting no scopes")
+        # The token is signed, so a malformed claim is an issuer fault worth surfacing.
+        log_warning("JWT denies claim is not a list of strings; granting no scopes")
         return []
 
     from agno.os.authz._scope_policy import resource_matches, scope_to_resource_action
@@ -832,7 +864,7 @@ def apply_scope_denies(
         try:
             denied_pairs.append(scope_to_resource_action(deny))
         except ValueError:
-            log_debug(f"JWT denies claim has an unrecognised scope {deny[:100]!r}; granting no scopes")
+            log_warning(f"JWT denies claim has an unrecognised scope {deny[:100]!r}; granting no scopes")
             return []
 
     effective: List[str] = []
@@ -858,7 +890,7 @@ def apply_scope_denies(
             # An allow the policy parser rejects can still match under parse_scope
             # (e.g. "agents::run" reads as a global grant), so it cannot be checked
             # against the denies. Drop it rather than let it through.
-            log_debug(f"Dropping unparseable scope {scope!r} from a token with denies")
+            log_debug(f"Dropping unparseable scope {scope[:100]!r} from a token with denies")
             continue
         overlaps = any(
             action == denied_action
@@ -866,7 +898,7 @@ def apply_scope_denies(
             for denied_resource, denied_action in denied_pairs
         )
         if overlaps:
-            log_debug(f"Dropping scope {scope!r}: overlaps a denied scope")
+            log_debug(f"Dropping scope {scope[:100]!r}: overlaps a denied scope")
             continue
         result.append(scope)
     return result

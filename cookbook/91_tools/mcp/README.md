@@ -57,6 +57,10 @@ This example shows how to choose which MCP protocol era `MCPTools` negotiates. T
 
 This example connects to Magic Hour's hosted MCP server to create images and videos. It shows bearer authentication, long-running render handling, reuse of project IDs after timeouts, and exact output URL retrieval.
 
+14. Deferred MCP Tools (`deferred_mcp_tools.py`)
+
+This example defers a server's tools behind the model's tool search (`defer_loading=True`, on GPT-5.4+ or Claude 4.5+), so their definitions stay out of the context until the model finds them. The searchable-tools index describes the server with `tool_search_description` or the instructions the server sends when it connects.
+
 ## Getting Started
 
 ### Prerequisites

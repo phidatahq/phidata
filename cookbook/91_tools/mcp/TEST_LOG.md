@@ -35,6 +35,16 @@ the agent produced a grounded one-sentence answer about the repository.
 
 ---
 
+### deferred_mcp_tools.py
+
+**Status:** PASS
+
+**Description:** Connects to the public Agno docs MCP server with `defer_loading=True` on `gpt-5.4-mini`. All three server tools were deferred, the model found the docs search tool with the hosted tool search, and answered from the retrieved pages. Tested 2026-10-21 with `.venv/bin/python`.
+
+**Result:** Completed successfully in 9s.
+
+---
+
 ### Pending
 
 **Status:** NOT RUN

@@ -58,3 +58,21 @@
 **Result:** Timed out after 120s.
 
 ---
+
+### 05_deferred_tools_tool_search.py
+
+**Status:** PASS
+**Tier:** untagged
+**Description:** Two deferred toolkits on `gpt-5.4-mini`. The model called the always-loaded `list_alerts`, found `search_tickets` and `assign_ticket` with the hosted tool search, and called both. Tested 2026-10-21 with `.venv/bin/python`.
+**Result:** Completed successfully in 9s.
+
+---
+
+### 06_tool_search_token_savings.py
+
+**Status:** PASS
+**Tier:** untagged
+**Description:** Counted one request for 60 tools in 6 toolkits with the OpenAI token counting endpoint: 3,353 input tokens loaded, 1,375 deferred with the index (59% fewer). Tested 2026-10-21 with `.venv/bin/python`.
+**Result:** Completed successfully in 2s.
+
+---

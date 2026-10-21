@@ -1,12 +1,14 @@
 # 04_tools
 
-Examples for callable tool factories, tool choice, and tool call limits.
+Examples for callable tool factories, deferred tools with tool search, tool choice, and tool call limits.
 
 ## Files
 - `01_callable_tools.py` - Vary the toolset per user role using callable factories.
 - `02_session_state_tools.py` - Use session_state directly as a parameter with caching disabled.
 - `03_team_callable_members.py` - Assemble team members dynamically.
 - `04_tools_with_literal_type_param.py` - Use typing.Literal for tool parameters with predefined values.
+- `05_deferred_tools_tool_search.py` - Defer tools behind the model's tool search (GPT-5.4+, Claude 4.5+); the model finds them through a short index.
+- `06_tool_search_token_savings.py` - Count input tokens for a 60-tool catalog loaded versus deferred.
 - `tool_call_limit.py` - Limit the number of tool calls per run.
 - `tool_choice.py` - Control which tool the agent selects.
 

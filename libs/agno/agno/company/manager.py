@@ -21,6 +21,14 @@ def _routine_provenance(routine: Any) -> Dict[str, str]:
     return {"managed_by": "company", "target_type": routine.executor_type, "target_id": routine.executor_id}
 
 
+def _without_routine_links(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Routine links change only through Routine create and removal, never a metadata edit."""
+    metadata = fields.get("metadata")
+    if not isinstance(metadata, dict) or "routine_ids" not in metadata:
+        return fields
+    return {**fields, "metadata": {key: value for key, value in metadata.items() if key != "routine_ids"}}
+
+
 def _project_proposal_id(product_id: str, name: str) -> Optional[str]:
     from uuid import NAMESPACE_URL, uuid5
 
@@ -80,15 +88,18 @@ class CompanyManager:
         scoped_user_id: Optional[str] = None,
         check: Optional[Callable[[Dict[str, Any]], None]] = None,
     ) -> Dict[str, Any]:
-        """Create and link a Routine for an owned Product; ``check`` sees the schedule fields before any write."""
+        """Create and link a Routine owned by ``user_id``; ``check`` sees the schedule fields before any write.
+
+        Any writer may add a Routine to a Product, as with Projects and Tasks; ``scoped_user_id`` is kept for
+        callers and does not restrict which Product the Routine joins.
+        """
         from agno.company.declarations import Routine
-        from agno.company.playbook import _require_owner
-        from agno.company.routines import _declared_schedule_fields
+        from agno.company.routines import _declared_schedule_fields, _require_routine_product
 
         product = self.get(product_id)
         if product is None:
             raise LookupError("Product not found")
-        _require_owner(product, scoped_user_id)
+        _require_routine_product(product_id)
         routine = Routine.model_validate(routine)
         fields = _declared_schedule_fields(product_id, routine, self.registry)
         if check is not None:
@@ -180,9 +191,9 @@ class CompanyManager:
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        """Update name, purpose or metadata on an active Product."""
+        """Update name, purpose or metadata on an active Product; linked Routine ids are kept."""
         validate_product_fields(fields)
-        return self.db.update_product(product_id, user_id=user_id, **fields)
+        return self.db.update_product(product_id, user_id=user_id, **_without_routine_links(fields))
 
     def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
         """Archive a Product and its children atomically; active Tasks raise ValueError."""
@@ -968,15 +979,18 @@ class AsyncCompanyManager:
         scoped_user_id: Optional[str] = None,
         check: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
     ) -> Dict[str, Any]:
-        """Create and link a Routine for an owned Product; ``check`` sees the schedule fields before any write."""
+        """Create and link a Routine owned by ``user_id``; ``check`` sees the schedule fields before any write.
+
+        Any writer may add a Routine to a Product, as with Projects and Tasks; ``scoped_user_id`` is kept for
+        callers and does not restrict which Product the Routine joins.
+        """
         from agno.company.declarations import Routine
-        from agno.company.playbook import _require_owner
-        from agno.company.routines import _declared_schedule_fields
+        from agno.company.routines import _declared_schedule_fields, _require_routine_product
 
         product = await self.get(product_id)
         if product is None:
             raise LookupError("Product not found")
-        _require_owner(product, scoped_user_id)
+        _require_routine_product(product_id)
         routine = Routine.model_validate(routine)
         fields = _declared_schedule_fields(product_id, routine, self.registry)
         if check is not None:
@@ -1068,9 +1082,9 @@ class AsyncCompanyManager:
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     async def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        """Update name, purpose or metadata on an active Product."""
+        """Update name, purpose or metadata on an active Product; linked Routine ids are kept."""
         validate_product_fields(fields)
-        return await self.db.update_product(product_id, user_id=user_id, **fields)
+        return await self.db.update_product(product_id, user_id=user_id, **_without_routine_links(fields))
 
     async def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
         """Archive a Product and its children atomically; active Tasks raise ValueError."""

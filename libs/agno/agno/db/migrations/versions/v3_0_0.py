@@ -810,7 +810,7 @@ def _migrate_postgres_sessions(db: BaseDb, table_name: str) -> bool:
     if runs_table is None:
         return False
 
-    with db.Session() as sess:  # type: ignore
+    with db.Session() as sess, sess.begin():  # type: ignore
         table_exists = sess.execute(
             text(
                 "SELECT EXISTS ("
@@ -828,38 +828,31 @@ def _migrate_postgres_sessions(db: BaseDb, table_name: str) -> bool:
             log_info(f"Table {table_name} has no runs column, skipping migration")
             return False
 
-    # Move the runs one page of sessions at a time, each page in its own transaction: memory stays
-    # at one page, and a rerun after a crash skips the runs an earlier page already copied.
-    first_page = text(
-        f"SELECT session_id, user_id, runs FROM {full_table} WHERE runs IS NOT NULL ORDER BY session_id LIMIT :limit"
-    )
-    next_page = text(
-        f"SELECT session_id, user_id, runs FROM {full_table} "
-        "WHERE runs IS NOT NULL AND session_id > :last ORDER BY session_id LIMIT :limit"
-    )
-    copied = 0
-    clashes: List[Tuple[str, str, str]] = []
-    last_session_id: Optional[str] = None
-    while True:
-        with db.Session() as sess, sess.begin():  # type: ignore
-            if last_session_id is None:
-                batch = sess.execute(first_page, {"limit": BATCH_SIZE}).fetchall()
-            else:
-                batch = sess.execute(next_page, {"last": last_session_id, "limit": BATCH_SIZE}).fetchall()
+        # Server-side cursor: without it the driver buffers every session's runs before the
+        # first fetchmany, and BATCH_SIZE would bound nothing.
+        result = sess.execute(
+            text(f"SELECT session_id, user_id, runs FROM {full_table} WHERE runs IS NOT NULL"),
+            execution_options={"stream_results": True},
+        )
+        copied = 0
+        clashes: List[Tuple[str, str, str]] = []
+        while True:
+            batch = result.fetchmany(BATCH_SIZE)
             if not batch:
                 break
-            last_session_id = batch[-1][0]
 
             rows: List[Dict[str, Any]] = []
             for session_id, user_id, runs in batch:
                 rows.extend(_build_run_rows(runs, session_id, user_id, run_data_as_string=False))
-            stored = {run_id: owner for q in _run_owner_queries(runs_table, rows) for run_id, owner in sess.execute(q)}
-            to_insert, page_clashes = _split_copy_rows(rows, stored)
+            stored = {
+                run_id: owner for query in _run_owner_queries(runs_table, rows) for run_id, owner in sess.execute(query)
+            }
+            to_insert, batch_clashes = _split_copy_rows(rows, stored)
             if to_insert:
                 insert_stmt = postgresql.insert(runs_table).on_conflict_do_nothing(index_elements=["run_id"])
                 sess.execute(insert_stmt, to_insert)
             copied += len(to_insert)
-            clashes.extend(page_clashes)
+            clashes.extend(batch_clashes)
 
     _log_copy_result(table_name, copied, clashes)
     return True
@@ -878,7 +871,7 @@ async def _migrate_async_postgres_sessions(db: AsyncBaseDb, table_name: str) -> 
     if runs_table is None:
         return False
 
-    async with db.async_session_factory() as sess:  # type: ignore
+    async with db.async_session_factory() as sess, sess.begin():  # type: ignore
         table_exists = (
             await sess.execute(
                 text(
@@ -899,27 +892,15 @@ async def _migrate_async_postgres_sessions(db: AsyncBaseDb, table_name: str) -> 
             log_info(f"Table {table_name} has no runs column, skipping migration")
             return False
 
-    # See _migrate_postgres_sessions: one page of sessions per transaction.
-    first_page = text(
-        f"SELECT session_id, user_id, runs FROM {full_table} WHERE runs IS NOT NULL ORDER BY session_id LIMIT :limit"
-    )
-    next_page = text(
-        f"SELECT session_id, user_id, runs FROM {full_table} "
-        "WHERE runs IS NOT NULL AND session_id > :last ORDER BY session_id LIMIT :limit"
-    )
-    copied = 0
-    clashes: List[Tuple[str, str, str]] = []
-    last_session_id: Optional[str] = None
-    while True:
-        async with db.async_session_factory() as sess, sess.begin():  # type: ignore
-            if last_session_id is None:
-                result = await sess.execute(first_page, {"limit": BATCH_SIZE})
-            else:
-                result = await sess.execute(next_page, {"last": last_session_id, "limit": BATCH_SIZE})
-            batch = result.fetchall()
+        # stream() uses a server-side cursor; execute() would buffer every session's runs
+        # before the first fetchmany, and BATCH_SIZE would bound nothing.
+        result = await sess.stream(text(f"SELECT session_id, user_id, runs FROM {full_table} WHERE runs IS NOT NULL"))
+        copied = 0
+        clashes: List[Tuple[str, str, str]] = []
+        while True:
+            batch = await result.fetchmany(BATCH_SIZE)
             if not batch:
                 break
-            last_session_id = batch[-1][0]
 
             rows: List[Dict[str, Any]] = []
             for session_id, user_id, runs in batch:
@@ -927,12 +908,12 @@ async def _migrate_async_postgres_sessions(db: AsyncBaseDb, table_name: str) -> 
             stored: Dict[str, str] = {}
             for query in _run_owner_queries(runs_table, rows):
                 stored.update((await sess.execute(query)).tuples().all())
-            to_insert, page_clashes = _split_copy_rows(rows, stored)
+            to_insert, batch_clashes = _split_copy_rows(rows, stored)
             if to_insert:
                 insert_stmt = postgresql.insert(runs_table).on_conflict_do_nothing(index_elements=["run_id"])
                 await sess.execute(insert_stmt, to_insert)
             copied += len(to_insert)
-            clashes.extend(page_clashes)
+            clashes.extend(batch_clashes)
 
     _log_copy_result(table_name, copied, clashes)
     return True

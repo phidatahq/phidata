@@ -139,18 +139,11 @@ Plain container tmpfs is rejected by the transport: Docker can return a successf
 
 The caller must hold exclusive generation ownership and finish/drain the SDK before capture. Applications requiring logical database backups need an explicit quiesce/backup procedure; pausing processes only establishes a filesystem capture boundary. No nested-container or anonymous-volume data is included. Current capture uses local staging space for raw and combined archives in the coordinator's object directory; provision several times the checkpoint byte limit per concurrent capture. A transfer is bounded to 120 seconds per root. These limits intentionally fail finalization rather than publish an incomplete recovery point.
 
+Files a checkpoint cannot hold, such as a special file, a link that escapes its root or a tree over the archive limits, raise `CheckpointContentError`. Capturing the same files again would fail the same way, so the coordinator ends that turn in `ERROR` with `retryable: False` and the offending path in its content, retires its computer, and releases the session: the next turn runs from the previous checkpoint, without the failed turn's files or conversation. Other capture failures, such as an unavailable store, leave the turn finalizing so a retry of the same run checkpoints it without repeating its tools.
+
 The known Codex `auth.json` and Claude `.credentials.json` paths are excluded by default. These defaults are not a secret scanner: use explicit exclusions or keep other credentials outside durable roots. Passing `exclude` replaces the default list. Keep native credentials provisioned separately for restored compute. Atomic run/conversation/checkpoint publication belongs to the coordinator (see How a turn completes).
 
-Archive validation stays strict: absolute or root-escaping symlinks and special files such as FIFOs fail capture, and the error names the offending path. Virtual environments usually link `bin/python` to the image interpreter by absolute path, so exclude them and recreate them after restore from the project's lock file:
-
-```python
-ref = transfer.capture(handle, state=state, exclude=(*DEFAULT_NATIVE_EXCLUSIONS, "workspace/.venv"))
-...
-transfer.restore(new_handle, ref)
-sandbox.exec(new_handle, ["sh", "-c", "cd /workspace && python -m venv .venv && .venv/bin/pip install -r requirements.txt"])
-```
-
-Reinstalling needs network access or a local package source, since sandbox networking defaults to `none`. Exclusions are never inferred, so dependencies are not dropped silently.
+Root-escaping relative symlinks and special files such as FIFOs fail capture, and the error names the offending path. A symlink to an absolute path, such as the `bin/python3` link `python -m venv` makes to the image interpreter, is kept verbatim: it names a path in the computer, which the sandbox could link to at any time, and carries no bytes from it. Restoring into a computer recreates it, so a virtualenv works on the next generation without reinstalling. A host-side `CheckpointArchive.restore` leaves such links out, so nothing extracted on a host can lead to that host's own files; relative links that pointed at one stay in place and lead nowhere.
 
 ## Opening a run's checkpoint on the host
 

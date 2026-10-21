@@ -2910,11 +2910,14 @@ class PostgresDb(BaseDb):
                 columns.append(table.c.runs)
 
             stmt = select(*columns)
+            session_ids_stmt = select(table.c.session_id)
 
             if start_timestamp is not None:
                 stmt = stmt.where(table.c.created_at >= start_timestamp)
+                session_ids_stmt = session_ids_stmt.where(table.c.created_at >= start_timestamp)
             if end_timestamp is not None:
                 stmt = stmt.where(table.c.created_at <= end_timestamp)
+                session_ids_stmt = session_ids_stmt.where(table.c.created_at <= end_timestamp)
 
             with self.Session() as sess:
                 result = sess.execute(stmt).fetchall()
@@ -2922,12 +2925,12 @@ class PostgresDb(BaseDb):
 
                 # Attach lightweight run info (model and provider) from the runs table
                 if runs_table is not None and sessions:
-                    session_ids = [s["session_id"] for s in sessions]
+                    # Subquery, not a list of ids: one bind parameter per session overflows the driver's limit
                     runs_stmt = select(
                         runs_table.c.session_id,
                         runs_table.c.run_data["model"].astext.label("model"),
                         runs_table.c.run_data["model_provider"].astext.label("model_provider"),
-                    ).where(runs_table.c.session_id.in_(session_ids))
+                    ).where(runs_table.c.session_id.in_(session_ids_stmt))
 
                     runs_by_session: Dict[str, List[Dict[str, Any]]] = {}
                     for session_id, model, model_provider in sess.execute(runs_stmt).fetchall():
@@ -2976,9 +2979,12 @@ class PostgresDb(BaseDb):
                 return starting_date
 
         # 2. No metrics records. Return the date of the first recorded session.
-        first_session, _ = self.get_sessions(sort_by="created_at", sort_order="asc", limit=1, deserialize=False)
-
-        first_session_date = first_session[0]["created_at"] if first_session else None  # type: ignore[index]
+        # Queried directly rather than through get_sessions, which also counts and loads runs
+        sessions_table = self._get_table(table_type="sessions")
+        if sessions_table is None:
+            return None
+        with self.Session() as sess:
+            first_session_date = sess.execute(select(func.min(sessions_table.c.created_at))).scalar()
 
         # 3. No metrics records and no sessions records. Return None.
         if first_session_date is None:
@@ -9312,6 +9318,7 @@ class PostgresDb(BaseDb):
 
     def update_product(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.products import product_metadata, validate_product_fields
+        from agno.db.sql.company import update_product_row
 
         validate_product_fields(fields)
         if "metadata" in fields:
@@ -9319,12 +9326,8 @@ class PostgresDb(BaseDb):
         table = self._get_table(table_type="products")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
-            return dict(result._mapping) if result else None
+            return update_product_row(sess, table, product_id, user_id, fields)
 
     def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         from agno.db.sql.company import product_counts

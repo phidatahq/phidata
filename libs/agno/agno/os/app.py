@@ -695,12 +695,22 @@ class AgentOS:
                 self.registry = Registry()
             self.registry.exclude_components([self._product_manager])
             if self._manager is not None:
+                from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS
+
                 self._manager.product_manager = self._product_manager
+                self._product_manager.tool_call_limit = self._manager.config.member_tool_call_limit
+                assert isinstance(self._product_manager.instructions, str)
+                self._product_manager.instructions = [
+                    self._product_manager.instructions,
+                    FOCUSED_EXECUTION_INSTRUCTIONS,
+                ]
                 assert isinstance(self._manager.team.members, list)
                 self._manager.team.members.append(self._product_manager)
                 assert isinstance(self._manager.team.instructions, list)
                 self._manager.team.instructions.append(
-                    "Delegate Company planning, playbook updates and decisions to Product Manager."
+                    "Delegate Company Products, Projects, Tasks, Sources, Routines, playbook pages and decisions to "
+                    "Product Manager, including setup requests and questions about their status. Routines are "
+                    "Company schedules: ask Product Manager, not Platform Builder, to create them."
                 )
             else:
                 self.agents = [*(self.agents or []), self._product_manager]

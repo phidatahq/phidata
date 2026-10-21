@@ -389,3 +389,13 @@ Re-run on 20 October 2026 with the store chosen by `AGNO_SANDBOX_CHECKPOINT_BUCK
 **Result:** The first open downloaded the object (25 ms); the next four and the other store's open came from the cache (7 to 16 ms) with the download count staying at one. The cache directory held the object under its digest. After `delete`, the next open raised `CheckpointObjectNotFound` despite the cached copy, since the bucket is consulted first. Unit tests for the cache (`test_s3_store.py`): downloaded once, served to async opens, a corrupt entry fetched again, a deleted object not hidden, eviction within the budget while an open lease keeps reading, and the uncached copy landing in `scratch=` read-only. 15 tests pass.
 
 ---
+
+### S3CheckpointStore cancelled async opens (2026-10-20)
+
+**Status:** PASS
+
+**Description:** `libs/agno/tests/unit/sandbox/test_s3_store.py` (moto in-process) cancels `aopen_archive` after its worker thread has finished the download, before the caller holds the copy. Uncached, the downloaded copy in `scratch=` must be removed. Cached, the `.open-*` lease must be released and the cached object kept. A third test records which thread runs the cached object's digest check on an async open.
+
+**Result:** Against the unchanged store, the uncached test failed with a `.checkpoint-*.tar` left in scratch, and the digest-check test failed because opening the lease hashed the whole cached object on the event loop, a second time after the thread's check. The cached-lease test failed once the lease was entered in the thread without being released. All 19 store tests and the 561 `tests/unit/sandbox` tests pass with the fix.
+
+---

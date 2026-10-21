@@ -79,6 +79,7 @@ CONFIGURATIONS = {
 
 # A model that still takes temperature/top_p/top_k, and one that rejects them, in each
 # provider's own ID format -- the capability is read off the ID, so the formats matter.
+# Thinking budgets were removed in the same release, so the same pair covers them too.
 SAMPLING_SUPPORTED_IDS = {
     "anthropic": "claude-sonnet-4-6",
     "aws": "global.anthropic.claude-sonnet-4-6-v1:0",
@@ -166,6 +167,30 @@ def test_sampling_params_are_dropped_for_a_model_that_rejects_them(provider):
 
     assert not any(name in kwargs for name in SAMPLING_PARAMS)
     assert "extra_body" not in kwargs
+
+
+@pytest.mark.parametrize("provider", list(PROVIDERS))
+def test_a_thinking_budget_becomes_adaptive_for_a_model_that_rejects_it(provider):
+    """Claude 4.7 removed thinking budgets with the sampling parameters; a budget is a 400 there."""
+    model = _model_class(provider)(
+        id=SAMPLING_REJECTING_IDS[provider], thinking={"type": "enabled", "budget_tokens": 1024}
+    )
+
+    kwargs = model._prepare_request_kwargs("sys")
+
+    assert kwargs["thinking"] == {"type": "adaptive", "display": "summarized"}
+    assert model.thinking == {"type": "enabled", "budget_tokens": 1024}, "the model's own field was mutated"
+
+
+@pytest.mark.parametrize("provider", list(PROVIDERS))
+def test_a_thinking_budget_is_kept_for_a_model_that_accepts_it(provider):
+    model = _model_class(provider)(
+        id=SAMPLING_SUPPORTED_IDS[provider], thinking={"type": "enabled", "budget_tokens": 1024}
+    )
+
+    kwargs = model._prepare_request_kwargs("sys")
+
+    assert kwargs["thinking"] == {"type": "enabled", "budget_tokens": 1024}
 
 
 def test_the_default_model_is_not_a_retired_one():

@@ -23,6 +23,7 @@ from agno.utils.models.claude import (
     format_tools_for_model,
     resolve_http_client,
     route_sampling_params_to_extra_body,
+    route_thinking_budget_to_adaptive,
     serialize_content_blocks,
     supports_prefill,
 )
@@ -590,6 +591,7 @@ class Claude(Model):
         if self.request_params:
             _request_params.update(self.request_params)
 
+        route_thinking_budget_to_adaptive(_request_params, model_id=self.id)
         return route_sampling_params_to_extra_body(_request_params, model_id=self.id)
 
     @staticmethod

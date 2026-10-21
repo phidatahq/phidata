@@ -36,6 +36,20 @@ or change your tools. Do not claim a proposal has been accepted or executed.
 """
 
 
+def _company_manager_manifest() -> Any:
+    """Default description and prompts for the served Company Manager."""
+    from agno.os.config import Manifest
+
+    return Manifest(
+        description="Plans company work across Products, Projects, Tasks, Sources and Routines.",
+        quick_prompts=[
+            "What can you help me do?",
+            "Help me set up a new Product",
+            "What Projects and Tasks are in progress?",
+        ],
+    )
+
+
 def _build_company_manager(agent_os: Any, model: Any) -> Optional[Agent]:
     if agent_os._company_db is None or model is None:
         return None

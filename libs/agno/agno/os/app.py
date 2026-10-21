@@ -688,7 +688,6 @@ class AgentOS:
             self._manager = _build_manager(self, manager_config)
             self.agents = list(self.agents or [])
             self.teams = [*(self.teams or []), self._manager.team]
-            self._apply_manager_manifest()
 
         if self._company_manager is not None:
             if self.registry is None:
@@ -716,6 +715,7 @@ class AgentOS:
                     "Company schedules: ask Company Manager, not Platform Builder, to create them."
                 )
             self.agents = [*(self.agents or []), self._company_manager]
+        self._apply_manager_manifest()
 
         self._initialize_agents()
         self._initialize_teams()
@@ -780,14 +780,20 @@ class AgentOS:
     def _apply_manager_manifest(self) -> None:
         """Set default UI descriptions and prompts without replacing application settings."""
         from agno.os.config import AgentOSConfig
-        from agno.registry._reserved import RESERVED_MEMBER_IDS
+        from agno.registry._reserved import COMPANY_MANAGER_ID, RESERVED_MEMBER_IDS
 
-        if self._manager is None:
+        defaults = self._manager.manifest() if self._manager is not None else {}
+        # Company Manager is served with or without OS Manager, so it always gets its own chat card.
+        if self._company_manager is not None:
+            from agno.company.company_manager import _company_manager_manifest
+
+            defaults[COMPANY_MANAGER_ID] = _company_manager_manifest()
+        if not defaults:
             return
         if self.config is None:
             self.config = AgentOSConfig()
         manifest = {key: value for key, value in (self.config.manifest or {}).items() if key not in RESERVED_MEMBER_IDS}
-        for component_id, entry in self._manager.manifest().items():
+        for component_id, entry in defaults.items():
             manifest.setdefault(component_id, entry)
         self.config.manifest = manifest
 

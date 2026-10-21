@@ -321,6 +321,21 @@ def test_manifest_defaults_yield_to_the_application_config(db):
     assert "platform-engineer" not in os.config.manifest
 
 
+@pytest.mark.parametrize("with_manager", [False, True])
+def test_company_manager_has_default_quick_prompts(db, with_manager):
+    from agno.os import CompanyConfig
+
+    manager = OSManager(model=OfflineModel()) if with_manager else None
+    os = AgentOS(db=db, manager=manager, company=CompanyConfig(model=OfflineModel()), telemetry=False)
+    config = TestClient(os.get_app()).get("/config").json()
+    assert config["manifest"][COMPANY_MANAGER_ID]["quick_prompts"]
+    assert bool(config["manifest"].get(MANAGER_TEAM_ID)) is with_manager
+
+    custom = AgentOSConfig(manifest={COMPANY_MANAGER_ID: Manifest(quick_prompts=["Ours"])})
+    os = AgentOS(db=db, manager=manager, company=CompanyConfig(model=OfflineModel()), config=custom, telemetry=False)
+    assert os.config.manifest[COMPANY_MANAGER_ID].quick_prompts == ["Ours"]
+
+
 def test_manager_serves_over_the_ordinary_planes(db):
     os = AgentOS(db=db, manager=OSManager(name="Jarvis", model=OfflineModel()), telemetry=False)
     client = TestClient(os.get_app())

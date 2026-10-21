@@ -52,6 +52,38 @@ def test_gemini_sends_the_schema_as_response_json_schema():
     assert config.response_json_schema == SCHEMA
 
 
+def test_gemini_reuse_never_sends_both_schema_fields():
+    pytest.importorskip("google.genai")
+    from pydantic import BaseModel
+
+    from agno.models.google.gemini import Gemini
+
+    class Weather(BaseModel):
+        city: str
+
+    model = Gemini(api_key="test-key", generation_config={})
+    model.get_request_params(response_format=Weather)
+    config = model.get_request_params(response_format=CANONICAL)["config"]
+    assert config.response_schema is None
+    assert config.response_json_schema == SCHEMA
+
+    config = model.get_request_params(response_format=Weather)["config"]
+    assert config.response_json_schema is None
+    assert config.response_schema is not None
+    assert model.generation_config == {}
+
+
+def test_gemini_inline_schema_replaces_a_configured_response_schema():
+    pytest.importorskip("google.genai")
+    from agno.models.google.gemini import Gemini
+
+    model = Gemini(api_key="test-key", generation_config={"response_schema": {"type": "OBJECT"}})
+    config = model.get_request_params(response_format=CANONICAL)["config"]
+
+    assert config.response_schema is None
+    assert config.response_json_schema == SCHEMA
+
+
 def test_gemini_interactions_sends_the_schema_as_a_json_text_format():
     pytest.importorskip("google.genai")
     from agno.models.google.gemini_interactions import GeminiInteractions

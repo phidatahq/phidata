@@ -2070,6 +2070,14 @@ class TestCoverageFields:
         )
         assert error["code"] == "invalid_request"
 
+    def test_inline_output_schema_parameter_accepts_any_json_schema(self, studio_refs):
+        for name in ("create_agent", "edit_agent", "create_team", "edit_team"):
+            function = studio_refs.functions[name]
+            function.process_entrypoint()
+            parameter = function.to_dict()["parameters"]["properties"]["output_schema"]
+            assert parameter["type"] == "object"
+            assert parameter["additionalProperties"] is True
+
     def test_async_create_forwards_inline_output_schema(self, studio_refs):
         _data(
             asyncio.run(

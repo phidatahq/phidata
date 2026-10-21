@@ -2160,7 +2160,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: Optional[bool] = None,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         reasoning_model_id: Optional[str] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
@@ -2358,7 +2358,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: bool = True,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         reasoning_model_id: Optional[str] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
@@ -2392,9 +2392,7 @@ class StudioTools(Toolkit):
             add_datetime_to_context (bool): Show the agent the current date and time. Default True.
             knowledge_name (Optional[str]): Exact name from list_knowledge.
             output_schema_name (Optional[str]): Exact name from list_schemas.
-            output_schema (Optional[Dict]): Inline JSON Schema (root type object)
-                the response must follow, for a shape no registered schema covers;
-                its title names it. Use this or output_schema_name, not both.
+            output_schema (Optional[Dict]): Inline JSON Schema, object root; not with output_schema_name.
             reasoning_model_id (Optional[str]): Exact model id used for reasoning.
             learning_name (Optional[str]): Exact name from list_learning; wires the
                 agent to that shared learning machine.
@@ -2483,7 +2481,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: bool = True,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -2515,9 +2513,7 @@ class StudioTools(Toolkit):
             add_datetime_to_context (bool): Show the current date and time. Default True.
             knowledge_name (Optional[str]): Exact name from list_knowledge.
             output_schema_name (Optional[str]): Exact name from list_schemas.
-            output_schema (Optional[Dict]): Inline JSON Schema (root type object)
-                the response must follow, for a shape no registered schema covers;
-                its title names it. Use this or output_schema_name, not both.
+            output_schema (Optional[Dict]): Inline JSON Schema, object root; not with output_schema_name.
             learning_name (Optional[str]): Exact name from list_learning; wires the
                 team to that shared learning machine.
             enable_learning (Optional[bool]): Give the team the default learning
@@ -2987,7 +2983,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: Optional[bool] = None,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         reasoning_model_id: Optional[str] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
@@ -3022,8 +3018,7 @@ class StudioTools(Toolkit):
             add_datetime_to_context (Optional[bool]): Date and time in context.
             knowledge_name (Optional[str]): Exact name from list_knowledge; "" detaches.
             output_schema_name (Optional[str]): Exact name from list_schemas; "" detaches.
-            output_schema (Optional[Dict]): Replacement inline JSON Schema (root
-                type object); {} detaches. Use this or output_schema_name, not both.
+            output_schema (Optional[Dict]): Inline JSON Schema, object root; {} detaches.
             reasoning_model_id (Optional[str]): Reasoning model id; "" detaches.
             learning_name (Optional[str]): Exact name from list_learning; "" detaches.
             enable_learning (Optional[bool]): True gives the default learning machine
@@ -3095,7 +3090,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: Optional[bool] = None,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -3123,8 +3118,7 @@ class StudioTools(Toolkit):
             add_datetime_to_context (Optional[bool]): Date and time in context.
             knowledge_name (Optional[str]): Exact name from list_knowledge; "" detaches.
             output_schema_name (Optional[str]): Exact name from list_schemas; "" detaches.
-            output_schema (Optional[Dict]): Replacement inline JSON Schema (root
-                type object); {} detaches. Use this or output_schema_name, not both.
+            output_schema (Optional[Dict]): Inline JSON Schema, object root; {} detaches.
             learning_name (Optional[str]): Exact name from list_learning; "" detaches.
             enable_learning (Optional[bool]): True gives the default learning machine
                 unless one is already wired (kept, with a warning); False turns
@@ -4129,7 +4123,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: bool = True,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         reasoning_model_id: Optional[str] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
@@ -4183,7 +4177,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: bool = True,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
         metadata: Optional[Dict[str, Any]] = None,
@@ -4257,7 +4251,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: Optional[bool] = None,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         reasoning_model_id: Optional[str] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
@@ -4313,7 +4307,7 @@ class StudioTools(Toolkit):
         add_datetime_to_context: Optional[bool] = None,
         knowledge_name: Optional[str] = None,
         output_schema_name: Optional[str] = None,
-        output_schema: Optional[Dict[str, Any]] = None,
+        output_schema: Optional[dict] = None,
         learning_name: Optional[str] = None,
         enable_learning: Optional[bool] = None,
         metadata: Optional[Dict[str, Any]] = None,

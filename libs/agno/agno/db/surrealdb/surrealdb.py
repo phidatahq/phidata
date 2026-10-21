@@ -51,6 +51,7 @@ from agno.db.utils import (
     drop_legacy_metrics,
     filter_context_runs,
     merge_runs_table_with_legacy_blob,
+    runs_for_metrics,
 )
 from agno.run.agent import RunOutput
 from agno.run.base import RunStatus
@@ -1375,17 +1376,16 @@ class SurrealDb(BaseDb):
                 self.client, self._get_table("sessions"), start_timestamp, end_timestamp
             )
 
-            # Attach runs from the runs table, merged with legacy blob
-            if sessions:
-                try:
-                    sids = [s["session_id"] for s in sessions if s.get("session_id")]
-                    runs_by_session = self._get_sessions_runs_data(sids)
-                    for s in sessions:
-                        sid = s.get("session_id")
-                        if sid:
-                            s["runs"] = merge_runs_table_with_legacy_blob(runs_by_session.get(sid, []), s.get("runs"))
-                except Exception as e:
-                    log_error(f"Failed to attach runs to sessions for metrics: {str(e)}")
+            # Attach runs from the runs table, merged with the legacy runs. Read one session at a time and
+            # reduced as read, so the runs' output is never held for every session at once. Before any run
+            # is written there is no runs table, and querying a missing table fails in SurrealDB
+            if sessions and self.table_exists(self._get_table("runs", create_table_if_not_found=False)):
+                for s in sessions:
+                    sid = s.get("session_id")
+                    if sid:
+                        s["runs"] = merge_runs_table_with_legacy_blob(
+                            runs_for_metrics(self._get_session_runs_data(sid)), s.get("runs")
+                        )
 
             all_sessions_data = fetch_all_sessions_data(
                 sessions=sessions,  # Added parameter name for clarity

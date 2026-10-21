@@ -43,15 +43,24 @@ def get_all_sessions_for_metrics_calculation(
 
     where_clause, where_vars = where.build()
 
-    # Query
+    # Query. Legacy runs, kept on the session record until cleanup_legacy_runs_field(), are reduced in the
+    # database to the fields metrics read, so their output never reaches the process
     query = dedent(f"""
-        SELECT *
+        SELECT *, runs.{{run_id, model, model_provider}} AS runs
         FROM {table}
         {where_clause}
     """)
 
     results = utils.query(client, query, where_vars, dict)
-    return [desurrealize_session(x) for x in results]
+    sessions = [desurrealize_session(x) for x in results]
+    for session in sessions:
+        # A legacy run without a provider counts as "", as it did when legacy runs were read in Python
+        session["runs"] = [
+            {**run, "model_provider": "" if run.get("model_provider") is None else run["model_provider"]}
+            for run in session.get("runs") or []
+            if isinstance(run, dict)
+        ]
+    return sessions
 
 
 def _stored_day(value: Any) -> Optional[date]:

@@ -42,6 +42,7 @@ from agno.db.utils import (
     filter_context_runs,
     merge_runs_table_with_legacy_blob,
     metrics_starting_date_from_records,
+    runs_for_metrics,
 )
 from agno.run.agent import RunOutput
 from agno.run.base import RunStatus
@@ -1792,9 +1793,11 @@ class DynamoDb(BaseDb):
             table_name = self._get_table("sessions")
             all_sessions = []
 
-            # Query sessions by different types within the time range
+            # Query sessions by different types within the time range. Each page is reduced as it arrives:
+            # legacy runs, kept on the session item until cleanup_legacy_runs_field(), would otherwise all
+            # be held at once
             for session_type in ["agent", "team", "workflow"]:
-                response = self.client.query(
+                query_kwargs: Dict[str, Any] = dict(
                     TableName=table_name,
                     IndexName="session_type-created_at-index",
                     KeyConditionExpression="session_type = :session_type AND created_at BETWEEN :start_ts AND :end_ts",
@@ -1804,40 +1807,31 @@ class DynamoDb(BaseDb):
                         ":end_ts": {"N": str(end_timestamp)},
                     },
                 )
+                response = self.client.query(**query_kwargs)
+                while True:
+                    for item in response.get("Items", []):
+                        session_data = deserialize_from_dynamodb_item(item)
+                        if session_data:
+                            all_sessions.append(
+                                {
+                                    "session_id": session_data.get("session_id"),
+                                    "user_id": session_data.get("user_id"),
+                                    "session_data": session_data.get("session_data"),
+                                    "created_at": session_data.get("created_at"),
+                                    "session_type": session_data.get("session_type"),
+                                    "runs": runs_for_metrics(session_data.get("runs")),
+                                }
+                            )
+                    if "LastEvaluatedKey" not in response:
+                        break
+                    response = self.client.query(**query_kwargs, ExclusiveStartKey=response["LastEvaluatedKey"])
 
-                items = response.get("Items", [])
-
-                # Handle pagination
-                while "LastEvaluatedKey" in response:
-                    response = self.client.query(
-                        TableName=table_name,
-                        IndexName="session_type-created_at-index",
-                        KeyConditionExpression="session_type = :session_type AND created_at BETWEEN :start_ts AND :end_ts",
-                        ExpressionAttributeValues={
-                            ":session_type": {"S": session_type},
-                            ":start_ts": {"N": str(start_timestamp)},
-                            ":end_ts": {"N": str(end_timestamp)},
-                        },
-                        ExclusiveStartKey=response["LastEvaluatedKey"],
-                    )
-                    items.extend(response.get("Items", []))
-
-                # Deserialize sessions
-                for item in items:
-                    session_data = deserialize_from_dynamodb_item(item)
-                    if session_data:
-                        all_sessions.append(session_data)
-
-            # Attach runs from the runs table, merged with legacy blob
-            if all_sessions:
-                try:
-                    runs_by_session = self._get_sessions_runs_data([s["session_id"] for s in all_sessions])
-                    for s in all_sessions:
-                        s["runs"] = merge_runs_table_with_legacy_blob(
-                            runs_by_session.get(s["session_id"], []), s.get("runs")
-                        )
-                except Exception as e:
-                    log_error(f"Failed to attach runs to sessions for metrics: {str(e)}")
+            # Attach runs from the runs table, merged with the legacy runs. Read one session at a time, so
+            # the runs' output is never held for every session at once
+            for s in all_sessions:
+                s["runs"] = merge_runs_table_with_legacy_blob(
+                    runs_for_metrics(self._get_session_runs_data(s["session_id"])), s["runs"]
+                )
 
             return all_sessions
 

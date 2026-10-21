@@ -93,14 +93,9 @@ async def acheck_tables(agent: "BaseExternalAgent", create: bool = True) -> None
     only the log sees it; checking at startup and at submission puts the error and its
     remedy in front of the operator instead.
     """
-    from agno.sandbox.postgres import _SandboxStore
-
     _check_db(agent)
-    for db, existing in _coordinators.get(_sandbox(agent), []):
-        if db is agent.db:
-            await existing.store._ensure_tables(create)
-            return
-    await _SandboxStore(agent.db)._ensure_tables(create)  # type: ignore[arg-type]
+    # Through the coordinator, so a process that only serves deletes can still clean up after them.
+    await coordinator(agent).store._ensure_tables(create)
 
 
 def validate(agent: "BaseExternalAgent") -> None:
@@ -126,6 +121,17 @@ def validate(agent: "BaseExternalAgent") -> None:
     submission(agent, "validate", {})
 
 
+def check_queue_checkpoints(agent: "BaseExternalAgent") -> None:
+    """Refuse the host-local checkpoint default for an agent a durable queue serves."""
+    if _sandbox(agent).checkpoints is None:
+        # A durable queue hands retries to any replica, and a replica cannot restore from this
+        # host's disk; refusing here is cheaper than a recovery that fails later somewhere else.
+        raise ValueError(
+            f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}, which other queue replicas cannot "
+            "read and which does not survive losing this host; pass checkpoints= to the sandbox"
+        )
+
+
 def store(agent: "BaseExternalAgent") -> "CheckpointStore":
     """The checkpoint store this agent's turns write to: the sandbox's own, else the file default.
 
@@ -142,12 +148,7 @@ def store(agent: "BaseExternalAgent") -> "CheckpointStore":
     from agno.sandbox.checkpoint import FileCheckpointStore
 
     if get_active_queue_worker() is not None:
-        # A durable queue hands retries to any replica, and a replica cannot restore from this
-        # host's disk; refusing here is cheaper than a recovery that fails later somewhere else.
-        raise ValueError(
-            f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}, which other queue replicas cannot "
-            "read and which does not survive losing this host; pass checkpoints= to the sandbox"
-        )
+        check_queue_checkpoints(agent)
     log_warning(
         f"Sandbox checkpoints default to {_DEFAULT_CHECKPOINTS}; pass checkpoints= to the sandbox before "
         "running more than one host"
@@ -164,9 +165,22 @@ def coordinator(agent: "BaseExternalAgent") -> "SandboxCoordinator":
     built = _coordinators.setdefault(sandbox, [])
     for db, existing in built:
         if db is agent.db:
+            existing.agent_ids.add(agent.get_id())
             return existing
-    result = SandboxCoordinator(agent.db, sandbox, sandbox.checkpoint_transfer(store(agent)))  # type: ignore[arg-type]
+    result = SandboxCoordinator(
+        agent.db,  # type: ignore[arg-type]
+        sandbox,
+        sandbox.checkpoint_transfer(store(agent)),
+        retain_checkpoints=sandbox.retain_checkpoints,
+    )
+    result.agent_ids.add(agent.get_id())
     built.append((agent.db, result))
+    # The db's session delete asks every coordinator registered on it what the cascade would orphan.
+    registered = getattr(agent.db, "sandbox_coordinators", None)
+    if registered is None:
+        registered = []
+        agent.db.sandbox_coordinators = registered  # type: ignore[union-attr]
+    registered.append(result)
     return result
 
 

@@ -432,9 +432,7 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
     try:
         _validate_executor_tools(component)
     except ValueError as exc:
-        from agno.exceptions import InputCheckError
-
-        raise InputCheckError(str(exc)) from exc
+        raise _TaskRunRefused(str(exc)) from exc
 
 
 async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None) -> None:

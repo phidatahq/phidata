@@ -2267,14 +2267,12 @@ class QueueWorker:
             from agno.run.authorization import current_authorization
 
             if isinstance(current_authorization(), _RoutineAuthorization):
-                from agno.company.execution import _validate_executor_tools
+                from agno.company.execution import _TaskRunRefused, _validate_executor_tools
 
                 try:
                     _validate_executor_tools(component)
                 except ValueError as e:
-                    from agno.exceptions import InputCheckError
-
-                    raise InputCheckError(str(e)) from e
+                    raise _TaskRunRefused(str(e)) from e
             if payload.get("company_task_id"):
                 from agno.company.execution import _check_task
 

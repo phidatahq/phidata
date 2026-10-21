@@ -130,8 +130,8 @@ def get_metrics_calculation_starting_date(
     if starting_date is not None:
         return starting_date
 
-    # 2. No metrics records. Return the date of the first recorded session, of any type. Queried directly:
-    # get_sessions attaches every run of the session it returns, and filters by its session type
+    # 2. No metrics records. Return the date of the first recorded session, queried directly: get_sessions
+    # attaches every run of the session it returns, which for a long session is its whole history
     first_session = utils.query(
         client,
         f"SELECT created_at FROM {sessions_table} WHERE created_at IS NOT NONE ORDER BY created_at ASC LIMIT 1",

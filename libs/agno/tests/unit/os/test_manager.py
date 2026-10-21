@@ -20,7 +20,13 @@ from agno.os.config import AgentOSConfig, Manifest
 from agno.os.manager.config import MANAGER_TEAM_NAME
 from agno.os.utils import AgnoHTTPException
 from agno.registry import Registry
-from agno.registry._reserved import BUILDER_ID, MANAGER_TEAM_ID, OPERATOR_ID, PRODUCT_MANAGER_ID
+from agno.registry._reserved import (
+    BUILDER_ID,
+    COMPANY_MANAGER_ID,
+    LEGACY_PRODUCT_MANAGER_ID,
+    MANAGER_TEAM_ID,
+    OPERATOR_ID,
+)
 from agno.run import RunContext
 from agno.tools.agentos import AgentOSTools
 from agno.tools.studio import StudioTools
@@ -313,6 +319,21 @@ def test_manifest_defaults_yield_to_the_application_config(db):
     assert os.config.manifest[MANAGER_TEAM_ID].description == "Our lead"
     assert BUILDER_ID not in os.config.manifest and OPERATOR_ID not in os.config.manifest
     assert "platform-engineer" not in os.config.manifest
+
+
+@pytest.mark.parametrize("with_manager", [False, True])
+def test_company_manager_has_default_quick_prompts(db, with_manager):
+    from agno.os import CompanyConfig
+
+    manager = OSManager(model=OfflineModel()) if with_manager else None
+    os = AgentOS(db=db, manager=manager, company=CompanyConfig(model=OfflineModel()), telemetry=False)
+    config = TestClient(os.get_app()).get("/config").json()
+    assert config["manifest"][COMPANY_MANAGER_ID]["quick_prompts"]
+    assert bool(config["manifest"].get(MANAGER_TEAM_ID)) is with_manager
+
+    custom = AgentOSConfig(manifest={COMPANY_MANAGER_ID: Manifest(quick_prompts=["Ours"])})
+    os = AgentOS(db=db, manager=manager, company=CompanyConfig(model=OfflineModel()), config=custom, telemetry=False)
+    assert os.config.manifest[COMPANY_MANAGER_ID].quick_prompts == ["Ours"]
 
 
 def test_manager_serves_over_the_ordinary_planes(db):
@@ -676,7 +697,13 @@ def test_disabled_manager_needs_neither_a_model_nor_a_workspace(db, enabled):
     os = AgentOS(db=db, manager=enabled, telemetry=False)
     assert os.manager is None
     assert not os.agents and not os.teams
-    assert os.registry.excluded_component_ids == {MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID}
+    assert os.registry.excluded_component_ids == {
+        MANAGER_TEAM_ID,
+        BUILDER_ID,
+        OPERATOR_ID,
+        COMPANY_MANAGER_ID,
+        LEGACY_PRODUCT_MANAGER_ID,
+    }
 
 
 @pytest.mark.parametrize("invalid", ["true", {}, 1, 0])
@@ -790,7 +817,7 @@ def test_registry_exclusion_surface_is_public_and_read_only():
     registry = Registry()
     registry.reserve_component_ids(["reserved-id", ""])
     assert registry.excluded_component_ids == frozenset(
-        {"reserved-id", MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID}
+        {"reserved-id", MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, COMPANY_MANAGER_ID, LEGACY_PRODUCT_MANAGER_ID}
     )
     with pytest.raises(AttributeError):
         registry.excluded_component_ids.add("other")  # type: ignore[attr-defined]
@@ -1785,7 +1812,7 @@ class BudgetProbeModel(OfflineModel):
 @pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.parametrize("stream", [False, True])
 @pytest.mark.parametrize("calls_per_turn", [1, 4])
-@pytest.mark.parametrize("target", [MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, PRODUCT_MANAGER_ID])
+@pytest.mark.parametrize("target", [MANAGER_TEAM_ID, BUILDER_ID, OPERATOR_ID, COMPANY_MANAGER_ID])
 async def test_manager_executes_no_more_than_configured_limit(db, use_async, stream, calls_per_turn, target):
     from agno.os import CompanyConfig
 
@@ -1865,16 +1892,29 @@ def test_explanation_guidance_reaches_only_documentation_roles(db):
     )
     assert EXPLANATION_INSTRUCTIONS in os.manager.instructions
     assert EXPLANATION_INSTRUCTIONS in manager_member(os, OPERATOR_ID).instructions
-    for member_id in (BUILDER_ID, PRODUCT_MANAGER_ID):
+    for member_id in (BUILDER_ID, COMPANY_MANAGER_ID):
         instructions = manager_member(os, member_id).instructions
         assert FOCUSED_EXECUTION_INSTRUCTIONS in instructions
         assert EXPLANATION_INSTRUCTIONS not in instructions
 
 
-def test_standalone_product_manager_keeps_its_existing_execution_policy(db):
+@pytest.mark.parametrize("with_manager", [False, True])
+def test_standalone_company_manager_keeps_its_existing_execution_policy(db, with_manager):
     from agno.os import CompanyConfig
     from agno.os.manager.prompts import FOCUSED_EXECUTION_INSTRUCTIONS
 
-    os = AgentOS(db=db, company=CompanyConfig(model=OfflineModel()), telemetry=False)
-    assert os.product_manager.tool_call_limit is None
-    assert FOCUSED_EXECUTION_INSTRUCTIONS not in os.product_manager.instructions
+    os = AgentOS(
+        db=db,
+        company=CompanyConfig(model=OfflineModel()),
+        manager=OSManager(model=OfflineModel(), member_tool_call_limit=7) if with_manager else None,
+        telemetry=False,
+    )
+    # Direct chat and Routines run the served instance; only the manager's member is bounded.
+    assert os.company_manager.tool_call_limit is None
+    assert FOCUSED_EXECUTION_INSTRUCTIONS not in os.company_manager.instructions
+    if with_manager:
+        member = manager_member(os, COMPANY_MANAGER_ID)
+        assert member is not os.company_manager
+        assert member.tool_call_limit == 7 and FOCUSED_EXECUTION_INSTRUCTIONS in member.instructions
+        os.resync(os.get_app())
+        assert os.company_manager.tool_call_limit is None and member.tool_call_limit == 7

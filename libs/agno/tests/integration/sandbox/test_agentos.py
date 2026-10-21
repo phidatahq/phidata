@@ -4,13 +4,14 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update
 
 from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.job_queue.config import QueueConfig, RedisCoordination
@@ -668,6 +669,41 @@ async def test_two_attempts_recover_a_turn_whose_host_was_lost(service):
     assert job["attempt"] == 2, job
     run = await agent.aget_run_output(run_id, "session")
     assert run.status == "COMPLETED", run.content
+
+
+@pytest.mark.parametrize(
+    "service",
+    [
+        pytest.param({"adapter": PostgresDb, "use_redis": False}, id="sync-local"),
+        pytest.param({"adapter": AsyncPostgresDb, "use_redis": False}, id="async-local"),
+    ],
+    indirect=True,
+)
+async def test_the_queue_worker_retires_warm_computers_past_their_window(service, monkeypatch):
+    client, agent, app, handles = service
+    monkeypatch.setattr("agno.os.job_queue._WARM_SWEEP_SECONDS", 0.1, raising=False)
+    first = await client.post(
+        "/agents/coder/runs", data={"message": "first", "session_id": "session", "stream": "false"}
+    )
+    assert first.json()["status"] == "COMPLETED", first.text
+    coordinator = _harness.coordinator(agent)
+    kept = handles[0]
+    assert (await coordinator.provider.aget(kept.provider_ref)).state == "paused"
+    store = coordinator.store
+    # Move the window into the past, as time would.
+    await store._transaction(
+        lambda c: c.execute(
+            update(store.bindings).values(record=store.bindings.c.record.op("||")({"warm_until": time.time() - 1}))
+        )
+    )
+
+    async def removed():
+        while await coordinator.provider.aget(kept.provider_ref) is not None:
+            await asyncio.sleep(0.1)
+
+    await asyncio.wait_for(removed(), 15)
+    record = (await store._transaction(lambda c: c.execute(select(store.bindings)).mappings().one()))["record"]
+    assert record["computer"] is None and record.get("warm_until") is None
 
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"

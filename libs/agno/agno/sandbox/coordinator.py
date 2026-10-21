@@ -56,10 +56,10 @@ class SandboxCoordinator:
     left them. A computer that is gone, expired or differently configured is
     replaced by a fresh generation restored from the checkpoint, which is the only
     path with ``warm_computer_seconds=0``. Losing a caller detaches it; explicit
-    cancellation and failures retire the computer. A warm computer whose session
-    never gets another turn is retired by that session's next claim, so a
-    deployment that pauses containers should also sweep provider computers idle
-    past the window.
+    cancellation and failures retire the computer. A warm computer past its window
+    is retired by its session's next claim; one whose session never gets another
+    turn is retired by ``asweep_warm``, which AgentOS's queue worker runs every few
+    minutes. Without AgentOS, run it periodically yourself.
     """
 
     def __init__(
@@ -240,20 +240,28 @@ class SandboxCoordinator:
         return self.store._sync(self.aretire_computer, session_id, agent_id=agent_id, user_id=user_id)
 
     async def asweep_warm(self) -> int:
-        """Retire every warm computer whose window has ended; run this periodically on one replica.
+        """Retire every warm computer whose window has ended. Returns how many were removed.
 
         A session's next claim retires its own stale computer, but a session that never
-        returns would otherwise keep a paused container forever. Returns how many were removed.
+        returns would otherwise keep a paused container forever. AgentOS's queue worker runs
+        this every few minutes; each release is a per-row compare-and-set, so replicas
+        sweeping at the same time are safe.
         """
         now = time.time()
         removed = 0
-        for session_id, agent_id, user_id in await self.store.aexpired_warm(now):
+
+        async def retire(session_id: str, agent_id: str, user_id: Optional[str]) -> bool:
             computer = await self.store.arelease_warm(session_id, agent_id=agent_id, user_id=user_id, before=now)
             if computer is None:
-                continue
+                return False
             with suppress(SandboxError):
                 await self.provider.adestroy(SandboxHandle(**computer))
-            removed += 1
+            return True
+
+        for session_id, agent_id, user_id in await self.store.aexpired_warm(now):
+            # Shielded: a computer released from its binding must still be removed if the sweep is cancelled.
+            if await _settled(retire(session_id, agent_id, user_id)):
+                removed += 1
         return removed
 
     def sweep_warm(self) -> int:

@@ -8,8 +8,8 @@ These stores return whole records, so each run is reduced to its model and provi
 - Runs are still counted once whether they live in the runs table, only on the session record, or both.
 - A failed read surfaces as an error instead of a refresh with missing sessions or zero runs.
 
-Runs against live servers (Redis on 6379, Valkey on 6380, DynamoDB Local on 8001, the Firestore
-emulator on 8080, SurrealDB on 8000) with a unique namespace per test; an absent server is skipped.
+Runs against live servers (Redis on 6379, a Redis Cluster on 7100, Valkey on 6380, DynamoDB Local on 8001,
+the Firestore emulator on 8080, SurrealDB on 8000) with a unique namespace per test; an absent server is skipped.
 """
 
 import json
@@ -30,6 +30,7 @@ from agno.run.base import RunStatus  # noqa: E402
 from agno.session.agent import AgentSession  # noqa: E402
 
 REDIS_URL = "redis://localhost:6379"
+REDIS_CLUSTER_PORT = 7100
 VALKEY_PORT = 6380
 DYNAMO_ENDPOINT = "http://localhost:8001"
 FIRESTORE_PROJECT = "agno-test"
@@ -79,6 +80,26 @@ def _drop_key_value(port: int) -> Callable[[str], None]:
             client.delete(*keys[start : start + 1000])
 
     return drop
+
+
+def _redis_cluster_client():
+    from redis.cluster import RedisCluster
+
+    return RedisCluster(host="localhost", port=REDIS_CLUSTER_PORT, socket_connect_timeout=2)
+
+
+def _redis_cluster_reachable() -> bool:
+    try:
+        return bool(_redis_cluster_client().ping())
+    except Exception:
+        return False
+
+
+def _drop_redis_cluster(ns: str) -> None:
+    client = _redis_cluster_client()
+    # One key per DELETE: keys of a namespace hash to different slots, on different nodes
+    for key in list(client.scan_iter(match=f"{ns}:*", count=1000)):
+        client.delete(key)
 
 
 def _dynamo_client():
@@ -157,6 +178,12 @@ def _make_redis(ns: str):
     from agno.db.redis import RedisDb
 
     return RedisDb(db_url=REDIS_URL, db_prefix=ns)
+
+
+def _make_redis_cluster(ns: str):
+    from agno.db.redis import RedisDb
+
+    return RedisDb(redis_client=_redis_cluster_client(), db_prefix=ns)
 
 
 def _make_valkey(ns: str):
@@ -243,6 +270,13 @@ BACKENDS: Dict[str, Backend] = {
     b.name: b
     for b in [
         Backend("redis", _make_redis, _set_legacy_key_value, _key_value_reachable(6379), _drop_key_value(6379)),
+        Backend(
+            "redis_cluster",
+            _make_redis_cluster,
+            _set_legacy_key_value,
+            _redis_cluster_reachable,
+            _drop_redis_cluster,
+        ),
         Backend(
             "valkey",
             _make_valkey,
@@ -362,7 +396,14 @@ def test_metrics_count_migrated_unmigrated_and_v3_runs_once(ns, backend):
 
 
 # What each adapter reported, before runs were reduced as read, for a runs-table run without a provider
-PROVIDERLESS_TABLE_RUN = {"redis": "None", "valkey": "None", "dynamo": "", "firestore": "None", "surrealdb": ""}
+PROVIDERLESS_TABLE_RUN = {
+    "redis": "None",
+    "redis_cluster": "None",
+    "valkey": "None",
+    "dynamo": "",
+    "firestore": "None",
+    "surrealdb": "",
+}
 
 
 @pytest.mark.parametrize("backend", list(BACKENDS))

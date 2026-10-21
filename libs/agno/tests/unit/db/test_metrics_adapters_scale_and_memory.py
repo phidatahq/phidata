@@ -510,6 +510,33 @@ def test_mongo_metrics_raise_when_runs_cannot_be_read(ns, backend):
         calculate(b, ns, patch=patch)
 
 
+@pytest.mark.parametrize("backend", MONGO_BACKENDS)
+def test_mongo_metrics_raise_when_first_session_date_cannot_be_read(ns, backend):
+    b = BACKENDS[backend]
+    seed(b, ns, table_run_sessions=1)
+
+    def patch(db):
+        base = type(db)
+
+        # With no metrics yet, the starting date is the first session's, read through get_sessions
+        if inspect.iscoroutinefunction(base.get_sessions):
+
+            class Failing(base):  # type: ignore[valid-type,misc]
+                async def get_sessions(self, *args, **kwargs):
+                    raise RuntimeError("sessions collection unavailable")
+
+        else:
+
+            class Failing(base):  # type: ignore[valid-type,misc,no-redef]
+                def get_sessions(self, *args, **kwargs):
+                    raise RuntimeError("sessions collection unavailable")
+
+        db.__class__ = Failing
+
+    with pytest.raises(Exception, match="sessions collection unavailable"):
+        calculate(b, ns, patch=patch)
+
+
 # ---------------------------------------------------------------------------
 # Memory is bounded by what metrics need, not by the legacy column
 # ---------------------------------------------------------------------------

@@ -1748,7 +1748,7 @@ class MongoDb(BaseDb):
 
         except Exception as e:
             log_error(f"Exception getting metrics calculation starting date: {str(e)}")
-            return None
+            raise e
 
     def calculate_metrics(self) -> Optional[list[dict]]:
         """Calculate metrics for all dates without complete metrics."""

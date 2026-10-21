@@ -1943,7 +1943,7 @@ class AsyncMongoDb(AsyncBaseDb):
 
         except Exception as e:
             log_error(f"Exception getting metrics calculation starting date: {str(e)}")
-            return None
+            raise e
 
     async def calculate_metrics(self) -> Optional[list[dict]]:
         """Calculate metrics for all dates without complete metrics."""

@@ -30,11 +30,11 @@ class _Manager:
     team: Team
     builder: Agent
     operator: Agent
-    product_manager: Optional[Agent] = None
+    company_manager: Optional[Agent] = None
 
     @property
     def agents(self) -> List[Agent]:
-        return [self.builder, self.operator, *([self.product_manager] if self.product_manager is not None else [])]
+        return [self.builder, self.operator, *([self.company_manager] if self.company_manager is not None else [])]
 
     @property
     def components(self) -> List[Any]:

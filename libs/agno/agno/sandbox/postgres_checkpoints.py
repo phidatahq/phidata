@@ -65,8 +65,8 @@ class PostgresCheckpointStore:
 
     Tables are created on first use in the database's schema: ``table_name`` for headers
     and ``<table_name>_chunks`` for bytes, which cascades deletes from its header. Pass a
-    separate ``PostgresDb`` to keep checkpoint bytes out of the system of record. Nothing
-    deletes objects automatically; every captured turn adds one until retention removes it.
+    separate ``PostgresDb`` to keep checkpoint bytes out of the system of record. Every
+    captured turn adds one; the sandbox's ``retain_checkpoints`` deletes older ones.
 
     Async methods support both Postgres adapters. Synchronous methods require
     ``PostgresDb``, as the sandbox coordinator's own store does.

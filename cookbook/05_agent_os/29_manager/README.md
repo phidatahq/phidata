@@ -158,11 +158,13 @@ composition are fixed. Its members are:
 - **Platform Manager** (`platform-manager-internal`): checks activity, runs diagnostics,
   reads source when `root` is set, and queries Agno documentation by default.
 
-Only OS Manager is exposed in config, discovery, REST and MCP. Platform Builder
-and Platform Manager are internal members: they are absent from `/config`,
-`/agents` and the public team detail, and their standalone agent routes return
-422 with an explanation that the component ID is reserved. OS Manager
-delegates to them; their child runs and tool results remain
+Only OS Manager is exposed as a standalone target in config, discovery, REST and MCP.
+Platform Builder and Platform Manager appear as nested members in `/teams` and
+`/teams/os-manager-internal`, so the team graph shows its composition. Built-in members,
+including Product Manager, list their model and tools but not their instructions. They remain
+excluded from the application registry, `/config` agent list and `/agents`, and
+their standalone agent routes return 422 with an explanation that the component
+ID is reserved. OS Manager delegates to them; their child runs and tool results remain
 available inside its session for replay and diagnostics. Schedule the manager
 team, not either specialist. Ordinary run grants, including `teams:os-manager-internal:run`, let a user talk to the manager. Access
 to the manager does not grant its tools additional permissions:

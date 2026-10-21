@@ -1718,6 +1718,14 @@ class AgentOS:
 
         setup_tracing_for_os(db=db)
 
+    def _record_types(self) -> Dict[str, Any]:
+        """Company Products take per-record grants; see :mod:`agno.os.authz.records`."""
+        if self._company_db is None:
+            return {}
+        from agno.os.routers.company.products import product_record_type
+
+        return {"products": product_record_type(self._company_db)}
+
     def get_app(self) -> FastAPI:
         if self.public is not None:
             from agno.os.public import PublicSurface
@@ -2031,6 +2039,8 @@ class AgentOS:
         # This allows middleware (like JWT) to access these values
         fastapi_app.state.agent_os_id = self.id
         fastapi_app.state.cors_allowed_origins = self.cors_allowed_origins
+        # Resource types whose writes the route gate decides per record
+        fastapi_app.state.record_types = self._record_types()
 
         # Store internal service token for scheduler auth bypass
         if self._internal_service_token:

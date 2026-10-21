@@ -72,6 +72,7 @@ from pydantic import BaseModel, Field
 
 from agno.os.authz._role_store import RoleChangeRefused
 from agno.os.authz.audit import AUDIT_SORT_FIELDS, DEFAULT_AUDIT_SORT_FIELD
+from agno.os.authz.records import OWN, get_record_types
 from agno.os.authz.user_directory import DEFAULT_USER_SORT_FIELD, USER_SORT_FIELDS
 from agno.os.schema import PaginatedResponse, PaginationInfo, SortOrder
 from agno.os.scopes import AgentOSScope
@@ -493,6 +494,12 @@ def get_roles_router(
             mappings = get_default_scope_mappings()
         raws = {scope for required in mappings.values() for scope in required}
         raws.add("agent_os:admin")
+        # Per-record grants: ``own`` and each record of a type the route gate decides per record.
+        for record_type in get_record_types(request).values():
+            targets = [OWN, *await record_type.agrantable_ids()]
+            raws.update(
+                record_type.name + ":" + target + ":" + action for target in targets for action in record_type.actions
+            )
         return [AvailableScopeItem.from_raw(r) for r in sorted(raws)]
 
     # ---- audit ----------------------------------------------------------

@@ -205,4 +205,5 @@ def test_product_scopes_catalog_is_opt_in(enabled, tmp_path):
         response = client.get("/authz/scopes")
     assert response.status_code == 200
     products = {item["raw"] for item in response.json() if item["namespace"] == "products"}
-    assert products == (set(ALL_SCOPES) if enabled else set())
+    # Per-record grants add ``own``; the catalog database has no Products to name.
+    assert products == (set(ALL_SCOPES) | {"products:own:write", "products:own:delete"} if enabled else set())

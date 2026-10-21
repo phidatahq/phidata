@@ -31,6 +31,14 @@ company-wide for callers with the read scope. With isolation on, writes to
 another owner's Product return 403. Unscoped callers with the write scope can
 change every Product; admins bypass owner isolation.
 
+Product writes also take per-record grants, from token scopes or managed roles:
+`products:research:write` lets a caller edit the `research` Product, including
+an unowned declared one, and `products:own:write` covers the caller's own
+Products with or without isolation. Update, archive and restore use the `write`
+or `delete` grant. A bare `products:write`, or `products:*:write`, keeps the
+rule above: every Product, or only the caller's own under isolation. The
+`/authz/scopes` catalog lists `products:own` and each Product for role editors.
+
 ## Work records
 
 | File | Demonstrates |

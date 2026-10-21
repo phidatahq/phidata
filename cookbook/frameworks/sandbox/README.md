@@ -153,8 +153,9 @@ and removes the partial checkout before the model starts. Run attachments are st
 Sandboxed agents require PostgreSQL and an explicit checkpoint store. AgentOS durable
 queue deployments also require Redis. Docker needs `network="isolated"` (or another
 network with GitHub/model egress); AgentCore needs egress. Size `workspace_mb` for the
-shallow checkout and generated files, within the 1 GiB checkpoint cap. Use one host or
-a shared checkpoint filesystem until another shared checkpoint store is configured.
+shallow checkout and generated files, within the 1 GiB checkpoint cap. With more than
+one host, use `S3CheckpointStore` or `PostgresCheckpointStore` so every replica can
+restore every checkpoint.
 
 A first turn may select a specific commit or another branch through run metadata:
 

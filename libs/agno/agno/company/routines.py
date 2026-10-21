@@ -429,6 +429,7 @@ def _acceptance_checks(agent_os):
 
 
 _AUTOMATION_SCHEDULE_ID = COMPANY_AUTOMATION_SCHEDULE_ID
+_AUTOMATION_CRON = "0 * * * *"
 _AUTOMATION_TICK_SECONDS = 240
 _automation_deadline: ContextVar[Optional[float]] = ContextVar("company_tick_deadline", default=None)
 
@@ -455,7 +456,7 @@ async def _ensure_automation_schedule(db, *, enabled=True):
         row = Schedule(
             id=_AUTOMATION_SCHEDULE_ID,
             name="Company automation",
-            cron_expr="* * * * *",
+            cron_expr=_AUTOMATION_CRON,
             endpoint="/company/attention",
             method="GET",
             managed_by="company",
@@ -475,6 +476,8 @@ async def _ensure_automation_schedule(db, *, enabled=True):
         or existing["method"] != "GET"
     ):
         raise ValueError("Company automation schedule identity is already in use")
+    if existing["cron_expr"] != _AUTOMATION_CRON:
+        existing = await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, cron_expr=_AUTOMATION_CRON)
     if enabled and not existing["enabled"] and existing.get("disabled_reason") == "company_off":
         existing = await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, enabled=True, disabled_reason=None)
     elif not enabled and existing["enabled"]:

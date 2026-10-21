@@ -16,6 +16,7 @@ from agno.db.postgres import AsyncPostgresDb, PostgresDb
 from agno.job_queue.config import QueueConfig, RedisCoordination
 from agno.os import AgentOS
 from agno.sandbox import _harness
+from agno.sandbox.base import SandboxHandle
 from agno.sandbox.docker import DockerSandbox
 from agno.sandbox.fixture import FixtureAgent
 
@@ -624,6 +625,49 @@ async def test_cancel_on_another_replica_without_redis_settles_the_ticket_cancel
     assert job["status"] == "cancelled", job
     assert job["attempt"] == 1, job
     assert (await agent.aget_run_output(run_id, "session")).status == "CANCELLED"
+
+
+@pytest.mark.parametrize(
+    "service",
+    [
+        pytest.param({"adapter": PostgresDb, "use_redis": False}, id="sync-local"),
+        pytest.param({"adapter": AsyncPostgresDb, "use_redis": False}, id="async-local"),
+    ],
+    indirect=True,
+)
+async def test_two_attempts_recover_a_turn_whose_host_was_lost(service):
+    client, agent, app, handles = service
+    assert app.state.queue_worker.config.max_attempts == 2
+    first = await client.post(
+        "/agents/coder/runs", data={"message": "first", "session_id": "session", "stream": "false"}
+    )
+    assert first.json()["status"] == "COMPLETED", first.text
+    agent.delay = 6
+    response = await client.post(
+        "/agents/coder/runs",
+        data={"message": "second", "session_id": "session", "stream": "false", "background": "true"},
+    )
+    run_id = response.json()["run_id"]
+    coordinator = _harness.coordinator(agent)
+    store = coordinator.store
+
+    async def bound():
+        while True:
+            row = await store._transaction(lambda c: c.execute(select(store.bindings)).mappings().one_or_none())
+            if row is not None and row["run_id"] == run_id and row["record"].get("computer"):
+                return row["record"]["computer"]
+            await asyncio.sleep(0.05)
+
+    computer = await asyncio.wait_for(bound(), 10)
+    await asyncio.sleep(1)
+    # The host goes away mid-turn: attempt 1 loses its transport, attempt 2 finds the computer
+    # gone and must restore the last checkpoint itself rather than spend the budget reporting it.
+    await coordinator.provider.adestroy(SandboxHandle(**computer))
+    job = await settled(app, run_id)
+    assert job["status"] == "completed", job
+    assert job["attempt"] == 2, job
+    run = await agent.aget_run_output(run_id, "session")
+    assert run.status == "COMPLETED", run.content
 
 
 PNG = b"\x89PNG\r\n\x1a\nfixture"

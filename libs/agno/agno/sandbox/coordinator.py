@@ -509,8 +509,18 @@ class SandboxCoordinator:
                     )
                     return record
                 if record.get("computer") is not None and record.get("warm_until") is None:
-                    return record
-                if record.get("computer") is not None:
+                    # A retry reattaches to this turn's computer. If its host is gone, replace it from the
+                    # checkpoint in this attempt: the turn reruns either way, and the queue budgets reruns.
+                    lost = SandboxHandle(**record["computer"])
+                    current = await self.provider.aget(lost.provider_ref)
+                    if current is not None and current.state == "running":
+                        return record
+                    await self.provider.adestroy(lost)
+                    if await self.provider.aget(lost.provider_ref) is not None:
+                        raise SandboxError("Provider has not confirmed compute removal")
+                    record.update(generation=record["generation"] + 1, computer=None, execution_id=uuid4().hex)
+                    allocation = allocation_for(record)
+                elif record.get("computer") is not None:
                     # The last turn left its computer warm. Resume it if it is still there, inside
                     # its window and the same computer; otherwise retire it and take the cold path
                     # on a fresh generation.

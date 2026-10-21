@@ -989,6 +989,49 @@ async def test_a_stop_claimed_elsewhere_reads_as_cancelled_before_the_computer_i
     assert await store.acancelled_elsewhere(spec.session_id, "first") is True
 
 
+async def test_the_attempt_that_finds_its_computer_lost_restores_and_completes(system):
+    coordinator, spec, root = system
+    await run(coordinator, spec)
+    before = (await binding(coordinator))["record"]
+    # The process running the turn dies, then its host: the binding still names the lost computer.
+    task = asyncio.create_task(run(coordinator, spec, "second", config={"delay": 20, "steps": 20}))
+    await executing(coordinator)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await coordinator.provider.adestroy(handles_of(coordinator)[-1])
+    retried = await run(coordinator, spec, "second", config={"delay": 20, "steps": 20})
+    assert retried.status == RunStatus.completed, retried.content
+    after = (await binding(coordinator))["record"]
+    assert after["generation"] == before["generation"] + 2
+    assert len(handles_of(coordinator)) == 3
+    assert await recovered_effects(coordinator, root) == ["first", "second"]
+
+
+async def test_a_replacement_lost_again_ends_the_attempt_retryable(system, monkeypatch):
+    coordinator, spec, _ = system
+    await run(coordinator, spec)
+    task = asyncio.create_task(run(coordinator, spec, "second", config={"delay": 20, "steps": 20}))
+    await executing(coordinator)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    await coordinator.provider.adestroy(handles_of(coordinator)[-1])
+    restore = coordinator.transfer.arestore
+
+    async def restore_then_lose(handle, reference):
+        state = await restore(handle, reference)
+        await coordinator.provider.adestroy(handle)
+        return state
+
+    # The replacement is lost as well: one replacement per attempt, then the queue decides.
+    monkeypatch.setattr(coordinator.transfer, "arestore", restore_then_lose)
+    failed = await run(coordinator, spec, "second", config={"delay": 20, "steps": 20})
+    assert failed.status == RunStatus.error and failed.metadata["retryable"] is True
+    assert "computer was lost" in failed.content
+    assert len(handles_of(coordinator)) == 3
+
+
 async def test_retryable_restore_failure_runs_again_on_the_next_queue_attempt(system, monkeypatch):
     coordinator, spec, root = system
     store = coordinator.store

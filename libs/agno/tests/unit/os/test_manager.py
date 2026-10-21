@@ -1612,8 +1612,8 @@ def test_manager_details_show_members_without_exposing_them_in_registry(db, comp
     )
     app = os.get_app()
     client = TestClient(app)
-    expected_ids = [BUILDER_ID, OPERATOR_ID, *([PRODUCT_MANAGER_ID] if company_enabled else [])]
-    expected_names = ["Platform Builder", "Platform Manager", *(["Product Manager"] if company_enabled else [])]
+    expected_ids = [BUILDER_ID, OPERATOR_ID, *([COMPANY_MANAGER_ID] if company_enabled else [])]
+    expected_names = ["Platform Builder", "Platform Manager", *(["Company Manager"] if company_enabled else [])]
 
     for resync in (False, True):
         if resync:
@@ -1630,8 +1630,10 @@ def test_manager_details_show_members_without_exposing_them_in_registry(db, comp
         assert [agent.id for agent in registry.agents] == ["ordinary"]
         assert registry.teams == []
         assert all(registry.is_component_excluded(member) for member in os.manager.members)
-        assert [agent["id"] for agent in client.get("/agents").json()] == ["ordinary"]
-        assert [agent["id"] for agent in client.get("/config").json()["agents"]] == ["ordinary"]
+        # Company Manager is also served on its own; the platform specialists never are.
+        served = ["ordinary", *([COMPANY_MANAGER_ID] if company_enabled else [])]
+        assert [agent["id"] for agent in client.get("/agents").json()] == served
+        assert [agent["id"] for agent in client.get("/config").json()["agents"]] == served
         for component_id in (BUILDER_ID, OPERATOR_ID):
             assert client.get(f"/agents/{component_id}").status_code == 422
 
@@ -1653,7 +1655,7 @@ def test_manager_member_details_show_tools_without_instructions_or_source_root(d
         assert response.status_code == 200, response.text
         assert str(workspace) not in response.text
     members = client.get(f"/teams/{MANAGER_TEAM_ID}").json()["members"]
-    expected_ids = [BUILDER_ID, OPERATOR_ID, *([PRODUCT_MANAGER_ID] if company_enabled else [])]
+    expected_ids = [BUILDER_ID, OPERATOR_ID, *([COMPANY_MANAGER_ID] if company_enabled else [])]
     assert [member["id"] for member in members] == expected_ids
     for member in members:
         assert member["name"] and member["model"]

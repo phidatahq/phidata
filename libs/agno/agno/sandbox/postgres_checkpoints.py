@@ -134,7 +134,8 @@ class PostgresCheckpointStore:
     def _create(self, connection: Connection) -> None:
         # Concurrent first uses would race CREATE TABLE; one advisory lock per table pair serializes them.
         connection.execute(text("SELECT pg_advisory_xact_lock(hashtext(:name))"), {"name": self._lock_name})
-        if self.db.create_schema:
+        # CREATE SCHEMA needs CREATE on the database even when the schema exists, so skip it then.
+        if self.db.create_schema and not connection.dialect.has_schema(connection, self.db.db_schema):
             schema = connection.dialect.identifier_preparer.quote_schema(self.db.db_schema)
             connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {schema}"))
         self._metadata.create_all(connection, checkfirst=True)

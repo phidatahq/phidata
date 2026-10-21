@@ -77,6 +77,23 @@ CONFIGURATIONS = {
 }
 
 
+# A model that still takes temperature/top_p/top_k, and one that rejects them, in each
+# provider's own ID format -- the capability is read off the ID, so the formats matter.
+SAMPLING_SUPPORTED_IDS = {
+    "anthropic": "claude-sonnet-4-6",
+    "aws": "global.anthropic.claude-sonnet-4-6-v1:0",
+    "azure": "claude-sonnet-4-6",
+    "vertexai": "claude-sonnet-4-6@20251124",
+}
+
+SAMPLING_REJECTING_IDS = {
+    "anthropic": "claude-sonnet-5-5",
+    "aws": "global.anthropic.claude-sonnet-5-5-v1:0",
+    "azure": "claude-sonnet-5-5",
+    "vertexai": "claude-sonnet-5-5@20260928",
+}
+
+
 @pytest.fixture(scope="module")
 def clients():
     return {name: build() for name, (_, build) in PROVIDERS.items()}
@@ -126,13 +143,34 @@ def test_every_configuration_is_accepted(clients, provider, configuration, respo
 
 @pytest.mark.parametrize("provider", list(PROVIDERS))
 def test_sampling_params_travel_in_extra_body(provider):
-    """The SDK stopped declaring them in 1.0.0; the API still reads them from the body."""
-    model = _model_class(provider)(temperature=0.2, top_k=5)
+    """The SDK stopped declaring them in 1.0.0; the API still reads them from the body.
+
+    Pinned to a model that accepts the sampling parameters, in each provider's own ID
+    format: on a model that rejects them they are dropped instead, and which of the two
+    a provider's default lands on is not what this test is about.
+    """
+    model = _model_class(provider)(id=SAMPLING_SUPPORTED_IDS[provider], temperature=0.2, top_k=5)
 
     kwargs = model._prepare_request_kwargs("sys")
 
     assert not any(name in kwargs for name in SAMPLING_PARAMS)
     assert kwargs["extra_body"] == {"temperature": 0.2, "top_k": 5}
+
+
+@pytest.mark.parametrize("provider", list(PROVIDERS))
+def test_sampling_params_are_dropped_for_a_model_that_rejects_them(provider):
+    """Claude 4.7 onwards answers a request carrying one with a 400, losing the whole run."""
+    model = _model_class(provider)(id=SAMPLING_REJECTING_IDS[provider], temperature=0.2, top_k=5)
+
+    kwargs = model._prepare_request_kwargs("sys")
+
+    assert not any(name in kwargs for name in SAMPLING_PARAMS)
+    assert "extra_body" not in kwargs
+
+
+def test_the_default_model_is_not_a_retired_one():
+    """A default that reaches its retirement date fails every run that did not set an id."""
+    assert Claude().id == "claude-sonnet-5-5"
 
 
 def test_a_sampling_param_set_through_request_params_is_routed_too():

@@ -1,8 +1,11 @@
 """Schemas related to the AgentOS configuration"""
 
+import re
 from typing import Any, Callable, Dict, Generic, List, Literal, Optional, Set, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from agno.company.declarations import CompanyDeclarations
 
 # Tags carried by the built-in MCP tools, exposed here so callers (and the IDE) can see
 # the valid values for ``MCPConfig.include_tags`` / ``exclude_tags`` without reading
@@ -412,6 +415,33 @@ MCPServerConfig = MCPConfig
 _AUTHZ_FIELDS_MOVED_TO_AUTHORIZATION = ("issuer", "authorization_provider", "audit", "role_store")
 
 
+class CORSConfig(BaseModel):
+    """Browser origin policy for AgentOS, passed as ``AgentOS(cors=CORSConfig(...))``.
+
+    The same policy answers CORS preflights, adds CORS headers to auth errors, and is
+    what ``PublicSurface(enforce_browser_origins=True)`` admits.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Exact browser origins. None uses the settings defaults; [] allows no exact origins.
+    origins: Optional[List[str]] = None
+    # Additional origins, matched against the whole Origin value.
+    origin_regex: Optional[str] = None
+    # Keep CORS origins and patterns already configured on a base_app.
+    merge_base_app: bool = True
+
+    @field_validator("origin_regex")
+    @classmethod
+    def _compile_origin_regex(cls, value: Optional[str]) -> Optional[str]:
+        if value is not None:
+            try:
+                re.compile(value)
+            except re.error as exc:
+                raise ValueError(f"origin_regex is not a valid regular expression: {exc}") from exc
+        return value
+
+
 class AuthorizationConfig(BaseModel):
     """Low-level JWT verification config. Deprecated as a public type.
 
@@ -504,6 +534,12 @@ class MemoryDomainConfig(BaseModel):
     display_name: Optional[str] = None
 
 
+class CompanyDomainConfig(BaseModel):
+    """Display configuration for the Company domain."""
+
+    display_name: Optional[str] = None
+
+
 class LearningDomainConfig(BaseModel):
     """Configuration for the Learning domain of the AgentOS"""
 
@@ -543,6 +579,12 @@ class MemoryConfig(MemoryDomainConfig):
     """Configuration for the Memory domain of the AgentOS"""
 
     dbs: Optional[List[DatabaseConfig[MemoryDomainConfig]]] = None
+
+
+class CompanySectionConfig(CompanyDomainConfig):
+    """Company database and table configuration exposed to clients."""
+
+    dbs: List[DatabaseConfig[CompanyDomainConfig]] = Field(default_factory=list)
 
 
 class LearningConfig(LearningDomainConfig):
@@ -601,6 +643,10 @@ class Manifest(BaseModel):
     quick_prompts: Optional[List[str]] = None
 
 
+class CompanySettings(CompanySectionConfig, CompanyDeclarations):
+    """Company declarations and optional display overrides in AgentOS configuration."""
+
+
 class AgentOSConfig(BaseModel):
     """General configuration for an AgentOS instance"""
 
@@ -614,6 +660,14 @@ class AgentOSConfig(BaseModel):
     knowledge: Optional[KnowledgeConfig] = None
     memory: Optional[MemoryConfig] = None
     learning: Optional[LearningConfig] = None
+    company: Optional[CompanySettings] = None
     session: Optional[SessionConfig] = None
     metrics: Optional[MetricsConfig] = None
     traces: Optional[TracesConfig] = None
+
+    @field_validator("company", mode="before")
+    @classmethod
+    def _company_settings(cls, value: Any) -> Any:
+        if isinstance(value, BaseModel):
+            return value.model_dump()
+        return value

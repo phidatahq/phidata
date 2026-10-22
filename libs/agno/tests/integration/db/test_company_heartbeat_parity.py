@@ -904,3 +904,20 @@ async def test_concurrent_summary_does_not_redeliver_the_same_delta(heartbeat, m
     assert len(delivered) == 1
     await call("summarize", product_id=product["id"], run_id="later", interfaces=[], narrative="Quiet")
     assert "No Task changes since the last delivered summary" in delivered[-1]
+
+
+@pytest.mark.asyncio
+async def test_product_metadata_edits_keep_linked_routines(heartbeat):
+    db, _, call = heartbeat
+    product = await call("create", name="Docs", metadata={"team": "a"})
+    link = db.add_product_routine(product["id"], "routine-1")
+    if inspect.isawaitable(link):
+        await link
+
+    updated = await call("update", product["id"], metadata={"team": "b", "routine_ids": []})
+    assert updated["metadata"]["team"] == "b"
+    assert updated["metadata"]["routine_ids"] == ["routine-1"]
+    cleared = await call("update", product["id"], metadata=None)
+    assert cleared["metadata"]["routine_ids"] == ["routine-1"]
+    renamed = await call("update", product["id"], name="Docs site")
+    assert renamed["metadata"]["routine_ids"] == ["routine-1"]

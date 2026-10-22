@@ -1421,6 +1421,7 @@ class PostgresDb(BaseDb):
             compactions_table = self._get_table(table_type="compactions")
 
             with self.Session() as sess, sess.begin():
+                sandbox_leftovers = self._collect_sandbox_leftovers(sess, [session_id])
                 delete_stmt = table.delete().where(table.c.session_id == session_id)
                 if user_id is not None:
                     delete_stmt = delete_stmt.where(table.c.user_id == user_id)
@@ -1446,6 +1447,7 @@ class PostgresDb(BaseDb):
 
             # Cascade offloaded tool results after the session delete commits.
             self._cascade_tool_results([session_id])
+            self._release_sandbox_leftovers(sandbox_leftovers)
             # A deleted session's deserialized history must not stay resident.
             self._run_object_cache.drop_session(session_id)
             return True
@@ -1487,6 +1489,7 @@ class PostgresDb(BaseDb):
                 # to protect, so it also cleans up after a session whose row
                 # is already gone.
                 cascade_ids = session_ids if user_id is None else deletable_ids
+                sandbox_leftovers = self._collect_sandbox_leftovers(sess, deletable_ids)
 
                 delete_stmt = table.delete().where(table.c.session_id.in_(deletable_ids))
                 result = sess.execute(delete_stmt)
@@ -1512,12 +1515,40 @@ class PostgresDb(BaseDb):
 
             # Cascade offloaded tool results after the session delete commits.
             self._cascade_tool_results(cascade_ids)
+            self._release_sandbox_leftovers(sandbox_leftovers)
             for deleted_id in cascade_ids:
                 self._run_object_cache.drop_session(deleted_id)
 
         except Exception as e:
             log_error(f"Error deleting sessions: {str(e)}")
             raise e
+
+    def _collect_sandbox_leftovers(self, sess: Any, session_ids: List[str]) -> List[Any]:
+        """Read what deleting these sessions would orphan in a sandbox, before the cascade drops their bindings.
+
+        A savepoint keeps a failed read from rolling back the delete itself.
+        """
+        collected = []
+        for coordinator in list(getattr(self, "sandbox_coordinators", None) or []):
+            try:
+                with sess.begin_nested():
+                    collected.append(
+                        (coordinator, coordinator.collect_deleted_sessions(sess.connection(), session_ids))
+                    )
+            except Exception as e:
+                log_warning(f"Could not read sandbox resources of deleted sessions: {e}")
+        return collected
+
+    @staticmethod
+    def _release_sandbox_leftovers(collected: List[Any]) -> None:
+        """Remove deleted sessions' sandbox computers and checkpoints, after the delete commits."""
+        for coordinator, leftovers in collected:
+            if not leftovers:
+                continue
+            try:
+                coordinator.release_deleted_sessions(leftovers)
+            except Exception as e:
+                log_warning(f"Could not remove sandbox resources of deleted sessions: {e}")
 
     def _cascade_tool_results(self, session_ids: List[str]) -> None:
         """Cascade result offloading on session delete: read the index rows,
@@ -2879,11 +2910,14 @@ class PostgresDb(BaseDb):
                 columns.append(table.c.runs)
 
             stmt = select(*columns)
+            session_ids_stmt = select(table.c.session_id)
 
             if start_timestamp is not None:
                 stmt = stmt.where(table.c.created_at >= start_timestamp)
+                session_ids_stmt = session_ids_stmt.where(table.c.created_at >= start_timestamp)
             if end_timestamp is not None:
                 stmt = stmt.where(table.c.created_at <= end_timestamp)
+                session_ids_stmt = session_ids_stmt.where(table.c.created_at <= end_timestamp)
 
             with self.Session() as sess:
                 result = sess.execute(stmt).fetchall()
@@ -2891,12 +2925,12 @@ class PostgresDb(BaseDb):
 
                 # Attach lightweight run info (model and provider) from the runs table
                 if runs_table is not None and sessions:
-                    session_ids = [s["session_id"] for s in sessions]
+                    # Subquery, not a list of ids: one bind parameter per session overflows the driver's limit
                     runs_stmt = select(
                         runs_table.c.session_id,
                         runs_table.c.run_data["model"].astext.label("model"),
                         runs_table.c.run_data["model_provider"].astext.label("model_provider"),
-                    ).where(runs_table.c.session_id.in_(session_ids))
+                    ).where(runs_table.c.session_id.in_(session_ids_stmt))
 
                     runs_by_session: Dict[str, List[Dict[str, Any]]] = {}
                     for session_id, model, model_provider in sess.execute(runs_stmt).fetchall():
@@ -2945,9 +2979,12 @@ class PostgresDb(BaseDb):
                 return starting_date
 
         # 2. No metrics records. Return the date of the first recorded session.
-        first_session, _ = self.get_sessions(sort_by="created_at", sort_order="asc", limit=1, deserialize=False)
-
-        first_session_date = first_session[0]["created_at"] if first_session else None  # type: ignore[index]
+        # Queried directly rather than through get_sessions, which also counts and loads runs
+        sessions_table = self._get_table(table_type="sessions")
+        if sessions_table is None:
+            return None
+        with self.Session() as sess:
+            first_session_date = sess.execute(select(func.min(sessions_table.c.created_at))).scalar()
 
         # 3. No metrics records and no sessions records. Return None.
         if first_session_date is None:
@@ -9281,6 +9318,7 @@ class PostgresDb(BaseDb):
 
     def update_product(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
         from agno.db.schemas.products import product_metadata, validate_product_fields
+        from agno.db.sql.company import update_product_row
 
         validate_product_fields(fields)
         if "metadata" in fields:
@@ -9288,12 +9326,8 @@ class PostgresDb(BaseDb):
         table = self._get_table(table_type="products")
         if table is None:
             return None
-        stmt = table.update().where(table.c.id == product_id, table.c.deleted_at.is_(None))
-        if user_id is not None:
-            stmt = stmt.where(table.c.user_id == user_id)
         with self.Session() as sess, sess.begin():
-            result = sess.execute(stmt.values(**fields, updated_at=int(time.time())).returning(table)).fetchone()
-            return dict(result._mapping) if result else None
+            return update_product_row(sess, table, product_id, user_id, fields)
 
     def get_product_counts(self, product_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         from agno.db.sql.company import product_counts

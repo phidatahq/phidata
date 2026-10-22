@@ -260,11 +260,10 @@ def _extract_filesystem(filesystem: Any, agent: Any, user_id: Optional[str] = No
 
 def _builtin_component_metadata(component: Any) -> Optional[Dict[str, Any]]:
     """Expose framework identity without publishing arbitrary metadata in summaries."""
-    from agno.registry._reserved import RESERVED_MANAGER_IDS
+    from agno.registry._reserved import is_framework_owned
 
-    component_id = getattr(component, "id", None)
-    if component_id in RESERVED_MANAGER_IDS and getattr(component, "_registry_excluded", False):
-        return {"_agno": {"internal": True, "id": component_id}}
+    if is_framework_owned(component):
+        return {"_agno": {"internal": True, "id": component.id}}
     return None
 
 

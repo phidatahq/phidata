@@ -2395,7 +2395,8 @@ class AgentOS:
             # route is not left open -- fastmcp verifies the token and the handler
             # refuses anything without a verified principal. Only under mcp_auth: with
             # no provider this middleware is the only credential check on that path.
-            if self.mcp:
+            # A switched-off runner is not exempted: the path then has no route behind it.
+            if self.mcp and (self.mcp_config is None or self.mcp_config.tool_run_endpoint):
                 from agno.os.config import MCP_SERVER_TOOLS_PATH
 
                 mcp_auth_paths.append(f"{MCP_SERVER_TOOLS_PATH}/*")

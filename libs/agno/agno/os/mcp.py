@@ -4,7 +4,7 @@ import functools
 import inspect
 import logging
 import re
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from copy import deepcopy
 from typing import (
     TYPE_CHECKING,
@@ -2083,6 +2083,10 @@ def _server_card_enabled(mcp_config: "Optional[MCPConfig]") -> bool:
     return mcp_config is None or mcp_config.server_card
 
 
+def _tool_run_endpoint_enabled(mcp_config: "Optional[MCPConfig]") -> bool:
+    return mcp_config is None or mcp_config.tool_run_endpoint
+
+
 # Mirrors ``MCPConfig.tool_run_timeout_seconds`` for ``mcp=True``, which has no config object.
 _DEFAULT_TOOL_RUN_TIMEOUT_SECONDS = 120.0
 
@@ -2261,7 +2265,42 @@ def _tool_result_payload(result: Any) -> Dict[str, Any]:
     return payload
 
 
-def _register_tool_run_api(
+async def _call_within_the_budget(coro: Any, timeout_seconds: float) -> Any:
+    """Run ``coro``, cancelling it if it outlives the timeout.
+
+    ``asyncio.wait_for`` only stops WAITING -- the tool keeps running, so a timed-out
+    ``run_agent`` went on driving the model and spending tokens for an answer nobody
+    would read. Racing the work against a timer and cancelling the loser stops it for
+    real: the cancellation propagates through ``agent.arun`` into the model's own HTTP
+    request, so generation ends rather than finishing unobserved.
+
+    A tool that blocks rather than awaits (``time.sleep``, a synchronous driver) is run
+    in fastmcp's threadpool, so the event loop keeps serving other requests and the 504
+    still lands on time. Only that worker thread runs on: Python cannot interrupt a
+    thread mid-call, so a sync tool that routinely outlives the budget ties up a thread
+    each time. Prefer ``async def`` for anything long-running.
+    """
+    import asyncio
+
+    work = asyncio.ensure_future(coro)
+    timer = asyncio.ensure_future(asyncio.sleep(timeout_seconds))
+    try:
+        done, _ = await asyncio.wait({work, timer}, return_when=asyncio.FIRST_COMPLETED)
+    finally:
+        timer.cancel()
+        # Whether the budget ran out or this handler was cancelled (a server shutting
+        # down), nobody will read the result any more; stop producing it.
+        if not work.done():
+            work.cancel()
+    if work in done:
+        return work.result()
+    # wait() surfaces only this handler's own cancellation; the tool's never re-raises
+    # here, so a shutdown mid-unwind is reported as a cancellation, not a timeout.
+    await asyncio.wait({work})
+    raise asyncio.TimeoutError()
+
+
+def _register_tool_run_endpoint(
     mcp: FastMCP, os: "AgentOS", timeout_seconds: float, mcp_config: "Optional[MCPConfig]" = None
 ) -> None:
     """Register the plain-HTTP tool runner.
@@ -2292,46 +2331,6 @@ def _register_tool_run_api(
             status_code=status_code,
             headers={"Cache-Control": "no-store", "Vary": "Origin, Authorization"},
         )
-
-    async def _call_within_the_budget(coro: Any) -> Any:
-        """Run ``coro``, cancelling it if it outlives the timeout.
-
-        ``asyncio.wait_for`` only stops WAITING -- the tool keeps running, so a timed-out
-        ``run_agent`` went on driving the model and spending tokens for an answer nobody
-        would read. Racing the work against a timer and cancelling the loser stops it for
-        real: the cancellation propagates through ``agent.arun`` into the model's own HTTP
-        request, so generation ends rather than finishing unobserved.
-
-        A tool that blocks rather than awaits (``time.sleep``, a synchronous driver) is run
-        in fastmcp's threadpool, so the event loop keeps serving other requests and the 504
-        still lands on time. Only that worker thread runs on: Python cannot interrupt a
-        thread mid-call, so a sync tool that routinely outlives the budget ties up a thread
-        each time. Prefer ``async def`` for anything long-running.
-        """
-        work = asyncio.ensure_future(coro)
-        timer = asyncio.ensure_future(asyncio.sleep(timeout_seconds))
-        try:
-            done, _ = await asyncio.wait({work, timer}, return_when=asyncio.FIRST_COMPLETED)
-            if work in done:
-                return work.result()
-            # Nobody is waiting for this result any more; stop producing it.
-            work.cancel()
-            try:
-                await work
-            except asyncio.CancelledError:
-                # Ours if the task we just cancelled is the one that stopped. If THIS
-                # handler was cancelled instead (a server shutting down), re-raise:
-                # swallowing it would report a timeout and keep the shutdown waiting.
-                if not work.cancelled():
-                    raise
-            except Exception:
-                # The tool's own error, superseded by the timeout we are reporting.
-                pass
-            raise asyncio.TimeoutError()
-        finally:
-            timer.cancel()
-            with suppress(asyncio.CancelledError, Exception):
-                await timer
 
     def _failed(
         error: str,
@@ -2432,7 +2431,9 @@ def _register_tool_run_api(
 
         started = time.perf_counter()
         try:
-            result = await _call_within_the_budget(mcp.call_tool(tool_name, arguments, version=version))
+            result = await _call_within_the_budget(
+                mcp.call_tool(tool_name, arguments, version=version), timeout_seconds
+            )
         except asyncio.TimeoutError:
             return _failed(
                 "timeout",
@@ -2569,14 +2570,15 @@ def build_mcp_server(
             allowed_hosts=(mcp_config.allowed_hosts if mcp_config is not None else None),
         )
 
-    _register_tool_run_api(
-        mcp,
-        os,
-        timeout_seconds=(
-            mcp_config.tool_run_timeout_seconds if mcp_config is not None else _DEFAULT_TOOL_RUN_TIMEOUT_SECONDS
-        ),
-        mcp_config=mcp_config,
-    )
+    if _tool_run_endpoint_enabled(mcp_config):
+        _register_tool_run_endpoint(
+            mcp,
+            os,
+            timeout_seconds=(
+                mcp_config.tool_run_timeout_seconds if mcp_config is not None else _DEFAULT_TOOL_RUN_TIMEOUT_SECONDS
+            ),
+            mcp_config=mcp_config,
+        )
 
     # Classify the tool surface up front: the enabled default-tool tags depend on
     # whether components are exposed (lifecycle_tools=True adds their lifecycle pair).

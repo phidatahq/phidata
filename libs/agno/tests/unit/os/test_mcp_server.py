@@ -2142,7 +2142,7 @@ async def test_continue_run_requires_the_session_id():
         assert "run_id" in schema["required"]
 
 
-# --------------------------- tool run API (HTTP) ---------------------------
+# ------------------------- tool run endpoint (HTTP) -------------------------
 #
 # The plain-HTTP tool surface an operator UI uses to test a tool without speaking the
 # protocol. The contract it must hold: a tool that ran and failed is a 200 carrying
@@ -2163,7 +2163,7 @@ def _echo_os(**mcp_kwargs) -> AgentOS:
     )
 
 
-async def test_tool_run_api_runs_a_tool_and_returns_its_result():
+async def test_tool_run_endpoint_runs_a_tool_and_returns_its_result():
     app = get_mcp_server(_echo_os())
     async with _mcp_client(app) as client:
         response = await client.post("/mcp/server/tools/echo/run", json={"arguments": {"text": "there"}})
@@ -2177,7 +2177,19 @@ async def test_tool_run_api_runs_a_tool_and_returns_its_result():
     assert body["durationMs"] >= 0
 
 
-async def test_tool_run_api_accepts_a_call_without_a_body():
+async def test_tool_run_endpoint_can_be_switched_off():
+    """A protocol-only deployment keeps one write path; the card is unaffected."""
+    app = get_mcp_server(_echo_os(tool_run_endpoint=False))
+    async with _mcp_client(app) as client:
+        run = await client.post("/mcp/server/tools/echo/run", json={"arguments": {"text": "there"}})
+        card = await client.get("/mcp/server-card")
+
+    assert run.status_code == 404
+    assert "echo: there" not in run.text
+    assert card.status_code == 200
+
+
+async def test_tool_run_endpoint_accepts_a_call_without_a_body():
     """A tool whose arguments are all optional is runnable without sending any."""
     app = get_mcp_server(_echo_os())
     async with _mcp_client(app) as client:
@@ -2187,7 +2199,7 @@ async def test_tool_run_api_accepts_a_call_without_a_body():
     assert response.json()["isError"] is False
 
 
-async def test_tool_run_api_reports_a_failing_tool_as_a_result_not_an_error():
+async def test_tool_run_endpoint_reports_a_failing_tool_as_a_result_not_an_error():
     """The tool ran; it just failed. That is a 200 with ``isError``, like ``tools/call``."""
     app = get_mcp_server(_docs_os())
     async with _mcp_client(app) as client:
@@ -2202,7 +2214,7 @@ async def test_tool_run_api_reports_a_failing_tool_as_a_result_not_an_error():
     assert "ghost" in "".join(block["text"] for block in body["content"])
 
 
-async def test_tool_run_api_reports_every_failure_in_one_shape():
+async def test_tool_run_endpoint_reports_every_failure_in_one_shape():
     """A caller renders one thing whatever went wrong.
 
     The protocol groups "the tool failed" and "no such tool" into a single failure class, so
@@ -2226,7 +2238,7 @@ async def test_tool_run_api_reports_every_failure_in_one_shape():
         assert isinstance(body["error"], str), response.text
 
 
-async def test_tool_run_api_rejects_an_unknown_tool():
+async def test_tool_run_endpoint_rejects_an_unknown_tool():
     app = get_mcp_server(_docs_os())
     async with _mcp_client(app) as client:
         response = await client.post("/mcp/server/tools/not_a_tool/run", json={"arguments": {}})
@@ -2235,7 +2247,7 @@ async def test_tool_run_api_rejects_an_unknown_tool():
     assert response.json()["error"] == "tool_not_found"
 
 
-async def test_tool_run_api_rejects_arguments_that_do_not_match_the_schema():
+async def test_tool_run_endpoint_rejects_arguments_that_do_not_match_the_schema():
     app = get_mcp_server(_docs_os())
     async with _mcp_client(app) as client:
         response = await client.post("/mcp/server/tools/run_agent/run", json={"arguments": {"agent_id": "docs-agent"}})
@@ -2244,7 +2256,7 @@ async def test_tool_run_api_rejects_arguments_that_do_not_match_the_schema():
     assert response.json()["error"] == "invalid_arguments"
 
 
-async def test_tool_run_api_rejects_a_malformed_body():
+async def test_tool_run_endpoint_rejects_a_malformed_body():
     app = get_mcp_server(_docs_os())
     async with _mcp_client(app) as client:
         malformed = await client.post("/mcp/server/tools/get_agentos_config/run", content=b"not json")
@@ -2256,7 +2268,7 @@ async def test_tool_run_api_rejects_a_malformed_body():
     assert wrong_type.json()["error"] == "invalid_arguments"
 
 
-async def test_tool_run_api_runs_the_version_whose_schema_it_published():
+async def test_tool_run_endpoint_runs_the_version_whose_schema_it_published():
     """The published schema and the executed tool must be the same version.
 
     ``list_tools`` returns every version of a tool. If the card publishes one version's
@@ -2291,7 +2303,7 @@ async def test_tool_run_api_runs_the_version_whose_schema_it_published():
     assert published.version == "2"
 
 
-async def test_tool_run_api_only_serves_tools_this_server_publishes():
+async def test_tool_run_endpoint_only_serves_tools_this_server_publishes():
     """A tool scoped out of the surface is not runnable, even though it exists."""
     os = _docs_os(default_tools=True, exclude_tags={"session"})
     app = get_mcp_server(os)
@@ -2303,7 +2315,7 @@ async def test_tool_run_api_only_serves_tools_this_server_publishes():
     assert response.status_code == 404
 
 
-async def test_tool_run_api_times_out_a_tool_that_does_not_finish():
+async def test_tool_run_endpoint_times_out_a_tool_that_does_not_finish():
     async def _sleep() -> str:
         """Sleeps past the timeout."""
         await asyncio.sleep(30)
@@ -2318,7 +2330,55 @@ async def test_tool_run_api_times_out_a_tool_that_does_not_finish():
     assert response.json()["error"] == "timeout"
 
 
-async def test_tool_run_api_does_not_claim_a_sibling_path():
+class _Tool:
+    """A tool that outlives any budget and records how it ended.
+
+    Unwinding takes a moment, as closing a model's HTTP stream does, so a handler can be
+    cancelled while the tool is still cancelling.
+    """
+
+    def __init__(self) -> None:
+        self.ended: Optional[str] = None
+
+    async def run(self) -> str:
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            await asyncio.sleep(0.1)
+            self.ended = "cancelled"
+            raise
+        self.ended = "finished"
+        return "done"
+
+
+async def test_tool_run_budget_cancels_the_tool_and_reports_a_timeout():
+    tool = _Tool()
+    with pytest.raises(asyncio.TimeoutError):
+        await mcp_mod._call_within_the_budget(tool.run(), timeout_seconds=0.01)
+    assert tool.ended == "cancelled"
+
+
+async def test_tool_run_budget_propagates_the_handlers_own_cancellation():
+    """A handler cancelled mid-call (a server shutting down) is cancelled, not timed out.
+
+    Covers both windows: before the budget expires, and after it expired while the tool
+    is still unwinding. The second is where ``work.cancelled()`` cannot tell whose
+    cancellation arrived, because the tool was already cancelled by the budget.
+    """
+    for cancel_after, window in ((0.0, "before the budget expires"), (0.05, "while the tool unwinds")):
+        tool = _Tool()
+        handler = asyncio.ensure_future(mcp_mod._call_within_the_budget(tool.run(), timeout_seconds=0.01))
+        await asyncio.sleep(cancel_after)
+        handler.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await handler
+        assert handler.cancelled(), window
+        # Either way nobody will read the result, so the tool is stopped.
+        await asyncio.sleep(0.2)
+        assert tool.ended == "cancelled", window
+
+
+async def test_tool_run_endpoint_does_not_claim_a_sibling_path():
     """``/mcp/servers`` shares a prefix with ``/mcp/server`` but is a different route.
 
     The plural is deliberately left free for the servers this OS connects to.
@@ -2329,7 +2389,7 @@ async def test_tool_run_api_does_not_claim_a_sibling_path():
         assert (await client.get("/mcp/server/toolshed")).status_code == 404
 
 
-async def test_tool_run_api_refuses_an_unverified_bearer_token():
+async def test_tool_run_endpoint_refuses_an_unverified_bearer_token():
     """A bearer header is not evidence: the token must have been verified.
 
     fastmcp wraps only the ``/mcp`` transport route in RequireAuthMiddleware and
@@ -2365,7 +2425,7 @@ async def test_tool_run_api_refuses_an_unverified_bearer_token():
         assert "ran" not in response.text
 
 
-async def test_tool_run_api_accepts_an_mcp_auth_token_through_the_full_app():
+async def test_tool_run_endpoint_accepts_an_mcp_auth_token_through_the_full_app():
     """A provider token that works on /mcp must work on the runner too.
 
     Exercised through ``get_app()`` rather than the MCP sub-app: the parent AuthMiddleware
@@ -2441,7 +2501,7 @@ async def test_tool_run_api_accepts_an_mcp_auth_token_through_the_full_app():
         assert "ran" not in refused.text
 
 
-async def test_tool_run_api_accepts_a_valid_mcp_auth_token():
+async def test_tool_run_endpoint_accepts_a_valid_mcp_auth_token():
     """The gate must admit a real token, not just refuse bad ones.
 
     A suite that only asserts 401 passes whether the route is correctly gated or simply
@@ -2524,7 +2584,7 @@ def _jwt_verifier():
     )
 
 
-async def test_tool_run_api_refuses_a_self_asserted_query_string_identity():
+async def test_tool_run_endpoint_refuses_a_self_asserted_query_string_identity():
     """``?user_id=`` is a claim, not a credential.
 
     With ``user_isolation`` and no REST auth, NoAuthIdentityMiddleware copies the query
@@ -2547,7 +2607,7 @@ async def test_tool_run_api_refuses_a_self_asserted_query_string_identity():
     assert "ran" not in response.text
 
 
-async def test_tool_run_api_does_not_double_apply_authorize():
+async def test_tool_run_endpoint_does_not_double_apply_authorize():
     """``authorize`` must run once per request.
 
     Without ``mcp_auth`` the gate middleware is installed unscoped and already covers this
@@ -2581,7 +2641,7 @@ async def test_tool_run_api_does_not_double_apply_authorize():
     assert len(calls) == 1, f"authorize ran {len(calls)} times"
 
 
-async def test_tool_run_api_applies_the_authorize_predicate():
+async def test_tool_run_endpoint_applies_the_authorize_predicate():
     """``MCPConfig.authorize`` guards this route too.
 
     Under ``mcp_auth`` the gate middleware is registered with ``only_path="/mcp"``, an exact

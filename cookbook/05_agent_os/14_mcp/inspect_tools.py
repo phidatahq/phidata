@@ -53,7 +53,7 @@ async def research(topic: str) -> str:
 
 agent_os = AgentOS(
     id="mcp-inspect-os",
-    description="AgentOS with the MCP tool run API enabled.",
+    description="AgentOS serving the MCP tool run endpoint.",
     db=db,
     agents=[support_agent],
     # A custom tool is published alongside the built-ins, and is governed by the
@@ -64,7 +64,7 @@ app = agent_os.get_app()
 
 
 # ---------------------------------------------------------------------------
-# Drive the tool run API
+# Drive the tool run endpoint
 # ---------------------------------------------------------------------------
 
 

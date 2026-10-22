@@ -89,6 +89,12 @@ class MCPConfig(BaseModel):
     # host would otherwise be echoed into a publicly cacheable document.
     server_card_url: Optional[str] = None
 
+    # Serve ``POST /mcp/server/tools/{name}/run``, the plain-HTTP runner an operator UI uses to
+    # test a published tool without implementing an MCP client. It runs the same tools under the
+    # same gates as the transport, so it is on by default; a protocol-only deployment switches it
+    # off to keep one write path. ``/info`` reports the effective value.
+    tool_run_endpoint: bool = True
+
     # How long a single ``/mcp/server/tools/{name}/run`` call -- the plain-HTTP runner an
     # operator UI uses to test a published tool -- may take before it is abandoned with a
     # 504. A run tool drives a model, so this is generous; it exists so a hung tool cannot

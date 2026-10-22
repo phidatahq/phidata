@@ -326,7 +326,11 @@ class Claude(Model):
 
             # Recursively process nested schemas
             for key, value in schema.items():
-                if key in ["properties", "items", "allOf", "anyOf", "oneOf"]:
+                if key in ["properties", "$defs", "definitions"] and isinstance(value, dict):
+                    # Maps of name -> schema
+                    for item in value.values():
+                        self._ensure_additional_properties_false(item)
+                elif key in ["items", "allOf", "anyOf", "oneOf"]:
                     if isinstance(value, dict):
                         self._ensure_additional_properties_false(value)
                     elif isinstance(value, list):

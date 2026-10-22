@@ -34,6 +34,21 @@ def test_claude_flattens_the_canonical_shape():
     assert CANONICAL == original
 
 
+def test_claude_closes_nested_objects_when_transform_schema_rejects_the_schema():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    # An enum-only property makes transform_schema raise, so the fallback walk runs
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "tier": {"enum": ["gold", "silver"]}}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["additionalProperties"] is False
+    assert output_format["schema"]["properties"]["address"]["additionalProperties"] is False
+    assert "additionalProperties" not in output_format["schema"]["properties"]
+
+
 def test_claude_passes_its_own_flat_shape_through():
     pytest.importorskip("anthropic")
     from agno.models.anthropic.claude import Claude

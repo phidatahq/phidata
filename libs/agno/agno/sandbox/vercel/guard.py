@@ -117,7 +117,7 @@ def source_digest(package: Path) -> str:
     return digest.hexdigest()
 
 
-# --- reading what the host or the bootstrap left ----------------------------------------------------
+# Reading what the host or the bootstrap left
 
 
 def _read_root_file(path: Path, trusted_uid: int, limit: int, refusal: str) -> bytes:
@@ -196,7 +196,7 @@ def _take_json(layout: Layout, name: str, what: str) -> Dict[str, Any]:
     return value
 
 
-# --- processes ---------------------------------------------------------------------------------------
+# Processes
 
 
 def parse_stat(text: str) -> Optional[Dict[str, Any]]:
@@ -292,7 +292,7 @@ class LinuxOps:
             os.close(descriptor)
 
 
-# --- the checkpoint window ---------------------------------------------------------------------------
+# The checkpoint window
 
 
 def _fingerprint(roots: Mapping[str, Path]) -> Tuple[str, int]:
@@ -423,7 +423,7 @@ class Guard:
         if self.hook:
             self.hook(point)
 
-    # state ---------------------------------------------------------------------------------------------
+    # State
 
     @property
     def _state_path(self) -> Path:
@@ -458,7 +458,7 @@ class Guard:
         os.replace(temporary, self._state_path)
         self._fsync_directory()
 
-    # locks ---------------------------------------------------------------------------------------------
+    # Locks
 
     @contextmanager
     def _admission(self) -> Iterator[None]:
@@ -487,7 +487,7 @@ class Guard:
             raise Refused("busy", "a command or a checkpoint window holds the computer") from None
         return descriptor
 
-    # freeze journal ------------------------------------------------------------------------------------
+    # Freeze journal
 
     def _append(self, record: Dict[str, Any]) -> None:
         line = (json.dumps(record) + "\n").encode()
@@ -559,7 +559,7 @@ class Guard:
         if self.state() in ("restoring", "failed") and self.layout.stage.exists():
             shutil.rmtree(self.layout.stage, ignore_errors=True)
 
-    # freezing ------------------------------------------------------------------------------------------
+    # Freezing
 
     def _select(self, exclude: Set[int]) -> List[int]:
         return list(self.ops.select(self.layout.agent_uid, exclude))
@@ -613,7 +613,7 @@ class Guard:
                 raise Refused("unstable", "the roots keep changing")
             time.sleep(min(max((newest + self.settle_ns - time.time_ns()) / 1e9, 0.002), remaining))
 
-    # operations ----------------------------------------------------------------------------------------
+    # Operations
 
     @contextmanager
     def admit(self) -> Iterator[None]:
@@ -782,7 +782,7 @@ def _hand_over(root: Path, uid: int, gid: int) -> None:
     os.chmod(root, 0o700)
 
 
-# --- the commands --------------------------------------------------------------------------------------
+# The commands
 
 
 def _child_environment(environ: Mapping[str, str], extra: Optional[Mapping[str, str]] = None) -> Dict[str, str]:

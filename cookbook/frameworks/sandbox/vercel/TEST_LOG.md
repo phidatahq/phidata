@@ -1,6 +1,8 @@
 # Test log: Vercel sandbox cookbook
 
-What the Vercel sandbox provider's tests cover, how they are gated, and what has been run. Counts were measured on macOS with Python 3.12 and `vercel-sandbox` 0.9.0 (importable, or not, as stated); they describe the files in this tree and will change as the tests do.
+What the Vercel sandbox provider's tests cover, how they are gated, and what has been run. Counts were measured on macOS with Python 3.12 and `vercel-sandbox` 0.9.0 (importable, or not, as stated). Packaging checks also used SDK 0.9.1.
+
+Hosted results below belong to the recorded wheel. Subsequent comment-only source edits preserve executable tokens but change the source digest; use a wheel matching the host checkout for any new run.
 
 ### vercel_session.py
 
@@ -27,15 +29,17 @@ What the Vercel sandbox provider's tests cover, how they are gated, and what has
 
 ### integration tests: libs/agno/tests/integration/sandbox/test_vercel.py
 
-**Status:** PARTIAL: 4 of 25 tests have a recorded hosted run
+**Status:** PARTIAL: 7 of 25 tests have a recorded hosted run
 
 **Description:** 25 tests that create billable Vercel computers. The whole module is skipped unless `AGNO_TEST_VERCEL=1` and `AGNO_TEST_VERCEL_WHEEL` (a wheel built from this checkout with `cd libs/agno && uv build --wheel`) are set. Seven tests need more: the three public-path tests (P3, P3 with attachments, P4) and the four native-recall tests need `AGNO_TEST_SANDBOX_DB_URL` for Postgres, and the recall tests also need a model key (`ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN` for Claude, `OPENAI_API_KEY` for Codex).
 
-The four tests that recall a native conversation (Claude and Codex, each on a restored computer after a forced-cold public restore and on a reused warm computer) each passed once against Vercel on 2026-10-22, using a wheel built from this tree (agno 3.1.8, source digest `25206570a90898862109f170e355b6f9c72663edd09b902bb032ac58d8c2dd9c`), with Postgres and real model keys. The computers they created were deleted and confirmed gone by a direct read.
+The four tests that recall a native conversation (Claude and Codex, each on a restored computer after a forced-cold public restore and on a reused warm computer) each passed once against Vercel on 2026-10-22, using the pre-cleanup wheel (agno 3.1.8, source digest `25206570a90898862109f170e355b6f9c72663edd09b902bb032ac58d8c2dd9c`), with Postgres and real model keys. The computers they created were deleted and confirmed gone by a direct read.
 
-The other 21 have not been run against Vercel on this tree: bootstrap and the pinned natives, the guard's privilege drop and control paths, the file API's ownership and mode, command timeout, unicode and binary stdin, tag round trip and listing, stale-handle destroy, adoption, cancelled create, identity values, P1, runtime worker lifetime, P2, refusal of a restore onto a used computer, recovery of a killed capture, writer classes a capture must stop, real process handles, and the public P3, P3 with attachments and P4.
+Three fixture tests also passed on the same wheel: freezing writer processes during capture, recovery after a capture is killed while frozen, and public cold restore with image and file attachments. All four computers used by these checks were confirmed deleted by direct reads returning 404.
 
-**Result:** Offline, with the SDK importable and no gate variables set, all 25 are collected and skipped. The four recall tests are single hosted runs, not a statement about timing or behavior elsewhere.
+The other 18 have no recorded hosted run on that wheel: bootstrap and the pinned natives, the guard's privilege drop and control paths, the file API's ownership and mode, command timeout, unicode and binary stdin, tag round trip and listing, stale-handle destroy, adoption, cancelled create, identity values, P1, runtime worker lifetime, P2, refusal of a restore onto a used computer, real process handles, and the public P3 without attachments and P4.
+
+**Result:** Offline, with the SDK importable and no gate variables set, all 25 are collected and skipped. Each of the seven hosted tests passed once; this does not establish timing or behavior elsewhere.
 
 ---
 
@@ -55,7 +59,7 @@ The other 21 have not been run against Vercel on this tree: bootstrap and the pi
 
 **Description:** `libs/agno/pyproject.toml` adds the `vercel-sandbox` extra (`vercel-sandbox>=0.9.0,<0.10`, unmarked so it fails on Python 3.9) and includes it in `dev` for Python 3.10 and later. A wheel built from the tree contains the four provider modules, and the digest of its unpacked `agno/` equals the digest of the source tree.
 
-**Result:** Dependency resolution of the `vercel-sandbox`, `dev` and `tests` extras on Python 3.9, 3.10 and 3.12 was checked when the extra was added and has not been repeated since; no installation of the extra into an environment has been done as part of this log.
+**Result:** Isolated installs with and without the Vercel extra passed on Python 3.10 and 3.12. The extra resolved to SDK 0.9.1, and the installed-package unit suite passed (461 passed, 1 skipped on each). Python 3.9 rejects the Vercel extra as intended. Hosted runs used SDK 0.9.0; 0.9.1 has local evidence only.
 
 ---
 
@@ -63,14 +67,14 @@ The other 21 have not been run against Vercel on this tree: bootstrap and the pi
 
 **Status:** PASS
 
-**Description:** `ruff check`, `ruff format --check` and the import sort (`ruff check --select I`) on the provider package, both test files and this directory, and `mypy` on the four provider modules with the SDK importable. The commands of `./scripts/validate.sh` for `libs/agno` and `cookbook` (`ruff check`, `mypy`) were also run on this tree and on the commit it is based on, with the same interpreter and configuration.
+**Description:** `ruff check`, `ruff format --check` and the import sort (`ruff check --select I`) on the provider package, both test files and this directory, and `mypy` on the four provider modules with the SDK importable. Validation was run command by command against this tree and its base with the same interpreter and configuration. Before the cleanup push, both repository scripts were also run verbatim in an isolated copy of the patch. `format.sh` exited 0 and left the changed Python files byte-identical. `validate.sh` exited 1 for the 39 `agno` mypy errors noted below; its other checks passed.
 
-**Result:** All clean on the files above. Tests are excluded from the repository's mypy configuration. `ruff check` is clean for `libs/agno` and `cookbook`. `mypy libs/agno` reports the same 39 errors in 11 files before and after (compared as sorted, line-normalized lists), none in `sandbox/vercel`; with the SDK on the path it reports 59 before and after, also identical. The `agnoctl` step and the cookbook pattern check were not run. No test is run by these commands.
+**Result:** All clean on the files above. Tests are excluded from the repository's mypy configuration. `ruff check` is clean for `libs/agno` and `cookbook`. `mypy libs/agno` reports the same 39 errors in 11 files before and after (compared as sorted, line-normalized lists), none in `sandbox/vercel`; with the SDK on the path it reports 59 before and after, also identical. The `agnoctl` lint and mypy checks passed; the cookbook quickstart pattern check reported 0 violations across 13 files. No test is run by these commands.
 
 ---
 
 ## Not run
 
-- The 21 integration tests listed above, against Vercel: among them the install inside the coordinator transaction, tag value limits, listing delay after create, the real owner and mode of a staged file, `lifetime` enforcement, stale destroy against the real service, a lost create reply, and real process control on a Linux kernel (privilege drop, `no_new_privs`, freezing of plain, child, session-changed and double-fork writers, recovery of a capture killed while frozen). PID reuse is unsupported on Vercel and is not forced.
+- The 18 integration tests listed above have no recorded hosted execution on the tested wheel. Separate fixture-harness coverage does not count as executing them. Live lost-create-reply recovery is also unverified on this wheel; PID reuse cannot be forced on the Vercel guest.
 - A restore across different native versions, and a restore of an archive larger than a few tens of MiB.
-- CI: no run of any workflow has happened for this change.
+- GitHub CI status is tracked on the PR; local validation and hosted runs do not replace its required checks.

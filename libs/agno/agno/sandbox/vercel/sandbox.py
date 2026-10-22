@@ -34,11 +34,10 @@ if TYPE_CHECKING:
     from agno.sandbox.checkpoint import CheckpointStore
     from agno.sandbox.transfer import CheckpointTransfer
 
-# The managed image the hosted runs used. It carries uv; the guest's Python is installed by uv.
+# The image supplies uv; bootstrap installs the guest Python version below.
 IMAGE = "vercel/sandbox/python:3.14"
 GUEST_PYTHON = "3.12"
-# The top-level packages the guest installs, chosen from the shared Dockerfile's set. Pins do not lock the
-# transitive graph, and native compatibility on Vercel is only established by running them.
+# Guest package pins follow the shared Dockerfile; transitive dependencies remain unpinned.
 NATIVE_PINS = ("claude-agent-sdk==0.2.165", "openai-codex==0.162.1", "sqlalchemy==2.0.52")
 _BOOTSTRAP = "/opt/agno"
 _WHEEL_STAGE = "/tmp/agno-bootstrap"
@@ -133,9 +132,7 @@ _ABANDONED_CLOSES: Set["asyncio.Future[None]"] = set()
 
 
 async def _close(client: Any) -> None:
-    # Cleanup must not replace the error that is already unwinding, nor fail a finished operation. The SDK drops
-    # its references to the connections as it starts closing, so a close cut short cannot be repeated: a
-    # cancelled caller waits for it (up to _CLOSE_GRACE) and is still cancelled afterwards.
+    # SDK close cannot be restarted. Shield it, bound the wait on cancellation, and preserve the caller's error.
     task = asyncio.ensure_future(client.aclose())
     try:
         await asyncio.shield(task)
@@ -343,7 +340,7 @@ class VercelSandbox(Sandbox):
 
         return VercelCheckpointTransfer(self, store)
 
-    # identity ------------------------------------------------------------------------------------------
+    # Identity
 
     def _prefix(self, session_id: str, agent_id: Optional[str], generation: int) -> str:
         identity = json.dumps([self.namespace, agent_id, session_id, generation])
@@ -379,7 +376,7 @@ class VercelSandbox(Sandbox):
             "agno_cfg": digest,
         }
 
-    # reading -------------------------------------------------------------------------------------------
+    # Reading
 
     @staticmethod
     async def _read(client: Any, physical: str) -> Optional[Any]:
@@ -433,7 +430,7 @@ class VercelSandbox(Sandbox):
         finally:
             await _close(client)
 
-    # discovery -----------------------------------------------------------------------------------------
+    # Discovery
 
     def _accepts(self, sandbox: Any, prefix: str, session_id: str, agent_id: Optional[str], generation: int) -> bool:
         """A listed sandbox is this allocation's only if its name, tags and persistence all say so; a prefix alone proves nothing."""
@@ -500,7 +497,7 @@ class VercelSandbox(Sandbox):
         finally:
             await _close(client)
 
-    # creation ------------------------------------------------------------------------------------------
+    # Creation
 
     def _wheel(self) -> Optional[Path]:
         if self.wheel is None:
@@ -551,7 +548,7 @@ class VercelSandbox(Sandbox):
         env: Mapping[str, str],
         wheel: Optional[Path],
     ) -> SandboxHandle:
-        # A fresh name per attempt: a delete addressed to one attempt can never remove its replacement.
+        # Random names keep delayed name-based deletes separate from replacement attempts.
         name = f"{self._prefix(session_id, agent_id, generation)}-{secrets.token_hex(6)}"
         try:
             sandbox = await client.create_sandbox(
@@ -563,7 +560,7 @@ class VercelSandbox(Sandbox):
                 tags=self._tags(session_id, agent_id, generation, digest),
             )
         except Exception as error:
-            # Not retried. A box the service made but never told us about is found by afind and destroyed.
+            # Do not retry an uncertain create; later discovery may find the orphan.
             raise SandboxError(f"Could not create the Vercel sandbox: {_describe(error)}") from error
         session = sandbox.current_session
         handle = SandboxHandle(
@@ -764,7 +761,7 @@ class VercelSandbox(Sandbox):
         if not await self._ready(session, digest):
             raise SandboxError("The computer did not report ready after its bootstrap")
 
-    # destruction ---------------------------------------------------------------------------------------
+    # Destruction
 
     async def adestroy(self, handle: SandboxHandle) -> None:
         physical, session_id = _bound(handle)
@@ -816,8 +813,7 @@ class VercelSandbox(Sandbox):
             marker = json.loads(stdout.text())
         except ValueError:
             return False
-        # The source check a new bootstrap makes, made again: a computer kept across a host upgrade
-        # still runs the Agno it was bootstrapped with.
+        # A retained computer must still match the host after an upgrade.
         return (
             isinstance(marker, dict)
             and marker.get("config_digest") == config_digest
@@ -902,9 +898,7 @@ class VercelSandbox(Sandbox):
         client = _new_client(self.options)
         try:
             session = await self._current(client, physical, session_id)
-            # The SDK has no stdin for a command, so the request is staged as a file the guard reads
-            # and removes. Nothing runs until the command is sent, so a failed upload leaves compute
-            # as it is, and a staged file whose reply was lost is never run.
+            # The SDK has no stdin. Stage a one-use request; upload alone never executes it.
             try:
                 await session.fs.write_bytes(f"{INBOX}/{name}.json", request, mode=0o600)
             except Exception as error:

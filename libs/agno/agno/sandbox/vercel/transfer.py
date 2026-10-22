@@ -25,9 +25,7 @@ from agno.sandbox.vercel.guard import EXPORT, MAX_ARCHIVE
 from agno.sandbox.vercel.sandbox import VercelSandbox, _NotSent
 from agno.utils.log import log_warning
 
-# The Codex CLI clones its curated plugin repository into .tmp/plugins, and records the commit in .tmp/plugins.sha,
-# when it starts in a fresh home. Both are rebuilt on the next start and hold no conversation state, so a
-# checkpoint leaves them out rather than carrying the whole clone.
+# Codex rebuilds its plugin clone and commit marker; neither contains conversation state.
 VERCEL_NATIVE_EXCLUSIONS = (*DEFAULT_NATIVE_EXCLUSIONS, "native/codex/.tmp/plugins", "native/codex/.tmp/plugins.sha")
 
 # Bounds the guard's own timers: it archives in a child that gets 30 minutes.
@@ -78,8 +76,7 @@ class VercelCheckpointTransfer:
                             raise SandboxError("Checkpoint export does not record the requested exclusions")
                     elif any(member.name == item or member.name.startswith(item + "/") for item in exclusions):
                         raise SandboxError(f"Checkpoint export contains excluded path {member.name!r}")
-                # Validation stops at the end marker, but the store keeps the whole file, so anything
-                # after it, such as a second appended archive, would reach storage unchecked.
+                # The store keeps all bytes, including any payload after the archive end marker.
                 stream.seek(archive.offset)
                 while chunk := stream.read(1024 * 1024):
                     if chunk.count(0) != len(chunk):
@@ -110,8 +107,7 @@ class VercelCheckpointTransfer:
                 await asyncio.to_thread(self._check_excluded, path, exclude)
                 return await self.store.aput(path)
         finally:
-            # Cleanup must never turn a stored checkpoint into an error. A capture the computer never
-            # finished is undone by its next operation, so a failed removal is only a stale file.
+            # Export cleanup must not fail a stored checkpoint; interrupted capture recovers on the next operation.
             with suppress(Exception):
                 await asyncio.shield(self.provider._guard_call(handle, "remove", name, timeout=_REMOVE_SECONDS))
 
@@ -126,8 +122,7 @@ class VercelCheckpointTransfer:
 
     async def arestore(self, handle: SandboxHandle, reference: CheckpointRef) -> Mapping[str, Any]:
         name = uuid4().hex
-        # The computer is left alone until a request is about to reach it, so a missing or invalid
-        # checkpoint never stops it.
+        # Validate locally before a restore failure can require stopping the computer.
         sent = False
         try:
             async with self.store.aopen_archive(reference) as checkpoint:
@@ -145,9 +140,7 @@ class VercelCheckpointTransfer:
                 raise SandboxError("Restored manifest differs from the verified checkpoint")
             return state
         except BaseException as error:
-            # A request that never reached the computer, or reached a different session, changed nothing
-            # and must not stop the computer that now holds this session. Otherwise a computer that may
-            # be partly restored must never execute another turn.
+            # Stop a possibly partial restore, but leave untouched or replaced sessions alone.
             if sent and not isinstance(error, _NotSent):
                 failure = await self.provider._stop_quietly(handle)
                 if failure is not None:

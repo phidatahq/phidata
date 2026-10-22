@@ -128,8 +128,7 @@ def run_direct(args, wheel):
             place = "a restored computer" if args.replace else "the same computer"
             print(f"Turn 2 recalled the codeword on {place}.")
     finally:
-        # One computer that cannot be destroyed must not leave the others running, and must not hide a failure
-        # of the work itself, so every computer is tried and the failures are reported afterwards.
+        # Try every cleanup and preserve the original work failure.
         failed = []
         for handle in handles:
             try:

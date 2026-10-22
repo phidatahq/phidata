@@ -99,7 +99,7 @@ def test_gemini_inline_schema_replaces_a_configured_response_schema():
     assert config.response_json_schema == SCHEMA
 
 
-def test_gemini_interactions_sends_the_schema_as_a_json_text_format():
+def test_gemini_interactions_sends_the_schema_with_a_json_mime_type():
     pytest.importorskip("google.genai")
     from agno.models.google.gemini_interactions import GeminiInteractions
 
@@ -107,7 +107,8 @@ def test_gemini_interactions_sends_the_schema_as_a_json_text_format():
         [Message(role="user", content="Hi")], response_format=CANONICAL
     )
 
-    assert kwargs["response_format"] == {"type": "text", "mime_type": "application/json", "schema": SCHEMA}
+    assert kwargs["response_format"] == SCHEMA
+    assert kwargs["response_mime_type"] == "application/json"
 
 
 def test_mistral_sends_the_canonical_shape():

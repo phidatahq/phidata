@@ -551,20 +551,14 @@ class GeminiInteractions(Model):
         # Response format (structured output)
         if response_format is not None:
             if isinstance(response_format, type) and issubclass(response_format, BaseModel):
-                # Pydantic model -> TextResponseFormatParam with JSON schema
-                kwargs["response_format"] = {
-                    "type": "text",
-                    "mime_type": "application/json",
-                    "schema": response_format.model_json_schema(),
-                }
+                # Pydantic model -> JSON schema with a JSON response mime type
+                kwargs["response_format"] = response_format.model_json_schema()
+                kwargs["response_mime_type"] = "application/json"
             elif isinstance(response_format, dict):
                 inline = unwrap_json_schema_response_format(response_format)
                 if inline is not None:
-                    kwargs["response_format"] = {
-                        "type": "text",
-                        "mime_type": "application/json",
-                        "schema": inline.schema,
-                    }
+                    kwargs["response_format"] = inline.schema
+                    kwargs["response_mime_type"] = "application/json"
                 else:
                     # Raw dict passed through (could be TextResponseFormatParam, etc.)
                     kwargs["response_format"] = response_format

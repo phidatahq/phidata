@@ -375,3 +375,29 @@ def test_stale_native_session_is_rebuilt_from_stored_history(tmp_path):
     # Now current again: the next turn on worker A resumes natively.
     worker_a.run("fourth", session_id="s1", user_id="u1")
     assert adk_a.invocations[2].user_content.parts[0].text == "fourth"
+
+
+def test_uploaded_gemini_file_is_sent_by_uri():
+    from types import SimpleNamespace
+
+    uploaded = SimpleNamespace(
+        uri="https://generativelanguage.googleapis.com/v1beta/files/abc", mime_type="application/pdf"
+    )
+    agent, adk_agent = _agent([{"text": "seen"}])
+    assert agent.run("read", files=[File(external=uploaded)]).status == RunStatus.completed
+    part = adk_agent.invocations[0].user_content.parts[1]
+    assert (part.file_data.file_uri, part.file_data.mime_type) == (uploaded.uri, "application/pdf")
+
+
+def test_remote_file_without_extension_keeps_the_served_content_type(monkeypatch):
+    from agno.agents.google_adk import utils
+
+    async def fake_download(url):
+        assert url == "https://example.com/download?id=123"
+        return b"%PDF-1.7", "application/pdf; charset=binary"
+
+    monkeypatch.setattr(utils, "abytes_and_mime_from_url", fake_download)
+    agent, adk_agent = _agent([{"text": "seen"}])
+    assert agent.run("read", files=[File(url="https://example.com/download?id=123")]).status == RunStatus.completed
+    part = adk_agent.invocations[0].user_content.parts[1]
+    assert (part.inline_data.data, part.inline_data.mime_type) == (b"%PDF-1.7", "application/pdf")

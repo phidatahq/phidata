@@ -4509,8 +4509,6 @@ def test_user_input_field_to_dict_with_pep604_union_type():
     serializing a paused run, which prevented the run from being saved and
     resumed by ID. See https://github.com/agno-agi/agno/issues/11144
     """
-    from types import UnionType
-
     field = UserInputField(name="quantity", field_type=int | None)
     assert field.to_dict() == {
         "name": "quantity",
@@ -4521,12 +4519,12 @@ def test_user_input_field_to_dict_with_pep604_union_type():
 
     # Plain classes and typing special forms keep working.
     assert UserInputField(name="count", field_type=int).to_dict()["field_type"] == "int"
-    assert UserInputField(name="count", field_type=Optional[int]).to_dict()["field_type"] is not None
+    assert UserInputField(name="count", field_type=Optional[int]).to_dict()["field_type"] == "typing.Optional[int]"
 
-    # Round-trip: from_dict falls back to a valid concrete type for unmapped names.
+    # Round-trip: from_dict maps the names it knows and falls back to str for the
+    # rest, so a union does not survive it. Nothing coerces or validates against
+    # field_type -- the resumed tool call takes the value the caller supplied --
+    # so the fallback costs a descriptive label, not behaviour.
     restored = UserInputField.from_dict(field.to_dict())
     assert restored.name == "quantity"
     assert restored.field_type is str
-
-    # The union form itself is unaffected.
-    assert isinstance(int | None, UnionType)

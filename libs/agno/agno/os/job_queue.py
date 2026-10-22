@@ -1281,20 +1281,25 @@ class QueueWorker:
                 "its run row (if any) cannot be terminalized by any path"
             )
         if self._company_db is not None:
-            from agno.company.execution import _project_run
+            from agno.company.execution import _project_run, _project_run_before_settle
 
             # Save the Task result before the ticket becomes terminal; a crash
             # before this point leaves a live ticket for ordinary recovery.
-            try:
-                await _project_run(self, prior, "cancelled", reason)
-            except Exception as e:
-                if not component_reachable:
-                    raise
-                log_error(
-                    f"Job queue: could not save the Task result for cancelled waiting job {run_id} ({e}); "
-                    "ticket left as-is (its claim settles it from the CANCELLED run row)"
-                )
-                return False
+            if prior.get("status") != "queued" or payload.get("continue"):
+                # Only a fresh queued ticket is settled by its claim from the CANCELLED run row. A
+                # paused ticket is never claimed, so it finishes and recovery rebuilds the Task.
+                await _project_run_before_settle(self, prior, "cancelled", reason)
+            else:
+                try:
+                    await _project_run(self, prior, "cancelled", reason)
+                except Exception as e:
+                    if not component_reachable:
+                        raise
+                    log_error(
+                        f"Job queue: could not save the Task result for cancelled waiting job {run_id} ({e}); "
+                        "ticket left as-is (its claim settles it from the CANCELLED run row)"
+                    )
+                    return False
         cancelled = False
         with contextlib.suppress(Exception):
             cancelled = bool(await self.store.cancel_job(run_id))
@@ -1966,9 +1971,11 @@ class QueueWorker:
 
                 job = await self.store.get_job(job_id)
                 if job is not None and job.get("locked_by") == self.worker_id and job.get("attempt") == attempt:
-                    # A held ticket is settled by the sweep or reclaim from its run row without
-                    # executing, which retries the Task write once more. A failed ticket with
-                    # attempts left would be re-executed instead, so only that one is released.
+                    # A held ticket is settled from its run row without executing: by a reclaim
+                    # while attempts remain (which holds it again), then by the sweep, which
+                    # releases it. Each retries the Task write, so the hold lasts at most
+                    # max_attempts leases. A failed ticket with attempts left would be
+                    # re-executed instead, so only that one is released.
                     if status == "failed" and attempt < job.get("max_attempts", 1):
                         await _project_run_before_settle(self, job, status, error)
                     else:

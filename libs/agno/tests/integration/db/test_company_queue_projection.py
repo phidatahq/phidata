@@ -91,6 +91,77 @@ async def test_persistent_task_write_failure_finishes_ticket(system, monkeypatch
     assert saved["status"] == ("in_review" if outcome == "completed" else "in_progress")
 
 
+async def test_cancelled_paused_ticket_finishes_when_task_write_fails(system, monkeypatch):
+    client, db, worker, _, _ = system
+    value = await accepted(client)
+    path = f"/company/tasks/{value['id']}"
+    run_id = (await client.post(path + "/runs")).json()["run_id"]
+    claimed = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    # A run waiting on approval parks its ticket as paused, and no worker claims a paused ticket.
+    assert await worker.store.complete_job(run_id, worker.worker_id, claimed["attempt"], "paused")
+    with monkeypatch.context() as outage:
+        fail_task_writes(outage, db)
+        assert await worker.acancel_queued(run_id)
+    assert (await worker.store.get_job(run_id))["status"] == "cancelled"
+    assert (await client.post(path + "/runs")).status_code == 202
+    assert (await _call(db, "get_task", value["id"]))["result"]["status"] == "CANCELLED"
+
+
+async def test_swept_task_result_keeps_the_run_error(system, monkeypatch):
+    client, db, worker, _, components = system
+    value = await accepted(client)
+    run_id = (await client.post(f"/company/tasks/{value['id']}/runs")).json()["run_id"]
+
+    async def fail(*args, **kwargs):
+        raise RuntimeError("executor failed")
+
+    monkeypatch.setattr(components["writer"], "arun", fail)
+    assert (await execute(worker))["status"] == "queued"
+    with monkeypatch.context() as outage:
+        fail_task_writes(outage, db)
+        assert (await execute(worker))["status"] == "running"
+    # The sweep saves the Task result with the run's own error, not its generic message.
+    expire_lease(worker, run_id)
+    await worker._sweep_exhausted()
+    assert (await worker.store.get_job(run_id))["status"] == "failed"
+    assert (await _call(db, "get_task", value["id"]))["result"]["content"] == "executor failed"
+
+
+async def test_held_ticket_is_reclaimed_without_running_again(system, monkeypatch):
+    client, db, worker, _, components = system
+    value = await accepted(client)
+    run_id = (await client.post(f"/company/tasks/{value['id']}/runs")).json()["run_id"]
+    with monkeypatch.context() as outage:
+        fail_task_writes(outage, db)
+        assert (await execute(worker))["status"] == "running"
+        executed = AsyncMock(side_effect=AssertionError("A completed Task run must not execute again"))
+        outage.setattr(components["writer"], "arun", executed)
+        # With attempts left, a reclaim settles from the COMPLETED run row and holds the ticket again.
+        expire_lease(worker, run_id)
+        job = await execute(worker)
+        assert job["status"] == "running" and job["attempt"] == 2 and job["max_attempts"] == 2
+        executed.assert_not_called()
+    # The last attempt goes to the sweep, which saves the Task result and finishes the ticket.
+    expire_lease(worker, run_id)
+    await worker._sweep_exhausted()
+    assert (await worker.store.get_job(run_id))["status"] == "completed"
+    saved = await _call(db, "get_task", value["id"])
+    assert saved["status"] == "in_review" and saved["result"]["status"] == "COMPLETED"
+
+
+async def test_unresolvable_executor_cancel_raises_when_task_write_fails(system, monkeypatch):
+    client, db, worker, _, _ = system
+    value = await accepted(client)
+    run_id = (await client.post(f"/company/tasks/{value['id']}/runs")).json()["run_id"]
+    monkeypatch.setattr(worker, "resolve_component", lambda *args, **kwargs: None)
+    with monkeypatch.context() as outage:
+        fail_task_writes(outage, db)
+        # No claim can reach the run row of an unresolvable executor, so the cancel cannot defer to it.
+        with pytest.raises(RuntimeError, match="Company database unavailable"):
+            await worker.acancel_queued(run_id)
+    assert (await worker.store.get_job(run_id))["status"] == "queued"
+
+
 async def test_unrecorded_reservation_keeps_ticket_for_recovery(system, monkeypatch):
     client, db, worker, _, _ = system
     value = await accepted(client)

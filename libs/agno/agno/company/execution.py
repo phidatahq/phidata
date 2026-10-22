@@ -34,7 +34,7 @@ class _TaskRunUnavailable(ValueError):
 
 
 class _TaskRunRefused(InputCheckError):
-    """A claimed Task run may no longer start; the queue fails it without retrying."""
+    """A claimed Company run (a Task or a routine) may no longer start; the queue fails it without retrying."""
 
 
 def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional[str], accepting: bool = False) -> Any:
@@ -451,6 +451,17 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         "content": error or ("Run cancelled" if status == "cancelled" else None),
     }
     checkout = None
+    if status == "failed":
+        # The run row keeps the run's own error; the sweep passes its generic message.
+        output = None
+        try:
+            component = await worker._aresolve_job_component(job)
+            if component is not None:
+                output = await component.aget_run_output(job["id"], job["session_id"], user_id=job.get("user_id"))
+        except Exception:
+            output = None
+        if output is not None and str(getattr(output.status, "value", output.status)) == "ERROR" and output.content:
+            result["content"] = output.content
     if status == "completed":
         component = await worker._aresolve_job_component(job)
         if component is None:

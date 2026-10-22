@@ -387,7 +387,8 @@ class Claude(Model):
                     from anthropic import transform_schema
 
                     schema = transform_schema(inline.schema)
-                except (ImportError, AttributeError, ValueError):
+                except (ImportError, AttributeError, ValueError, AssertionError):
+                    # transform_schema rejects valid JSON Schema it does not model (a type list, an untyped enum)
                     schema = copy.deepcopy(inline.schema)
                 if "additionalProperties" not in schema:
                     schema["additionalProperties"] = False

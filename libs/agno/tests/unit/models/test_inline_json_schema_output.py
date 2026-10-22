@@ -49,6 +49,20 @@ def test_claude_closes_nested_objects_when_transform_schema_rejects_the_schema()
     assert "additionalProperties" not in output_format["schema"]["properties"]
 
 
+def test_claude_accepts_a_nullable_type_list():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    # A type list makes transform_schema raise AssertionError, so the fallback walk runs
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "note": {"type": ["string", "null"]}}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["properties"]["note"] == {"type": ["string", "null"]}
+    assert output_format["schema"]["additionalProperties"] is False
+
+
 def test_claude_passes_its_own_flat_shape_through():
     pytest.importorskip("anthropic")
     from agno.models.anthropic.claude import Claude

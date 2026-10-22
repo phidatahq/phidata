@@ -1101,6 +1101,34 @@ async def test_transport_security_rejects_unknown_origin():
     assert "invalid_origin" in response.text
 
 
+async def test_transport_security_allows_an_origin_the_cors_policy_admits():
+    """A browser origin AgentOS already trusts for REST is trusted on the MCP surface too.
+
+    The operator UI reads the card and runs tools from its own origin. Admitting that origin
+    only under ``PublicSurface(enforce_browser_origins=True)`` rejected it with
+    ``invalid_origin`` on every plain local server, while ``/config`` answered the same page.
+    """
+    from agno.os import CORSConfig
+
+    os = AgentOS(
+        agents=[_agent()],
+        cors=CORSConfig(origins=["https://ui.example"]),
+        mcp_server=MCPServerConfig(tools=[_ok_tool], enable_builtin_tools=False, allowed_hosts=[]),
+    )
+    async with _mcp_http_client(os) as client:
+        card = await client.get("/mcp/server-card", headers={"Host": "localhost", "Origin": "https://ui.example"})
+        transport = await client.post(
+            "/mcp", json=_MCP_INIT_BODY, headers=_headers(host="localhost", origin="https://ui.example")
+        )
+        other = await client.get("/mcp/server-card", headers={"Host": "localhost", "Origin": "https://other.example"})
+
+    assert card.status_code == 200, card.text
+    assert transport.status_code == 200, transport.text
+    # The policy, not the presence of an Origin header, is what admits a page.
+    assert other.status_code == 400
+    assert "invalid_origin" in other.text
+
+
 async def test_open_server_gets_default_rebinding_protection():
     """An OPEN server (no JWT, no security key) with no allowed_hosts still gets localhost-only
     protection by default: a rebound / non-localhost Host is rejected. This is the one config a

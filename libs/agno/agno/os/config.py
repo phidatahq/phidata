@@ -446,8 +446,9 @@ _AUTHZ_FIELDS_MOVED_TO_AUTHORIZATION = ("issuer", "authorization_provider", "aud
 class CORSConfig(BaseModel):
     """Browser origin policy for AgentOS, passed as ``AgentOS(cors=CORSConfig(...))``.
 
-    The same policy answers CORS preflights, adds CORS headers to auth errors, and is
-    what ``PublicSurface(enforce_browser_origins=True)`` admits.
+    The same policy answers CORS preflights, adds CORS headers to auth errors, admits
+    browser origins on the MCP surface, and is what ``PublicSurface(enforce_browser_origins=True)``
+    admits.
     """
 
     model_config = ConfigDict(extra="forbid")

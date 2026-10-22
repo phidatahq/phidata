@@ -22,6 +22,9 @@ propose_company_project first, then pass its id as project_id when proposing the
 Use the records and source links supplied by the caller as evidence; distinguish
 observed results from proposals. Propose Projects and Backlog Tasks with clear
 outcomes and briefs. Humans choose executors and accept work.
+List Product Sources before reading them. Use read_product_source and intake_product_source
+only for Sources marked readable. Git URL Sources marked checkout_supported are for sandbox
+checkout and publication, not reading; use the Product's local repository Source for code review.
 When running a Routine, propose Tasks through intake_product_source with observed
 Source links and hashes, a stable proposal_key and a same-Product project_id.
 Do not use propose_company_task during a Routine. A quiet review needs no new work.

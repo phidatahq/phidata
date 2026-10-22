@@ -159,9 +159,10 @@ async def test_metrics_count_migrated_and_unmigrated_runs_once(schema, mode):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("migrated", [True, False], ids=["migrated", "unmigrated"])
 @pytest.mark.parametrize("mode", ["sync", "async"])
-async def test_metrics_default_missing_legacy_model_provider_to_empty(schema, mode):
-    """A legacy run without model_provider is reported with an empty provider, not "None"."""
+async def test_metrics_default_missing_model_provider_to_empty(schema, mode, migrated):
+    """A run without model_provider is reported with an empty provider, not "None", before and after migration."""
     _seed_legacy_sessions(schema, 1)
     engine = create_engine(DB_URL)
     try:
@@ -172,6 +173,8 @@ async def test_metrics_default_missing_legacy_model_provider_to_empty(schema, mo
             )
     finally:
         engine.dispose()
+    if migrated:
+        await _migrate(schema)
 
     result = await _calculate_metrics(_db(mode, schema))
 

@@ -2926,7 +2926,8 @@ class PostgresDb(BaseDb):
                         select(
                             runs_table.c.session_id,
                             runs_table.c.run_data["model"].astext.label("model"),
-                            runs_table.c.run_data["model_provider"].astext.label("model_provider"),
+                            # A missing provider counts as "", not "None"
+                            func.coalesce(runs_table.c.run_data["model_provider"].astext, "").label("model_provider"),
                         ).where(runs_table.c.session_id.in_(select(table.c.session_id).where(*filters)))
                     )
                 # Runs not yet migrated out of the legacy column, extracted in the database instead of loading the column
@@ -2942,7 +2943,6 @@ class PostgresDb(BaseDb):
                     legacy_runs_stmt = select(
                         table.c.session_id,
                         legacy_run["model"].astext.label("model"),
-                        # A missing provider counts as "", as it did when legacy runs were read in Python
                         func.coalesce(legacy_run["model_provider"].astext, "").label("model_provider"),
                     ).where(*filters)
                     if runs_table is not None:

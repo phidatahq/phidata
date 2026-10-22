@@ -49,7 +49,7 @@ def _recovered_status_conflict(tool: Dict[str, Any], later_tools: List[Dict[str,
     for later in later_tools:
         args = later.get("tool_args") or {}
         if (
-            later.get("tool_name") != "update_company_status"
+            later.get("tool_name") != "update_product_status"
             or later.get("tool_call_error")
             or args.get("product_id") != product_id
             or not isinstance(args.get("expected_version"), int)
@@ -82,16 +82,16 @@ def _routine_failure(output: Any) -> Optional[str]:
         for index, tool in enumerate(tools):
             if tool.get("tool_call_error") and tool.get("tool_name") in {
                 "create_company_product",
-                "create_company_routine",
-                "add_company_source",
-                "read_company_source",
-                "intake_company_source",
+                "create_product_routine",
+                "add_product_source",
+                "read_product_source",
+                "intake_product_source",
                 "propose_company_task",
-                "update_company_status",
+                "update_product_status",
                 "summarize_company_product",
                 "refresh_company_product",
             }:
-                if tool["tool_name"] == "update_company_status" and _recovered_status_conflict(
+                if tool["tool_name"] == "update_product_status" and _recovered_status_conflict(
                     tool, tools[index + 1 :]
                 ):
                     continue

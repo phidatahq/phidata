@@ -1380,7 +1380,8 @@ class BaseExternalAgent:
         read-only, and is valid only inside the context. Extract them with
         ``CheckpointArchive.arestore(path, destination)``, which documents the restored layout.
         Refused when the run is unknown, belongs to another agent, is not COMPLETED or
-        committed no checkpoint.
+        committed no checkpoint. A session keeps only its last ``retain_checkpoints`` on the
+        sandbox, so an older run's checkpoint raises ``CheckpointObjectNotFound`` once deleted.
         """
         store = self.checkpoint_store
         reference = self._run_checkpoint_ref(run_id, await self._aread_run_row(run_id))

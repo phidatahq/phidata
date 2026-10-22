@@ -2946,7 +2946,7 @@ class Workflow:
                     raise ValueError("Cannot use async function with synchronous execution")
                 elif isgeneratorfunction(self.steps):
                     content = ""
-                    for chunk in self.steps(self, execution_input, **kwargs):
+                    for chunk in self._call_custom_function(self.steps, execution_input, **kwargs):
                         # Check for cancellation while consuming generator
                         raise_if_cancelled(workflow_run_response.run_id)  # type: ignore
                         if hasattr(chunk, "content") and chunk.content is not None and isinstance(chunk.content, str):
@@ -3950,7 +3950,7 @@ class Workflow:
                     )
                 elif isgeneratorfunction(self.steps):
                     await araise_if_cancelled(workflow_run_response.run_id)  # type: ignore
-                    for chunk in self.steps(self, execution_input, **kwargs):  # type: ignore[arg-type]
+                    for chunk in self._call_custom_function(self.steps, execution_input, **kwargs):  # type: ignore[arg-type]
                         if hasattr(chunk, "content") and chunk.content is not None and isinstance(chunk.content, str):
                             content += chunk.content
                         else:
@@ -4320,7 +4320,7 @@ class Workflow:
                     )
                 elif isgeneratorfunction(self.steps):
                     content = ""
-                    for chunk in self.steps(self, execution_input, **kwargs):  # type: ignore[arg-type]
+                    for chunk in self._call_custom_function(self.steps, execution_input, **kwargs):  # type: ignore[arg-type]
                         await araise_if_cancelled(workflow_run_response.run_id)  # type: ignore
                         if hasattr(chunk, "content") and chunk.content is not None and isinstance(chunk.content, str):
                             content += chunk.content
@@ -4341,7 +4341,7 @@ class Workflow:
                     workflow_run_response.content = content
                 else:
                     await araise_if_cancelled(workflow_run_response.run_id)  # type: ignore
-                    workflow_run_response.content = self.steps(self, execution_input, **kwargs)
+                    workflow_run_response.content = self._call_custom_function(self.steps, execution_input, **kwargs)
                 workflow_run_response.status = RunStatus.completed
             except RunCancelledException as e:
                 logger.info(f"Workflow run {workflow_run_response.run_id} was cancelled during streaming")

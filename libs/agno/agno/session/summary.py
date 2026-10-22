@@ -101,6 +101,49 @@ class SessionSummaryManager:
         if self.conversation_limit is not None and self.conversation_limit <= 0:
             raise ValueError(f"conversation_limit must be a positive integer, got {self.conversation_limit}")
 
+    def to_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {}
+        if self.id is not None:
+            data["id"] = self.id
+        if self.name is not None:
+            data["name"] = self.name
+        if self.owner_id is not None:
+            data["owner_id"] = self.owner_id
+        if self.owner_type is not None:
+            data["owner_type"] = self.owner_type
+        if self.model is not None:
+            data["model"] = self.model.to_dict() if isinstance(self.model, Model) else str(self.model)
+        if self.session_summary_prompt is not None:
+            data["session_summary_prompt"] = self.session_summary_prompt
+        if self.summary_request_message != "Provide the summary of the conversation.":
+            data["summary_request_message"] = self.summary_request_message
+        if self.last_n_runs is not None:
+            data["last_n_runs"] = self.last_n_runs
+        if self.conversation_limit is not None:
+            data["conversation_limit"] = self.conversation_limit
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], registry: Optional[Any] = None) -> "SessionSummaryManager":
+        from agno.models.utils import resolve_model
+
+        data_copy = data.copy()
+        if "model" in data_copy and data_copy["model"] is not None:
+            data_copy["model"] = resolve_model(data_copy["model"], registry)
+        return cls(
+            id=data_copy.get("id"),
+            name=data_copy.get("name"),
+            owner_id=data_copy.get("owner_id"),
+            owner_type=data_copy.get("owner_type"),
+            model=data_copy.get("model"),
+            session_summary_prompt=data_copy.get("session_summary_prompt"),
+            summary_request_message=data_copy.get(
+                "summary_request_message", "Provide the summary of the conversation."
+            ),
+            last_n_runs=data_copy.get("last_n_runs"),
+            conversation_limit=data_copy.get("conversation_limit"),
+        )
+
     def get_response_format(self, model: "Model") -> Union[Dict[str, Any], Type[BaseModel]]:  # type: ignore
         if model.supports_native_structured_outputs:
             return SessionSummaryResponse

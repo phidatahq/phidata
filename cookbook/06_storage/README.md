@@ -55,6 +55,7 @@ agent = Agent(
 - [`02_session_summary.py`](02_session_summary.py) - Session summarization
 - [`03_chat_history.py`](03_chat_history.py) - Chat history management
 - [`04_session_summary_limits.py`](04_session_summary_limits.py) - Session summary limits (last_n_runs / conversation_limit)
+- [`12_agent_storage_managers_roundtrip.py`](12_agent_storage_managers_roundtrip.py) - Storage serialization and round-trip for models and managers (parser_model, output_model, session_summary_manager, compression_manager, compaction)
 
 ## Media Storage
 

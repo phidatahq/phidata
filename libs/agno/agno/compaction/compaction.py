@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, List, Optional, Tuple, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union, cast
 from uuid import uuid4
 
 from agno.compaction._cut import choose_boundary, is_offload_envelope
@@ -223,6 +223,77 @@ class Compaction:
             self._check_token_tail()
         # compact_at_tokens=None is legal: it disables the automatic trigger and leaves
         # agent.compact() as the only way to fold, which is a coherent way to run this.
+
+    def to_dict(self) -> Dict[str, Any]:
+        from agno.models.base import Model
+
+        data: Dict[str, Any] = {}
+        if self.id is not None:
+            data["id"] = self.id
+        if self.name is not None:
+            data["name"] = self.name
+        if self.owner_id is not None:
+            data["owner_id"] = self.owner_id
+        if self.owner_type is not None:
+            data["owner_type"] = self.owner_type
+        if self.model is not None:
+            data["model"] = self.model.to_dict() if isinstance(self.model, Model) else str(self.model)
+        if self.instructions is not None:
+            data["instructions"] = self.instructions
+        if self.compacted_token_budget is not None:
+            data["compacted_token_budget"] = self.compacted_token_budget
+        if not self.enforce_token_budget:
+            data["enforce_token_budget"] = self.enforce_token_budget
+        if not isinstance(self.compact_at_tokens, _UnsetTokens):
+            data["compact_at_tokens"] = self.compact_at_tokens
+        if self.use_model_token_count:
+            data["use_model_token_count"] = self.use_model_token_count
+        if not isinstance(self.uncompacted_runs, _Unset):
+            data["uncompacted_runs"] = self.uncompacted_runs
+        if self.uncompacted_tokens is not None:
+            data["uncompacted_tokens"] = self.uncompacted_tokens
+        if not self.store_compacted_messages:
+            data["store_compacted_messages"] = self.store_compacted_messages
+        if self.search_compacted_messages is not None:
+            data["search_compacted_messages"] = self.search_compacted_messages
+        if self.on_context_overflow:
+            data["on_context_overflow"] = self.on_context_overflow
+        if self.enforce_min_fold_ratio:
+            data["enforce_min_fold_ratio"] = self.enforce_min_fold_ratio
+        if self.min_fold_ratio != 2.0:
+            data["min_fold_ratio"] = self.min_fold_ratio
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], registry: Optional[Any] = None) -> "Compaction":
+        from agno.models.utils import resolve_model
+
+        data_copy = data.copy()
+        if "model" in data_copy and data_copy["model"] is not None:
+            data_copy["model"] = resolve_model(data_copy["model"], registry)
+        kwargs: Dict[str, Any] = {}
+        for key in (
+            "id",
+            "name",
+            "owner_id",
+            "owner_type",
+            "model",
+            "instructions",
+            "compacted_token_budget",
+            "enforce_token_budget",
+            "compact_at_tokens",
+            "use_model_token_count",
+            "uncompacted_runs",
+            "uncompacted_tokens",
+            "store_compacted_messages",
+            "search_compacted_messages",
+            "on_context_overflow",
+            "enforce_min_fold_ratio",
+            "min_fold_ratio",
+        ):
+            if key in data_copy:
+                kwargs[key] = data_copy[key]
+        return cls(**kwargs)
 
     # -- thresholds -----------------------------------------------------
 

@@ -7,7 +7,7 @@ Demonstrates retrieving chat history from agent sessions stored in PostgresDb.
 
 from agno.agent.agent import Agent
 from agno.db.postgres import PostgresDb
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAIResponses
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -19,7 +19,7 @@ db = PostgresDb(db_url=db_url, session_table="sessions")
 # Create Agent
 # ---------------------------------------------------------------------------
 agent = Agent(
-    model=OpenAIChat(id="gpt-5.2"),
+    model=OpenAIResponses(id="gpt-5.6-luna"),
     db=db,
     session_id="chat_history",
     instructions="You are a helpful assistant that can answer questions about space and oceans.",

@@ -63,6 +63,39 @@ class CompressionManager:
         if self.compress_tool_results_limit is None and self.compress_token_limit is None:
             self.compress_tool_results_limit = 3
 
+    def to_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {}
+        if self.model is not None:
+            data["model"] = self.model.to_dict() if isinstance(self.model, Model) else str(self.model)
+        if not self.compress_tool_results:
+            data["compress_tool_results"] = self.compress_tool_results
+        if self.compress_tool_results_limit is not None:
+            data["compress_tool_results_limit"] = self.compress_tool_results_limit
+        if self.compress_token_limit is not None:
+            data["compress_token_limit"] = self.compress_token_limit
+        if self.compress_tool_call_instructions is not None:
+            data["compress_tool_call_instructions"] = self.compress_tool_call_instructions
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any], registry: Optional[Any] = None) -> "CompressionManager":
+        from agno.models.utils import resolve_model
+
+        data_copy = data.copy()
+        if "model" in data_copy and data_copy["model"] is not None:
+            data_copy["model"] = resolve_model(data_copy["model"], registry)
+        kwargs: Dict[str, Any] = {}
+        for key in (
+            "model",
+            "compress_tool_results",
+            "compress_tool_results_limit",
+            "compress_token_limit",
+            "compress_tool_call_instructions",
+        ):
+            if key in data_copy:
+                kwargs[key] = data_copy[key]
+        return cls(**kwargs)
+
     def _is_tool_result_message(self, msg: Message) -> bool:
         return msg.role == "tool"
 

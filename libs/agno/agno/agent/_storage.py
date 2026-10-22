@@ -879,9 +879,8 @@ def to_dict(agent: Agent) -> Dict[str, Any]:
         config["enable_session_summaries"] = agent.enable_session_summaries
     if agent.add_session_summary_to_context is not None:
         config["add_session_summary_to_context"] = agent.add_session_summary_to_context
-    # TODO: implement session summary manager serialization
-    # if agent.session_summary_manager is not None:
-    #     config["session_summary_manager"] = agent.session_summary_manager.to_dict()
+    if agent.session_summary_manager is not None:
+        config["session_summary_manager"] = agent.session_summary_manager.to_dict()
 
     # --- Dependencies ---
     if agent.dependencies is not None:
@@ -1196,17 +1195,16 @@ def to_dict(agent: Agent) -> Dict[str, Any]:
     # --- Context compression settings ---
     if agent.compress_tool_results:
         config["compress_tool_results"] = agent.compress_tool_results
+    if agent.compression_manager is not None:
+        config["compression_manager"] = agent.compression_manager.to_dict()
 
     # --- Result offloading settings ---
     if agent.offload_tool_results is not None:
         config["offload_tool_results"] = _offload_to_config(agent.offload_tool_results)
-    # TODO: implement compression manager serialization
-    # if agent.compression_manager is not None:
-    #     config["compression_manager"] = agent.compression_manager.to_dict()
-    # TODO: implement compaction serialization - until then an agent saved with compaction
-    # (True or a Compaction) loads back with it off.
-    # if agent.compaction is not None:
-    #     config["compaction"] = agent.compaction if isinstance(agent.compaction, bool) else agent.compaction.to_dict()
+
+    # --- Compaction settings ---
+    if agent.compaction is not None:
+        config["compaction"] = agent.compaction if isinstance(agent.compaction, bool) else agent.compaction.to_dict()
 
     # --- Callable factory settings ---
     if not agent.cache_callables:
@@ -1265,22 +1263,12 @@ def from_dict(
         config["followup_model"] = resolve_model(config["followup_model"], registry)
 
     # --- Handle parser_model reconstruction ---
-    # TODO: implement parser model deserialization
-    # if "parser_model" in config:
-    #     model_data = config["parser_model"]
-    #     if isinstance(model_data, dict) and "id" in model_data:
-    #         config["parser_model"] = get_model(f"{model_data['provider']}:{model_data['id']}")
-    #     elif isinstance(model_data, str):
-    #         config["parser_model"] = get_model(model_data)
+    if config.get("parser_model") is not None:
+        config["parser_model"] = resolve_model(config["parser_model"], registry)
 
     # --- Handle output_model reconstruction ---
-    # TODO: implement output model deserialization
-    # if "output_model" in config:
-    #     model_data = config["output_model"]
-    #     if isinstance(model_data, dict) and "id" in model_data:
-    #         config["output_model"] = get_model(f"{model_data['provider']}:{model_data['id']}")
-    #     elif isinstance(model_data, str):
-    #         config["output_model"] = get_model(model_data)
+    if config.get("output_model") is not None:
+        config["output_model"] = resolve_model(config["output_model"], registry)
 
     # --- Handle tools reconstruction ---
     if "tools" in config and config["tools"]:
@@ -1392,10 +1380,12 @@ def from_dict(
     resolve_memory_manager_reference(config, registry, strict, component_label)
 
     # --- Handle SessionSummaryManager reconstruction ---
-    # TODO: implement session summary manager deserialization
-    # if "session_summary_manager" in config and isinstance(config["session_summary_manager"], dict):
-    #     from agno.session import SessionSummaryManager
-    #     config["session_summary_manager"] = SessionSummaryManager.from_dict(config["session_summary_manager"])
+    if "session_summary_manager" in config and isinstance(config["session_summary_manager"], dict):
+        from agno.session.summary import SessionSummaryManager
+
+        config["session_summary_manager"] = SessionSummaryManager.from_dict(
+            config["session_summary_manager"], registry=registry
+        )
 
     # --- Handle Knowledge reconstruction ---
     # Knowledge is stored as a reference by name and resolved from the registry,
@@ -1422,16 +1412,16 @@ def from_dict(
             del config["knowledge"]
 
     # --- Handle CompressionManager reconstruction ---
-    # TODO: implement compression manager deserialization
-    # if "compression_manager" in config and isinstance(config["compression_manager"], dict):
-    #     from agno.compression.manager import CompressionManager
-    #     config["compression_manager"] = CompressionManager.from_dict(config["compression_manager"])
+    if "compression_manager" in config and isinstance(config["compression_manager"], dict):
+        from agno.compression.manager import CompressionManager
+
+        config["compression_manager"] = CompressionManager.from_dict(config["compression_manager"], registry=registry)
 
     # --- Handle Compaction reconstruction ---
-    # TODO: implement compaction deserialization
-    # if "compaction" in config and isinstance(config["compaction"], dict):
-    #     from agno.compaction import Compaction
-    #     config["compaction"] = Compaction.from_dict(config["compaction"])
+    if "compaction" in config and isinstance(config["compaction"], dict):
+        from agno.compaction import Compaction
+
+        config["compaction"] = Compaction.from_dict(config["compaction"], registry=registry)
 
     # --- Handle Learning reconstruction ---
     # A named machine is stored as a reference and resolved from the registry;
@@ -1469,7 +1459,8 @@ def from_dict(
         num_past_session_runs_in_search=config.get("num_past_session_runs_in_search"),
         enable_session_summaries=config.get("enable_session_summaries", False),
         add_session_summary_to_context=config.get("add_session_summary_to_context"),
-        # session_summary_manager=config.get("session_summary_manager"),  # TODO
+        session_summary_manager=config.get("session_summary_manager"),
+        compaction=config.get("compaction"),
         # --- Dependencies ---
         dependencies=config.get("dependencies"),
         add_dependencies_to_context=config.get("add_dependencies_to_context", False),
@@ -1542,9 +1533,9 @@ def from_dict(
         input_schema=config.get("input_schema"),
         output_schema=config.get("output_schema"),
         # --- Parser and output settings ---
-        # parser_model=config.get("parser_model"),  # TODO
+        parser_model=config.get("parser_model"),
         parser_model_prompt=config.get("parser_model_prompt"),
-        # output_model=config.get("output_model"),  # TODO
+        output_model=config.get("output_model"),
         output_model_prompt=config.get("output_model_prompt"),
         parse_response=config.get("parse_response", True),
         structured_outputs=config.get("structured_outputs"),
@@ -1559,7 +1550,7 @@ def from_dict(
         metadata=strip_reserved_run_metadata(config.get("metadata")),
         # --- Compression settings ---
         compress_tool_results=config.get("compress_tool_results", False),
-        # compression_manager=config.get("compression_manager"),  # TODO
+        compression_manager=config.get("compression_manager"),
         # --- Result offloading settings ---
         offload_tool_results=_offload_from_config(config.get("offload_tool_results")),
         # --- Debug and telemetry settings ---

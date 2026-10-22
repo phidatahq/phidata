@@ -7,7 +7,7 @@ Demonstrates using PostgresDb for persistent session storage with a team.
 
 from agno.agent.agent import Agent
 from agno.db.postgres import PostgresDb
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAIResponses
 from agno.team.team import Team
 
 # ---------------------------------------------------------------------------
@@ -19,7 +19,7 @@ db = PostgresDb(db_url=db_url, session_table="sessions")
 # ---------------------------------------------------------------------------
 # Create Team
 # ---------------------------------------------------------------------------
-agent = Agent(name="test_agent", model=OpenAIChat(id="gpt-5.2"))
+agent = Agent(name="test_agent", model=OpenAIResponses(id="gpt-5.6-luna"))
 team = Team(
     members=[agent],
     db=db,

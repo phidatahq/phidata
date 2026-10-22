@@ -11,7 +11,7 @@ exceed the summary model's context window.
 
 from agno.agent.agent import Agent
 from agno.db.postgres import PostgresDb
-from agno.models.openai import OpenAIChat
+from agno.models.openai import OpenAIResponses
 from agno.session.summary import SessionSummaryManager
 
 # ---------------------------------------------------------------------------
@@ -25,12 +25,12 @@ db = PostgresDb(db_url=db_url, session_table="sessions")
 # Only the last 5 runs are included when generating the summary.
 # ---------------------------------------------------------------------------
 summary_manager_by_runs = SessionSummaryManager(
-    model=OpenAIChat(id="gpt-5.6-luna"),
+    model=OpenAIResponses(id="gpt-5.6-luna"),
     last_n_runs=5,
 )
 
 agent_by_runs = Agent(
-    model=OpenAIChat(id="gpt-5.6-luna"),
+    model=OpenAIResponses(id="gpt-5.6-luna"),
     db=db,
     session_id="summary_limit_runs",
     session_summary_manager=summary_manager_by_runs,
@@ -42,12 +42,12 @@ agent_by_runs = Agent(
 # At most 20 messages are included when generating the summary.
 # ---------------------------------------------------------------------------
 summary_manager_by_messages = SessionSummaryManager(
-    model=OpenAIChat(id="gpt-5.6-luna"),
+    model=OpenAIResponses(id="gpt-5.6-luna"),
     conversation_limit=20,
 )
 
 agent_by_messages = Agent(
-    model=OpenAIChat(id="gpt-5.6-luna"),
+    model=OpenAIResponses(id="gpt-5.6-luna"),
     db=db,
     session_id="summary_limit_messages",
     session_summary_manager=summary_manager_by_messages,

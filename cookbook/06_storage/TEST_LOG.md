@@ -101,3 +101,13 @@
 **Result:** Exit 0. The row kept only a reference (`inline bytes: None`); the read-back returned 93 bytes with the correct first line, and `get_url` returned a real presigned S3 URL.
 
 ---
+
+### 12_agent_storage_managers_roundtrip.py
+
+**Status:** PASS
+
+**Description:** Demonstrates complete serialization (to_dict()) and deserialization (from_dict()) round-trip of an Agent configured with models (parser_model, output_model) and managers (session_summary_manager, compression_manager, compaction).
+
+**Result:** Exit 0. Successfully round-tripped all model configurations and manager parameters without data loss.
+
+---

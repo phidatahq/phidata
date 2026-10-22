@@ -2037,6 +2037,15 @@ class TestCoverageFields:
         stored = db.get_config(component_id="inline", version=1)["config"]["output_schema"]
         assert stored == {"type": "json_schema", "json_schema": {"name": "Weather", "schema": self.INLINE_SCHEMA}}
 
+    def test_wrapped_inline_schema_keeps_strict(self, studio_refs, db):
+        wrapped = {
+            "type": "json_schema",
+            "json_schema": {"name": "Weather", "schema": self.INLINE_SCHEMA, "strict": True},
+        }
+        _data(studio_refs.create_agent(name="strict", instructions="i", model_id="gpt-5.4", output_schema=wrapped))
+        stored = db.get_config(component_id="strict", version=1)["config"]["output_schema"]
+        assert stored == wrapped
+
     def test_inline_output_schema_on_a_team(self, studio_refs, db):
         _data(studio_refs.create_agent(name="member", instructions="i", model_id="gpt-5.4"))
         _data(

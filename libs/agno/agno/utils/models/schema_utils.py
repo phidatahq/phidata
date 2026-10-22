@@ -167,16 +167,22 @@ def is_object_schema(schema: Dict[str, Any]) -> bool:
     return root_type == "object" or (root_type is None and isinstance(schema.get("properties"), dict))
 
 
-def json_schema_response_format(schema: Dict[str, Any], name: Optional[str] = None) -> Dict[str, Any]:
+def json_schema_response_format(
+    schema: Dict[str, Any], name: Optional[str] = None, strict: Optional[bool] = None
+) -> Dict[str, Any]:
     """Wrap a plain JSON Schema in the canonical dict output_schema shape:
-    {"type": "json_schema", "json_schema": {"name": ..., "schema": ...}}.
+    {"type": "json_schema", "json_schema": {"name": ..., "schema": ...[, "strict": ...]}}.
 
     The name is the given one, else the schema's title, else "output", trimmed to
-    the characters and length OpenAI accepts for a response format name.
+    the characters and length OpenAI accepts for a response format name. strict is
+    included only when given.
     """
     raw_name = name or schema.get("title") or "output"
     safe_name = re.sub(r"[^a-zA-Z0-9_-]", "_", str(raw_name))[:64] or "output"
-    return {"type": "json_schema", "json_schema": {"name": safe_name, "schema": schema}}
+    json_schema: Dict[str, Any] = {"name": safe_name, "schema": schema}
+    if strict is not None:
+        json_schema["strict"] = strict
+    return {"type": "json_schema", "json_schema": json_schema}
 
 
 def unwrap_json_schema_response_format(response_format: Any) -> Optional[InlineJsonSchema]:

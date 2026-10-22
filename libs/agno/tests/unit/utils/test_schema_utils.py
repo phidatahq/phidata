@@ -229,6 +229,11 @@ def test_json_schema_response_format_wraps_in_the_canonical_shape():
     }
 
 
+def test_json_schema_response_format_includes_strict_only_when_given():
+    assert json_schema_response_format(OBJECT_SCHEMA, name="W", strict=True)["json_schema"]["strict"] is True
+    assert "strict" not in json_schema_response_format(OBJECT_SCHEMA, name="W")["json_schema"]
+
+
 def test_json_schema_response_format_names_from_title_and_sanitizes():
     schema = {**OBJECT_SCHEMA, "title": "Weather Report!" + "x" * 80}
     name = json_schema_response_format(schema)["json_schema"]["name"]

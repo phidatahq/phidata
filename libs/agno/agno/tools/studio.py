@@ -5770,7 +5770,9 @@ def _inline_output_schema(output_schema: Dict[str, Any]) -> tuple:
             "invalid_request",
             f"output_schema must be a JSON Schema whose root type is object (got type {schema.get('type')!r})",
         )
-    return json_schema_response_format(schema, name=wrapped.name if wrapped is not None else None), None
+    if wrapped is None:
+        return json_schema_response_format(schema), None
+    return json_schema_response_format(schema, name=wrapped.name, strict=wrapped.strict), None
 
 
 def _shared_machine_disclosures(learning_name: str, machine: Any, component: Any) -> List[str]:

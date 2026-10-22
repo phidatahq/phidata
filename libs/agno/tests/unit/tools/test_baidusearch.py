@@ -81,7 +81,7 @@ def test_baidu_search_output_format():
     ids=["simplified", "traditional", "mixed"],
 )
 def test_baidu_search_keeps_non_ascii_text_unescaped(title, abstract):
-    """Test that Chinese results reach the model as readable text instead of \\uXXXX escapes."""
+    """Test that Chinese text in results is returned unescaped and the output remains valid JSON."""
     tools = BaiduSearchTools()
 
     with patch("agno.tools.baidusearch.search") as mock_search:

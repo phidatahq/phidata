@@ -232,7 +232,7 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     await _ensure_automation_schedule(
         agent_os.db,
         enabled=agent_os.company is not None,
-        cron_expr=agent_os.company.cron_schedule if agent_os.company is not None else _AUTOMATION_CRON,
+        cron_expr=agent_os.company.cron_expr if agent_os.company is not None else _AUTOMATION_CRON,
     )
     executor: ScheduleExecutor
     if agent_os.company is not None:

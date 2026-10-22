@@ -38,8 +38,8 @@ def test_company_manager_assembly_and_model_precedence(tmp_path, manager):
         member = next(m for m in os.manager.members if m.id == COMPANY_MANAGER_ID)
         assert member is not pm and member not in os._agents and member not in registry.agents
         assert member.model is override and member.tools[0] is not pm.tools[0]
-    with pytest.raises(ValueError, match="cron_schedule"):
-        CompanyConfig(cron_schedule="")
+    with pytest.raises(ValueError, match="cron_expr"):
+        CompanyConfig(cron_expr="")
         delegation = os.manager.instructions[-1]
         assert "Routines" in delegation and "Tasks" in delegation and "not Platform Builder" in delegation
     os.resync(os.get_app())

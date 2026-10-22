@@ -778,6 +778,49 @@ class BaseExternalAgent:
             return session_id
         return f"{session_id}:{self.get_id()}"
 
+    # Run options a sandboxed team member passes to its sandbox. A team hands every member its
+    # own run options (session state, dependencies, knowledge filters, debug mode); those
+    # configure native agents and have no meaning inside a sandbox, which refuses options it
+    # does not know, so a member forwards only the ones a sandboxed turn takes.
+    _SANDBOX_MEMBER_RUN_OPTIONS: ClassVar[frozenset] = frozenset(
+        {"run_id", "session_id", "user_id", "media", "output_schema", "metadata", "stream_events", "yield_run_output"}
+    )
+
+    def _sandboxed_member_kwargs(
+        self, kwargs: Dict[str, Any], team_session_id: str, team_run_id: str
+    ) -> Dict[str, Any]:
+        """A sandboxed member's run options: the ones a sandbox takes, on the member's own session and run.
+
+        The member's sandbox session, which holds its computer binding, checkpoints and native
+        conversation, is the same per-member session a member without a sandbox keeps its
+        conversation in, so the team's session is never bound to one member's computer. The
+        sandbox also records the turn as a run of that session, under its own id: a run never
+        changes sessions once stored, and the team stores the member's result in the team
+        session under the id it assigned, so the two records cannot share one row.
+        """
+        forwarded = {key: value for key, value in kwargs.items() if key in self._SANDBOX_MEMBER_RUN_OPTIONS}
+        forwarded["session_id"] = self._state_session_id(team_session_id)
+        forwarded["run_id"] = f"{team_run_id}.sandbox"
+        return forwarded
+
+    def _as_team_member_output(self, item: Any, team_session_id: str, team_run_id: str, sandbox_run_id: str) -> Any:
+        """Report a sandboxed member's run and events under the team's session and the run id it assigned.
+
+        The run keeps a pointer to the sandbox's own run in metadata.sandbox.run_id.
+        """
+        # Runs and run events carry session_id and run_id; anything else in a stream is passed through untouched.
+        if isinstance(item, (str, bytes)):
+            return item
+        if getattr(item, "session_id", None) is not None:
+            item.session_id = team_session_id
+        if getattr(item, "run_id", None) == sandbox_run_id:
+            item.run_id = team_run_id
+        if isinstance(item, RunOutput):
+            sandbox = dict((item.metadata or {}).get("sandbox") or {})
+            sandbox["run_id"] = sandbox_run_id
+            item.metadata = {**(item.metadata or {}), "sandbox": sandbox}
+        return item
+
     async def _apersist_member_state(self, session: AgentSession) -> None:
         """Save a team member's own session, which holds its native conversation ids, without runs."""
         try:
@@ -1820,7 +1863,20 @@ class BaseExternalAgent:
 
     async def _arun_non_stream(self, input: Any, **kwargs: Any) -> RunOutput:
         if self.sandbox is not None:
-            return await _sandbox_harness().arun(self, input, **kwargs)
+            if self.team_id is None:
+                return await _sandbox_harness().arun(self, input, **kwargs)
+            from agno.run.cancel import acleanup_member_runs, aregister_member_run
+
+            team_session_id = kwargs.get("session_id") or str(uuid4())
+            team_run_id = kwargs.get("run_id") or str(uuid4())
+            forwarded = self._sandboxed_member_kwargs(kwargs, team_session_id, team_run_id)
+            # Cancelling the member run the team registered reaches the sandbox's run through this link.
+            await aregister_member_run(team_run_id, forwarded["run_id"])
+            try:
+                run = await _sandbox_harness().arun(self, self._input_text(input), **forwarded)
+            finally:
+                await acleanup_member_runs(team_run_id)
+            return self._as_team_member_output(run, team_session_id, team_run_id, forwarded["run_id"])
         run_id = kwargs.pop("run_id", None) or str(uuid4())
         session_id = kwargs.get("session_id") or str(uuid4())
         kwargs["session_id"] = session_id
@@ -1921,12 +1977,29 @@ class BaseExternalAgent:
 
     async def _arun_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
         if self.sandbox is not None:
-            events = _sandbox_harness().astream(self, input, **kwargs)
+            if self.team_id is None:
+                events = _sandbox_harness().astream(self, input, **kwargs)
+                try:
+                    async for item in events:
+                        yield item
+                finally:
+                    await events.aclose()
+                return
+            from agno.run.cancel import acleanup_member_runs, aregister_member_run
+
+            team_session_id = kwargs.get("session_id") or str(uuid4())
+            team_run_id = kwargs.get("run_id") or str(uuid4())
+            forwarded = self._sandboxed_member_kwargs(kwargs, team_session_id, team_run_id)
+            await aregister_member_run(team_run_id, forwarded["run_id"])
+            events = _sandbox_harness().astream(self, self._input_text(input), **forwarded)
             try:
                 async for item in events:
-                    yield item
+                    yield self._as_team_member_output(item, team_session_id, team_run_id, forwarded["run_id"])
             finally:
-                await events.aclose()
+                try:
+                    await events.aclose()
+                finally:
+                    await acleanup_member_runs(team_run_id)
             return
         run_id = kwargs.pop("run_id", None) or str(uuid4())
         session_id = kwargs.get("session_id") or str(uuid4())

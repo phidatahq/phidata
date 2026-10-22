@@ -1184,11 +1184,44 @@ class AgentOS:
         Tables are created here only when the OS provisions databases; otherwise an existing
         table is validated and a missing one is left to the deployment, as the first run was.
         """
-        for entry in self.agents or []:
+        for entry in [*(self.agents or []), *(member for member, _ in self._sandboxed_team_members())]:
             if isinstance(entry, BaseExternalAgent) and entry.sandbox is not None and entry.db is not None:
                 from agno.sandbox import _harness
 
                 await _harness.acheck_tables(entry, create=self.auto_provision_dbs)
+
+    def _sandboxed_team_members(self) -> List[Any]:
+        """(member, owning team) for sandboxed harness agents that are members of a served team, at any depth.
+
+        They run their turns through the same coordinator as a served sandboxed agent, so they
+        get the same startup checks; a member list built by a factory is not walked.
+        """
+        found: List[Any] = []
+        seen: set = set()
+
+        def visit(team: Any) -> None:
+            if id(team) in seen or not isinstance(getattr(team, "members", None), list):
+                return
+            seen.add(id(team))
+            for member in team.members:
+                if isinstance(member, BaseExternalAgent) and member.sandbox is not None:
+                    found.append((member, team))
+                elif isinstance(member, Team):
+                    visit(member)
+
+        for team in self._teams or []:
+            visit(team)
+        return found
+
+    def _prepare_sandboxed_member(self, member: BaseExternalAgent, team: Any) -> None:
+        """Give a sandboxed team member a database and fail at startup on what would fail its first turn."""
+        from agno.sandbox import _harness
+
+        if member.db is None:
+            member.db = getattr(team, "db", None) or self.db
+        _harness._check_db(member)
+        if self.queue is not None and self.queue.durable:
+            _harness.check_queue_checkpoints(member)
 
     def _initialize_agents(self) -> None:
         """Initialize and configure all agents for AgentOS usage."""
@@ -1254,6 +1287,10 @@ class AgentOS:
         """Initialize and configure all teams for AgentOS usage."""
         if not self._teams:
             return
+
+        # Sandboxed harness members coordinate their computers on Postgres, as served sandboxed agents do.
+        for member, owning_team in self._sandboxed_team_members():
+            self._prepare_sandboxed_member(member, owning_team)
 
         for team in self._teams:
             # Set the default db to teams without their own

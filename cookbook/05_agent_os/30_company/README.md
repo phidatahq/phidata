@@ -474,7 +474,7 @@ timestamp and are not fenced by this comparison.
 
 Each hour it checks Ready Tasks and authorized Routine proposals using the
 scheduler's ordinary claims and release. The cadence is
-`CompanyConfig(cron_schedule="0 * * * *")`. The setting must be a cron
+`CompanyConfig(cron_expr="0 * * * *")`. The setting must be a cron
 expression; a changed cron is applied to the existing schedule on restart. A tick
 records history only when it accepts, dispatches, completes, or recovers work, or
 encounters an execution error. Dispatch failures, including unavailable queue

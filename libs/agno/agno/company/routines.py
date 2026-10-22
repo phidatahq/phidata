@@ -429,6 +429,7 @@ def _acceptance_checks(agent_os):
 
 
 _AUTOMATION_SCHEDULE_ID = COMPANY_AUTOMATION_SCHEDULE_ID
+_AUTOMATION_CRON = "0 * * * *"
 _AUTOMATION_TICK_SECONDS = 240
 _automation_deadline: ContextVar[Optional[float]] = ContextVar("company_tick_deadline", default=None)
 
@@ -441,13 +442,16 @@ def _check_automation_deadline():
         raise TimeoutError("Company automation tick exhausted its claim budget")
 
 
-async def _ensure_automation_schedule(db, *, enabled=True):
+async def _ensure_automation_schedule(db, *, enabled=True, cron_expr=_AUTOMATION_CRON):
     """Reconcile the runtime-owned schedule with the deployment configuration."""
     import time
 
     from agno.db.schemas.scheduler import Schedule
     from agno.db.utils import is_unique_violation
+    from agno.scheduler.cron import is_on_demand, next_run_for, validate_cron_expr
 
+    if is_on_demand(cron_expr) or not validate_cron_expr(cron_expr):
+        raise ValueError(f"Invalid cron expression: {cron_expr}")
     existing = await _call(db, "get_schedule", _AUTOMATION_SCHEDULE_ID)
     if existing is None:
         if not enabled:
@@ -455,7 +459,7 @@ async def _ensure_automation_schedule(db, *, enabled=True):
         row = Schedule(
             id=_AUTOMATION_SCHEDULE_ID,
             name="Company automation",
-            cron_expr="* * * * *",
+            cron_expr=cron_expr,
             endpoint="/company/attention",
             method="GET",
             managed_by="company",
@@ -475,6 +479,11 @@ async def _ensure_automation_schedule(db, *, enabled=True):
         or existing["method"] != "GET"
     ):
         raise ValueError("Company automation schedule identity is already in use")
+    if existing["cron_expr"] != cron_expr:
+        next_run_at = next_run_for(cron_expr, existing.get("timezone") or "UTC")
+        existing = await _call(
+            db, "update_schedule", _AUTOMATION_SCHEDULE_ID, cron_expr=cron_expr, next_run_at=next_run_at
+        )
     if enabled and not existing["enabled"] and existing.get("disabled_reason") == "company_off":
         existing = await _call(db, "update_schedule", _AUTOMATION_SCHEDULE_ID, enabled=True, disabled_reason=None)
     elif not enabled and existing["enabled"]:

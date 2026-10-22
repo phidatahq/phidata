@@ -3111,7 +3111,20 @@ async def queue_lifespan(app: Any, agent_os: Any):
     warn_unfenced_session_stores(agent_os)
 
     if isinstance(get_event_stream(), InMemoryEventStream):
-        log_warning("Queued-run streams are replica-local; configure queue.redis for cross-replica streaming.")
+        # No Redis: ride the queue's own Postgres so a stream can be resumed from any replica.
+        # Only the never-explicitly-set process default is replaced, as the Redis wiring does.
+        from agno.os.event_streams import PostgresEventStream, event_stream_explicitly_set, set_event_stream
+
+        queue_db = config.db if config.db is not None else agent_os.db
+        if (
+            not event_stream_explicitly_set()
+            and getattr(queue_db, "db_url", None)
+            and "postgresql" in str(queue_db.db_url)
+        ):
+            set_event_stream(PostgresEventStream(queue_db))
+            log_info("Queued-run streams ride the queue's Postgres (polled); configure queue.redis for push delivery.")
+        else:
+            log_warning("Queued-run streams are replica-local; configure queue.redis for cross-replica streaming.")
 
     async def resolve_component(
         component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = None

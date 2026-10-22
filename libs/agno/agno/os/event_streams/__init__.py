@@ -10,6 +10,7 @@ from typing import Optional
 
 from agno.os.event_streams.base import BaseEventStream
 from agno.os.event_streams.in_memory import InMemoryEventStream
+from agno.os.event_streams.postgres import PostgresEventStream
 from agno.os.event_streams.redis import RedisEventStream
 
 _event_stream: Optional[BaseEventStream] = None
@@ -57,6 +58,7 @@ def event_stream_explicitly_set() -> bool:
 __all__ = [
     "BaseEventStream",
     "InMemoryEventStream",
+    "PostgresEventStream",
     "event_stream_explicitly_set",
     "get_event_stream",
     "set_event_stream",

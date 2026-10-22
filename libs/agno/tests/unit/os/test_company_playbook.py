@@ -38,8 +38,6 @@ def test_company_manager_assembly_and_model_precedence(tmp_path, manager):
         member = next(m for m in os.manager.members if m.id == COMPANY_MANAGER_ID)
         assert member is not pm and member not in os._agents and member not in registry.agents
         assert member.model is override and member.tools[0] is not pm.tools[0]
-    with pytest.raises(ValueError, match="cron_expr"):
-        CompanyConfig(cron_expr="")
         delegation = os.manager.instructions[-1]
         assert "Routines" in delegation and "Tasks" in delegation and "not Platform Builder" in delegation
     os.resync(os.get_app())
@@ -58,6 +56,8 @@ def test_company_manager_assembly_and_model_precedence(tmp_path, manager):
     }
     inherited = AgentOS(db=db, registry=Registry(models=[first, override]), company=CompanyConfig(), telemetry=False)
     assert inherited.company_manager.model is first
+    with pytest.raises(ValueError, match="cron_expr"):
+        CompanyConfig(cron_expr="")
 
 
 def test_company_tools_published_only_over_mcp_are_bound(tmp_path):

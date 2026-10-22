@@ -473,11 +473,13 @@ current non-terminal Task, but child evidence changes do not advance the Project
 timestamp and are not fenced by this comparison.
 
 Each hour it checks Ready Tasks and authorized Routine proposals using the
-scheduler's ordinary claims and release. A tick records history only when it
-accepts, dispatches, completes, or recovers work, or encounters an execution
-error. Dispatch failures, including unavailable queue storage or a missing
-executor, produce failed history with Task-specific reasons, readable through
-`/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
+scheduler's ordinary claims and release. The cadence is
+`CompanyConfig(cron_schedule="0 * * * *")`. The setting must be a cron
+expression; a changed cron is applied to the existing schedule on restart. A tick
+records history only when it accepts, dispatches, completes, or recovers work, or
+encounters an execution error. Dispatch failures, including unavailable queue
+storage or a missing executor, produce failed history with Task-specific reasons,
+readable through `/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
 run rows. Unexpected database errors are recorded even before dispatch starts.
 Engineering executors and a previous attempt whose ticket is still active are
 expected skips. If a Ready Task's accepting human loses permission, the Task

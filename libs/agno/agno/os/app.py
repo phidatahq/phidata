@@ -226,10 +226,14 @@ async def scheduler_lifespan(app: FastAPI, agent_os: "AgentOS"):
     if internal_token is None:
         raise ValueError("internal_service_token must be set when scheduler is enabled")
 
-    from agno.company.routines import _ensure_automation_schedule
+    from agno.company.routines import _AUTOMATION_CRON, _ensure_automation_schedule
 
     # Reconcile before the poller can claim a stale Company schedule.
-    await _ensure_automation_schedule(agent_os.db, enabled=agent_os.company is not None)
+    await _ensure_automation_schedule(
+        agent_os.db,
+        enabled=agent_os.company is not None,
+        cron_expr=agent_os.company.cron_schedule if agent_os.company is not None else _AUTOMATION_CRON,
+    )
     executor: ScheduleExecutor
     if agent_os.company is not None:
         from agno.company.routines import _CompanyScheduleExecutor

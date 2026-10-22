@@ -37,6 +37,7 @@ def test_sync_function_with_required_params_reports_the_body_error():
     assert calls == ["order-2"]
 
 
+@pytest.mark.asyncio
 async def test_async_function_body_type_error_runs_once_and_propagates():
     calls: List[str] = []
 
@@ -50,6 +51,7 @@ async def test_async_function_body_type_error_runs_once_and_propagates():
     assert calls == ["order-3"]
 
 
+@pytest.mark.asyncio
 async def test_sync_function_under_arun_runs_once_and_propagates():
     calls: List[str] = []
 
@@ -76,6 +78,7 @@ def test_function_receives_only_the_parameters_it_declares():
     assert received == {"input": "order-5"}
 
 
+@pytest.mark.asyncio
 async def test_async_function_receives_only_the_parameters_it_declares():
     received = {}
 
@@ -87,3 +90,27 @@ async def test_async_function_receives_only_the_parameters_it_declares():
 
     assert result.content == "done"
     assert received == {"name": "async-narrow-signature"}
+
+
+@pytest.mark.asyncio
+async def test_sync_function_under_streaming_arun_receives_only_the_parameters_it_declares():
+    received = {}
+
+    def steps(execution_input):
+        received["input"] = execution_input.input
+        return "done"
+
+    events = [event async for event in Workflow(name="sync-streaming-arun", steps=steps).arun("order-7", stream=True)]
+
+    assert events[-1].content == "done"
+    assert received == {"input": "order-7"}
+
+
+@pytest.mark.asyncio
+async def test_sync_generator_under_arun_receives_only_the_parameters_it_declares():
+    def steps(execution_input):
+        yield f"done {execution_input.input}"
+
+    result = await Workflow(name="sync-generator-arun", steps=steps).arun("order-8")
+
+    assert result.content == "done order-8"

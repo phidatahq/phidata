@@ -3121,9 +3121,11 @@ def get_mcp_server(
     if allowed_hosts is not None:
 
         def browser_origin_allowed(origin: str) -> bool:
+            # An origin the AgentOS CORS policy admits is one the operator already trusts
+            # for credentialed REST calls, so it is trusted here on the same terms. A
+            # rebound page cannot forge it: the browser sets Origin from the real page.
             policy = getattr(os, "_cors_origin_policy", None)
-            public = getattr(os, "public", None)
-            return bool(public and public.enforce_browser_origins and policy is not None and policy.allows(origin))
+            return policy is not None and policy.allows(origin)
 
         _add_transport_security_middleware(mcp_app, allowed_hosts, allowed_origins, browser_origin_allowed)
 

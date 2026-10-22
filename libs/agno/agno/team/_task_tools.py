@@ -318,7 +318,7 @@ def _get_task_management_tools(
     def _setup_member_for_task(member_agent: Union[Agent, "Team"], task_description: str):
         """Initialize member and prepare task input. Returns (member_agent_task, history)."""
         _initialize_member(team, member_agent)
-        if not team.send_media_to_model:
+        if not team.send_media_to_model and hasattr(member_agent, "send_media_to_model"):
             member_agent.send_media_to_model = False
 
         team_member_interactions_str = _determine_team_member_interactions(
@@ -389,14 +389,14 @@ def _get_task_management_tools(
 
         if member_run_response:
             if (
-                not member_agent.store_media
-                or not member_agent.store_tool_messages
-                or not member_agent.store_history_messages
+                not getattr(member_agent, "store_media", True)
+                or not getattr(member_agent, "store_tool_messages", True)
+                or not getattr(member_agent, "store_history_messages", True)
             ):
                 from agno.agent._run import scrub_run_output_for_storage
 
                 # Recorded before the scrub: by here the ids exist nowhere else.
-                if not member_agent.store_media:
+                if not getattr(member_agent, "store_media", True):
                     _record_opted_out_media(run_response, member_run_response)
                 scrub_run_output_for_storage(member_agent, run_response=member_run_response)  # type: ignore[arg-type]
             from agno.team._run import _member_run_for_storage
@@ -456,14 +456,14 @@ def _get_task_management_tools(
 
         if member_run_response:
             if (
-                not member_agent.store_media
-                or not member_agent.store_tool_messages
-                or not member_agent.store_history_messages
+                not getattr(member_agent, "store_media", True)
+                or not getattr(member_agent, "store_tool_messages", True)
+                or not getattr(member_agent, "store_history_messages", True)
             ):
                 from agno.agent._run import scrub_run_output_for_storage
 
                 # Recorded before the scrub: by here the ids exist nowhere else.
-                if not member_agent.store_media:
+                if not getattr(member_agent, "store_media", True):
                     _record_opted_out_media(run_response, member_run_response)
                 scrub_run_output_for_storage(member_agent, run_response=member_run_response)  # type: ignore[arg-type]
             from agno.team._run import _amember_run_for_storage
@@ -542,7 +542,7 @@ def _get_task_management_tools(
                     metadata=run_context.metadata,
                     add_session_state_to_context=add_session_state_to_context,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
@@ -593,7 +593,7 @@ def _get_task_management_tools(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                 )
@@ -725,7 +725,7 @@ def _get_task_management_tools(
                     metadata=run_context.metadata,
                     add_session_state_to_context=add_session_state_to_context,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
@@ -776,7 +776,7 @@ def _get_task_management_tools(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                 )
@@ -929,7 +929,7 @@ def _get_task_management_tools(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                 )
@@ -1134,7 +1134,7 @@ def _get_task_management_tools(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     knowledge_filters=run_context.knowledge_filters
-                    if not member_agent.knowledge_filters and member_agent.knowledge
+                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
                 )

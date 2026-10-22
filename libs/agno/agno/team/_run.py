@@ -5149,7 +5149,7 @@ def drop_opted_out_member_media(team: "Team", run_response: TeamRunOutput) -> No
             continue
 
         _, member = member_result
-        if not member.store_media:
+        if not getattr(member, "store_media", True):
             scrub_media_from_run_output(member_response, keep_references=False)
         elif isinstance(member, Team) and getattr(member_response, "member_responses", None):
             drop_opted_out_member_media(member, member_response)  # type: ignore[arg-type]
@@ -5182,7 +5182,11 @@ def _scrub_member_responses(team: "Team", member_responses: List[Union[TeamRunOu
 
         _, member = member_result
 
-        if not member.store_media or not member.store_tool_messages or not member.store_history_messages:
+        if (
+            not getattr(member, "store_media", True)
+            or not getattr(member, "store_tool_messages", True)
+            or not getattr(member, "store_history_messages", True)
+        ):
             from agno.agent._run import scrub_run_output_for_storage
 
             scrub_run_output_for_storage(member, run_response=member_response)  # type: ignore[arg-type]

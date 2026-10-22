@@ -281,18 +281,22 @@ def _storage_view_of_spared_run(
         _scrub_tool_results_keeping_unresolved(view)
         scrub_history_messages_from_run_output(view)
         return view
-    if member.store_media and member.store_tool_messages and member.store_history_messages:
+    if (
+        getattr(member, "store_media", True)
+        and getattr(member, "store_tool_messages", True)
+        and getattr(member, "store_history_messages", True)
+    ):
         return member_response
 
     view = copy(member_response)
     # The spared run is shared with the live tree, and the media scrub rewrites
     # Message objects in place.
     isolate_media_scrub_targets(view)
-    if not member.store_media:
+    if not getattr(member, "store_media", True):
         scrub_media_from_run_output(view)
-    if not member.store_tool_messages:
+    if not getattr(member, "store_tool_messages", True):
         _scrub_tool_results_keeping_unresolved(view)
-    if not member.store_history_messages:
+    if not getattr(member, "store_history_messages", True):
         scrub_history_messages_from_run_output(view)
     return view
 

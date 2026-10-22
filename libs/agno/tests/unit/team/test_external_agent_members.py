@@ -240,12 +240,54 @@ def test_a_streamed_team_run_carries_the_members_events(db, sdk):
     assert getattr(events[-1], "event", None) == "TeamRunCompleted"
 
 
-def test_a_sandboxed_harness_agent_is_refused_as_a_member(db, sdk):
+def test_a_sandboxed_member_forwards_only_sandbox_options_on_its_own_session(db, sdk):
+    """A team hands every member native run options; a sandboxed member passes the sandbox only what it takes."""
+    from agno.run.agent import RunContentEvent, RunOutput
+
     member = _member(db)
-    member.sandbox = object()  # type: ignore[assignment]
-    team = _team(db, [member], [("content", "done")])
-    with pytest.raises(ValueError, match="sandboxed agents cannot be team members yet"):
-        team.initialize_team()
+    member.team_id = "team"
+    team_options = dict(
+        run_id="r1",
+        session_id="s1",
+        user_id="u1",
+        metadata={"k": "v"},
+        stream_events=True,
+        yield_run_output=True,
+        session_state={},
+        dependencies={"x": 1},
+        add_dependencies_to_context=False,
+        add_session_state_to_context=False,
+        knowledge_filters=None,
+        debug_mode=False,
+    )
+    forwarded = member._sandboxed_member_kwargs(team_options, "s1", "r1")
+    assert forwarded == dict(
+        run_id="r1.sandbox",
+        session_id="s1:claude-coder",
+        user_id="u1",
+        metadata={"k": "v"},
+        stream_events=True,
+        yield_run_output=True,
+    )
+    run = member._as_team_member_output(
+        RunOutput(run_id="r1.sandbox", session_id="s1:claude-coder", metadata={"sandbox": {"generation": 7}}),
+        "s1",
+        "r1",
+        "r1.sandbox",
+    )
+    assert (run.run_id, run.session_id) == ("r1", "s1")
+    assert run.metadata["sandbox"] == {"generation": 7, "run_id": "r1.sandbox"}
+    event = member._as_team_member_output(
+        RunContentEvent(run_id="r1.sandbox", session_id="s1:claude-coder", content="x"), "s1", "r1", "r1.sandbox"
+    )
+    assert (event.run_id, event.session_id) == ("r1", "s1")
+    assert member._as_team_member_output("data: sse", "s1", "r1", "r1.sandbox") == "data: sse"
+
+
+def test_role_stays_on_the_host_and_is_not_sent_to_the_sandbox_runtime():
+    from agno.sandbox import _harness
+
+    assert "role" in _harness._RUNTIME_OWNED
 
 
 def test_message_input_from_a_team_becomes_text():

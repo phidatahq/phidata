@@ -40,6 +40,8 @@ _RUNTIME_OWNED = frozenset(
         "strict_persistence",
         "delay_between_retries",
         "exponential_backoff",
+        # Shown to a team leader on the host; the harness inside the sandbox never reads it.
+        "role",
     }
 )
 # Host paths, process settings and native option objects have no meaning inside the sandbox.

@@ -472,17 +472,19 @@ indistinguishable from the checked record. Project completion still refuses any
 current non-terminal Task, but child evidence changes do not advance the Project's
 timestamp and are not fenced by this comparison.
 
-Each minute it checks Ready Tasks and authorized Routine proposals using the
-scheduler's ordinary claims and release. A tick records history only when it
-accepts, dispatches, completes, or recovers work, or encounters an execution
-error. Dispatch failures, including unavailable queue storage or a missing
-executor, produce failed history with Task-specific reasons, readable through
-`/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
+Each hour it checks Ready Tasks and authorized Routine proposals using the
+scheduler's ordinary claims and release. The cadence is
+`CompanyConfig(cron_expr="0 * * * *")`. The setting must be a cron
+expression; a changed cron is applied to the existing schedule on restart. A tick
+records history only when it accepts, dispatches, completes, or recovers work, or
+encounters an execution error. Dispatch failures, including unavailable queue
+storage or a missing executor, produce failed history with Task-specific reasons,
+readable through `/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
 run rows. Unexpected database errors are recorded even before dispatch starts.
 Engineering executors and a previous attempt whose ticket is still active are
 expected skips. If a Ready Task's accepting human loses permission, the Task
 returns to Backlog with the refusal reason and appears in attention; the failed
-tick is recorded once instead of repeating every minute.
+tick is recorded once instead of repeating every hour.
 
 Recovery runs before current Routine pause, policy and permission checks. It only
 reconciles existing reservations and never enqueues work. A terminal durable run
@@ -542,7 +544,7 @@ COMPANY_AUTOMATION=1 .venv/bin/python cookbook/05_agent_os/30_company/06_execute
 COMPANY_AUTOMATION=1 COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
 ```
 
-The example advances the existing schedule's due time to avoid a one-minute
+The example advances the existing schedule's due time to avoid an hour-long
 wait. The poller still claims the schedule, and Tasks still enter the ordinary
 executor run route and durable queue. A pending submission retains its original
 attempt on restart. The queue owns execution retry limits; new ticks do not

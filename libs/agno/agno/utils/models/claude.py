@@ -115,6 +115,15 @@ def supports_sampling_params(model_id: str) -> bool:
     return core_id in _SAMPLING_SUPPORTED_ALIASES or core_id.startswith(_SAMPLING_SUPPORTED_PREFIXES)
 
 
+def supports_thinking_budget(model_id: str) -> bool:
+    """Return True if the given model ID accepts thinking={"type": "enabled", "budget_tokens": N}.
+
+    Claude 4.7 removed thinking budgets in the same release that deprecated the sampling
+    parameters, so the closed set of families that still accept one is the same.
+    """
+    return supports_sampling_params(model_id)
+
+
 @dataclass
 class MCPToolConfiguration:
     enabled: bool = True
@@ -926,14 +935,39 @@ def route_sampling_params_to_extra_body(
         return request_params
 
     if model_id is not None and not supports_sampling_params(model_id):
+        names = ", ".join(sorted(moved))
         log_warning(
-            f"{model_id} does not support {', '.join(sorted(moved))} and rejects any request "
-            "carrying them, so they were dropped. Guide the model through its prompt instead."
+            f"{model_id} rejects {names}, so the request is sent without {names}. "
+            "Guide the model through its prompt instead."
         )
         return request_params
 
     # A caller who wrote extra_body themselves outranks the model's own fields.
     request_params["extra_body"] = {**moved, **(request_params.get("extra_body") or {})}
+    return request_params
+
+
+def route_thinking_budget_to_adaptive(request_params: Dict[str, Any], model_id: Optional[str] = None) -> Dict[str, Any]:
+    """Replace a thinking budget with adaptive thinking on models that no longer accept one.
+
+    Mutates and returns the dict it is given, so it also catches a thinking config that
+    arrived through ``request_params`` rather than through the ``thinking`` field.
+
+    Those models answer ``{"type": "enabled", "budget_tokens": N}`` with a 400. Adaptive
+    thinking is their replacement for it; ``display`` defaults to ``"summarized"`` because
+    they otherwise return empty thinking blocks, which would leave ``reasoning_content`` empty.
+    """
+    thinking = request_params.get("thinking")
+    if model_id is None or not isinstance(thinking, dict) or thinking.get("type") != "enabled":
+        return request_params
+    if supports_thinking_budget(model_id):
+        return request_params
+
+    log_warning(
+        f"{model_id} rejects thinking budgets, so the request is sent with adaptive thinking instead. "
+        "Use output_config={'effort': ...} to control how much it thinks."
+    )
+    request_params["thinking"] = {"type": "adaptive", "display": thinking.get("display", "summarized")}
     return request_params
 
 

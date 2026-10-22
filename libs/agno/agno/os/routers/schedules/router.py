@@ -525,8 +525,10 @@ def get_schedule_router(
         request: Request,
         _: bool = Depends(auth_dependency),
     ) -> Dict[str, Any]:
-        existing = await _db_call("get_schedule", schedule_id, user_id=get_scoped_user_id(request))
-        if existing is None:
+        company_trigger = managed_by == "company"
+        owner = get_scoped_user_id(request)
+        existing = await _db_call("get_schedule", schedule_id, user_id=None if company_trigger else owner)
+        if existing is None or (company_trigger and existing.get("managed_by") != "company"):
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
             raise HTTPException(409, "Company-managed schedules must be changed through /company/routines")
@@ -543,6 +545,15 @@ def get_schedule_router(
 
         # Firing runs the endpoint under the internal service token, so re-check the caller's own permission.
         await _require_endpoint_permission(request, existing["endpoint"], existing.get("method") or "POST")
+
+        if company_trigger:
+            # A manual Company run uses and records the caller's authority. Keep the
+            # saved owner and authority intact for future scheduled executions.
+            existing = {
+                **existing,
+                "user_id": getattr(request.state, "user_id", None),
+                "payload": stamp_authorization(existing.get("payload")),
+            }
 
         executor = getattr(request.app.state, "scheduler_executor", None)
         if executor is not None:

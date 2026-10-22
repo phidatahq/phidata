@@ -393,7 +393,6 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
             assert client.patch(path, headers=headers("bob"), json={"instructions": "Change"}).status_code == 403
             assert client.post(path + "/pause", headers=headers("bob")).status_code == 403
             assert client.post(path + "/resume", headers=headers("bob")).status_code == 403
-            assert client.post(path + "/trigger", headers=headers("bob")).status_code == 403
         assert "private-claim-alice" in json.dumps(db.get_schedule(routine_id)["payload"])
         actor = "alice" if isolation else "bob"
         for action, enabled in (("pause", False), ("resume", True)):
@@ -406,6 +405,119 @@ def test_sources_and_routines_scopes_and_ownership(tmp_path, isolation):
             assert "private-claim-alice" not in response.text
         assert "private-claim-alice" in json.dumps(db.get_schedule(routine_id)["payload"])
         assert client.post("/company/setup", headers=headers("bob"), json={"name": "Other setup"}).status_code == 409
+    db.close()
+
+
+@pytest.mark.parametrize("isolation", [False, True])
+@pytest.mark.parametrize("managed_roles", [False, True])
+@pytest.mark.parametrize("owner", [None, "alice"])
+def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation, managed_roles, owner):
+    import asyncio
+
+    import jwt
+
+    from agno.company import Routine
+    from agno.db.schemas.scheduler import SCHEDULE_OWNER_HEADER
+    from agno.os.authz import Authorization
+    from agno.os.authz.native_engine import NativePolicyEngine
+    from agno.os.config import AuthorizationConfig
+    from agno.run.authorization import AUTHORIZATION_KEY
+
+    secret = "company-routine-member-trigger-secret"
+    scopes = ["routines:write", "schedules:write", "agents:reader:run"]
+    db = SqliteDb(db_file=str(tmp_path / "member-trigger.db"))
+    authorization = Authorization(db=db, verification_keys=[secret], algorithm="HS256", audience="members")
+    if managed_roles:
+        authorization.define_role("runner", scopes).assign("bob", "runner")
+
+    def headers(granted):
+        if managed_roles:
+            NativePolicyEngine(db=db).set_role_scopes("runner", [(scope, "allow") for scope in granted])
+        return {
+            "Authorization": "Bearer "
+            + jwt.encode(
+                {"sub": "bob", "aud": "members", "scopes": ["agent_os:admin"] if managed_roles else granted},
+                secret,
+                algorithm="HS256",
+            )
+        }
+
+    os = AgentOS(
+        id="members",
+        db=db,
+        agents=[Agent(id="reader", telemetry=False)],
+        company=CompanyConfig(
+            products=[
+                Product(
+                    id="shared",
+                    name="Shared",
+                    user_id=owner,
+                    routines=[
+                        Routine(name="review", executor_type="agent", executor_id="reader", instructions="Review")
+                    ],
+                )
+            ]
+        ),
+        telemetry=False,
+        user_isolation=isolation,
+        authorization=authorization if managed_roles else True,
+        authorization_config=None
+        if managed_roles
+        else AuthorizationConfig(verification_keys=[secret], algorithm="HS256"),
+    )
+    executor = ScheduleExecutor(base_url="http://test", internal_service_token="internal")
+    background = AsyncMock(return_value={"status": "success", "status_code": 200})
+    monkeypatch.setattr(executor, "_background_run", background)
+    monkeypatch.setattr(executor, "_get_client", AsyncMock())
+    with TestClient(os.get_app()) as client:
+        client.app.state.scheduler_executor = executor
+        routine_id = db.get_product("shared")["metadata"]["routine_ids"][0]
+        saved = db.get_schedule(routine_id)
+        # A stored creator grant must never become a manual caller's authority.
+        payload = {
+            **saved["payload"],
+            AUTHORIZATION_KEY: {"context": {"principal_id": owner, "scopes": ["agent_os:admin"]}},
+        }
+        db.update_schedule(routine_id, payload=payload)
+        saved = db.get_schedule(routine_id)
+        path = "/company/routines/" + routine_id
+        for missing in scopes:
+            denied = client.post(path + "/trigger", headers=headers([scope for scope in scopes if scope != missing]))
+            assert denied.status_code == 403, denied.text
+        background.assert_not_awaited()
+        assert db.get_schedule_runs(routine_id)[1] == 0
+
+        auth = headers(scopes)
+        response = client.post(path + "/trigger", headers=auth)
+        assert response.status_code == 200, response.text
+        assert response.json()["user_id"] == "bob"
+        assert db.get_schedule_run(response.json()["id"])["user_id"] == "bob"
+        forwarded_headers, form = background.call_args.args[2:4]
+        assert forwarded_headers[SCHEDULE_OWNER_HEADER] == "bob"
+        assert form["user_id"] == "bob"
+        snapshot = json.loads(forwarded_headers[AUTHORIZATION_HEADER])
+        assert snapshot["context"]["principal_id"] == "bob"
+        assert snapshot["company_routine"] is True
+        assert snapshot["company_routine_unscoped"] is False
+        assert db.get_schedule(routine_id) == saved
+        assert db.get_product("shared")["user_id"] == owner
+
+        # Generic schedule routes cannot be used to bypass the Company wrapper.
+        assert client.post("/schedules/" + routine_id + "/trigger", headers=auth).status_code in (403, 404, 409)
+        if isolation:
+            assert client.patch(path, json={"instructions": "Change"}, headers=auth).status_code == 403
+            assert client.post(path + "/pause", headers=auth).status_code == 403
+            assert client.post(path + "/resume", headers=auth).status_code == 403
+        db.update_schedule(routine_id, enabled=False)
+        assert client.post(path + "/trigger", headers=auth).status_code == 409
+        assert background.await_count == 1
+        # Timer execution still uses the saved owner and grant, not the last manual caller.
+        scheduled = asyncio.run(executor.execute(saved, db, release_schedule=False))
+        assert scheduled["user_id"] == owner
+        forwarded_headers = background.call_args.args[2]
+        assert forwarded_headers.get(SCHEDULE_OWNER_HEADER) == owner
+        snapshot = json.loads(forwarded_headers[AUTHORIZATION_HEADER])
+        assert snapshot["context"]["principal_id"] == owner
     db.close()
 
 

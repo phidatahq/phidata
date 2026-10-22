@@ -105,7 +105,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             _require_write_ownership(row, get_scoped_user_id(request))
         return row
 
-    async def routine(routine_id, request):
+    async def routine(routine_id, request, owned=True):
         from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
 
         if routine_id == COMPANY_AUTOMATION_SCHEDULE_ID:
@@ -115,7 +115,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             raise HTTPException(404, "Routine not found")
         if not (row.get("payload") or {}).get("metadata", {}).get("product_id"):
             raise HTTPException(409, "Routine is missing its Product metadata")
-        if request.method != "GET":
+        if owned and request.method != "GET":
             _require_write_ownership(row, get_scoped_user_id(request))
         return row
 
@@ -206,7 +206,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
 
     @router.post("/routines/{routine_id}/trigger", response_model=ScheduleRunResponse)
     async def trigger_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
-        row = await routine(routine_id, request)
+        row = await routine(routine_id, request, owned=False)
         await product(row["payload"]["metadata"]["product_id"], request, owned=False)
         if not row["enabled"]:
             raise HTTPException(409, "Routine is paused")

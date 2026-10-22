@@ -59,7 +59,7 @@ def _require_plain_proposal(run_context):
 
     if isinstance(_authority(run_context), _RoutineAuthorization):
         raise PermissionError(
-            "Routines must propose Tasks through intake_company_source with evidence and a dedupe key"
+            "Routines must propose Tasks through intake_product_source with evidence and a dedupe key"
         )
 
 
@@ -149,12 +149,12 @@ class CompanyTools(Toolkit):
         # Supplied by the learning machine, never by the model or an MCP argument.
         self._agent_id = agent_id
         names = [
-            "list_company_sources",
-            "add_company_source",
-            "read_company_source",
-            "intake_company_source",
+            "list_product_sources",
+            "add_product_source",
+            "read_product_source",
+            "intake_product_source",
             "create_company_product",
-            "create_company_routine",
+            "create_product_routine",
             "list_company_products",
             "get_company_product",
             "list_company_projects",
@@ -165,7 +165,7 @@ class CompanyTools(Toolkit):
             "edit_company_task",
             "list_company_wiki",
             "read_company_wiki",
-            "update_company_status",
+            "update_product_status",
         ]
         if decision_tools:
             names += ["log_company_decision", "search_company_decisions"]
@@ -312,7 +312,7 @@ class CompanyTools(Toolkit):
         schedule_ids: List[str] = []
         try:
             for source in product.sources:
-                row = self.add_company_source(
+                row = self.add_product_source(
                     product_id,
                     source.reference,
                     config=source.config,
@@ -329,7 +329,7 @@ class CompanyTools(Toolkit):
         return _public_json(manager.get(product_id))
 
     @requires_permission()
-    def create_company_routine(
+    def create_product_routine(
         self,
         product_id: str,
         name: str,
@@ -410,7 +410,7 @@ class CompanyTools(Toolkit):
         schedule_ids: List[str] = []
         try:
             for source in product.sources:
-                row = await self.aadd_company_source(
+                row = await self.aadd_product_source(
                     product_id,
                     source.reference,
                     config=source.config,
@@ -429,7 +429,7 @@ class CompanyTools(Toolkit):
         return _public_json(await manager.get(product_id))
 
     @requires_permission()
-    async def acreate_company_routine(
+    async def acreate_product_routine(
         self,
         product_id: str,
         name: str,
@@ -674,7 +674,7 @@ class CompanyTools(Toolkit):
         return _public_json(asdict(self._sync().read_wiki(product_id, path)))
 
     @requires_permission()
-    def update_company_status(
+    def update_product_status(
         self, product_id: str, content: str, expected_version: int, _agno_run_context: Optional[Any] = None
     ) -> str:
         """Update status.md after reading it; supply the version read to prevent lost edits."""
@@ -968,7 +968,7 @@ class CompanyTools(Toolkit):
         return _public_json(asdict(await self._async().read_wiki(product_id, path)))
 
     @requires_permission()
-    async def aupdate_company_status(
+    async def aupdate_product_status(
         self, product_id: str, content: str, expected_version: int, _agno_run_context: Optional[Any] = None
     ) -> str:
         """Update status.md after reading it; supply the version read to prevent lost edits."""
@@ -1059,7 +1059,7 @@ class CompanyTools(Toolkit):
         return run_context.run_id
 
     @requires_permission()
-    def add_company_source(
+    def add_product_source(
         self,
         product_id: str,
         reference: str,
@@ -1091,7 +1091,7 @@ class CompanyTools(Toolkit):
         return json.dumps({key: value for key, value in row.items() if key != "credential_ref"}, default=str)
 
     @requires_permission()
-    def list_company_sources(
+    def list_product_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
         """List the readers configured for a Product.
@@ -1113,7 +1113,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
-    def read_company_source(
+    def read_product_source(
         self,
         source_id: str,
         path: _OptionalString = None,
@@ -1158,7 +1158,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
-    def intake_company_source(
+    def intake_product_source(
         self,
         source_id: str,
         title: str,
@@ -1250,7 +1250,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
-    async def aadd_company_source(
+    async def aadd_product_source(
         self,
         product_id: str,
         reference: str,
@@ -1282,7 +1282,7 @@ class CompanyTools(Toolkit):
         return json.dumps({key: value for key, value in row.items() if key != "credential_ref"}, default=str)
 
     @requires_permission()
-    async def alist_company_sources(
+    async def alist_product_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
         """List the readers configured for a Product.
@@ -1304,7 +1304,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
-    async def aread_company_source(
+    async def aread_product_source(
         self,
         source_id: str,
         path: _OptionalString = None,
@@ -1351,7 +1351,7 @@ class CompanyTools(Toolkit):
         )
 
     @requires_permission()
-    async def aintake_company_source(
+    async def aintake_product_source(
         self,
         source_id: str,
         title: str,

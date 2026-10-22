@@ -685,6 +685,7 @@ async def test_attention_clears_acted_on_failures_and_preserves_results(system, 
 @pytest.mark.parametrize(
     "kind,executor_id",
     [
+        ("agent", "company-manager-internal"),
         ("agent", "product-manager-internal"),
         ("team", "os-manager-internal"),
         ("agent", "platform-builder-internal"),
@@ -3094,6 +3095,36 @@ async def test_automation_records_raised_tick_and_preserves_other_disable_reason
     await _call(db, "update_schedule", schedule["id"], enabled=False, disabled_reason="operator")
     saved = await _ensure_automation_schedule(db)
     assert saved["enabled"] is False and saved["disabled_reason"] == "operator"
+
+
+@pytest.mark.asyncio
+async def test_automation_schedule_runs_hourly_and_migrates_minute_rows(system):
+    from agno.company.execution import _call
+    from agno.company.routines import _ensure_automation_schedule
+
+    _, db, _, _, _ = system
+    _, schedule = await automation(system)
+    assert schedule["cron_expr"] == "0 * * * *"
+    await _call(db, "update_schedule", schedule["id"], cron_expr="* * * * *")
+    saved = await _ensure_automation_schedule(db)
+    assert saved["cron_expr"] == "0 * * * *"
+    assert (await _call(db, "get_schedule", schedule["id"]))["cron_expr"] == "0 * * * *"
+
+
+@pytest.mark.asyncio
+async def test_automation_schedule_cron_is_configurable(system):
+    from agno.company.execution import _call
+    from agno.company.routines import _ensure_automation_schedule
+
+    _, db, _, _, _ = system
+    _, schedule = await automation(system)
+    await _call(db, "update_schedule", schedule["id"], next_run_at=int(time.time()) + 3600)
+    saved = await _ensure_automation_schedule(db, cron_expr="*/5 * * * *")
+    assert saved["cron_expr"] == "*/5 * * * *" and int(time.time()) < saved["next_run_at"] <= int(time.time()) + 300
+    await _ensure_automation_schedule(db, cron_expr="*/5 * * * *")
+    assert (await _call(db, "get_schedule", schedule["id"]))["next_run_at"] == saved["next_run_at"]
+    with pytest.raises(ValueError, match="Invalid cron expression"):
+        await _ensure_automation_schedule(db, cron_expr="every hour")
 
 
 @pytest.mark.asyncio

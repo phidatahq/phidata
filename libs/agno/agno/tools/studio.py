@@ -4639,6 +4639,8 @@ class StudioTools(Toolkit):
         Returns:
             str: StudioResult JSON; data carries the updated schedule fields.
         """
+        from agno.db.schemas.scheduler import COMPANY_AUTOMATION_SCHEDULE_ID
+
         try:
             if cron is None and message is None and timezone is None and description is None:
                 return error_result("invalid_request", "Pass at least one field to change.")
@@ -4647,6 +4649,11 @@ class StudioTools(Toolkit):
             existing = manager.get(schedule_id, user_id=actor)
             if existing is None:
                 return error_result("schedule_not_found", f"Schedule not found: {schedule_id}")
+            if existing.managed_by == "company" and existing.id != COMPANY_AUTOMATION_SCHEDULE_ID:
+                return error_result(
+                    "company_routine",
+                    f"Schedule {schedule_id} is a Company Routine. Change it through Company Routines.",
+                )
             updates: Dict[str, Any] = {}
             if cron is not None:
                 updates["cron_expr"] = cron

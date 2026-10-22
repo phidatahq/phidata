@@ -6,6 +6,8 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 from agno.tracing import setup as tracing
 
+pytest.importorskip("openinference.instrumentation.agno")
+
 
 @pytest.mark.parametrize("batch_processing", [False, True])
 @pytest.mark.parametrize(

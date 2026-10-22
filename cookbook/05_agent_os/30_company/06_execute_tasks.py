@@ -90,7 +90,7 @@ if __name__ == "__main__":
                 assert accepted.status_code == 200, accepted.text
                 if automatic:
                     # Advance the existing schedule for a fast demonstration;
-                    # normal deployments leave its hourly cron untouched.
+                    # normal deployments leave its configured cron untouched.
                     schedule = db.get_schedule_by_name("Company automation")
                     db.update_schedule(schedule["id"], next_run_at=0)
                 else:

@@ -17,6 +17,7 @@ class CompanyConfig:
     products: List["Product"] = field(default_factory=list)
     acceptance_checks: Dict[str, Callable[[Dict[str, Any], Any], Any]] = field(default_factory=dict)
     automation_history_retention_days: int = 30
+    cron_schedule: str = "0 * * * *"
 
     def __post_init__(self) -> None:
         if (
@@ -25,3 +26,5 @@ class CompanyConfig:
             or self.automation_history_retention_days < 1
         ):
             raise ValueError("automation_history_retention_days must be a positive integer")
+        if not isinstance(self.cron_schedule, str) or not self.cron_schedule.strip():
+            raise ValueError("cron_schedule must be a cron expression")

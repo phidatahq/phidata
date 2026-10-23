@@ -70,9 +70,7 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         return asdict(await call("read_wiki", product_id, path))
 
     @router.put("/products/{product_id}/wiki/{path:path}", response_model=WikiPageResponse)
-    async def write_product_wiki(
-        path: str, body: WikiWrite, request: Request, product_id: str, _: bool = Depends(auth)
-    ):
+    async def write_product_wiki(path: str, body: WikiWrite, product_id: str, _: bool = Depends(auth)):
         return asdict(
             await call(
                 "write_wiki",
@@ -80,7 +78,6 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
                 path=path,
                 content=body.content,
                 expected_version=body.expected_version,
-                user_id=get_scoped_user_id(request),
             )
         )
 
@@ -97,7 +94,7 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         return asdict(await call("read_wiki", None, path))
 
     @router.put("/wiki/{path:path}", response_model=WikiPageResponse)
-    async def write_company_wiki(path: str, body: WikiWrite, request: Request, _: bool = Depends(auth)):
+    async def write_company_wiki(path: str, body: WikiWrite, _: bool = Depends(auth)):
         return asdict(
             await call(
                 "write_wiki",
@@ -105,7 +102,6 @@ def get_playbook_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
                 path=path,
                 content=body.content,
                 expected_version=body.expected_version,
-                user_id=get_scoped_user_id(request),
             )
         )
 

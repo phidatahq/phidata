@@ -294,7 +294,9 @@ def get_schedule_router(
         _: bool = Depends(auth_dependency),
     ) -> Dict[str, Any]:
         scoped_user_id = get_scoped_user_id(request)
-        existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
+        # Company Routines are shared records, so their writes do not filter by the caller.
+        owner_filter = None if managed_by == "company" else scoped_user_id
+        existing = await _db_call("get_schedule", schedule_id, user_id=owner_filter)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
@@ -384,7 +386,7 @@ def get_schedule_router(
         if execution_changed:
             updates["payload"] = stamp_authorization(updates.get("payload", existing.get("payload")))
         try:
-            result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
+            result = await _db_call("update_schedule", schedule_id, user_id=owner_filter, **updates)
         except Exception as e:
             if renaming and is_unique_violation(e):
                 raise HTTPException(status_code=409, detail=f"Schedule with name '{updates['name']}' already exists")
@@ -400,7 +402,8 @@ def get_schedule_router(
         _: bool = Depends(auth_dependency),
     ) -> None:
         scoped_user_id = get_scoped_user_id(request)
-        existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
+        owner_filter = None if managed_by == "company" else scoped_user_id
+        existing = await _db_call("get_schedule", schedule_id, user_id=owner_filter)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
@@ -411,7 +414,7 @@ def get_schedule_router(
             _require_mutable_schedule(schedule_id)
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
-        deleted = await _db_call("delete_schedule", schedule_id, user_id=scoped_user_id)
+        deleted = await _db_call("delete_schedule", schedule_id, user_id=owner_filter)
         if not deleted:
             raise HTTPException(status_code=500, detail="Failed to delete schedule")
 
@@ -422,7 +425,8 @@ def get_schedule_router(
         _: bool = Depends(auth_dependency),
     ) -> Dict[str, Any]:
         scoped_user_id = get_scoped_user_id(request)
-        existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
+        owner_filter = None if managed_by == "company" else scoped_user_id
+        existing = await _db_call("get_schedule", schedule_id, user_id=owner_filter)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
@@ -483,7 +487,7 @@ def get_schedule_router(
         if defer_activation and pending_key in (existing.get("payload") or {}):
             # Activation and completion of creation are one scheduler storage update.
             updates["payload"] = {key: value for key, value in existing["payload"].items() if key != pending_key}
-        result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
+        result = await _db_call("update_schedule", schedule_id, user_id=owner_filter, **updates)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to enable schedule")
         log_info(f"Schedule '{existing.get('name', schedule_id)}' enabled (next_run_at={next_run_at})")
@@ -496,7 +500,8 @@ def get_schedule_router(
         _: bool = Depends(auth_dependency),
     ) -> Dict[str, Any]:
         scoped_user_id = get_scoped_user_id(request)
-        existing = await _db_call("get_schedule", schedule_id, user_id=scoped_user_id)
+        owner_filter = None if managed_by == "company" else scoped_user_id
+        existing = await _db_call("get_schedule", schedule_id, user_id=owner_filter)
         if existing is None:
             raise HTTPException(status_code=404, detail="Schedule not found")
         if existing.get("managed_by") == "company" and managed_by != "company":
@@ -513,7 +518,7 @@ def get_schedule_router(
         if defer_activation and pending_key in (existing.get("payload") or {}):
             # An explicit pause overrides automatic recovery of an interrupted creation.
             updates["payload"] = {key: value for key, value in existing["payload"].items() if key != pending_key}
-        result = await _db_call("update_schedule", schedule_id, user_id=scoped_user_id, **updates)
+        result = await _db_call("update_schedule", schedule_id, user_id=owner_filter, **updates)
         if result is None:
             raise HTTPException(status_code=500, detail="Failed to disable schedule")
         log_info(f"Schedule '{existing.get('name', schedule_id)}' disabled")

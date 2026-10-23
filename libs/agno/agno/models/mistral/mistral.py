@@ -258,7 +258,7 @@ class MistralChat(Model):
             for chunk in self.get_client().chat.stream(
                 model=self.id,
                 messages=mistral_messages,
-                **self.get_request_params(tools=tools, tool_choice=tool_choice),
+                **self._stream_request_params(response_format, tools, tool_choice),
             ):
                 yield self._parse_provider_response_delta(chunk)
 
@@ -336,7 +336,7 @@ class MistralChat(Model):
             async for chunk in await self.get_client().chat.stream_async(
                 model=self.id,
                 messages=mistral_messages,
-                **self.get_request_params(tools=tools, tool_choice=tool_choice),
+                **self._stream_request_params(response_format, tools, tool_choice),
             ):
                 yield self._parse_provider_response_delta(chunk)
 
@@ -348,6 +348,19 @@ class MistralChat(Model):
         except SDKError as e:
             log_error(f"SDKError from Mistral: {str(e)}")
             raise ModelProviderError(message=str(e), model_name=self.name, model_id=self.id) from e
+
+    def _stream_request_params(
+        self,
+        response_format: Optional[Union[Dict, Type[BaseModel]]],
+        tools: Optional[List[Dict[str, Any]]],
+        tool_choice: Optional[Union[str, Dict[str, Any]]],
+    ) -> Dict[str, Any]:
+        """Request params for a streaming call, with the response format the non-streaming calls send."""
+        params = self.get_request_params(tools=tools, tool_choice=tool_choice)
+        mistral_response_format = self._get_response_format_param(response_format)
+        if mistral_response_format is not None:
+            params["response_format"] = mistral_response_format
+        return params
 
     def _get_response_format_param(self, response_format: Optional[Union[Dict, Type[BaseModel]]]) -> Any:
         """Mistral's response_format for a Pydantic model or a JSON Schema response format dict."""

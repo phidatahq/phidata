@@ -274,9 +274,11 @@ def test_json_schema_error_reports_the_failing_location():
     assert error is not None and error.endswith("(at properties/a/type)")
 
 
-def test_json_schema_error_survives_deep_nesting():
-    pytest.importorskip("jsonschema")
-    schema: Dict = {"type": "object"}
-    for _ in range(5000):
-        schema = {"type": "object", "properties": {"n": schema}}
-    assert json_schema_error(schema) == "schema is nested too deeply"
+def test_json_schema_error_reports_recursion_as_too_deep(monkeypatch):
+    jsonschema = pytest.importorskip("jsonschema")
+
+    def recurse(schema):
+        raise RecursionError
+
+    monkeypatch.setattr(jsonschema.Draft202012Validator, "check_schema", staticmethod(recurse))
+    assert json_schema_error(OBJECT_SCHEMA) == "schema is nested too deeply"

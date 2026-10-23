@@ -162,6 +162,37 @@ def test_mistral_sends_the_canonical_shape():
     assert response_format == {"type": "json_schema", "json_schema": {"name": "Weather", "schema": SCHEMA}}
 
 
+def test_mistral_streams_with_the_response_format():
+    pytest.importorskip("mistralai")
+    import asyncio
+    from unittest.mock import AsyncMock, MagicMock
+
+    from agno.models.mistral.mistral import MistralChat
+
+    async def no_chunks():
+        return
+        yield
+
+    client = MagicMock()
+    client.chat.stream.return_value = iter([])
+    client.chat.stream_async = AsyncMock(return_value=no_chunks())
+    model = MistralChat(id="mistral-small-latest")
+    model.mistral_client = client
+    messages = [Message(role="user", content="Hi")]
+
+    list(model.invoke_stream(messages, Message(role="assistant"), response_format=CANONICAL))
+
+    async def drain():
+        async for _ in model.ainvoke_stream(messages, Message(role="assistant"), response_format=CANONICAL):
+            pass
+
+    asyncio.run(drain())
+
+    expected = {"type": "json_schema", "json_schema": {"name": "Weather", "schema": SCHEMA}}
+    assert client.chat.stream.call_args.kwargs["response_format"] == expected
+    assert client.chat.stream_async.call_args.kwargs["response_format"] == expected
+
+
 def test_ollama_sends_the_schema_as_format():
     pytest.importorskip("ollama")
     from agno.models.ollama.chat import Ollama

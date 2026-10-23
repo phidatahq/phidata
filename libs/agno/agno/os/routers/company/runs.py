@@ -207,7 +207,16 @@ def get_company_runs_router(os: Any) -> APIRouter:
         if existing is not None:
             if (existing.get("payload") or {}).get("company_task_id") != task_id:
                 raise HTTPException(409, "Run identifier conflicts with another submission")
-            await _reserve_task(db, existing)
+            reserved = await _reserve_task(db, existing)
+            if (
+                reserved is not None
+                and existing["status"] in {"completed", "failed", "cancelled"}
+                and _pending_task_attempt(reserved) is not None
+            ):
+                from agno.company.execution import _recover_task
+
+                # A finished ticket's unsaved Task result is rebuilt from its run row.
+                await _recover_task(os, queue, reserved)
             return JSONResponse(
                 {
                     "run_id": run_id,
@@ -427,7 +436,10 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 owner = _reservation_owner(value, run)
                 queue = getattr(request.app.state, "queue_worker", None)
                 await _cancel_ticketless_pending_run(original_db, value, run, owner, queue)
-                await _reconcile_task_run(db, original_db, value, run, owner, worker=queue)
+                ticket = await queue.store.get_job(run_id) if queue is not None else None
+                # A live ticket saves its own Task result when the queue settles it.
+                if ticket is None or ticket["status"] in {"completed", "failed", "cancelled"}:
+                    await _reconcile_task_run(db, original_db, value, run, owner, worker=queue)
         return response
 
     @router.get("/attention")

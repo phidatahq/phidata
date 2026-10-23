@@ -96,6 +96,22 @@ def test_output_breaking_the_schema_is_rejected(ticket, change):
         ticket.model_validate({**VALID, **change})
 
 
+def test_an_optional_property_may_be_absent_but_not_null():
+    model = json_schema_to_model({"type": "object", "properties": {"name": {"type": "string"}}})
+    assert model.model_json_schema()["properties"]["name"] == {"title": "Name", "type": "string"}
+    assert model.model_validate({}).name is None
+    with pytest.raises(ValidationError):
+        model.model_validate({"name": None})
+
+
+def test_enum_with_a_matching_type_is_allowed():
+    model = json_schema_to_model(
+        {"type": "object", "properties": {"p": {"type": "string", "enum": ["a", "b"]}}, "required": ["p"]}
+    )
+    with pytest.raises(ValidationError):
+        model.model_validate({"p": "c"})
+
+
 def test_optional_property_gets_its_default():
     model = json_schema_to_model(
         {"type": "object", "properties": {"a": {"type": "string", "default": "x", "description": "doc"}}}
@@ -194,13 +210,31 @@ def test_additional_properties_false_forbids_extra_keys():
                 "properties": {"s": {"$ref": "#/$defs/T", "enum": ["ok"]}},
                 "$defs": {"T": {"type": "string"}},
             },
-            "keywords next to $ref",
+            "$ref cannot be combined with enum",
         ),
         (
             {"type": "object", "properties": {"n": {"oneOf": [{"type": "number"}, {"type": "integer"}]}}},
             "cannot overlap",
         ),
         ({"type": "object", "properties": {}}, "root must be an object"),
+        (
+            {
+                "type": "object",
+                "properties": {"v": {"type": "integer"}},
+                "required": ["v"],
+                "anyOf": [{"properties": {"v": {"minimum": 5}}}],
+            },
+            "anyOf cannot be combined with properties",
+        ),
+        (
+            {"type": "object", "properties": {"s": {"allOf": [{"type": "string"}], "enum": ["ok"]}}},
+            "allOf cannot be combined with enum",
+        ),
+        (
+            {"type": "object", "properties": {"s": {"type": "string", "properties": {"a": {}}}}},
+            "need type object",
+        ),
+        ({"type": "object", "properties": {"s": {"type": "string", "items": {}}}}, "items needs type array"),
     ],
     ids=[
         "array-root",
@@ -221,6 +255,10 @@ def test_additional_properties_false_forbids_extra_keys():
         "ref-with-enum",
         "oneOf-number-integer",
         "root-without-properties",
+        "root-composition",
+        "allOf-with-enum",
+        "object-keywords-on-string",
+        "items-on-string",
     ],
 )
 def test_unrepresentable_schemas_are_refused(schema, reason):

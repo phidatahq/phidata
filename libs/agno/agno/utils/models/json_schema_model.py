@@ -66,8 +66,11 @@ _CONSTRAINTS = {
     "maxItems": "max_length",
 }
 _SUPPORTED_KEYWORDS = _ANNOTATION_KEYWORDS | _STRUCTURAL_KEYWORDS | set(_CONSTRAINTS)
-# Keywords that may sit next to $ref without constraining the value
-_REF_SIBLING_KEYWORDS = _ANNOTATION_KEYWORDS | {"$ref", "$defs", "definitions", "nullable"}
+# Keywords that never constrain the value on their own, so they combine with any shape
+_PASSIVE_KEYWORDS = _ANNOTATION_KEYWORDS | {"nullable", "$defs", "definitions"}
+# Keywords that each define a node's whole shape; the converter handles one per node
+_SHAPE_KEYWORDS = ("$ref", "allOf", "anyOf", "oneOf", "enum", "const")
+_OBJECT_KEYWORDS = {"properties", "required", "additionalProperties"}
 _PRIMITIVES: Dict[str, Any] = {"string": str, "integer": int, "number": float, "boolean": bool, "null": type(None)}
 
 
@@ -259,11 +262,6 @@ class _ModelBuilder:
                 raise UnsupportedJsonSchemaError(f"{_at(path)}allOf is only supported with a single member")
             return self._annotation(members[0], hint, f"{path}/allOf/0")
         if "$ref" in schema:
-            siblings = sorted(k for k in schema if k not in _REF_SIBLING_KEYWORDS and not k.startswith("x-"))
-            if siblings:
-                raise UnsupportedJsonSchemaError(
-                    f"{_at(path)}keywords next to $ref are not supported: {', '.join(siblings)}"
-                )
             return self._ref_annotation(schema["$ref"], path)
         if "const" in schema:
             return Literal[_literal_value(schema["const"], path)]  # type: ignore[valid-type]
@@ -364,9 +362,12 @@ class _ModelBuilder:
             docs = _doc_kwargs(prop_schema) if isinstance(prop_schema, dict) else {}
             if prop_name in required:
                 fields[prop_name] = (annotation, Field(..., **docs))
+            elif isinstance(prop_schema, dict) and "default" in prop_schema:
+                fields[prop_name] = (annotation, Field(prop_schema["default"], **docs))
             else:
-                default = prop_schema.get("default") if isinstance(prop_schema, dict) else None
-                fields[prop_name] = (Optional[annotation], Field(default, **docs))
+                # Not required means it may be absent, not that it may be null: keep the type,
+                # and keep the placeholder default out of the schema the model sees
+                fields[prop_name] = (annotation, Field(None, json_schema_extra=_drop_default, **docs))
 
         # JSON Schema allows undeclared keys unless additionalProperties is false: keep them rather than drop them
         config = ConfigDict(extra="forbid" if additional is False else "allow")
@@ -388,9 +389,31 @@ def _declares_properties(schema: Dict[str, Any]) -> bool:
 
 
 def _check_keywords(schema: Dict[str, Any], path: str) -> None:
-    unsupported = sorted(k for k in schema if k not in _SUPPORTED_KEYWORDS and not k.startswith("x-"))
+    """Refuse unknown keywords, and any combination the converter would only partly apply.
+
+    Every node is one shape ($ref, a single allOf/anyOf/oneOf, enum or const, or a type with
+    its matching keywords) plus passive annotations; anything else would be silently dropped.
+    """
+    keys = {k for k in schema if not k.startswith("x-")}
+    unsupported = sorted(keys - _SUPPORTED_KEYWORDS)
     if unsupported:
         raise UnsupportedJsonSchemaError(f"{_at(path)}unsupported keyword(s): {', '.join(unsupported)}")
+    shapes = [k for k in _SHAPE_KEYWORDS if k in keys]
+    if shapes:
+        allowed = _PASSIVE_KEYWORDS | {shapes[0]} | ({"type"} if shapes[0] in ("enum", "const") else set())
+        extra = sorted(keys - allowed)
+        if extra:
+            raise UnsupportedJsonSchemaError(f"{_at(path)}{shapes[0]} cannot be combined with {', '.join(extra)}")
+        return
+    types = _types_of(schema)
+    if keys & _OBJECT_KEYWORDS and types and "object" not in types:
+        raise UnsupportedJsonSchemaError(f"{_at(path)}properties, required and additionalProperties need type object")
+    if "items" in keys and types and "array" not in types:
+        raise UnsupportedJsonSchemaError(f"{_at(path)}items needs type array")
+
+
+def _drop_default(schema: Dict[str, Any]) -> None:
+    schema.pop("default", None)
 
 
 def _doc_kwargs(schema: Dict[str, Any]) -> Dict[str, Any]:

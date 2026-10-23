@@ -478,6 +478,24 @@ def _require_write_ownership(existing: Dict[str, Any], scoped_user_id: Optional[
         raise HTTPException(status_code=403, detail=f"Cannot {verb} component owned by another user")
 
 
+def _require_stored_agent_composable(db: BaseDb, child_id: str, role: str) -> None:
+    """Refuse a stored external agent where an Agent is required.
+
+    Teams and workflows delegate to Agents; a stored ClaudeAgent or CodexAgent
+    (its config names the adapter under ``sdk``) can be run on its own but
+    never as a member or a step, and the load would refuse it later anyway.
+    """
+    from agno.agents._storage import is_external_agent_config
+
+    try:
+        row = db.get_config(component_id=child_id)
+    except NotImplementedError:
+        return
+    config = row.get("config") if isinstance(row, dict) else None
+    if is_external_agent_config(config):
+        raise ValueError(f"External agents cannot be {role}: {child_id}")
+
+
 def _resolve_member_links(
     config: Dict[str, Any],
     db: BaseDb,
@@ -530,6 +548,8 @@ def _resolve_member_links(
         # Prefer a persisted DB component: create a link so the graph is complete.
         child_component = db.get_component(child_id)
         if child_component is not None:
+            if member_type == "agent":
+                _require_stored_agent_composable(db, child_id, "team members")
             child_version = child_component.get("current_version")
             if child_version is not None:
                 links.append(
@@ -591,6 +611,8 @@ def _resolve_step_links(
         child_component = db.get_component(child_component_id)
         if child_component is None:
             return None
+        if link.get("link_kind") == "step_agent":
+            _require_stored_agent_composable(db, child_component_id, "workflow steps")
         child_version = child_component.get("current_version")
         if child_version is None:
             return None

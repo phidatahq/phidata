@@ -2007,10 +2007,12 @@ class StudioRunnerTools(Toolkit):
 
     def _load_agent_from_db(
         self, agent_id: str, version: Optional[int] = None, for_dispatch: bool = False, actor: Optional[str] = None
-    ) -> Optional["Agent"]:
+    ) -> Optional[Union["Agent", BaseExternalAgent]]:
         """Load an agent from DB via config + from_dict.
 
-        Registry-backed references resolve at their current published version."""
+        Registry-backed references resolve at their current published version.
+        A stored external adapter follows the code-registered ones: dispatchable,
+        but not in the build palette, so a non-dispatch lookup does not see it."""
         from agno.db.base import ComponentType
 
         loaded = self._load_config_row_from_db(
@@ -2021,6 +2023,21 @@ class StudioRunnerTools(Toolkit):
         config, resolved_version = loaded
         self._require_registry_for("agent", agent_id, config, version=resolved_version)
         from agno.agent.agent import Agent
+        from agno.agents._storage import external_agent_from_config, is_external_agent_config
+
+        if is_external_agent_config(config):
+            if not for_dispatch or self.db is None:
+                return None
+            try:
+                adapter = external_agent_from_config(
+                    config, id=agent_id, db=self.db, registry=self.registry, strict=True
+                )
+            except ComponentRehydrationError as rehydration_error:
+                raise ComponentNeedsRegistryError(str(rehydration_error)) from rehydration_error
+            # The remaining dispatch guards inspect an Agent's graph and model roles, which an
+            # adapter does not have; its db routing is held to the same rule.
+            self._require_matching_db(config, adapter, "agent", agent_id)
+            return adapter
 
         try:
             agent = Agent.from_dict(config, registry=self.registry, strict=for_dispatch)

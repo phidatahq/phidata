@@ -1745,13 +1745,17 @@ class StudioTools(Toolkit):
                 view["learning"] = True
             schema = config.get("output_schema")
             # A registry-referenced schema is stored as its class name (a
-            # string); an inline schema stays a dict and is shown as the plain
-            # JSON Schema edit_agent/edit_team accept back.
+            # string). An inline one is shown as plain JSON Schema only when
+            # rewrapping reproduces the stored format, so passing the view back
+            # to an edit never drops its name or strict setting.
             if isinstance(schema, str) and schema:
                 view["output_schema_name"] = schema
             elif isinstance(schema, dict):
                 inline = unwrap_json_schema_response_format(schema)
-                view["output_schema"] = inline.schema if inline is not None else schema
+                if inline is not None and json_schema_response_format(inline.schema) == schema:
+                    view["output_schema"] = inline.schema
+                else:
+                    view["output_schema"] = schema
             reasoning_model = config.get("reasoning_model")
             if isinstance(reasoning_model, dict) and reasoning_model.get("id"):
                 view["reasoning_model_id"] = reasoning_model.get("id")

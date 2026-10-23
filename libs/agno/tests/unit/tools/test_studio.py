@@ -2046,6 +2046,24 @@ class TestCoverageFields:
         stored = db.get_config(component_id="strict", version=1)["config"]["output_schema"]
         assert stored == wrapped
 
+    @pytest.mark.parametrize(
+        "wrapper",
+        [
+            {"strict": True},
+            {"name": "Untitled"},
+        ],
+        ids=["strict", "name-without-title"],
+    )
+    def test_read_edit_round_trip_keeps_the_stored_format(self, studio_refs, db, wrapper):
+        schema = {k: v for k, v in self.INLINE_SCHEMA.items() if k != "title"}
+        wrapped = {"type": "json_schema", "json_schema": {"name": "Weather", "schema": schema, **wrapper}}
+        _data(studio_refs.create_agent(name="kept", instructions="i", model_id="gpt-5.4", output_schema=wrapped))
+        stored = db.get_config(component_id="kept", version=1)["config"]["output_schema"]
+
+        shown = _data(studio_refs.get_component("kept"))["output_schema"]
+        _data(studio_refs.edit_agent("kept", output_schema=shown))
+        assert db.get_config(component_id="kept", version=2)["config"]["output_schema"] == stored
+
     def test_inline_output_schema_on_a_team(self, studio_refs, db):
         _data(studio_refs.create_agent(name="member", instructions="i", model_id="gpt-5.4"))
         _data(

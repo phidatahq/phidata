@@ -72,9 +72,10 @@ _HISTORY_TOOL_RESULT_MAX_CHARS = 2000
 _HISTORY_TOOL_RESULT_TAIL_CHARS = 400
 _HISTORY_MAX_CHARS = 24000
 
-# Turns in flight per agent id: session_id -> run_id. Shared by every instance carrying that id, so an
-# adapter rebuilt from its stored config for each request guards its sessions like a registered one.
-_SESSIONS_IN_FLIGHT: Dict[str, Dict[str, str]] = {}
+# Turns in flight per agent id and session store: session_id -> run_id. Shared by every instance
+# carrying that id on that store, so an adapter rebuilt from its stored config for each request
+# guards its sessions like a registered one, while same-id agents on other stores stay apart.
+_SESSIONS_IN_FLIGHT: Dict[Tuple[str, Optional[str], Optional[str]], Dict[str, str]] = {}
 
 
 @dataclass
@@ -325,10 +326,12 @@ class BaseExternalAgent:
         """session_id -> run_id of the turns this process is running on this agent's sessions.
 
         A session accepts one turn at a time: the harness keeps one conversation per session
-        on its side. The map is keyed by agent id rather than held per instance, so a second
-        instance of the same stored agent sees the claim too.
+        on its side. The map is keyed by agent id and session store rather than held per
+        instance, so a second instance of the same stored agent sees the claim too, and a
+        same-id agent on another store does not.
         """
-        return _SESSIONS_IN_FLIGHT.setdefault(self.get_id(), {})
+        key = (self.get_id(), getattr(self.db, "id", None), getattr(self.db, "session_table_name", None))
+        return _SESSIONS_IN_FLIGHT.setdefault(key, {})
 
     # ---------------------------------------------------------------------------
     # Component persistence (see agno.agents._storage)

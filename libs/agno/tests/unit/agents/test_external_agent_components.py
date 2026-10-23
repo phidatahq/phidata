@@ -6,6 +6,7 @@ loaders rebuild the adapter the config names, AgentOS lists and runs it, and
 the composition surfaces refuse it where an Agent is required.
 """
 
+import asyncio
 import tempfile
 import warnings
 from pathlib import Path
@@ -488,15 +489,33 @@ class TestPersistence:
         # Both the non-streaming and the streaming run keep it on the stored row.
         assert [stored.metadata for stored in db.get_runs(session_id="s1")] == [metadata, metadata]
 
-    def test_turns_in_flight_are_shared_across_instances(self):
-        first = EchoAgent(id="shared")
-        second = EchoAgent(id="shared")
+    def test_turns_in_flight_are_shared_per_agent_and_store(self, db):
+        other_db = SqliteDb(id="other-db", db_file=f"{tempfile.mkdtemp()}/other.db")
+        first = EchoAgent(id="shared", db=db)
+        second = EchoAgent(id="shared", db=db)
         first._sessions_in_flight["s1"] = "run-1"
         try:
             assert second._sessions_in_flight == {"s1": "run-1"}
-            assert EchoAgent(id="other")._sessions_in_flight == {}
+            assert EchoAgent(id="other", db=db)._sessions_in_flight == {}
+            # The same id on another store is another agent's conversation.
+            assert EchoAgent(id="shared", db=other_db)._sessions_in_flight == {}
+            assert EchoAgent(id="shared")._sessions_in_flight == {}
         finally:
             first._sessions_in_flight.clear()
+
+    def test_same_id_agents_on_different_stores_run_concurrently(self, db):
+        other_db = SqliteDb(id="other-db", db_file=f"{tempfile.mkdtemp()}/other.db")
+        first = EchoAgent(id="assistant", db=db)
+        second = EchoAgent(id="assistant", db=other_db)
+
+        async def both() -> list:
+            return await asyncio.gather(
+                first.arun("hi", session_id="session-1"), second.arun("hi", session_id="session-1")
+            )
+
+        runs = asyncio.run(both())
+
+        assert [run.content for run in runs] == ["echo: hi", "echo: hi"]
 
 
 # ---------------------------------------------------------------------------

@@ -414,6 +414,21 @@ class TestPersistence:
         assert await agent.adelete() is True
         assert db.get_component("coder") is None
 
+    @pytest.mark.asyncio
+    async def test_async_variants_keep_an_in_memory_sqlite_database(self, registry):
+        # An in-memory SQLite database is private to each thread, so the async
+        # variants must not move its work to a worker thread.
+        memory_db = SqliteDb(id="memory-db", db_url="sqlite:///:memory:")
+        agent = ClaudeAgent(id="coder", permission_mode="plan", db=memory_db)
+        agent.save()
+
+        loaded = await ClaudeAgent.aload("coder", db=memory_db, registry=registry)
+        assert isinstance(loaded, ClaudeAgent) and loaded.permission_mode == "plan"
+        assert await agent.asave() == 2
+        assert memory_db.get_component("coder")["current_version"] == 2
+        assert await agent.adelete() is True
+        assert memory_db.get_component("coder") is None
+
     def test_get_agent_by_id_rebuilds_the_adapter(self, db, registry):
         CodexAgent(id="cx", sandbox_mode="read-only").save(db=db)
 

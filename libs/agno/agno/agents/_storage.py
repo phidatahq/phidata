@@ -371,6 +371,25 @@ def load(
     return bind_loaded_agent(agent, id, db, config, strict)
 
 
+def _thread_bound(db: Any) -> bool:
+    """Whether the db's connections are private to the calling thread.
+
+    SQLAlchemy serves an in-memory SQLite database from a SingletonThreadPool:
+    every thread gets its own empty database, so work moved to a worker thread
+    would read and write a store the caller never sees.
+    """
+    from sqlalchemy.pool import SingletonThreadPool
+
+    return isinstance(getattr(getattr(db, "db_engine", None), "pool", None), SingletonThreadPool)
+
+
+async def _off_loop(catalog_db: Any, func: Any, /, *args: Any, **kwargs: Any) -> Any:
+    """Run a sync catalog call in a worker thread, unless the db is bound to this thread."""
+    if _thread_bound(catalog_db):
+        return func(*args, **kwargs)
+    return await asyncio.to_thread(func, *args, **kwargs)
+
+
 async def asave(
     agent: "BaseExternalAgent",
     *,
@@ -380,7 +399,7 @@ async def asave(
     notes: Optional[str] = None,
 ) -> Optional[int]:
     """Async variant of save; the component catalog is served by the sync db, off the event loop."""
-    return await asyncio.to_thread(save, agent, db=db, stage=stage, label=label, notes=notes)
+    return await _off_loop(db or agent.db, save, agent, db=db, stage=stage, label=label, notes=notes)
 
 
 async def aload(
@@ -395,7 +414,8 @@ async def aload(
     published_only: bool = False,
 ) -> Optional["BaseExternalAgent"]:
     """Async variant of load; the component catalog is served by the sync db, off the event loop."""
-    return await asyncio.to_thread(
+    return await _off_loop(
+        db,
         load,
         cls,
         id,
@@ -436,6 +456,6 @@ async def adelete(
     require_no_dependents: bool = True,
 ) -> bool:
     """Async variant of delete; the component catalog is served by the sync db, off the event loop."""
-    return await asyncio.to_thread(
-        delete, agent, db=db, hard_delete=hard_delete, require_no_dependents=require_no_dependents
+    return await _off_loop(
+        db or agent.db, delete, agent, db=db, hard_delete=hard_delete, require_no_dependents=require_no_dependents
     )

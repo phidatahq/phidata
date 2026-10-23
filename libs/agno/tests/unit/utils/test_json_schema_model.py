@@ -169,6 +169,17 @@ def test_a_recursive_nullable_ref_keeps_null():
     assert parsed.node.next.next is None
 
 
+def test_a_root_ref_with_defs_still_works():
+    model = json_schema_to_model(
+        {
+            "$ref": "#/$defs/T",
+            "description": "the output",
+            "$defs": {"T": {"type": "object", "properties": {"v": {"type": "string"}}, "required": ["v"]}},
+        }
+    )
+    assert model.model_validate({"v": "x"}).v == "x"
+
+
 def test_optional_property_gets_its_default():
     model = json_schema_to_model(
         {"type": "object", "properties": {"a": {"type": "string", "default": "x", "description": "doc"}}}
@@ -323,6 +334,15 @@ def test_additional_properties_false_forbids_extra_keys():
             },
             "only also allow primitive types",
         ),
+        (
+            {
+                "type": "object",
+                "$ref": "#/$defs/T",
+                "required": ["v"],
+                "$defs": {"T": {"type": "object", "properties": {"v": {"type": "string"}}}},
+            },
+            "$ref cannot be combined with required, type",
+        ),
     ],
     ids=[
         "array-root",
@@ -356,6 +376,7 @@ def test_additional_properties_false_forbids_extra_keys():
         "invalid-pattern",
         "nullable-root",
         "ref-object-or-array",
+        "root-ref-with-required",
     ],
 )
 def test_unrepresentable_schemas_are_refused(schema, reason):

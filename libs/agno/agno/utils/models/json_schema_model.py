@@ -150,6 +150,7 @@ class _ModelBuilder:
         self.models: List[Type[BaseModel]] = []
 
     def build_root(self, schema: Dict[str, Any], name: str) -> Type[BaseModel]:
+        _check_keywords(schema, "")
         root_types = _types_of(schema)
         if (root_types and root_types != {"object"}) or schema.get("nullable") is True:
             raise UnsupportedJsonSchemaError(

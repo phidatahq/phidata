@@ -619,7 +619,7 @@ async def test_routine_service_cannot_create_a_plain_task(heartbeat):
     product = await call("create", name="Bounded proposals")
     product_project = await call("create_project", product_id=product["id"], name="Work")
     with authorization_scope(lambda: _RoutineAuthorization(None, "routine")):
-        with pytest.raises(PermissionError, match="intake_company_source"):
+        with pytest.raises(PermissionError, match="intake_product_source"):
             await call("create_task", product_id=product["id"], title="Plain task", project_id=product_project["id"])
     assert (await call("list_tasks", product_id=product["id"]))[1] == 0
 
@@ -784,8 +784,8 @@ async def test_agent_website_source_reuse_provenance_conflicts_and_archive(heart
         args["_agno_" + executor_type] = agent
         args.update(overrides)
         if isinstance(db, AsyncBaseDb):
-            return json.loads(await toolkit.aadd_company_source(**args))
-        return json.loads(await asyncio.to_thread(toolkit.add_company_source, **args))
+            return json.loads(await toolkit.aadd_product_source(**args))
+        return json.loads(await asyncio.to_thread(toolkit.add_product_source, **args))
 
     first, second = await asyncio.gather(add(), add())
     assert first["id"] == second["id"]

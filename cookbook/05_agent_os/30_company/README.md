@@ -360,7 +360,7 @@ report without disclosing values. These readers use local files or an unauthenti
 website GET: `credential_ref` is a diagnostic prerequisite, not an authentication
 adapter, and its value is never passed to an executor or reader.
 Source reads require `sources:read`, not a separate filesystem grant.
-`read_company_source` without `path` returns a content-free index (`data`,
+`read_product_source` without `path` returns a content-free index (`data`,
 `total_count`, `next_offset`). Use a filename glob in `pattern` and `offset`/`limit`
 to page through it. Discovery does not open document contents. Pass a returned
 `path` to read one document; the response contains evidence and up to 8,000
@@ -472,17 +472,19 @@ indistinguishable from the checked record. Project completion still refuses any
 current non-terminal Task, but child evidence changes do not advance the Project's
 timestamp and are not fenced by this comparison.
 
-Each minute it checks Ready Tasks and authorized Routine proposals using the
-scheduler's ordinary claims and release. A tick records history only when it
-accepts, dispatches, completes, or recovers work, or encounters an execution
-error. Dispatch failures, including unavailable queue storage or a missing
-executor, produce failed history with Task-specific reasons, readable through
-`/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
+Each hour it checks Ready Tasks and authorized Routine proposals using the
+scheduler's ordinary claims and release. The cadence is
+`CompanyConfig(cron_expr="0 * * * *")`. The setting must be a cron
+expression; a changed cron is applied to the existing schedule on restart. A tick
+records history only when it accepts, dispatches, completes, or recovers work, or
+encounters an execution error. Dispatch failures, including unavailable queue
+storage or a missing executor, produce failed history with Task-specific reasons,
+readable through `/schedules/{id}/runs`. Idle ticks and expected acceptance-policy skips leave no
 run rows. Unexpected database errors are recorded even before dispatch starts.
 Engineering executors and a previous attempt whose ticket is still active are
 expected skips. If a Ready Task's accepting human loses permission, the Task
 returns to Backlog with the refusal reason and appears in attention; the failed
-tick is recorded once instead of repeating every minute.
+tick is recorded once instead of repeating every hour.
 
 Recovery runs before current Routine pause, policy and permission checks. It only
 reconciles existing reservations and never enqueues work. A terminal durable run
@@ -542,7 +544,7 @@ COMPANY_AUTOMATION=1 .venv/bin/python cookbook/05_agent_os/30_company/06_execute
 COMPANY_AUTOMATION=1 COMPANY_DB=postgres .venv/bin/python cookbook/05_agent_os/30_company/06_execute_tasks.py
 ```
 
-The example advances the existing schedule's due time to avoid a one-minute
+The example advances the existing schedule's due time to avoid an hour-long
 wait. The poller still claims the schedule, and Tasks still enter the ordinary
 executor run route and durable queue. A pending submission retains its original
 attempt on restart. The queue owns execution retry limits; new ticks do not
@@ -582,7 +584,7 @@ Every authorization names an exact executor type and ID. A proposal with no
 executor receives that authorized executor at acceptance. A proposal that names
 an executor must name the same one. It must belong to the Routine's Product and
 carry the framework's Routine origin. `propose_company_task` and
-`intake_company_source` require a Project and can name a proposed executor; neither can
+`intake_product_source` require a Project and can name a proposed executor; neither can
 accept work. Source IDs and work scope are optional bounds. Omitted Source/scope
 bounds impose no additional restriction; an empty allowed-ID list permits no matching work.
 `project_ids` can include `null` for legacy Tasks without a Project; new Tasks require a Project. Unknown fields and
@@ -777,7 +779,7 @@ when its policy sets `complete_projects: true`.
 A custom Routine does maintenance only when it calls the Refresh tool, and
 Summary bookkeeping only when it calls the Summary tool.
 
-Company Manager and executors can call `add_company_source(product_id, reference, config=None)`
+Company Manager and executors can call `add_product_source(product_id, reference, config=None)`
 when granted `sources:write` and permitted to write the Product. Repository and
 path Sources remain human-added. Source storage has a single existing JSON
 field, `config`: server-stamped `config.metadata.agent_id` or

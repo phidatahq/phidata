@@ -15,8 +15,9 @@ Then send a turn and poll it:
     curl localhost:7777/agents/coder/runs/<run_id>?session_id=demo
 
 AgentOS, the queue and the database stay on this host; each turn runs Claude Code in a Modal
-sandbox. With a queue, any replica may run the next attempt, so every replica must read the
-same checkpoint directory.
+sandbox. With a queue, any replica may run the next attempt, so every replica must read the same
+checkpoints: set AGNO_SANDBOX_CHECKPOINT_BUCKET to keep them in S3 (needs agno[s3]). Unset, they
+stay in a directory on this host, which only a single replica can use.
 """
 
 import os
@@ -28,7 +29,18 @@ from agno.job_queue.config import QueueConfig, RedisCoordination
 from agno.os import AgentOS
 from agno.sandbox.checkpoint import FileCheckpointStore
 from agno.sandbox.modal import ModalSandbox
+from agno.sandbox.s3 import S3CheckpointStore
 from modal_image import runtime_image
+
+# Every replica must restore every other replica's checkpoints. With AGNO_SANDBOX_CHECKPOINT_BUCKET
+# set they live in that S3 bucket, which any number of replicas share. Without it they stay in a
+# directory on this host, which is only safe while this one process is the deployment's only replica.
+bucket = os.getenv("AGNO_SANDBOX_CHECKPOINT_BUCKET")
+checkpoints = (
+    S3CheckpointStore(bucket, prefix="sandbox/checkpoints")
+    if bucket
+    else FileCheckpointStore(Path.home() / ".agno" / "sandbox" / "checkpoints")
+)
 
 db = PostgresDb(
     db_url=os.getenv(
@@ -39,12 +51,7 @@ agent = ClaudeAgent(
     id="coder",
     model=os.getenv("AGNO_SANDBOX_MODEL", "claude-sonnet-4-6"),
     permission_mode="bypassPermissions",
-    sandbox=ModalSandbox(
-        runtime_image(),
-        checkpoints=FileCheckpointStore(
-            Path.home() / ".agno" / "sandbox" / "checkpoints"
-        ),
-    ),
+    sandbox=ModalSandbox(runtime_image(), checkpoints=checkpoints),
 )
 agent_os = AgentOS(
     id="sandbox-claude-modal",

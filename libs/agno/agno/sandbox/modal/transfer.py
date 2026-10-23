@@ -8,6 +8,7 @@ from typing import Any, AsyncIterator, Mapping, Optional, Sequence
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import (
     CheckpointArchive,
+    CheckpointContentError,
     CheckpointRef,
     CheckpointStore,
     _combine_exports,
@@ -63,7 +64,7 @@ class ModalCheckpointTransfer:
             async for chunk in process.stdout:
                 size += len(chunk)
                 if size > limit:
-                    raise SandboxError("Checkpoint transfer exceeds its byte limit")
+                    raise CheckpointContentError("Checkpoint transfer exceeds its byte limit")
                 await _thread(output.write, chunk)
         await self._finish(process, "export")
 

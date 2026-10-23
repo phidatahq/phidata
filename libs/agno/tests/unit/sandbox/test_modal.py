@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 from agno.sandbox.base import SandboxError
-from agno.sandbox.checkpoint import CheckpointRef, FileCheckpointStore
+from agno.sandbox.checkpoint import CheckpointContentError, CheckpointRef, FileCheckpointStore
 from agno.sandbox.modal import ModalCheckpointTransfer, ModalSandbox
 
 
@@ -263,6 +263,9 @@ def test_constructor_validates_settings(world):
     with pytest.raises(ValueError, match="modal.Image"):
         ModalSandbox(object())
     assert provider(lifetime=600).execution_timeout == 300
+    with pytest.raises(ValueError, match="retain_checkpoints"):
+        provider(retain_checkpoints=0)
+    assert provider().retain_checkpoints == 3 and provider(retain_checkpoints=None).retain_checkpoints is None
 
 
 def test_missing_sdk_names_the_extra(monkeypatch):
@@ -486,7 +489,7 @@ async def test_capture_stops_reading_past_the_byte_limit(world, tmp_path):
     )
     handle = await sandbox.acreate("session")
     (world.boxes[handle.provider_ref].root / "workspace" / "big").write_bytes(b"x" * 100_000)
-    with pytest.raises(SandboxError, match="byte limit"):
+    with pytest.raises(CheckpointContentError, match="byte limit"):
         await transfer.acapture(handle, state={})
 
 

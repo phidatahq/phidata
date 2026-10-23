@@ -36,7 +36,7 @@ These steps create billable Modal compute.
 
    `sandbox_claude_modal.py` is this agent run directly, two turns on a new session.
 
-4. Serve it through AgentOS with a durable queue. Run Postgres and Redis, then `sandbox_claude_modal_agentos.py`. Point `checkpoints=` at storage every replica can read: with a queue, any replica may run the next attempt.
+4. Serve it through AgentOS with a durable queue. Run Postgres and Redis, then `sandbox_claude_modal_agentos.py`. Point `checkpoints=` at storage every replica can read, such as `S3CheckpointStore` or `PostgresCheckpointStore`: with a queue, any replica may run the next attempt. The cookbook uses S3 when `AGNO_SANDBOX_CHECKPOINT_BUCKET` is set.
 
 ## Cookbooks
 

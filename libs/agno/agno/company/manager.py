@@ -1,12 +1,32 @@
 """Synchronous and asynchronous management of Company Products."""
 
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 from uuid import uuid4
 
 from agno.company.summary import _serialized_summary
 from agno.db.base import _UNSET_UPDATED_AT, AsyncBaseDb, BaseDb
 from agno.db.schemas.products import validate_product_fields
+
+
+def _validate_agent_source(type: str, executor_type: str, executor_id: Optional[str], run_id: Optional[str]) -> None:
+    """An identified agent or team may add website Sources only."""
+    if type != "website":
+        raise PermissionError("Agents may add only website Sources; local repository and path Sources require a human")
+    if executor_type not in {"agent", "team"} or not executor_id or not run_id:
+        raise ValueError("Adding a Source requires the calling agent or team and run identity")
+
+
+def _routine_provenance(routine: Any) -> Dict[str, str]:
+    return {"managed_by": "company", "target_type": routine.executor_type, "target_id": routine.executor_id}
+
+
+def _without_routine_links(fields: Dict[str, Any]) -> Dict[str, Any]:
+    """Routine links change only through Routine create and removal, never a metadata edit."""
+    metadata = fields.get("metadata")
+    if not isinstance(metadata, dict) or "routine_ids" not in metadata:
+        return fields
+    return {**fields, "metadata": {key: value for key, value in metadata.items() if key != "routine_ids"}}
 
 
 def _project_proposal_id(product_id: str, name: str) -> Optional[str]:
@@ -43,6 +63,7 @@ class CompanyManager:
         purpose: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a Product."""
         fields = {"name": name, "purpose": purpose, "metadata": metadata}
@@ -50,13 +71,93 @@ class CompanyManager:
         return self.db.create_product(
             {
                 **fields,
-                "id": str(uuid4()),
+                "id": id or str(uuid4()),
                 "user_id": user_id,
                 "created_at": int(time.time()),
                 "updated_at": None,
                 "deleted_at": None,
             }
         )
+
+    def create_routine(
+        self,
+        *,
+        product_id: str,
+        routine: Any,
+        user_id: Optional[str] = None,
+        scoped_user_id: Optional[str] = None,
+        check: Optional[Callable[[Dict[str, Any]], None]] = None,
+        agent_os: Any = None,
+    ) -> Dict[str, Any]:
+        """Create and link a Routine owned by ``user_id``; ``check`` sees the schedule fields before any write.
+
+        Any writer may add a Routine to a Product, as with Projects and Tasks; ``scoped_user_id`` is kept for
+        callers and does not restrict which Product the Routine joins. Supply ``agent_os`` to target Company Manager.
+        """
+        from agno.company.declarations import Routine
+        from agno.company.routines import _declared_schedule_fields, _require_routine_product
+
+        product = self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_routine_product(product_id)
+        routine = Routine.model_validate(routine)
+        fields = _declared_schedule_fields(product_id, routine, self.registry, agent_os=agent_os)
+        if check is not None:
+            check(fields)
+        return self._write_routine(product_id, routine, fields, user_id)
+
+    def _write_routine(self, product_id: str, routine: Any, fields: Dict[str, Any], user_id: Optional[str]):
+        """Create, link and enable the schedule; a failed link or enable leaves no schedule behind."""
+        from agno.scheduler import ScheduleManager
+
+        schedules = ScheduleManager(self.schedule_db)
+        schedule = schedules.create(
+            **{key: value for key, value in fields.items() if key != "cron_expr"},
+            cron=fields["cron_expr"],
+            user_id=user_id,
+            enabled_on_create=False,
+            provenance=_routine_provenance(routine),
+        )
+        linked = False
+        try:
+            if self.db.add_product_routine(product_id, schedule.id) is None:
+                raise RuntimeError("Routine could not be linked to its Product")
+            linked = True
+            enabled = schedules.enable(schedule.id, user_id=user_id)
+            if enabled is None:
+                raise RuntimeError("Routine could not be enabled")
+        except Exception:
+            if linked:
+                self._unlink_routine(product_id, schedule.id)
+            schedules.delete(schedule.id, user_id=user_id)
+            raise
+        return enabled.to_dict()
+
+    def _unlink_routine(self, product_id: str, schedule_id: str) -> None:
+        product = self.get(product_id)
+        if product is not None:
+            metadata = dict(product.get("metadata") or {})
+            metadata["routine_ids"] = [i for i in metadata.get("routine_ids") or [] if i != schedule_id]
+            self.db.update_product(product_id, metadata=metadata)
+
+    def discard_product(
+        self,
+        product_id: str,
+        *,
+        source_ids: Sequence[str] = (),
+        schedule_ids: Sequence[str] = (),
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Remove a Product whose declared records could not all be created."""
+        from agno.scheduler import ScheduleManager
+
+        schedules = ScheduleManager(self.schedule_db)
+        for schedule_id in schedule_ids:
+            schedules.delete(schedule_id, user_id=user_id)
+        for source_id in source_ids:
+            self.db.delete_source(source_id)
+        self.db.delete_product(product_id)
 
     def get(
         self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False
@@ -91,9 +192,9 @@ class CompanyManager:
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        """Update name, purpose or metadata on an active Product."""
+        """Update name, purpose or metadata on an active Product; linked Routine ids are kept."""
         validate_product_fields(fields)
-        return self.db.update_product(product_id, user_id=user_id, **fields)
+        return self.db.update_product(product_id, user_id=user_id, **_without_routine_links(fields))
 
     def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
         """Archive a Product and its children atomically; active Tasks raise ValueError."""
@@ -261,7 +362,7 @@ class CompanyManager:
 
         if isinstance(current_authorization(), _RoutineAuthorization):
             raise PermissionError(
-                "Routines must propose Tasks through intake_company_source with evidence and a dedupe key"
+                "Routines must propose Tasks through intake_product_source with evidence and a dedupe key"
             )
         from agno.db.schemas.tasks import validate_task_fields
 
@@ -596,12 +697,7 @@ class CompanyManager:
         from agno.company.playbook import _require_owner
         from agno.db.schemas.sources import validate_source_fields
 
-        if type != "website":
-            raise PermissionError(
-                "Agents may add only website Sources; local repository and path Sources require a human"
-            )
-        if executor_type not in {"agent", "team"} or not executor_id or not run_id:
-            raise ValueError("Adding a Source requires the calling agent or team and run identity")
+        _validate_agent_source(type, executor_type, executor_id, run_id)
         validate_source_fields(dict(type=type, reference=reference, config=config))
         product = self.get(product_id)
         if product is None:
@@ -859,6 +955,7 @@ class AsyncCompanyManager:
         purpose: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
         user_id: Optional[str] = None,
+        id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Create a Product."""
         fields = {"name": name, "purpose": purpose, "metadata": metadata}
@@ -866,13 +963,93 @@ class AsyncCompanyManager:
         return await self.db.create_product(
             {
                 **fields,
-                "id": str(uuid4()),
+                "id": id or str(uuid4()),
                 "user_id": user_id,
                 "created_at": int(time.time()),
                 "updated_at": None,
                 "deleted_at": None,
             }
         )
+
+    async def create_routine(
+        self,
+        *,
+        product_id: str,
+        routine: Any,
+        user_id: Optional[str] = None,
+        scoped_user_id: Optional[str] = None,
+        check: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+        agent_os: Any = None,
+    ) -> Dict[str, Any]:
+        """Create and link a Routine owned by ``user_id``; ``check`` sees the schedule fields before any write.
+
+        Any writer may add a Routine to a Product, as with Projects and Tasks; ``scoped_user_id`` is kept for
+        callers and does not restrict which Product the Routine joins. Supply ``agent_os`` to target Company Manager.
+        """
+        from agno.company.declarations import Routine
+        from agno.company.routines import _declared_schedule_fields, _require_routine_product
+
+        product = await self.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        _require_routine_product(product_id)
+        routine = Routine.model_validate(routine)
+        fields = _declared_schedule_fields(product_id, routine, self.registry, agent_os=agent_os)
+        if check is not None:
+            await check(fields)
+        return await self._write_routine(product_id, routine, fields, user_id)
+
+    async def _write_routine(self, product_id: str, routine: Any, fields: Dict[str, Any], user_id: Optional[str]):
+        """Create, link and enable the schedule; a failed link or enable leaves no schedule behind."""
+        from agno.scheduler import ScheduleManager
+
+        schedules = ScheduleManager(self.schedule_db)
+        schedule = await schedules.acreate(
+            **{key: value for key, value in fields.items() if key != "cron_expr"},
+            cron=fields["cron_expr"],
+            user_id=user_id,
+            enabled_on_create=False,
+            provenance=_routine_provenance(routine),
+        )
+        linked = False
+        try:
+            if await self.db.add_product_routine(product_id, schedule.id) is None:
+                raise RuntimeError("Routine could not be linked to its Product")
+            linked = True
+            enabled = await schedules.aenable(schedule.id, user_id=user_id)
+            if enabled is None:
+                raise RuntimeError("Routine could not be enabled")
+        except Exception:
+            if linked:
+                await self._unlink_routine(product_id, schedule.id)
+            await schedules.adelete(schedule.id, user_id=user_id)
+            raise
+        return enabled.to_dict()
+
+    async def _unlink_routine(self, product_id: str, schedule_id: str) -> None:
+        product = await self.get(product_id)
+        if product is not None:
+            metadata = dict(product.get("metadata") or {})
+            metadata["routine_ids"] = [i for i in metadata.get("routine_ids") or [] if i != schedule_id]
+            await self.db.update_product(product_id, metadata=metadata)
+
+    async def discard_product(
+        self,
+        product_id: str,
+        *,
+        source_ids: Sequence[str] = (),
+        schedule_ids: Sequence[str] = (),
+        user_id: Optional[str] = None,
+    ) -> None:
+        """Remove a Product whose declared records could not all be created."""
+        from agno.scheduler import ScheduleManager
+
+        schedules = ScheduleManager(self.schedule_db)
+        for schedule_id in schedule_ids:
+            await schedules.adelete(schedule_id, user_id=user_id)
+        for source_id in source_ids:
+            await self.db.delete_source(source_id)
+        await self.db.delete_product(product_id)
 
     async def get(
         self, product_id: str, user_id: Optional[str] = None, include_deleted: bool = False
@@ -907,9 +1084,9 @@ class AsyncCompanyManager:
         return [{**row, "counts": counts[row["id"]]} for row in rows], total
 
     async def update(self, product_id: str, user_id: Optional[str] = None, **fields: Any) -> Optional[Dict[str, Any]]:
-        """Update name, purpose or metadata on an active Product."""
+        """Update name, purpose or metadata on an active Product; linked Routine ids are kept."""
         validate_product_fields(fields)
-        return await self.db.update_product(product_id, user_id=user_id, **fields)
+        return await self.db.update_product(product_id, user_id=user_id, **_without_routine_links(fields))
 
     async def delete(self, product_id: str, user_id: Optional[str] = None) -> bool:
         """Archive a Product and its children atomically; active Tasks raise ValueError."""
@@ -1079,7 +1256,7 @@ class AsyncCompanyManager:
 
         if isinstance(current_authorization(), _RoutineAuthorization):
             raise PermissionError(
-                "Routines must propose Tasks through intake_company_source with evidence and a dedupe key"
+                "Routines must propose Tasks through intake_product_source with evidence and a dedupe key"
             )
         from agno.db.schemas.tasks import validate_task_fields
 
@@ -1416,12 +1593,7 @@ class AsyncCompanyManager:
         from agno.company.playbook import _require_owner
         from agno.db.schemas.sources import validate_source_fields
 
-        if type != "website":
-            raise PermissionError(
-                "Agents may add only website Sources; local repository and path Sources require a human"
-            )
-        if executor_type not in {"agent", "team"} or not executor_id or not run_id:
-            raise ValueError("Adding a Source requires the calling agent or team and run identity")
+        _validate_agent_source(type, executor_type, executor_id, run_id)
         validate_source_fields(dict(type=type, reference=reference, config=config))
         product = await self.get(product_id)
         if product is None:

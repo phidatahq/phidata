@@ -10,6 +10,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence, Tuple
 from agno.sandbox.base import SandboxError, SandboxHandle, _sync
 from agno.sandbox.checkpoint import (
     CheckpointArchive,
+    CheckpointContentError,
     CheckpointRef,
     CheckpointStore,
     _combine_exports,
@@ -77,8 +78,9 @@ class DockerCheckpointTransfer:
                 assert process is not None and process.stdout is not None
                 while chunk := await process.stdout.read(1024 * 1024):
                     size += len(chunk)
-                    limit = self.archive.limits.max_bytes if target is not None else 65536
-                    if size > limit:
+                    if target is not None and size > self.archive.limits.max_bytes:
+                        raise CheckpointContentError("Checkpoint transfer exceeds its byte limit")
+                    if target is None and size > 65536:
                         raise SandboxError("Checkpoint transfer exceeds its byte limit")
                     if target is not None:
                         await _thread(target.write, chunk)
@@ -241,6 +243,10 @@ class DockerCheckpointTransfer:
                 raise SandboxError("Restore requires an empty, unused generation")
             await self._pause(handle)
             try:
+                # This is the in-computer restore: docker cp extracts the tar as written, so
+                # symlinks to absolute paths, such as a virtualenv's interpreter link, come back
+                # verbatim. Moving this onto CheckpointArchive.restore would drop them unless it
+                # passed absolute_links=True.
                 await self._copy(handle, "-", handle.provider_ref + ":/workspace", input_file=root / "workspace.tar")
                 await self._copy(handle, "-", handle.provider_ref + ":/runtime/native", input_file=root / "native.tar")
                 await self._unpause(handle)

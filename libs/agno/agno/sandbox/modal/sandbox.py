@@ -10,7 +10,7 @@ import weakref
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, AsyncIterator, Dict, Mapping, Optional, Sequence, Union
 
-from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity
+from agno.sandbox.base import ExecResult, Sandbox, SandboxError, SandboxHandle, _identity, _retention
 from agno.utils.log import log_debug
 
 if TYPE_CHECKING:
@@ -71,6 +71,7 @@ class ModalSandbox(Sandbox):
         checkpoints: Optional["CheckpointStore"] = None,
         env: Optional[Mapping[str, str]] = None,
         execution_timeout: Optional[float] = None,
+        retain_checkpoints: Optional[int] = 3,
     ) -> None:
         try:
             import modal
@@ -108,6 +109,7 @@ class ModalSandbox(Sandbox):
         self.checkpoints = checkpoints
         self.env = dict(env) if env is not None else None
         self.execution_timeout = execution_timeout
+        self.retain_checkpoints = _retention(retain_checkpoints)
         self._app: Any = None
         self._image: Any = None
         self._image_key: Optional[str] = None

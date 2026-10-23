@@ -34,6 +34,7 @@ from agno.run.workflow import WorkflowRunOutputEvent
 from agno.team import RemoteTeam, Team, TeamFactory
 from agno.tools import Function, Toolkit
 from agno.utils.log import log_debug, log_warning, logger
+from agno.utils.models.schema_utils import json_schema_error
 from agno.workflow import RemoteWorkflow, Workflow, WorkflowFactory
 
 
@@ -126,16 +127,11 @@ def _check_object_json_schema(schema: Dict[str, Any]) -> None:
     if schema.get("type") != "object":
         raise HTTPException(status_code=422, detail='Invalid output_schema: root must declare "type": "object"')
     try:
-        from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
-        from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+        error = json_schema_error(schema)
     except ImportError:
         raise ImportError("`jsonschema` not installed. Please install using `pip install jsonschema`")
-    try:
-        Draft202012Validator.check_schema(schema)
-    except SchemaError as exc:
-        raise HTTPException(status_code=422, detail=f"Invalid output_schema: {exc.message}") from exc
-    except RecursionError as exc:
-        raise HTTPException(status_code=422, detail="Invalid output_schema: schema is nested too deeply") from exc
+    if error is not None:
+        raise HTTPException(status_code=422, detail=f"Invalid output_schema: {error}")
 
 
 async def get_request_kwargs(request: Request, endpoint_func: Callable) -> Dict[str, Any]:

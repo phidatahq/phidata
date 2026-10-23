@@ -89,6 +89,7 @@ from agno.utils.live_sequence import LiveSequence
 from agno.utils.log import log_debug, log_warning, logger
 from agno.utils.models.schema_utils import (
     is_object_schema,
+    json_schema_error,
     json_schema_response_format,
     unwrap_json_schema_response_format,
 )
@@ -5770,6 +5771,13 @@ def _inline_output_schema(output_schema: Dict[str, Any]) -> tuple:
             "invalid_request",
             f"output_schema must be a JSON Schema whose root type is object (got type {schema.get('type')!r})",
         )
+    try:
+        schema_error = json_schema_error(schema)
+    except ImportError:
+        # jsonschema ships with the os extra; without it only the object root is checked
+        schema_error = None
+    if schema_error is not None:
+        return None, error_result("invalid_request", f"output_schema is not a valid JSON Schema: {schema_error}")
     if wrapped is None:
         return json_schema_response_format(schema), None
     return json_schema_response_format(schema, name=wrapped.name, strict=wrapped.strict), None

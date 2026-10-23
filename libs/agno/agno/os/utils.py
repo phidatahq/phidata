@@ -2632,9 +2632,16 @@ def collect_components_from_os(
     rather than failing the whole walk. Remote and factory components are skipped
     because they expose no locally-walkable instances.
     """
+    from agno.agents.base import BaseExternalAgent
+
     visited: Set[int] = set()
 
     for agent in agents or []:
+        if isinstance(agent, BaseExternalAgent):
+            # A sandbox with an id is what a stored external agent refers to.
+            if agent.sandbox is not None:
+                registry.add_sandbox(agent.sandbox)
+            continue
         if not isinstance(agent, Agent):
             continue
         try:

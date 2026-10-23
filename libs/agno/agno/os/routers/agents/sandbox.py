@@ -31,6 +31,13 @@ async def enqueue_sandbox_run(
     ):
         raise ValueError("Sandbox API execution requires a durable queue with shared session admission")
     registered = await worker._aresolve_job_component({"component_type": "agent", "component_id": agent.get_id()})
+    if registered is None:
+        # The worker re-resolves the ticket's agent from AgentOS(agents=[...]) and runs on that
+        # instance's sandbox; a stored component is rebuilt per request and has no such instance.
+        raise ValueError(
+            "Sandboxed runs through AgentOS require the agent to be registered with AgentOS(agents=[...]); "
+            "a stored agent component cannot be submitted to the sandbox queue"
+        )
     if registered is not agent:
         raise ValueError("Sandbox submissions must use the registered agent instance")
     from agno.sandbox import _harness

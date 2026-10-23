@@ -295,7 +295,7 @@ def get_company_runs_router(os: Any) -> APIRouter:
         owner = _task_session_owner(value, component)
         await _prepare_task_session(run_db, value, owner)
         try:
-            message = await _task_input(manager, value)
+            message = await _task_input(manager, value, accepted_execution=True)
         except LookupError as exc:
             raise HTTPException(404, str(exc))
         except ValueError as exc:

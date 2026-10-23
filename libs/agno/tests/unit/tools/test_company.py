@@ -107,7 +107,7 @@ async def test_empty_optionals_do_not_weaken_required_validation(tmp_path, use_a
 @pytest.mark.asyncio
 @pytest.mark.parametrize("use_async", [False, True])
 @pytest.mark.parametrize("processed", [False, True])
-@pytest.mark.parametrize("name", ["list_company_sources", "read_company_source"])
+@pytest.mark.parametrize("name", ["list_product_sources", "read_product_source"])
 async def test_source_optionals_equal_omission(tmp_path, use_async, processed, name):
     db = SqliteDb(db_file=str(tmp_path / "sources.db"))
     manager = CompanyManager(db)
@@ -130,7 +130,7 @@ async def test_source_optionals_equal_omission(tmp_path, use_async, processed, n
         function = (tools.get_async_functions() if use_async else tools.functions)[name]
         function.process_entrypoint()
         fn = function.entrypoint
-    required = {"product_id": product["id"]} if name == "list_company_sources" else {"source_id": source["id"]}
+    required = {"product_id": product["id"]} if name == "list_product_sources" else {"source_id": source["id"]}
 
     async def invoke(options):
         result = fn(**required, **options, _agno_run_context=context)
@@ -140,7 +140,7 @@ async def test_source_optionals_equal_omission(tmp_path, use_async, processed, n
     for argument in optional:
         assert await invoke({argument: ""}) == expected, argument
         assert await invoke({argument: None}) == expected, argument
-    if name == "read_company_source":
+    if name == "read_product_source":
         selected = await invoke({"path": path.name, "max_chars": None, "content_offset": ""})
         assert selected["content"] == "Observed content"
     db.close()

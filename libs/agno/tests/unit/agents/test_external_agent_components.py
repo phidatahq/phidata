@@ -111,6 +111,21 @@ def registry(db, sandbox) -> Registry:
 
 
 @pytest.fixture
+def agno_logs(caplog):
+    """caplog with the Agno loggers attached: they do not propagate to the root logger."""
+    import logging
+
+    loggers = [logging.getLogger(name) for name in ("agno", "agno-team", "agno-workflow")]
+    for logger in loggers:
+        logger.addHandler(caplog.handler)
+    try:
+        yield caplog
+    finally:
+        for logger in loggers:
+            logger.removeHandler(caplog.handler)
+
+
+@pytest.fixture
 def echo_storable(monkeypatch):
     monkeypatch.setitem(_storage.STORABLE_ADAPTERS, "echo", (__name__, "EchoAgent"))
 
@@ -257,7 +272,7 @@ class TestClaudeSerialization:
         with pytest.raises(ComponentRehydrationError, match="No external agent adapter stores configs with sdk 'nope'"):
             BaseExternalAgent.from_dict({"sdk": "nope", "id": "x"}, registry=registry)
 
-    def test_unknown_settings_strict_and_lenient(self, registry, caplog):
+    def test_unknown_settings_strict_and_lenient(self, registry, agno_logs):
         config = {"sdk": "claude-agent-sdk", "id": "coder", "permision_mode": "plan"}
 
         with pytest.raises(ComponentRehydrationError, match=r"does not accept: \['permision_mode'\]"):
@@ -265,9 +280,9 @@ class TestClaudeSerialization:
 
         rebuilt = ClaudeAgent.from_dict(config, registry=registry, strict=False)
         assert rebuilt.permission_mode is None
-        assert "permision_mode" in caplog.text
+        assert "permision_mode" in agno_logs.text
 
-    def test_missing_sandbox_strict_and_lenient(self, db, caplog):
+    def test_missing_sandbox_strict_and_lenient(self, db, agno_logs):
         config = {
             "sdk": "claude-agent-sdk",
             "id": "coder",
@@ -282,7 +297,7 @@ class TestClaudeSerialization:
         rebuilt = ClaudeAgent.from_dict(config, registry=empty, strict=False)
         assert rebuilt.sandbox is None
         assert rebuilt.repository is None
-        assert "Sandbox 'missing' not found" in caplog.text
+        assert "Sandbox 'missing' not found" in agno_logs.text
 
     def test_missing_schema_strict_and_lenient(self, db):
         config = {"sdk": "claude-agent-sdk", "id": "coder", "output_schema": "Missing"}
@@ -524,7 +539,7 @@ class TestPersistence:
 
 
 class TestComposition:
-    def test_team_from_dict_refuses_a_stored_external_member(self, db, registry, caplog):
+    def test_team_from_dict_refuses_a_stored_external_member(self, db, registry, agno_logs):
         ClaudeAgent(id="coder").save(db=db)
         config = {"id": "crew", "name": "Crew", "members": [{"type": "agent", "agent_id": "coder"}]}
 
@@ -533,7 +548,7 @@ class TestComposition:
 
         team = Team.from_dict(config, db=db, registry=registry, strict=False)
         assert team.members == []
-        assert "cannot be team members" in caplog.text
+        assert "cannot be team members" in agno_logs.text
 
     def test_team_from_dict_refuses_a_registry_external_member(self, db):
         registry = Registry(agents=[ClaudeAgent(id="coder")])
@@ -647,7 +662,7 @@ class TestStudioRunner:
 
 
 class TestRegistrySandboxes:
-    def test_add_and_get(self, caplog):
+    def test_add_and_get(self, agno_logs):
         registry = Registry()
         sandbox = FakeSandbox(id="docker-local")
 
@@ -661,7 +676,7 @@ class TestRegistrySandboxes:
         assert registry.get_sandbox("docker-local") is sandbox
         assert registry.get_sandbox("other") is None
         assert registry.get_sandbox_ids() == {"docker-local"}
-        assert "multiple distinct sandboxes share id 'docker-local'" in caplog.text
+        assert "multiple distinct sandboxes share id 'docker-local'" in agno_logs.text
 
     def test_agentos_walk_collects_sandboxes_from_external_agents(self):
         registry = Registry()

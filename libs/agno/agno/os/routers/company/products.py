@@ -15,26 +15,11 @@ from fastapi.responses import JSONResponse
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.os.auth import get_authentication_dependency
-from agno.os.middleware.user_scope import get_scoped_user_id
+from agno.os.middleware.user_scope import get_scoped_user_id, resolve_run_user_id
+from agno.os.routers.company.ownership import _require_write_ownership
 from agno.os.routers.company.schema import ProductCreate, ProductResponse, ProductUpdate
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.settings import AgnoAPISettings
-
-
-def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -> None:
-    """Refuse a scoped caller writing to a Product it does not own.
-
-    Reads are company-wide, so the row is always visible; a scoped caller that is
-    not the owner gets an honest 403 rather than a 404. An unscoped caller
-    (isolation off, or admin) may write to any Product.
-    """
-    if user_id is None:
-        return
-    owner = existing.get("user_id")
-    if owner is None:
-        raise HTTPException(status_code=403, detail="Cannot modify unowned product")
-    if owner != user_id:
-        raise HTTPException(status_code=403, detail="Cannot modify product owned by another user")
 
 
 def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
@@ -99,8 +84,7 @@ def get_products_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def create_product(
         body: ProductCreate, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        return await _call("create", **body.model_dump(), user_id=user_id or getattr(request.state, "user_id", None))
+        return await _call("create", **body.model_dump(), user_id=resolve_run_user_id(request))
 
     @router.get("/products/{product_id}", response_model=ProductResponse)
     async def get_product(

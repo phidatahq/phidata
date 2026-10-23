@@ -8,17 +8,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.os.auth import get_authentication_dependency
-from agno.os.middleware.user_scope import get_scoped_user_id
+from agno.os.middleware.user_scope import get_scoped_user_id, resolve_run_user_id
+from agno.os.routers.company.ownership import _require_write_ownership
 from agno.os.routers.company.schema import TaskCreate, TaskResponse, TaskStatus, TaskTransition, TaskUpdate
 from agno.os.routers.run_permissions import _require_endpoint_permission
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.settings import AgnoAPISettings
-
-
-def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -> None:
-    """Check the scoped caller against the owner after a company-wide read."""
-    if user_id is not None and existing.get("user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Cannot modify task owned by another user")
 
 
 def get_tasks_router(
@@ -73,7 +68,7 @@ def get_tasks_router(
         existing = await _call("get_task", task_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Task not found")
-        _require_write_ownership(existing, user_id)
+        _require_write_ownership(existing, user_id, "task")
         return existing
 
     @router.get("/tasks", response_model=PaginatedResponse[TaskResponse])
@@ -109,12 +104,7 @@ def get_tasks_router(
 
     @router.post("/tasks", response_model=TaskResponse, status_code=201)
     async def create_task(body: TaskCreate, request: Request, _: bool = Depends(auth_dependency)) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        return await _call(
-            "create_task",
-            **body.model_dump(),
-            user_id=user_id or getattr(request.state, "user_id", None),
-        )
+        return await _call("create_task", **body.model_dump(), user_id=resolve_run_user_id(request))
 
     @router.get("/tasks/{task_id}", response_model=TaskResponse)
     async def get_task(

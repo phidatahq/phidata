@@ -82,7 +82,7 @@ def setup_tracing(
         # Explicit operator limits still use OpenTelemetry's normal precedence.
         span_limits = None
         if not getenv("OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT") and not getenv("OTEL_ATTRIBUTE_COUNT_LIMIT"):
-            span_limits = SpanLimits(max_span_attributes=10_000)
+            span_limits = SpanLimits(max_span_attributes=1024)
         tracer_provider = TracerProvider(span_limits=span_limits)
 
         # Create database exporter

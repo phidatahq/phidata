@@ -112,6 +112,13 @@ def test_enum_with_a_matching_type_is_allowed():
         model.model_validate({"p": "c"})
 
 
+def test_enum_over_a_type_list_accepts_each_listed_type():
+    model = json_schema_to_model(
+        {"type": "object", "properties": {"p": {"type": ["integer", "null"], "enum": [1, 2, None]}}, "required": ["p"]}
+    )
+    assert model.model_validate({"p": None}).p is None
+
+
 def test_optional_property_gets_its_default():
     model = json_schema_to_model(
         {"type": "object", "properties": {"a": {"type": "string", "default": "x", "description": "doc"}}}
@@ -235,6 +242,23 @@ def test_additional_properties_false_forbids_extra_keys():
             "need type object",
         ),
         ({"type": "object", "properties": {"s": {"type": "string", "items": {}}}}, "items needs type array"),
+        ({"type": "object", "properties": {"p": {"type": "integer", "enum": [1, "bad"]}}}, "do not match type"),
+        ({"type": "object", "properties": {"p": {"type": "integer", "enum": [True]}}}, "do not match type"),
+        ({"type": "object", "properties": {"p": {"type": "string", "const": 3}}}, "do not match type"),
+        (
+            {
+                "type": "object",
+                "properties": {"m": {"type": "object", "required": ["key"], "additionalProperties": True}},
+            },
+            "required needs the keys declared",
+        ),
+        (
+            {
+                "type": "object",
+                "properties": {"m": {"type": "object", "required": ["k"], "additionalProperties": {"type": "string"}}},
+            },
+            "required needs the keys declared",
+        ),
     ],
     ids=[
         "array-root",
@@ -259,6 +283,11 @@ def test_additional_properties_false_forbids_extra_keys():
         "allOf-with-enum",
         "object-keywords-on-string",
         "items-on-string",
+        "enum-outside-type",
+        "enum-bool-as-integer",
+        "const-outside-type",
+        "map-with-required",
+        "typed-map-with-required",
     ],
 )
 def test_unrepresentable_schemas_are_refused(schema, reason):

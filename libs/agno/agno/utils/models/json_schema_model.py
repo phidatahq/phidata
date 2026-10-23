@@ -404,12 +404,38 @@ def _check_keywords(schema: Dict[str, Any], path: str) -> None:
         extra = sorted(keys - allowed)
         if extra:
             raise UnsupportedJsonSchemaError(f"{_at(path)}{shapes[0]} cannot be combined with {', '.join(extra)}")
+        types = _types_of(schema)
+        values = schema.get("enum") if shapes[0] == "enum" else [schema.get("const")]
+        if types and isinstance(values, list):
+            # A literal outside the declared type can never match; a Literal would accept it anyway
+            mismatched = [v for v in values if not any(_matches_type(v, t) for t in types)]
+            if mismatched:
+                raise UnsupportedJsonSchemaError(
+                    f"{_at(path)}{shapes[0]} value(s) {mismatched!r} do not match type {schema['type']!r}"
+                )
         return
     types = _types_of(schema)
     if keys & _OBJECT_KEYWORDS and types and "object" not in types:
         raise UnsupportedJsonSchemaError(f"{_at(path)}properties, required and additionalProperties need type object")
     if "items" in keys and types and "array" not in types:
         raise UnsupportedJsonSchemaError(f"{_at(path)}items needs type array")
+    if schema.get("required") and not _declares_properties(schema):
+        # Without declared properties the object becomes a map, which cannot require keys
+        raise UnsupportedJsonSchemaError(f"{_at(path)}required needs the keys declared in properties")
+
+
+def _matches_type(value: Any, json_type: str) -> bool:
+    if json_type == "integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if json_type == "number":
+        return isinstance(value, (int, float)) and not isinstance(value, bool)
+    if json_type == "string":
+        return isinstance(value, str)
+    if json_type == "boolean":
+        return isinstance(value, bool)
+    if json_type == "null":
+        return value is None
+    return False
 
 
 def _drop_default(schema: Dict[str, Any]) -> None:

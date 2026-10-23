@@ -3,7 +3,7 @@ from textwrap import dedent
 from typing import Any, List, Optional
 from uuid import uuid4
 
-from agno.db.base import BaseDb
+from agno.db.base import AsyncBaseDb, BaseDb
 from agno.db.schemas import UserMemory
 from agno.run import RunContext
 from agno.tools import Toolkit
@@ -37,6 +37,12 @@ class MemoryTools(Toolkit):
                     self.instructions += "\n" + self.FEW_SHOT_EXAMPLES
         else:
             self.instructions = instructions
+
+        if isinstance(db, AsyncBaseDb):
+            raise ValueError(
+                "Cannot use MemoryTools with an async database: its tools are synchronous "
+                "and would silently no-op. Use a sync database instead."
+            )
 
         # The database to use for memory operations
         self.db: BaseDb = db

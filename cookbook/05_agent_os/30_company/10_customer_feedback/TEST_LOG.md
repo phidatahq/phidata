@@ -17,7 +17,7 @@ explicitly distinguished proposed behavior from verified implementation. The
 initial UI exercise used the development checkout with the Company Manager
 routine lookup repair. The PR uses current main's existing manager support and
 Product-scoped Source tool names; its separate scheduled execution check is
-recorded below when complete.
+recorded below.
 
 ---
 
@@ -49,5 +49,22 @@ extras in an isolated environment.
 checkout passed 1,091 integration tests (8 skipped), 222 unit tests, and the
 follow-up affected integration selection passed 145 tests. These earlier
 counts are development-checkout evidence, not an exact-PR test count.
+
+---
+
+### company_os.py — scheduled execution on the PR checkout
+
+**Status:** PASS
+
+**Description:** Started the exact PR cookbook against a fresh PostgreSQL schema
+with GPT-6.1 Sol. Temporarily set discovery to the next minute to exercise the
+real scheduler, then restored the daily 09:00 UTC schedule.
+
+**Result:** Scheduled discovery completed and created two evidence-backed Tasks
+in Backlog. Accepted one Task through the API with Feedback Analyst as executor.
+Company automation dispatched it automatically through ready, in_progress, and
+in_review. The saved result contained a 14,749-character implementation brief
+and regression plan. The unaccepted Task remained in Backlog. This verifies
+the PR checkout independently of the earlier development-checkout UI exercise.
 
 ---

@@ -377,6 +377,21 @@ def test_coordinator_is_built_once_per_sandbox_and_database(tmp_path, monkeypatc
     on_clones = [_harness.coordinator(ClaudeAgent(id="fifth", db=clone, sandbox=shared)) for clone in clones]
     assert on_clones[0] is on_clones[1] and on_clones[0] is not _harness.coordinator(first)
     assert all(clone.sandbox_coordinators == [on_clones[0]] for clone in clones)
+    # Engine-only dbs serialize no connection: the key takes it from the engine, so same-id dbs on
+    # different servers stay apart while two engines on one server share.
+    from sqlalchemy import create_engine
+
+    engine_only = [
+        _harness.coordinator(
+            ClaudeAgent(id="sixth", db=PostgresDb(db_engine=create_engine(url), id="main"), sandbox=shared)
+        )
+        for url in (
+            "postgresql+psycopg://ai:ai@localhost:1/one",
+            "postgresql+psycopg://ai:ai@localhost:1/two",
+            "postgresql+psycopg://ai:ai@localhost:1/one",
+        )
+    ]
+    assert engine_only[0] is not engine_only[1] and engine_only[0] is engine_only[2]
     unset = ClaudeAgent(id="fourth", db=db, sandbox=DockerSandbox("agno-sandbox:claude", network="isolated"))
     assert _harness.coordinator(unset).transfer.store.root == tmp_path / "default"
 

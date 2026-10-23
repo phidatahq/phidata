@@ -96,7 +96,12 @@ def _db_key(db: Any) -> Tuple[Any, ...]:
     gives each rebuild its own db instance over the registry db's engine, so the instance
     cannot be the key: every rebuild would otherwise get a coordinator of its own.
     """
-    return (type(db), *sorted((key, str(value)) for key, value in db.to_dict().items()))
+    serialized = dict(db.to_dict())
+    # An engine-only db serializes no connection; the engine itself always knows it.
+    engine = getattr(db, "db_engine", None)
+    if engine is not None:
+        serialized["db_url"] = engine.url.render_as_string(hide_password=True)
+    return (type(db), *sorted((key, str(value)) for key, value in serialized.items()))
 
 
 def _existing_coordinator(agent: "BaseExternalAgent") -> Optional["SandboxCoordinator"]:

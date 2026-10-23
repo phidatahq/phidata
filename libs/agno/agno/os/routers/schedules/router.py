@@ -548,10 +548,11 @@ def get_schedule_router(
 
         if company_trigger:
             # A manual Company run uses and records the caller's authority. Keep the
-            # saved owner and authority intact for future scheduled executions.
+            # saved owner and authority intact for future scheduled executions. A
+            # caller with no identity (auth disabled) keeps the saved owner.
             existing = {
                 **existing,
-                "user_id": resolve_run_user_id(request),
+                "user_id": resolve_run_user_id(request) or existing.get("user_id"),
                 "payload": stamp_authorization(existing.get("payload")),
             }
 

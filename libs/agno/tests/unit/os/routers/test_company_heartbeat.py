@@ -535,6 +535,45 @@ def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation
     db.close()
 
 
+def test_manual_trigger_without_auth_keeps_seeded_owner(tmp_path, monkeypatch):
+    from agno.company import Routine
+    from agno.db.schemas.scheduler import SCHEDULE_OWNER_HEADER
+
+    db = SqliteDb(db_file=str(tmp_path / "no-auth-trigger.db"))
+    os = AgentOS(
+        db=db,
+        agents=[Agent(id="reader", telemetry=False)],
+        company=CompanyConfig(
+            products=[
+                Product(
+                    id="seeded",
+                    name="Seeded",
+                    user_id="alice",
+                    routines=[
+                        Routine(name="review", executor_type="agent", executor_id="reader", instructions="Review")
+                    ],
+                )
+            ]
+        ),
+        telemetry=False,
+    )
+    executor = ScheduleExecutor(base_url="http://test", internal_service_token="internal")
+    background = AsyncMock(return_value={"status": "success", "status_code": 200})
+    monkeypatch.setattr(executor, "_background_run", background)
+    monkeypatch.setattr(executor, "_get_client", AsyncMock())
+    with TestClient(os.get_app()) as client:
+        client.app.state.scheduler_executor = executor
+        routine_id = db.get_product("seeded")["metadata"]["routine_ids"][0]
+        response = client.post("/company/routines/" + routine_id + "/trigger")
+        assert response.status_code == 200, response.text
+        # No caller identity: the run stays attributed to the saved owner, as a scheduled run would be.
+        assert response.json()["user_id"] == "alice"
+        forwarded_headers, form = background.call_args.args[2:4]
+        assert forwarded_headers[SCHEDULE_OWNER_HEADER] == "alice"
+        assert form["user_id"] == "alice"
+    db.close()
+
+
 def test_members_add_routines_to_products_they_do_not_own_under_isolation(tmp_path):
     from datetime import datetime, timedelta, timezone
 

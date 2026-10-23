@@ -203,6 +203,9 @@ def attach_routes(router: APIRouter, knowledge_instances: List[Union[Knowledge, 
         else:
             file_data = None
 
+        if not file and not text_content and not parsed_urls:
+            raise HTTPException(status_code=400, detail="Provide a file, text_content, or URL to upload.")
+
         if not name:
             if file and file.filename:
                 name = file.filename

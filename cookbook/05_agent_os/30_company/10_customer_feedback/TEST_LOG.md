@@ -174,4 +174,9 @@ Full repository formatting and validation pass. This is a concurrency guard,
 not a general guarantee of semantic deduplication in sequential model output.
 Ambiguous submission recovery is documented in the parent README.
 
+The final queue-aware code was also restarted and tested with three fresh live
+concurrent pairs (CSV, timezone labels, and invite expiry), followed by three
+sequential reviews. All three Products retained exactly one Project and one
+Backlog Task; competing triggers were refused and all follow-ups completed.
+
 ---

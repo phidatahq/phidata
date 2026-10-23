@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tarfile
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -328,6 +329,22 @@ async def test_generation_with_other_configuration_is_refused(world):
         await provider().afind("session", env={"KEY": "b"})
     with pytest.raises(SandboxError, match="namespace"):
         await ModalSandbox("registry.example/agno-sandbox:1", uid=None).aget("sb-1")
+
+
+@pytest.mark.asyncio
+async def test_commands_and_termination_require_the_owning_identity(world):
+    owner = provider()
+    handle = await owner.acreate("session", env={"KEY": "v"})
+    other = ModalSandbox("registry.example/agno-sandbox:1", namespace="other", uid=None)
+    for call in (other.aexec(handle, ["true"]), other.astop(handle), other.adestroy(handle)):
+        with pytest.raises(SandboxError, match="namespace"):
+            await call
+    for forged in (replace(handle, session_id="another"), replace(handle, config_digest="0" * 64)):
+        for call in (owner.aexec(forged, ["true"]), owner.astop(forged), owner.adestroy(forged)):
+            with pytest.raises(SandboxError, match="identity changed"):
+                await call
+    assert world.terminated == [] and world.boxes[handle.provider_ref].exit_code is None
+    assert (await owner.aexec(handle, ["true"])).exit_code == 0
 
 
 @pytest.mark.asyncio

@@ -206,17 +206,36 @@ class ModalSandbox(Sandbox):
             return None
         return self._handle(sandbox, await sandbox.get_tags.aio())
 
-    async def aget(self, provider_ref: str) -> Optional[SandboxHandle]:
-        """The handle for a running sandbox, or None once it has ended."""
+    async def _lookup(self, provider_ref: str) -> Optional[Any]:
         import modal
 
         if not isinstance(provider_ref, str) or not provider_ref.startswith("sb-") or "\x00" in provider_ref:
             raise ValueError("Invalid Modal sandbox reference")
         try:
-            sandbox = await modal.Sandbox.from_id.aio(provider_ref, client=self.client)
+            return await modal.Sandbox.from_id.aio(provider_ref, client=self.client)
         except modal.exception.NotFoundError:
             return None
-        return await self._running(sandbox)
+
+    async def aget(self, provider_ref: str) -> Optional[SandboxHandle]:
+        """The handle for a running sandbox, or None once it has ended."""
+        sandbox = await self._lookup(provider_ref)
+        return await self._running(sandbox) if sandbox is not None else None
+
+    async def _owned(self, handle: SandboxHandle) -> Optional[Any]:
+        """The running Modal sandbox a handle names, refused unless its namespace and identity match."""
+        sandbox = await self._lookup(handle.provider_ref)
+        current = await self._running(sandbox) if sandbox is not None else None
+        if current is None:
+            return None
+        if (
+            current.name != handle.name
+            or current.agent_id != handle.agent_id
+            or current.session_id != handle.session_id
+            or current.generation != handle.generation
+            or current.config_digest != handle.config_digest
+        ):
+            raise SandboxError("Sandbox identity changed; refusing the operation")
+        return sandbox
 
     async def _by_name(self, name: str) -> Optional[Any]:
         import modal
@@ -313,7 +332,7 @@ class ModalSandbox(Sandbox):
         except BaseException:
             # A sandbox that never held files is safe to remove; one found by name is left to its owner.
             if created:
-                await asyncio.shield(self._terminate(current.provider_ref))
+                await asyncio.shield(self._terminate(sandbox))
             raise
         return current
 
@@ -336,14 +355,11 @@ class ModalSandbox(Sandbox):
         self, handle: SandboxHandle, argv: Sequence[str], *, timeout: float, workdir: str = "/workspace"
     ) -> Any:
         """Start a command as the sandbox user on the sandbox a handle names."""
-        import modal
-
         if handle.name in self._stopped:
             raise SandboxError("Sandbox is not running")
-        try:
-            sandbox = await modal.Sandbox.from_id.aio(handle.provider_ref, client=self.client)
-        except modal.exception.NotFoundError as error:
-            raise SandboxError("Sandbox is not running") from error
+        sandbox = await self._owned(handle)
+        if sandbox is None:
+            raise SandboxError("Sandbox is not running")
         return await sandbox.exec.aio(
             *self._argv(argv), timeout=max(1, math.ceil(timeout)), workdir=workdir, text=False
         )
@@ -469,25 +485,23 @@ class ModalSandbox(Sandbox):
                 break
             del self._stopped[name]
 
-    async def _terminate(self, provider_ref: str) -> None:
-        import modal
-
-        try:
-            sandbox = await modal.Sandbox.from_id.aio(provider_ref, client=self.client)
-        except modal.exception.NotFoundError:
-            return
-        log_debug(f"Terminating Modal sandbox {provider_ref}")
+    async def _terminate(self, sandbox: Any) -> None:
+        log_debug(f"Terminating Modal sandbox {sandbox.object_id}")
         # Waits for Modal to confirm the sandbox ended, so a following get reports it gone.
         await asyncio.wait_for(sandbox.terminate.aio(wait=True), 120)
 
     async def astop(self, handle: SandboxHandle) -> None:
-        # Recorded first: a lost terminate reply must still never revive this generation here.
+        sandbox = await self._owned(handle)
+        # Recorded before terminating: a lost terminate reply must still never revive this generation here.
         self._stopped.pop(handle.name, None)
         self._stopped[handle.name] = time.monotonic()
         self._expire_stopped()
-        await self._terminate(handle.provider_ref)
+        if sandbox is not None:
+            await self._terminate(sandbox)
 
     async def adestroy(self, handle: SandboxHandle) -> None:
-        await self._terminate(handle.provider_ref)
+        sandbox = await self._owned(handle)
+        if sandbox is not None:
+            await self._terminate(sandbox)
         # Destroyed, like a removed Docker container, the generation may be created afresh.
         self._stopped.pop(handle.name, None)

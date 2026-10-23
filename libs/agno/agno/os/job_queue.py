@@ -3111,7 +3111,7 @@ async def queue_lifespan(app: Any, agent_os: Any):
     warn_unfenced_session_stores(agent_os)
 
     if isinstance(get_event_stream(), InMemoryEventStream):
-        log_warning("Queued-run streams are replica-local; configure queue.redis for cross-replica streaming.")
+        log_info("Queued-run streams are replica-local; configure queue.redis for cross-replica streaming.")
 
     async def resolve_component(
         component_type: str, component_id: str, scope: Optional[Dict[str, Any]] = None

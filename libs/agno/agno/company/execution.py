@@ -509,7 +509,7 @@ async def _reservation_recorded(worker: Any, job: Dict[str, Any]) -> bool:
     return task is not None and task.get("job_id") == job["id"]
 
 
-async def _task_input(manager: Any, task: Dict[str, Any]) -> str:
+async def _task_input(manager: Any, task: Dict[str, Any], *, accepted_execution: bool = False) -> str:
     pages = []
     # Both namespaces have company-wide read visibility. No Source credentials,
     # Product metadata, other Tasks or caller-supplied runtime state are forwarded.
@@ -529,9 +529,22 @@ async def _task_input(manager: Any, task: Dict[str, Any]) -> str:
             if page * 100 >= total:
                 break
             page += 1
-    return json.dumps(
-        {"brief": task.get("brief"), "wiki": pages, "evidence": task.get("evidence") or []}, ensure_ascii=False
-    )
+    payload = {"brief": task.get("brief"), "wiki": pages, "evidence": task.get("evidence") or []}
+    # Only the authorized execution route supplies this flag; a Task dictionary
+    # or its brief alone does not establish acceptance.
+    if accepted_execution:
+        payload["execution_context"] = {
+            "stage": "accepted_task_execution",
+            "task_id": task["id"],
+            "instructions": (
+                "Execute this accepted Task and return its deliverable with verification evidence. "
+                "This is execution, not a request to acknowledge or propose the Task. "
+                "Preserve the brief's scope and restrictions; acceptance grants no additional permissions. "
+                "If instructions conflict or the work cannot be completed within those bounds, "
+                "report the precise blocker and what remains undone."
+            ),
+        }
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def _validate_executor_tools(component: Any) -> None:

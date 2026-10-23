@@ -166,7 +166,8 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
     run_id = starts[0].json()["run_id"]
     job = await worker.store.get_job(run_id)
     payload = json.loads(job["payload"]["input"])
-    assert set(payload) == {"brief", "wiki", "evidence"}
+    assert set(payload) == {"brief", "wiki", "evidence", "execution_context"}
+    assert payload["execution_context"]["stage"] == "accepted_task_execution"
     assert len(payload["wiki"]) == 4 and payload["evidence"][0]["hash"] == "abc"
     assert "never-forward" not in job["payload"]["input"]
     assert job["idempotency_key"] == f"company:{value['id']}:1" and job["max_attempts"] == 2
@@ -471,14 +472,14 @@ async def test_routine_intake_through_scheduler_and_durable_queue(system, tmp_pa
     elif failure == "website":
         await _call(db, "update_source", source["id"], type="website", reference="https://docs.example.test")
         monkeypatch.setattr("agno.knowledge.reader.website_reader.WebsiteReader.read", lambda *args, **kwargs: [])
-    tool_name = "read_company_source" if failure in {"markdown", "website"} else "intake_company_source"
+    tool_name = "read_product_source" if failure in {"markdown", "website"} else "intake_product_source"
     arguments = {"source_id": source["id"]}
     if failure == "plain_proposal":
         tool_name = "propose_company_task"
         arguments = {"product_id": product["id"], "project_id": project["id"], "title": "Undeduplicated proposal"}
-    if tool_name == "read_company_source":
+    if tool_name == "read_product_source":
         arguments["path"] = "https://docs.example.test" if failure == "website" else path.name
-    if tool_name == "intake_company_source":
+    if tool_name == "intake_product_source":
         arguments.update(
             project_id=project["id"],
             title="Document release",
@@ -1467,15 +1468,15 @@ async def test_authenticated_intake_without_executor_is_picked_up_once(system, t
         def invoke(self, messages, *args, **kwargs):
             observations = [message for message in messages if message.role == "tool"]
             if not observations:
-                name = "read_company_source"
+                name = "read_product_source"
                 arguments = {"source_id": selected["source_id"]}
             elif len(observations) == 1:
                 index = json.loads(observations[0].content)
-                name = "read_company_source"
+                name = "read_product_source"
                 arguments = {"source_id": selected["source_id"], "path": index["data"][0]["path"]}
             elif len(observations) == 2:
                 evidence = [json.loads(observations[1].content)]
-                name = "intake_company_source"
+                name = "intake_product_source"
                 arguments = {
                     "source_id": selected["source_id"],
                     "title": "Document API",
@@ -2333,9 +2334,9 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
         def invoke(self, messages, *args, **kwargs):
             results = [json.loads(message.content) for message in messages if message.role == "tool"]
             if not results:
-                name, arguments = "add_company_source", dict(product_id=product["id"], reference=url)
+                name, arguments = "add_product_source", dict(product_id=product["id"], reference=url)
             elif len(results) == 1:
-                name, arguments = "read_company_source", dict(source_id=results[0]["id"], path=url)
+                name, arguments = "read_product_source", dict(source_id=results[0]["id"], path=url)
             elif len(results) == 2:
                 name, arguments = "list_company_projects", dict(product_id=product["id"])
             elif len(results) == 3 and not results[2]["data"]:
@@ -2345,7 +2346,7 @@ async def test_search_routine_adds_website_and_deduplicates_three_runs(system, m
                 observed = results[1]
                 assert "migration guide" in observed["content"]
                 name, arguments = (
-                    "intake_company_source",
+                    "intake_product_source",
                     dict(
                         source_id=results[0]["id"],
                         project_id=project["id"],

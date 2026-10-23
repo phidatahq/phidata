@@ -1773,16 +1773,26 @@ class BaseExternalAgent:
         A team leader delegates a task string, but with determine_input_for_members=False it
         forwards the team's own input, which can be a Message or a list of messages. The
         harnesses take text, so each message becomes its role and content. Anything else,
-        including a plain string, is returned unchanged.
+        including a plain string or a list of content blocks, is returned unchanged.
         """
         if isinstance(input, Message):
             return input.get_content_string()
-        if isinstance(input, list) and input and all(isinstance(item, (Message, dict)) for item in input):
-            messages = [item if isinstance(item, Message) else Message(**item) for item in input]
-            return "\n".join(
-                f"{message.role}: {message.get_content_string()}" for message in messages if message.content
-            )
-        return input
+        if not isinstance(input, list) or not input:
+            return input
+        lines: List[str] = []
+        for item in input:
+            role: str
+            content: str
+            if isinstance(item, Message):
+                role, content = item.role, item.get_content_string() if item.content else ""
+            elif isinstance(item, dict) and isinstance(item.get("role"), str):
+                raw = item.get("content")
+                role, content = item["role"], raw if isinstance(raw, str) else ("" if raw is None else str(raw))
+            else:
+                return input
+            if content:
+                lines.append(f"{role}: {content}")
+        return "\n".join(lines)
 
     @staticmethod
     def _build_prompt(input: Any, history: Optional[List[Dict[str, Any]]], resumed: bool) -> str:
@@ -1832,13 +1842,15 @@ class BaseExternalAgent:
         kwargs["session_id"] = session_id
         user_id = kwargs.get("user_id")
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+        # Convert before claiming the session, so the stored input is the text the agent received
+        # and nothing between the claim and the try below can leave the session claimed.
+        input = self._input_text(input)
         record_input = input if continuation is None else continuation.record_input
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
         state_session_id = self._state_session_id(session_id, team_id)
         session = await self.aread_or_create_session(state_session_id, user_id, team_id) if self.db else None
         self._claim_session(session, state_session_id, run_id)
-        input = self._input_text(input)
         try:
             history = (
                 self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
@@ -1942,12 +1954,13 @@ class BaseExternalAgent:
         user_id = kwargs.get("user_id")
         yield_run_output = kwargs.pop("yield_run_output", False)
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+        # Convert before claiming the session, as in the non-streaming path.
+        input = self._input_text(input)
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
         state_session_id = self._state_session_id(session_id, team_id)
         session = await self.aread_or_create_session(state_session_id, user_id, team_id) if self.db else None
         self._claim_session(session, state_session_id, run_id)
-        input = self._input_text(input)
         try:
             history = (
                 self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None

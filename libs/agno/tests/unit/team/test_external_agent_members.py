@@ -252,6 +252,30 @@ def test_message_input_from_a_team_becomes_text():
     rendered = ClaudeAgent._input_text([Message(role="user", content="hi"), {"role": "assistant", "content": "yo"}])
     assert rendered == "user: hi\nassistant: yo"
     assert ClaudeAgent._input_text("plain") == "plain"
+    blocks = [{"type": "text", "text": "hi"}]
+    assert ClaudeAgent._input_text(blocks) is blocks, "a list that is not messages passes through unchanged"
+
+
+def test_input_that_is_not_messages_never_leaves_the_session_claimed(db, sdk):
+    member = _member(db)
+
+    first = member.run([{"type": "text", "text": "hi"}], session_id="x")
+    second = member.run("hello", session_id="x")
+
+    assert first.status == RunStatus.completed and second.status == RunStatus.completed
+    session = db.get_session(session_id="x", session_type=SessionType.AGENT)
+    assert session is not None and len(session.runs) == 2
+
+
+def test_a_message_input_is_stored_as_its_text_on_both_paths(db, sdk):
+    member = _member(db)
+
+    member.run(Message(role="user", content="hello"), session_id="m1")
+    list(member.run(Message(role="user", content="hello"), session_id="m2", stream=True))
+
+    for session_id in ("m1", "m2"):
+        session = db.get_session(session_id=session_id, session_type=SessionType.AGENT)
+        assert session is not None and session.runs[0].input.input_content == "hello"
 
 
 def test_a_standalone_harness_agent_keeps_its_session_and_runs(db, sdk):

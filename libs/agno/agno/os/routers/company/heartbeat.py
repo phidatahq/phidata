@@ -115,7 +115,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             raise HTTPException(404, "Routine not found")
         if not (row.get("payload") or {}).get("metadata", {}).get("product_id"):
             raise HTTPException(409, "Routine is missing its Product metadata")
-        if owned and request.method != "GET":
+        if owned:
             _require_write_ownership(row, get_scoped_user_id(request), "routine")
         return row
 
@@ -202,7 +202,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
 
     @router.get("/routines/{routine_id}", response_model=RoutineResponse)
     async def get_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
-        return await routine_response(await routine(routine_id, request))
+        return await routine_response(await routine(routine_id, request, owned=False))
 
     @router.post("/routines/{routine_id}/trigger", response_model=ScheduleRunResponse)
     async def trigger_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
@@ -302,7 +302,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         page: int = Query(1, ge=1),
         _: bool = Depends(auth),
     ):
-        await routine(routine_id, request)
+        await routine(routine_id, request, owned=False)
         return await call(handlers["list_schedule_runs"], routine_id, request, limit=limit, page=page)
 
     @router.post("/setup", status_code=201)

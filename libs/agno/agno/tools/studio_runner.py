@@ -417,16 +417,19 @@ class StudioRunnerTools(Toolkit):
         allowlist and always runs. ``list_*`` report exactly this admitted set
         alongside the database, so what can be run can be found.
         Lookups that are not dispatch (get, edit, members, steps) see the full
-        set either way."""
+        set either way. External adapters are dispatch-only, and only from an
+        explicit ``include_agents``: the registry holds every adapter the
+        application serves, which is not consent for a Studio to run them."""
         if for_dispatch and not self.include_all_components and self.include_agents is None:
             return []
         agents = (
             self.include_agents if self.include_agents is not None else (self.registry.agents if self.registry else [])
         )
+        admit_external = for_dispatch and self.include_agents is not None
         return [
             agent
             for agent in agents
-            if (for_dispatch or not isinstance(agent, BaseExternalAgent))
+            if (admit_external or not isinstance(agent, BaseExternalAgent))
             and getattr(agent, "id", None) not in RESERVED_MEMBER_IDS
         ]
 

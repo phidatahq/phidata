@@ -693,6 +693,32 @@ def test_manager_discovers_and_runs_external_agents(db, monkeypatch, agent_class
     assert len(calls) == 3
 
 
+@pytest.mark.parametrize("use_async", [False, True])
+def test_registry_runners_do_not_dispatch_external_agents(db, monkeypatch, use_async):
+    calls = []
+
+    async def adapter(self, message, **kwargs):
+        calls.append(message)
+        return f"done: {message}"
+
+    monkeypatch.setattr(ClaudeAgent, "_arun_adapter", adapter)
+    claude = ClaudeAgent(id="claude-engineer", name="Claude Engineer")
+    os = AgentOS(db=db, agents=[claude], manager=OSManager(model=OfflineModel()), telemetry=False)
+    assert claude in os.registry.agents
+    builder_studio = next(t for t in manager_member(os, BUILDER_ID).tools if isinstance(t, StudioTools))
+    registry_runner = StudioRunnerTools(registry=os.registry, db=db, include_all_components=True)
+    context = RunContext(run_id="run", session_id="conversation", user_id="alice")
+    for tools in (builder_studio, registry_runner):
+        if use_async:
+            result = asyncio.run(tools.arun_agent(claude.id, "hi", _agno_run_context=context))
+        else:
+            result = tools.run_agent(claude.id, "hi", _agno_run_context=context)
+        assert json.loads(result)["error"] == f"Agent not found: {claude.id}"
+    listing = asyncio.run(registry_runner.alist_agents(context)) if use_async else registry_runner.list_agents(context)
+    assert json.loads(listing)["agents"] == []
+    assert calls == []
+
+
 @pytest.mark.parametrize("component_id", [BUILDER_ID, OPERATOR_ID, MANAGER_TEAM_ID])
 @pytest.mark.parametrize("in_registry", [False, True])
 def test_manager_reserves_fixed_ids(db, component_id, in_registry):

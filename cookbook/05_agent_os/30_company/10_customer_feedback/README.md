@@ -54,8 +54,8 @@ reads the same `feedback/` folder.
    actionable themes: cross-midnight CSV export failures and missing timezone
    labels. Positive onboarding feedback and an already resolved email issue
    should produce no work. Exact titles and Project grouping can vary.
-5. Run the Routine again without changing the files. Verify that it reuses the
-   existing work. Tasks should remain in **Backlog** until you approve them.
+5. Wait for the Routine to finish, then run it again without changing the files.
+   Verify that it reuses the existing work. Tasks should remain in **Backlog** until you approve them.
 6. Open a Task and inspect its brief and evidence. Select **Feedback Analyst**
    (`feedback-analyst`) as its executor and accept it, moving it to **To do** (the API state is `ready`).
    This example configures Company automation to check accepted work once per minute, so dispatch may
@@ -68,6 +68,11 @@ reads the same `feedback/` folder.
 Company Manager handles discovery. Feedback Analyst executes accepted Tasks;
 the built-in managers cannot be selected as business Task executors.
 `auto_accept=False` keeps discovery from authorizing execution.
+
+Run one review at a time for a Product. Overlapping manual or scheduled reviews
+can create duplicate proposals: separate runs may choose different issue keys
+before either sees the other's work. Check existing run status before triggering
+another review, and inspect proposals before accepting them.
 
 The UI requires its own sign-in. The UI walkthrough and persisted REST results were tested locally. After selecting
 **Agent → Feedback Analyst**, save the Task, then change its status from

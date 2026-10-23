@@ -38,7 +38,9 @@ feedback_analyst = Agent(
     ],
     instructions=[
         "Execute the approved Task brief using its attached Source evidence. "
-        "Read the referenced documents with read_product_source before drafting.",
+        "List each Source with read_product_source before selecting documents. "
+        "Use the returned relative path (not a file URL or absolute path) with "
+        "read_product_source, and follow content pagination before drafting.",
         "Do not create or change Projects or Tasks. Produce an implementation-ready product brief: observed problem, affected "
         "users, supporting source links, proposed behavior, acceptance criteria, "
         "regression test cases, and open questions. Distinguish evidence from assumptions.",

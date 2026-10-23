@@ -65,6 +65,14 @@ async def _claim_review(executor: Any, schedule: Any, product_id: str) -> Tuple[
             )
             if response.status_code != 200 or response.json().get("status") not in {"COMPLETED", "ERROR", "CANCELLED"}:
                 raise _busy(state)
+            # A failed attempt can already have an ERROR run row while its ticket is
+            # queued for retry. Require queue settlement too, including the brief gap
+            # between the run completing and its worker settling the ticket.
+            store = getattr(executor, "queue_store", None)
+            if store is not None:
+                job = await store.get_job(state["run_id"], strict=True)
+                if job is not None and job.get("status") not in {"completed", "failed", "cancelled"}:
+                    raise _busy(state)
     active_run = _active_schedule_run.get()
     state = {
         "claim_id": str(uuid4()),

@@ -93,7 +93,8 @@ Routine review admission is shared per Product through the Company database's
 versioned filesystem. All Routines for that Product use the same reservation.
 Overlapping manual or scheduled triggers fail before discovery starts; retry
 after the active review finishes. Completed, errored, or cancelled underlying
-runs permit another review. Paused runs retain their reservation until continued
+runs permit another review once any durable queue ticket has also settled;
+a failed attempt awaiting retry keeps the reservation. Paused runs retain it until continued
 to completion or cancelled. A scheduler timeout or restart does not release a
 background run that may still be writing.
 
@@ -114,7 +115,9 @@ if current is not None:
 ```
 
 The version check prevents clearing a reservation changed since it was read.
-Do not clear a reservation merely because its scheduler run timed out.
+Do not clear a reservation merely because its scheduler run timed out. An operator
+requeue of an old failed ticket can replay that review; do not requeue it while
+another review of the Product is active.
 
 ## Work records
 

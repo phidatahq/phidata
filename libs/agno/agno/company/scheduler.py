@@ -9,10 +9,11 @@ from agno.scheduler.executor import ScheduleExecutor
 
 
 class CompanyScheduleExecutor(ScheduleExecutor):
-    def __init__(self, *, company_db: Any, schedule_db: Any, **kwargs: Any):
+    def __init__(self, *, company_db: Any, schedule_db: Any, queue_store: Any = None, **kwargs: Any):
         super().__init__(**kwargs)
         self.company_db = company_db
         self.schedule_db = schedule_db
+        self.queue_store = queue_store
 
     async def _call_endpoint(self, schedule: Schedule) -> Dict[str, Any]:
         from agno.company.routines import _require_active_routine_product

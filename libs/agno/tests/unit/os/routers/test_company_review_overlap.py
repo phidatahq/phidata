@@ -236,3 +236,31 @@ async def test_product_identity_preserves_case_and_company_table(tmp_path):
     finally:
         peer.close()
         db.close()
+
+
+@pytest.mark.parametrize("ticket_status", ["queued", "running", "paused", "completed", "failed", "cancelled"])
+async def test_failed_attempt_with_pending_retry_keeps_product_reserved(tmp_path, ticket_status):
+    db = SqliteDb(db_file=str(tmp_path / "retry.db"))
+    client = SimpleNamespace(request=AsyncMock(return_value=httpx.Response(200, json={"status": "ERROR"})))
+    store = SimpleNamespace(get_job=AsyncMock(return_value={"status": ticket_status}))
+    executor = SimpleNamespace(
+        company_db=db,
+        queue_store=store,
+        base_url="http://test",
+        internal_service_token="test",
+        _get_client=AsyncMock(return_value=client),
+    )
+    schedule = SimpleNamespace(id="review", endpoint="/agents/reviewer/runs", user_id=None)
+    claim = await _claim_review(executor, schedule, "p")
+    token = _active_review.set(claim)
+    try:
+        await _record_review_run("retrying", "session")
+    finally:
+        _active_review.reset(token)
+    if ticket_status in {"completed", "failed", "cancelled"}:
+        await _claim_review(executor, schedule, "p")
+    else:
+        with pytest.raises(ValueError, match="Another Routine review"):
+            await _claim_review(executor, schedule, "p")
+    store.get_job.assert_awaited_once_with("retrying", strict=True)
+    db.close()

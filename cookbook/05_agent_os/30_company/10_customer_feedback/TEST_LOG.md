@@ -161,8 +161,9 @@ independent executors/database connections, timeout and cancellation retention,
 paused runs, rejected submissions, restart recovery, exact Product identity and
 Company storage isolation. Eight database cases force 80 simultaneous claims
 across sync/async SQLite and PostgreSQL, including takeover after completion;
-each race admits exactly one contender. All 25 overlap regression cases pass.
-The existing durable-queue integration suite passes (20 passed, 4 intentional
+each race admits exactly one contender. All 31 overlap regression cases pass.
+The durable-queue integration suite also verifies that a failed attempt with a
+queued retry blocks another review until the retry completes. It passes (20 passed, 4 intentional
 sync/async compatibility skips).
 
 The broader Company and scheduler suite has 434 passing tests and one existing

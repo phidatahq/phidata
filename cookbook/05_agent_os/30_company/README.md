@@ -78,7 +78,9 @@ checks, and private sessions retain the deployment's ownership isolation.
 Any caller with `routines:write`, `schedules:write` and the executor's run
 permission can manually trigger a Routine, including one owned by another user
 or seeded without an owner. Manual runs use the caller's authority and record
-that caller in the run's `user_id`. The saved Routine owner and authorization
+that caller in the run's `user_id`. The scheduler follows the run with that
+authority, so the caller also needs the executor's read permission for the run
+to be recorded as successful. The saved Routine owner and authorization
 remain unchanged for scheduled runs; editing, pausing and resuming still enforce
 ownership when user isolation is enabled.
 

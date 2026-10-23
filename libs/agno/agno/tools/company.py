@@ -17,6 +17,7 @@ from pydantic import BeforeValidator
 from agno.company.declarations import Product, Routine, Source
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.company.routines import _require_routine_product, _RoutineAuthorization
+from agno.company.sources import is_remote_git
 from agno.db.base import AsyncBaseDb
 from agno.run.authorization import current_authorization, requires_permission
 from agno.tools import Toolkit
@@ -25,6 +26,16 @@ from agno.tools import Toolkit
 def _empty_to_none(value: Any) -> Any:
     """Treat a model's empty optional argument as omitted, preserving other values."""
     return None if value == "" else value
+
+
+def _public_source(source: Dict[str, Any]) -> Dict[str, Any]:
+    """Describe supported operations without exposing credentials or probing the Source."""
+    remote_git = is_remote_git(source)
+    return {
+        **{key: value for key, value in source.items() if key != "credential_ref"},
+        "readable": not remote_git,
+        "checkout_supported": remote_git,
+    }
 
 
 # Keep nullable schemas and normalize empty strings before Pydantic validation.
@@ -1094,7 +1105,12 @@ class CompanyTools(Toolkit):
     def list_product_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """List the readers configured for a Product.
+        """List Product Sources and their supported operations.
+
+        readable means read_product_source and intake_product_source support this
+        Source: websites, Markdown and local Git paths. checkout_supported marks
+        Git URLs used for sandbox checkout and publication; they cannot be read.
+        These flags describe capabilities, not current availability or authorization.
 
         Args:
             limit: Maximum results per page; null uses 20.
@@ -1107,7 +1123,7 @@ class CompanyTools(Toolkit):
         _permission("sources", "read", _agno_run_context)
         rows, total = self._sync().list_sources(product_id=product_id, limit=limit, page=page)
         return _page(
-            ([{key: value for key, value in row.items() if key != "credential_ref"} for row in rows], total),
+            ([_public_source(row) for row in rows], total),
             limit,
             page,
         )
@@ -1125,6 +1141,10 @@ class CompanyTools(Toolkit):
         _agno_run_context: Optional[Any] = None,
     ) -> str:
         """Discover Source files, then read selected content within a bounded response.
+
+        Select a Source marked readable by list_product_sources. Git URL Sources
+        support sandbox checkout/publication only; use a local repository Source
+        to read code.
 
         Omit path for a content-free index; pattern filters filenames with a glob.
         Page with offset/limit (1..100) and next_offset. Pass a returned path to
@@ -1285,7 +1305,12 @@ class CompanyTools(Toolkit):
     async def alist_product_sources(
         self, product_id: str, limit: _OptionalInt = 20, page: _OptionalInt = 1, _agno_run_context: Optional[Any] = None
     ) -> str:
-        """List the readers configured for a Product.
+        """List Product Sources and their supported operations.
+
+        readable means read_product_source and intake_product_source support this
+        Source: websites, Markdown and local Git paths. checkout_supported marks
+        Git URLs used for sandbox checkout and publication; they cannot be read.
+        These flags describe capabilities, not current availability or authorization.
 
         Args:
             limit: Maximum results per page; null uses 20.
@@ -1298,7 +1323,7 @@ class CompanyTools(Toolkit):
         await _apermission("sources", "read", _agno_run_context)
         rows, total = await self._async().list_sources(product_id=product_id, limit=limit, page=page)
         return _page(
-            ([{key: value for key, value in row.items() if key != "credential_ref"} for row in rows], total),
+            ([_public_source(row) for row in rows], total),
             limit,
             page,
         )
@@ -1316,6 +1341,10 @@ class CompanyTools(Toolkit):
         _agno_run_context: Optional[Any] = None,
     ) -> str:
         """Discover Source files, then read selected content within a bounded response.
+
+        Select a Source marked readable by list_product_sources. Git URL Sources
+        support sandbox checkout/publication only; use a local repository Source
+        to read code.
 
         Omit path for a content-free index; pattern filters filenames with a glob.
         Page with offset/limit (1..100) and next_offset. Pass a returned path to

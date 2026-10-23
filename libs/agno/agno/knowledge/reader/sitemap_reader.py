@@ -35,6 +35,8 @@ from agno.utils.log import log_debug
 
 _SITEMAP_PATH_HINTS = ("sitemap", ".xml")
 _GZIP_MAGIC = b"\x1f\x8b"
+# sitemaps.org caps an uncompressed sitemap at 50 MiB; anything larger is not a valid sitemap.
+MAX_SITEMAP_BYTES = 50 * 1024 * 1024
 
 # The discovery generator yields URLs to fetch and receives their bodies (or None on
 # failure); it returns (page_urls, sitemap_url, incomplete). One implementation, driven
@@ -104,13 +106,34 @@ class SitemapReader(Reader):
         return _default_allowed_hosts(urlparse(url).hostname or "")
 
     @staticmethod
-    def _decode_sitemap_bytes(raw: bytes) -> bytes:
+    def _decode_sitemap_bytes(raw: bytes, max_bytes: int = MAX_SITEMAP_BYTES) -> bytes:
         # .xml.gz served without Content-Encoding arrives still gzipped.
         if raw[:2] == _GZIP_MAGIC:
+            # The gzip trailer's ISIZE field is the uncompressed size mod 2**32;
+            # reject oversized bodies before spending any decompression on them.
+            if len(raw) >= 8 and int.from_bytes(raw[-4:], "little") > max_bytes:
+                return raw
+            decompressor = zlib.decompressobj(16 + zlib.MAX_WBITS)
+            out = bytearray()
+            offset = 0
             try:
-                return gzip.decompress(raw)
+                while offset < len(raw):
+                    chunk = raw[offset : offset + 65536]
+                    offset += len(chunk)
+                    out += decompressor.decompress(chunk, max_bytes - len(out) + 1)
+                    if len(out) > max_bytes:
+                        return raw
+                # zlib sets eof only when the deflate stream ended properly;
+                # a truncated trailer means the body is unusable, matching the
+                # old gzip.decompress EOFError path.
+                if not decompressor.eof:
+                    return raw
+                out += decompressor.flush(max_bytes - len(out) + 1)
+                if len(out) > max_bytes:
+                    return raw
             except (OSError, EOFError, zlib.error):
                 return raw
+            return bytes(out)
         return raw
 
     @staticmethod

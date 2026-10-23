@@ -9,6 +9,7 @@ from a stored Agent before building either.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from dataclasses import MISSING, fields
 from enum import Enum
@@ -370,6 +371,43 @@ def load(
     return bind_loaded_agent(agent, id, db, config, strict)
 
 
+async def asave(
+    agent: "BaseExternalAgent",
+    *,
+    db: Optional[BaseDb] = None,
+    stage: str = "published",
+    label: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Optional[int]:
+    """Async variant of save; the component catalog is served by the sync db, off the event loop."""
+    return await asyncio.to_thread(save, agent, db=db, stage=stage, label=label, notes=notes)
+
+
+async def aload(
+    cls: Type["BaseExternalAgent"],
+    id: str,
+    *,
+    db: BaseDb,
+    registry: Optional["Registry"] = None,
+    label: Optional[str] = None,
+    version: Optional[int] = None,
+    strict: bool = False,
+    published_only: bool = False,
+) -> Optional["BaseExternalAgent"]:
+    """Async variant of load; the component catalog is served by the sync db, off the event loop."""
+    return await asyncio.to_thread(
+        load,
+        cls,
+        id,
+        db=db,
+        registry=registry,
+        label=label,
+        version=version,
+        strict=strict,
+        published_only=published_only,
+    )
+
+
 def delete(
     agent: "BaseExternalAgent",
     *,
@@ -387,4 +425,17 @@ def delete(
         raise ValueError("Cannot delete agent without an id")
     return db_.delete_component(
         component_id=agent.id, hard_delete=hard_delete, require_no_dependents=require_no_dependents
+    )
+
+
+async def adelete(
+    agent: "BaseExternalAgent",
+    *,
+    db: Optional[BaseDb] = None,
+    hard_delete: bool = False,
+    require_no_dependents: bool = True,
+) -> bool:
+    """Async variant of delete; the component catalog is served by the sync db, off the event loop."""
+    return await asyncio.to_thread(
+        delete, agent, db=db, hard_delete=hard_delete, require_no_dependents=require_no_dependents
     )

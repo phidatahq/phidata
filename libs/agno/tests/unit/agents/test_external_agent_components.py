@@ -199,9 +199,21 @@ class TestClaudeSerialization:
         }
 
     def test_native_options_are_refused(self, monkeypatch):
-        import claude_agent_sdk
+        from dataclasses import dataclass
+        from types import ModuleType
 
-        agent = ClaudeAgent(id="coder", options=claude_agent_sdk.ClaudeAgentOptions(max_turns=2))
+        from agno.agents.claude import agent as claude_module
+
+        @dataclass
+        class ClaudeAgentOptions:
+            max_turns: Optional[int] = None
+            resume: Optional[str] = None
+
+        module = ModuleType("claude_agent_sdk")
+        module.ClaudeAgentOptions = ClaudeAgentOptions  # type: ignore[attr-defined]
+        monkeypatch.setattr(claude_module, "_sdk", lambda: module)
+
+        agent = ClaudeAgent(id="coder", options=ClaudeAgentOptions(max_turns=2))
         with pytest.raises(ValueError, match="ClaudeAgent.options cannot be stored"):
             agent.to_dict()
 
@@ -344,9 +356,7 @@ class TestCodexSerialization:
             agent.to_dict()
 
     def test_client_options_are_refused(self):
-        from openai_codex import CodexConfig
-
-        agent = CodexAgent(id="cx", client_options=CodexConfig())
+        agent = CodexAgent(id="cx", client_options=object())  # type: ignore[arg-type]
 
         with pytest.raises(ValueError, match="CodexAgent.client_options cannot be stored"):
             agent.to_dict()
@@ -392,6 +402,16 @@ class TestPersistence:
         agent.save()
 
         assert agent.delete() is True
+        assert db.get_component("coder") is None
+
+    @pytest.mark.asyncio
+    async def test_async_save_load_delete(self, db, registry):
+        agent = ClaudeAgent(id="coder", permission_mode="plan", db=db)
+
+        assert await agent.asave() == 1
+        loaded = await ClaudeAgent.aload("coder", db=db, registry=registry, strict=True)
+        assert isinstance(loaded, ClaudeAgent) and loaded.permission_mode == "plan"
+        assert await agent.adelete() is True
         assert db.get_component("coder") is None
 
     def test_get_agent_by_id_rebuilds_the_adapter(self, db, registry):
@@ -656,3 +676,11 @@ class TestAgentOS:
         assert response.status_code == 200, response.text
         assert response.json()["content"] == "stored: hi"
         assert db.get_runs(session_id="s1")[0].agent_id == "echo-stored"
+
+    def test_streamed_run_of_a_stored_external_agent_persists_events(self, client, db):
+        response = client.post("/agents/echo-stored/runs", data={"message": "hi", "session_id": "s2", "stream": "true"})
+
+        assert response.status_code == 200, response.text
+        # AgentOS turns store_events on for registered adapters; a stored one gets the same.
+        [run] = db.get_runs(session_id="s2")
+        assert run.events, "a stored external agent served by AgentOS keeps its run events"

@@ -362,6 +362,19 @@ class BaseExternalAgent:
 
         return _storage.save(self, db=db, stage=stage, label=label, notes=notes)
 
+    async def asave(
+        self,
+        *,
+        db: Optional[BaseDb] = None,
+        stage: str = "published",
+        label: Optional[str] = None,
+        notes: Optional[str] = None,
+    ) -> Optional[int]:
+        """Async variant of save."""
+        from agno.agents import _storage
+
+        return await _storage.asave(self, db=db, stage=stage, label=label, notes=notes)
+
     @classmethod
     def load(
         cls,
@@ -388,6 +401,32 @@ class BaseExternalAgent:
             published_only=published_only,
         )
 
+    @classmethod
+    async def aload(
+        cls,
+        id: str,
+        *,
+        db: BaseDb,
+        registry: Optional["Registry"] = None,
+        label: Optional[str] = None,
+        version: Optional[int] = None,
+        strict: bool = False,
+        published_only: bool = False,
+    ) -> Optional["BaseExternalAgent"]:
+        """Async variant of load."""
+        from agno.agents import _storage
+
+        return await _storage.aload(
+            cls,
+            id=id,
+            db=db,
+            registry=registry,
+            label=label,
+            version=version,
+            strict=strict,
+            published_only=published_only,
+        )
+
     def delete(
         self,
         *,
@@ -399,6 +438,18 @@ class BaseExternalAgent:
         from agno.agents import _storage
 
         return _storage.delete(self, db=db, hard_delete=hard_delete, require_no_dependents=require_no_dependents)
+
+    async def adelete(
+        self,
+        *,
+        db: Optional[BaseDb] = None,
+        hard_delete: bool = False,
+        require_no_dependents: bool = True,
+    ) -> bool:
+        """Async variant of delete."""
+        from agno.agents import _storage
+
+        return await _storage.adelete(self, db=db, hard_delete=hard_delete, require_no_dependents=require_no_dependents)
 
     def as_tool(
         self,

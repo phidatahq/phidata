@@ -480,18 +480,19 @@ class Step:
                     loaded = get_agent_by_id(
                         db=db, id=agent_id, registry=registry, strict=False, user_id=get_component_owner_scope()
                     )
-                if isinstance(loaded, Agent):
-                    agent = loaded
-                elif loaded is not None:
+                from agno.agents.base import BaseExternalAgent
+
+                if isinstance(loaded, BaseExternalAgent):
                     # A stored external adapter resolves here too; a step runs an Agent.
                     message = (
                         f"Step '{config.get('name')}' references agent '{agent_id}', which is a "
-                        f"{getattr(loaded, 'sdk', type(loaded).__name__)!r} external agent; external agents "
-                        "cannot be workflow steps."
+                        f"{loaded.sdk!r} external agent; external agents cannot be workflow steps."
                     )
                     if strict:
                         raise ComponentRehydrationError(message)
                     log_warning(message)
+                else:
+                    agent = loaded
 
             # A pinned lenient load may still fall back to a code-defined agent.
             if agent is None and pinned is not None and registry and agent_id:

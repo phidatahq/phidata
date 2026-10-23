@@ -2,7 +2,8 @@
 Setup helper functions for configuring Agno tracing.
 """
 
-from typing import Union
+import os
+from typing import Optional, Union
 
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.remote.base import RemoteDb
@@ -12,7 +13,11 @@ from agno.utils.log import log_debug, log_error, log_info
 try:
     from openinference.instrumentation.agno import AgnoInstrumentor  # type: ignore
     from opentelemetry import trace as trace_api  # type: ignore
-    from opentelemetry.sdk.trace import TracerProvider  # type: ignore
+    from opentelemetry.sdk.environment_variables import (  # type: ignore
+        OTEL_ATTRIBUTE_COUNT_LIMIT,
+        OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT,
+    )
+    from opentelemetry.sdk.trace import SpanLimits, TracerProvider  # type: ignore
     from opentelemetry.sdk.trace.export import BatchSpanProcessor, SimpleSpanProcessor, SpanProcessor  # type: ignore
 
     OPENTELEMETRY_AVAILABLE = True
@@ -75,8 +80,14 @@ def setup_tracing(
         return
 
     try:
+        # Model spans flatten every message into attributes; OTel's default cap of 128 evicts
+        # openinference.span.kind first and logs a warning per eviction. Honor the OTel env vars if set.
+        span_limits: Optional[SpanLimits] = None
+        if not (os.getenv(OTEL_SPAN_ATTRIBUTE_COUNT_LIMIT) or os.getenv(OTEL_ATTRIBUTE_COUNT_LIMIT)):
+            span_limits = SpanLimits(max_span_attributes=SpanLimits.UNSET)
+
         # Create tracer provider
-        tracer_provider = TracerProvider()
+        tracer_provider = TracerProvider(span_limits=span_limits)
 
         # Create database exporter
         exporter = DatabaseSpanExporter(db=db)

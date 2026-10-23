@@ -128,6 +128,47 @@ def test_a_unicode_class_pattern_still_works():
         model.model_validate({"s": "a1"})
 
 
+@pytest.mark.parametrize(
+    "definition, value",
+    [
+        ({"type": ["object", "null"], "properties": {"a": {"type": "string"}}}, None),
+        ({"type": ["object", "string"], "properties": {"a": {"type": "string"}}}, "x"),
+        ({"type": "object", "nullable": True, "properties": {"a": {"type": "string"}}}, None),
+    ],
+    ids=["type-list-null", "type-list-string", "nullable"],
+)
+def test_a_ref_keeps_the_definitions_other_types(definition, value):
+    model = json_schema_to_model(
+        {
+            "type": "object",
+            "properties": {"v": {"$ref": "#/$defs/T"}},
+            "required": ["v"],
+            "$defs": {"T": definition},
+        }
+    )
+    assert model.model_validate({"v": value}).v == value
+    assert model.model_validate({"v": {"a": "x"}}).v.a == "x"
+
+
+def test_a_recursive_nullable_ref_keeps_null():
+    model = json_schema_to_model(
+        {
+            "type": "object",
+            "properties": {"node": {"$ref": "#/$defs/Node"}},
+            "required": ["node"],
+            "$defs": {
+                "Node": {
+                    "type": ["object", "null"],
+                    "properties": {"next": {"$ref": "#/$defs/Node"}},
+                    "required": ["next"],
+                }
+            },
+        }
+    )
+    parsed = model.model_validate({"node": {"next": {"next": None}}})
+    assert parsed.node.next.next is None
+
+
 def test_optional_property_gets_its_default():
     model = json_schema_to_model(
         {"type": "object", "properties": {"a": {"type": "string", "default": "x", "description": "doc"}}}
@@ -273,6 +314,15 @@ def test_additional_properties_false_forbids_extra_keys():
             "at properties/s: pattern '(?=a)a' is not supported",
         ),
         ({"type": "object", "properties": {"s": {"type": "string", "pattern": "["}}}, "is not supported by the regex"),
+        ({"type": ["object", "null"], "properties": {"a": {"type": "string"}}}, "not null or another type"),
+        (
+            {
+                "type": "object",
+                "properties": {"v": {"$ref": "#/$defs/T"}},
+                "$defs": {"T": {"type": ["object", "array"], "properties": {"a": {}}, "items": {}}},
+            },
+            "only also allow primitive types",
+        ),
     ],
     ids=[
         "array-root",
@@ -304,6 +354,8 @@ def test_additional_properties_false_forbids_extra_keys():
         "typed-map-with-required",
         "lookahead-pattern",
         "invalid-pattern",
+        "nullable-root",
+        "ref-object-or-array",
     ],
 )
 def test_unrepresentable_schemas_are_refused(schema, reason):

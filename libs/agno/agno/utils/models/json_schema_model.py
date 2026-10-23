@@ -150,6 +150,11 @@ class _ModelBuilder:
         self.models: List[Type[BaseModel]] = []
 
     def build_root(self, schema: Dict[str, Any], name: str) -> Type[BaseModel]:
+        root_types = _types_of(schema)
+        if (root_types and root_types != {"object"}) or schema.get("nullable") is True:
+            raise UnsupportedJsonSchemaError(
+                "the root must be an object schema with properties, not null or another type"
+            )
         if "$ref" in schema:
             model = self._ref_annotation(schema["$ref"], "")
         elif _declares_properties(schema):
@@ -157,7 +162,9 @@ class _ModelBuilder:
         else:
             model = None
         if not (isinstance(model, type) and issubclass(model, BaseModel)):
-            raise UnsupportedJsonSchemaError("the root must be an object schema with properties")
+            raise UnsupportedJsonSchemaError(
+                "the root must be an object schema with properties, not null or another type"
+            )
         namespace = {m.__name__: m for m in self.models}
         for built in self.models:
             try:
@@ -208,12 +215,27 @@ class _ModelBuilder:
             del self.building[ref]
             self.ref_models[ref] = annotation
             return annotation
+        # The definition's other types and nullable wrap the object model, here and in recursive refs
+        alternatives = sorted(_types_of(target) - {"object"})
+        if any(t not in _PRIMITIVES for t in alternatives):
+            raise UnsupportedJsonSchemaError(
+                f"{_at(ref)}a referenced object can only also allow primitive types, not {alternatives}"
+            )
+        constraints = self._constraint_kwargs(target, ref)
+
+        def wrap(inner: Any) -> Any:
+            members = [inner, *(_PRIMITIVES[t] for t in alternatives)]
+            annotation = members[0] if len(members) == 1 else Union[tuple(members)]
+            if target.get("nullable") is True:
+                annotation = Optional[annotation]
+            return Annotated[annotation, Field(**constraints)] if constraints else annotation
+
         model_name = self._model_name(str(target.get("title") or def_name))
-        self.building[ref] = model_name
+        self.building[ref] = wrap(model_name)
         model = self._object_model(target, model_name, ref, reserved=True)
         del self.building[ref]
-        self.ref_models[ref] = model
-        return model
+        self.ref_models[ref] = wrap(model)
+        return self.ref_models[ref]
 
     # Annotations -------------------------------------------------------
 

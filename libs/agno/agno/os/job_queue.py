@@ -1056,10 +1056,11 @@ class QueueWorker:
                 # One job's failure must not drop the rest of the batch or this tick's claims.
                 log_error(
                     f"Job queue: sweeping job {job['id']} raised ({e}); "
-                    "it will be re-swept when its sweep lock goes stale"
+                    "it will be re-swept when the sweep lock goes stale"
                 )
 
     async def _sweep_job(self, job: Dict[str, Any]) -> None:
+        """Acquire, reconcile or fail one swept job (see _sweep_exhausted)."""
         if not await self.store.acquire_sweep(job["id"], self.worker_id, self.config.lock_grace_seconds):
             # Lost to a live heartbeat or another sweeper - and the run
             # row was never touched, which is the point of acquiring first
@@ -1083,6 +1084,18 @@ class QueueWorker:
             "max_attempts=1 by default): set QueueConfig(max_attempts=2) or higher to allow "
             "automatic re-execution, or grant one attempt via POST /queue/jobs/{id}/requeue."
         )
+        # A run that failed on its own keeps its error on the Task result. Read before the
+        # write below, which turns an unsettled row ERROR and keeps any partial draft in it.
+        task_error = error
+        if self._company_db is not None and (job.get("payload") or {}).get("company_task_id"):
+            with contextlib.suppress(Exception):
+                component: Any = await self._aresolve_job_component(job)
+                if component is not None:
+                    run_output = await component.aget_run_output(
+                        job["id"], job["session_id"], user_id=job.get("user_id")
+                    )
+                    if str(getattr(run_output.status, "value", run_output.status)) == "ERROR" and run_output.content:
+                        task_error = run_output.content
         outcome = await self._persist_run_error_outcome(job, error)
         if outcome is None:
             # The run row could not be terminalized (component missing
@@ -1123,7 +1136,7 @@ class QueueWorker:
         if self._company_db is not None:
             from agno.company.execution import _project_run_before_settle
 
-            await _project_run_before_settle(self, job, "failed", error)
+            await _project_run_before_settle(self, job, "failed", task_error)
         await self.store.settle_swept_job(job["id"], self.worker_id, "failed", error)
         log_warning(f"Job queue: swept job {job['id']} to failed ({error})")
 
@@ -1280,11 +1293,25 @@ class QueueWorker:
                 "its run row (if any) cannot be terminalized by any path"
             )
         if self._company_db is not None:
-            from agno.company.execution import _project_run_before_settle
+            from agno.company.execution import _project_run, _project_run_before_settle
 
             # Save the Task result before the ticket becomes terminal; a crash
             # before this point leaves a live ticket for ordinary recovery.
-            await _project_run_before_settle(self, prior, "cancelled", reason)
+            if prior.get("status") != "queued" or payload.get("continue"):
+                # Only a fresh queued ticket is settled by its claim from the CANCELLED run row. A
+                # paused ticket is never claimed, so it finishes and recovery rebuilds the Task.
+                await _project_run_before_settle(self, prior, "cancelled", reason)
+            else:
+                try:
+                    await _project_run(self, prior, "cancelled", reason)
+                except Exception as e:
+                    if not component_reachable:
+                        raise
+                    log_error(
+                        f"Job queue: could not save the Task result for cancelled waiting job {run_id} ({e}); "
+                        "ticket left as-is (its claim settles it from the CANCELLED run row)"
+                    )
+                    return False
         cancelled = False
         with contextlib.suppress(Exception):
             cancelled = bool(await self.store.cancel_job(run_id))
@@ -1952,11 +1979,19 @@ class QueueWorker:
         once the lease expires - but it must be LOUD, never silent."""
         try:
             if self._company_db is not None and status in {"completed", "failed", "cancelled"}:
-                from agno.company.execution import _project_run_before_settle
+                from agno.company.execution import _project_run, _project_run_before_settle
 
                 job = await self.store.get_job(job_id)
                 if job is not None and job.get("locked_by") == self.worker_id and job.get("attempt") == attempt:
-                    await _project_run_before_settle(self, job, status, error)
+                    # A held ticket is settled from its run row without executing: by a reclaim
+                    # while attempts remain (which holds it again), then by the sweep, which
+                    # releases it. Each retries the Task write, so the hold lasts at most
+                    # max_attempts leases. A failed ticket with attempts left would be
+                    # re-executed instead, so only that one is released.
+                    if status == "failed" and attempt < job.get("max_attempts", 1):
+                        await _project_run_before_settle(self, job, status, error)
+                    else:
+                        await _project_run(self, job, status, error)
             call = self.store.complete_job(job_id, self.worker_id, attempt, status, error)
             applied = bool(await (asyncio.shield(call) if shielded else call))
         except Exception as e:
@@ -1982,7 +2017,7 @@ class QueueWorker:
         assumed requeued."""
         try:
             if self._company_db is not None:
-                from agno.company.execution import _project_run_before_settle
+                from agno.company.execution import _project_run
 
                 job = await self.store.get_job(job_id)
                 if (
@@ -1993,7 +2028,7 @@ class QueueWorker:
                 ):
                     # Match the queue's retry budget, preserving write-before-terminal
                     # ordering without putting retryable work in human attention.
-                    await _project_run_before_settle(self, job, "failed", error)
+                    await _project_run(self, job, "failed", error)
             call = self.store.retry_or_fail_job(job_id, self.worker_id, attempt, error, delay)
             outcome = await (asyncio.shield(call) if shielded else call)
         except Exception as e:
@@ -2251,9 +2286,12 @@ class QueueWorker:
             from agno.run.authorization import current_authorization
 
             if isinstance(current_authorization(), _RoutineAuthorization):
-                from agno.company.execution import _validate_executor_tools
+                from agno.company.execution import _TaskRunRefused, _validate_executor_tools
 
-                _validate_executor_tools(component)
+                try:
+                    _validate_executor_tools(component)
+                except ValueError as e:
+                    raise _TaskRunRefused(str(e)) from e
             if payload.get("company_task_id"):
                 from agno.company.execution import _check_task
 

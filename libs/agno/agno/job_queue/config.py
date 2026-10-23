@@ -111,7 +111,7 @@ class QueueConfig:
     # and the event stream (per-run writer generations). They do NOT resume:
     # a retry or reclaim re-executes the run from its original input under the
     # same run_id, so tool calls and other side effects of the earlier attempt
-    # run again. Persisted checkpoints are not used to resume a retry.
+    # run again. A retry never resumes from where the earlier attempt stopped.
     max_attempts: int = 1
     # BASE retry delay: attempt N waits up to base * 2**(N-1) with full
     # jitter (capped at 10x base) - see QueueWorker._retry_delay

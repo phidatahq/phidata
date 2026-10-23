@@ -436,7 +436,10 @@ def get_company_runs_router(os: Any) -> APIRouter:
                 owner = _reservation_owner(value, run)
                 queue = getattr(request.app.state, "queue_worker", None)
                 await _cancel_ticketless_pending_run(original_db, value, run, owner, queue)
-                await _reconcile_task_run(db, original_db, value, run, owner, worker=queue)
+                ticket = await queue.store.get_job(run_id) if queue is not None else None
+                # A live ticket saves its own Task result when the queue settles it.
+                if ticket is None or ticket["status"] in {"completed", "failed", "cancelled"}:
+                    await _reconcile_task_run(db, original_db, value, run, owner, worker=queue)
         return response
 
     @router.get("/attention")

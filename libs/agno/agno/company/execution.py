@@ -34,7 +34,7 @@ class _TaskRunUnavailable(ValueError):
 
 
 class _TaskRunRefused(InputCheckError):
-    """A claimed Task run may no longer start; the queue fails it without retrying."""
+    """A claimed Company run (a Task or a routine) may no longer start; the queue fails it without retrying."""
 
 
 def _executor(registry: Any, executor_type: Optional[str], executor_id: Optional[str], accepting: bool = False) -> Any:
@@ -429,7 +429,10 @@ async def _check_task(worker: Any, job: Dict[str, Any]) -> None:
         except PermissionError as exc:
             raise _TaskRunRefused(str(exc)) from exc
     component = await worker._aresolve_job_component(job)
-    _validate_executor_tools(component)
+    try:
+        _validate_executor_tools(component)
+    except ValueError as exc:
+        raise _TaskRunRefused(str(exc)) from exc
 
 
 async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Optional[str] = None) -> None:
@@ -483,8 +486,8 @@ async def _project_run_before_settle(
         from agno.utils.log import log_error
 
         log_error(
-            f"Company: could not save the Task result for run {job['id']} ({exc}); finishing its queue ticket "
-            "anyway, the Task is rebuilt from the run row by Company recovery"
+            f"Failed to save the Task result for run {job['id']}; finishing its queue ticket so Company "
+            f"recovery rebuilds the Task from the run row: {exc}"
         )
 
 

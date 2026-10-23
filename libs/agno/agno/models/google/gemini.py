@@ -300,7 +300,8 @@ class Gemini(Model):
             if isinstance(self.generation_config, GenerateContentConfig):
                 config = self.generation_config.model_dump()
             else:
-                config = self.generation_config
+                # Copied so per-request settings never leak into the model's stored config
+                config = dict(self.generation_config)
         else:
             config = {}
 

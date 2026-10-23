@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from pydantic import BaseModel
 
 pytest.importorskip("google.genai")
 
@@ -877,3 +878,34 @@ class TestFileSearchToolWiring:
             return  # No tools at all, which is the expected case
         file_search_tools = [t for t in config.tools if getattr(t, "file_search", None) is not None]
         assert len(file_search_tools) == 0
+
+
+class _MovieScript(BaseModel):
+    title: str
+    genre: str
+
+
+class TestGenerationConfigIsolation:
+    """Per-request settings must not be written into a caller-supplied generation_config dict."""
+
+    def test_caller_generation_config_dict_unchanged(self):
+        generation_config = {"temperature": 0.1}
+        model = Gemini(api_key="test-key", generation_config=generation_config)
+
+        model.get_request_params(system_message="Be brief.", response_format=_MovieScript)
+
+        assert generation_config == {"temperature": 0.1}
+        assert model.generation_config == {"temperature": 0.1}
+
+    def test_no_stale_schema_or_system_instruction_on_later_request(self):
+        model = Gemini(api_key="test-key", generation_config={})
+
+        first = model.get_request_params(system_message="Be brief.", response_format=_MovieScript)
+        assert first["config"].response_schema is not None
+        assert first["config"].system_instruction == "Be brief."
+
+        second = model.get_request_params()
+        config = second.get("config")
+        assert config is None or config.response_schema is None
+        assert config is None or config.response_mime_type is None
+        assert config is None or config.system_instruction is None

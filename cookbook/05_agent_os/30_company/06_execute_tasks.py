@@ -26,7 +26,7 @@ from sqlalchemy import text
 
 def draft(step_input: StepInput) -> StepOutput:
     context = json.loads(step_input.input)
-    assert set(context) == {"brief", "wiki", "evidence"}
+    assert set(context) == {"brief", "wiki", "evidence", "execution_context"}
     return StepOutput(content="Draft ready for review: " + context["brief"])
 
 

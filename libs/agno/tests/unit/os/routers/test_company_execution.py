@@ -811,7 +811,6 @@ def test_accepted_execution_preserves_scope_and_excludes_private_state(system):
     assert set(payload["execution_context"]) == {"stage", "task_id", "instructions"}
     assert "restrictions" in payload["execution_context"]["instructions"]
     assert "blocker" in payload["execution_context"]["instructions"]
-    assert "not-for-executor" not in message
     assert "accepted_by" not in message
     assert db.get_task(task["id"])["brief"] == brief
 

@@ -518,6 +518,12 @@ def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation
         assert forwarded_headers.get(SCHEDULE_OWNER_HEADER) == owner
         snapshot = json.loads(forwarded_headers[AUTHORIZATION_HEADER])
         assert snapshot["context"]["principal_id"] == owner
+
+        # Automatic acceptance runs on the saved owner's grant, so members cannot start it under isolation.
+        metadata = {**saved["payload"]["metadata"], "auto_accept": {"executor_type": "agent", "executor_id": "reader"}}
+        db.update_schedule(routine_id, enabled=True, payload={**saved["payload"], "metadata": metadata})
+        response = client.post(path + "/trigger", headers=auth)
+        assert response.status_code == (403 if isolation else 200), response.text
     db.close()
 
 

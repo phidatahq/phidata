@@ -207,6 +207,9 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
     @router.post("/routines/{routine_id}/trigger", response_model=ScheduleRunResponse)
     async def trigger_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request, owned=False)
+        # Automatic acceptance runs on the owner's saved grant, so only the owner may start it manually.
+        if row["payload"]["metadata"].get("auto_accept"):
+            _require_write_ownership(row, get_scoped_user_id(request))
         await product(row["payload"]["metadata"]["product_id"], request, owned=False)
         if not row["enabled"]:
             raise HTTPException(409, "Routine is paused")

@@ -82,7 +82,11 @@ that caller in the run's `user_id`. The scheduler follows the run with that
 authority, so the caller also needs the executor's read permission for the run
 to be recorded as successful. The saved Routine owner and authorization
 remain unchanged for scheduled runs; editing, pausing and resuming still enforce
-ownership when user isolation is enabled.
+ownership when user isolation is enabled. A Routine with automatic acceptance
+accepts proposals with its owner's saved grant, so under user isolation only
+its owner can trigger it manually. Work that requires Product ownership, such
+as status and wiki updates or the refresh and summary templates, is refused
+when another member runs the Routine.
 
 ## Work records
 

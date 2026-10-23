@@ -244,6 +244,14 @@ class TestClaudeSerialization:
         with pytest.raises(ComponentRehydrationError, match="stored for sdk 'codex', not for ClaudeAgent"):
             ClaudeAgent.from_dict(config, registry=registry, strict=True)
 
+    def test_agent_config_is_refused_on_an_adapter(self, db, registry):
+        Agent(id="native", name="Native", instructions="Important instructions", db=db).save()
+
+        with pytest.raises(ComponentRehydrationError, match="carries no sdk, so it is stored for an Agent"):
+            ClaudeAgent.load("native", db=db, registry=registry)
+        with pytest.raises(ComponentRehydrationError, match="carries no sdk"):
+            ClaudeAgent.from_dict({"id": "native", "instructions": "Important instructions"}, registry=registry)
+
     def test_unknown_sdk_is_refused(self, registry):
         with pytest.raises(ComponentRehydrationError, match="No external agent adapter stores configs with sdk 'nope'"):
             BaseExternalAgent.from_dict({"sdk": "nope", "id": "x"}, registry=registry)
@@ -468,6 +476,18 @@ class TestPersistence:
         lenient = get_agent_by_id(db=db, id="coder", registry=registry, strict=False)
         assert isinstance(lenient, ClaudeAgent) and lenient.sandbox is sandbox
 
+    def test_caller_metadata_is_kept_on_the_run_output(self, db):
+        agent = EchoAgent(id="echo", db=db)
+        metadata = {"agno_component_version": 1, "ticket": "T-1"}
+
+        run = agent.run("hi", session_id="s1", metadata=metadata)
+        list(agent.run("hi", session_id="s1", stream=True, metadata=metadata))
+
+        assert run.metadata == metadata
+        assert run.metadata is not metadata
+        # Both the non-streaming and the streaming run keep it on the stored row.
+        assert [stored.metadata for stored in db.get_runs(session_id="s1")] == [metadata, metadata]
+
     def test_turns_in_flight_are_shared_across_instances(self):
         first = EchoAgent(id="shared")
         second = EchoAgent(id="shared")
@@ -691,6 +711,17 @@ class TestAgentOS:
         assert response.status_code == 200, response.text
         assert response.json()["content"] == "stored: hi"
         assert db.get_runs(session_id="s1")[0].agent_id == "echo-stored"
+
+    def test_pinned_version_is_stamped_on_a_stored_external_agent_run(self, client, db):
+        response = client.post(
+            "/agents/echo-stored/runs",
+            data={"message": "hi", "session_id": "s3", "stream": "false", "version": "1"},
+        )
+
+        assert response.status_code == 200, response.text
+        # The continue route reloads the version recorded on the run, so the stamp must survive.
+        [run] = db.get_runs(session_id="s3")
+        assert run.metadata["agno_component_version"] == 1
 
     def test_streamed_run_of_a_stored_external_agent_persists_events(self, client, db):
         response = client.post("/agents/echo-stored/runs", data={"message": "hi", "session_id": "s2", "stream": "true"})

@@ -1662,9 +1662,16 @@ class BaseExternalAgent:
         tools: Optional[List[ToolExecution]] = None,
         metrics: Optional[RunMetrics] = None,
         media: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> RunOutput:
-        """Build a RunOutput with properly populated messages for chat history."""
+        """Build a RunOutput with properly populated messages for chat history.
+
+        ``metadata`` is the caller's run metadata, kept on the output the way Agent keeps
+        it; AgentOS records the pinned component version there so a continuation reloads
+        the same version.
+        """
         now = int(time())
+        run_metadata = dict(metadata) if isinstance(metadata, dict) and metadata else None
         messages: List[Message] = []
         # Skip synthetic user messages for replay/fork (input is None)
         if input_text is not None:
@@ -1727,6 +1734,7 @@ class BaseExternalAgent:
             tools=tools,
             status=status,
             metrics=metrics,
+            metadata=run_metadata,
             created_at=now,
         )
 
@@ -1965,9 +1973,10 @@ class BaseExternalAgent:
                         timer, content.metrics if isinstance(content, ExternalRunResult) else None
                     ),
                     media=kwargs.get("media"),
+                    metadata=kwargs.get("metadata"),
                 )
                 if isinstance(content, ExternalRunResult) and content.warnings:
-                    run_output.metadata = {"warnings": content.warnings}
+                    run_output.metadata = {**(run_output.metadata or {}), "warnings": content.warnings}
                 self._apply_output_schema(
                     run_output,
                     output_schema,
@@ -1986,6 +1995,7 @@ class BaseExternalAgent:
                     RunStatus.cancelled,
                     tools=list(carried_tools.values()) or None,
                     media=kwargs.get("media"),
+                    metadata=kwargs.get("metadata"),
                 )
             except Exception as error:
                 log_exception(f"Error in {self.sdk} agent '{self.id}': {error}")
@@ -1998,8 +2008,9 @@ class BaseExternalAgent:
                     RunStatus.error,
                     tools=list(carried_tools.values()) or None,
                     media=kwargs.get("media"),
+                    metadata=kwargs.get("metadata"),
                 )
-                run_output.metadata = self._failure_metadata(error)
+                run_output.metadata = {**(run_output.metadata or {}), **self._failure_metadata(error)}
             if attempts_made > 1:
                 run_output.metadata = {**(run_output.metadata or {}), "attempts": attempts_made}
             self._finish_run_output(run_output, run_state, continuation)
@@ -2117,9 +2128,10 @@ class BaseExternalAgent:
                 list(tools.values()) or None,
                 metrics=self._finish_metrics(timer, adapter_metrics) if status == RunStatus.completed else None,
                 media=kwargs.get("media"),
+                metadata=kwargs.get("metadata"),
             )
             if warnings:
-                run.metadata = {"warnings": warnings}
+                run.metadata = {**(run.metadata or {}), "warnings": warnings}
             if run_error is not None:
                 run.metadata = {**(run.metadata or {}), **self._failure_metadata(run_error)}
             if attempts_made > 1:

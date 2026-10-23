@@ -175,7 +175,14 @@ def from_dict(
         target = external_agent_class(sdk)
     else:
         target = cls
-        if sdk is not None and sdk != target._sdk_name:
+        if sdk is None:
+            # Agent and the adapters share one catalog; a config without an sdk is an
+            # Agent's, and building an adapter from it would drop that agent's settings.
+            raise ComponentRehydrationError(
+                f"The config carries no sdk, so it is stored for an Agent, not for {target.__name__}; "
+                "load it with Agent.load or get_agent_by_id"
+            )
+        if sdk != target._sdk_name:
             raise ComponentRehydrationError(
                 f"The config is stored for sdk {sdk!r}, not for {target.__name__} ({target._sdk_name!r})"
             )

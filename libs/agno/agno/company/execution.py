@@ -451,17 +451,6 @@ async def _project_run(worker: Any, job: Dict[str, Any], status: str, error: Opt
         "content": error or ("Run cancelled" if status == "cancelled" else None),
     }
     checkout = None
-    if status == "failed":
-        # The run row keeps the run's own error; the sweep passes its generic message.
-        output = None
-        try:
-            component = await worker._aresolve_job_component(job)
-            if component is not None:
-                output = await component.aget_run_output(job["id"], job["session_id"], user_id=job.get("user_id"))
-        except Exception:
-            output = None
-        if output is not None and str(getattr(output.status, "value", output.status)) == "ERROR" and output.content:
-            result["content"] = output.content
     if status == "completed":
         component = await worker._aresolve_job_component(job)
         if component is None:

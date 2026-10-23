@@ -127,6 +127,51 @@ async def test_swept_task_result_keeps_the_run_error(system, monkeypatch):
     assert (await _call(db, "get_task", value["id"]))["result"]["content"] == "executor failed"
 
 
+async def test_swept_task_result_ignores_a_partial_draft(system):
+    from agno.agent._session import asave_run
+    from agno.run.agent import RunOutput
+    from agno.run.base import RunStatus
+
+    client, db, worker, _, components = system
+    value = await accepted(client)
+    run_id = (await client.post(f"/company/tasks/{value['id']}/runs")).json()["run_id"]
+    job = await worker.store.claim_job(worker.worker_id, worker.config.lock_grace_seconds)
+    # The worker dies mid-run, leaving a RUNNING row with a partial draft.
+    run = RunOutput(
+        run_id=run_id, session_id=job["session_id"], agent_id="writer", status=RunStatus.running, content="partial"
+    )
+    await asave_run(components["writer"], run=run, session_id=job["session_id"], user_id=job.get("user_id"))
+    expire_lease(worker, run_id, max_attempts=1)
+    await worker._sweep_exhausted()
+    assert (await worker.store.get_job(run_id))["status"] == "failed"
+    content = (await _call(db, "get_task", value["id"]))["result"]["content"]
+    assert content.startswith("Worker lost and attempt budget exhausted")
+
+
+async def test_refused_task_result_keeps_the_refusal_over_the_draft(system, monkeypatch):
+    from agno.exceptions import CheckTrigger, OutputCheckError
+    from agno.tools.scheduler import SchedulerTools
+
+    client, db, worker, _, components = system
+    value = await accepted(client)
+    run_id = (await client.post(f"/company/tasks/{value['id']}/runs")).json()["run_id"]
+
+    def reject(run_output):
+        raise OutputCheckError("Draft failed review", check_trigger=CheckTrigger.OUTPUT_NOT_ALLOWED)
+
+    monkeypatch.setattr(components["writer"], "post_hooks", [reject])
+    assert (await execute(worker))["status"] == "queued"
+    # The retry is refused, and the run row still holds the first attempt's draft.
+    monkeypatch.setattr(components["writer"], "post_hooks", [])
+    monkeypatch.setattr(components["writer"], "tools", [SchedulerTools(db=db)])
+    job = await execute(worker)
+    assert job["status"] == "failed"
+    run = await components["writer"].aget_run_output(run_id, job["session_id"])
+    assert run.content == "Completed evidence-based draft"
+    saved = await _call(db, "get_task", value["id"])
+    assert saved["result"]["content"] == "permanent: Company executors cannot hold SchedulerTools"
+
+
 async def test_held_ticket_is_reclaimed_without_running_again(system, monkeypatch):
     client, db, worker, _, components = system
     value = await accepted(client)

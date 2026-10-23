@@ -1084,6 +1084,18 @@ class QueueWorker:
             "max_attempts=1 by default): set QueueConfig(max_attempts=2) or higher to allow "
             "automatic re-execution, or grant one attempt via POST /queue/jobs/{id}/requeue."
         )
+        # A run that failed on its own keeps its error on the Task result. Read before the
+        # write below, which turns an unsettled row ERROR and keeps any partial draft in it.
+        task_error = error
+        if self._company_db is not None and (job.get("payload") or {}).get("company_task_id"):
+            with contextlib.suppress(Exception):
+                component: Any = await self._aresolve_job_component(job)
+                if component is not None:
+                    run_output = await component.aget_run_output(
+                        job["id"], job["session_id"], user_id=job.get("user_id")
+                    )
+                    if str(getattr(run_output.status, "value", run_output.status)) == "ERROR" and run_output.content:
+                        task_error = run_output.content
         outcome = await self._persist_run_error_outcome(job, error)
         if outcome is None:
             # The run row could not be terminalized (component missing
@@ -1124,7 +1136,7 @@ class QueueWorker:
         if self._company_db is not None:
             from agno.company.execution import _project_run_before_settle
 
-            await _project_run_before_settle(self, job, "failed", error)
+            await _project_run_before_settle(self, job, "failed", task_error)
         await self.store.settle_swept_job(job["id"], self.worker_id, "failed", error)
         log_warning(f"Job queue: swept job {job['id']} to failed ({error})")
 

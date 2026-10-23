@@ -372,6 +372,13 @@ def test_authentication_failure_redacts_key_and_closes_client(fake_sdk, monkeypa
     with pytest.raises(RuntimeError, match="Cannot authenticate \\[redacted\\]") as error:
         asyncio.run(agent._arun_adapter_sdk("hello"))
     assert "private-test-key" not in str(error.value)
+    # The cause names the original failure and where it happened, without the key anywhere in the chain.
+    import traceback
+
+    cause = error.value.__cause__
+    assert str(cause) == "RuntimeError: Cannot authenticate [redacted]"
+    assert any(frame.name == "fail_login" for frame in traceback.extract_tb(cause.__traceback__))
+    assert "private-test-key" not in "".join(traceback.format_exception(error.value))
     assert fake_sdk.calls[-1]["op"] == "client_exit"
     assert not any(c["op"] == "thread_start" for c in fake_sdk.calls)
 

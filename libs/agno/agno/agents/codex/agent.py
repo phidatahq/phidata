@@ -466,8 +466,10 @@ class CodexAgent(BaseExternalAgent):
                     if account is None or account.type == "apiKey":
                         await codex.login_api_key(api_key)
                 except Exception as error:
-                    message = str(error).replace(api_key, "[redacted]")
-                    raise RuntimeError("Codex API-key authentication failed: " + message[:500]) from None
+                    message = str(error).replace(api_key, "[redacted]")[:500]
+                    # To preserve the original exception's traceback, build a new one from it.
+                    cause = RuntimeError(f"{type(error).__name__}: {message}").with_traceback(error.__traceback__)
+                    raise RuntimeError("Codex API-key authentication failed: " + message) from cause
             yield codex
 
     @staticmethod

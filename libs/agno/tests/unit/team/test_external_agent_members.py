@@ -432,6 +432,25 @@ def test_a_harness_agent_does_not_pretend_to_have_native_member_settings(db, sdk
         assert not hasattr(member, name), name
 
 
+def test_member_setting_helpers_give_a_harness_member_the_defaults(db, sdk):
+    from types import SimpleNamespace
+
+    from agno.agent import Agent
+    from agno.team._members import member_knowledge_filters, member_storage
+
+    harness = _member(db)
+    assert member_storage(harness).keeps_all
+    opted_out = member_storage(Agent(id="native", store_media=False))
+    assert not opted_out.media and opted_out.tool_messages and not opted_out.keeps_all
+
+    run_context = SimpleNamespace(knowledge_filters={"topic": "billing"})
+    assert member_knowledge_filters(harness, run_context) is None  # type: ignore[arg-type]
+    with_knowledge = SimpleNamespace(knowledge=object(), knowledge_filters=None)
+    assert member_knowledge_filters(with_knowledge, run_context) == {"topic": "billing"}  # type: ignore[arg-type]
+    own_filters = SimpleNamespace(knowledge=object(), knowledge_filters={"topic": "own"})
+    assert member_knowledge_filters(own_filters, run_context) is None  # type: ignore[arg-type]
+
+
 def test_storage_paths_that_read_member_flags_keep_a_harness_members_run_whole(db, sdk):
     """Each path that applies a member's storage flags reaches a harness member without crashing and keeps its run."""
     from agno.run.agent import RunOutput

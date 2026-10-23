@@ -61,6 +61,7 @@ from agno.team._default_tools import (
     _cascading_cancel_run,
     _member_run_kwargs,
 )
+from agno.team._members import member_knowledge_filters, member_storage
 from agno.team.task import TaskList, TaskStatus, save_task_list
 from agno.tools.function import Function
 from agno.utils.events import (
@@ -389,15 +390,11 @@ def _get_task_management_tools(
             run_response.add_member_run(member_run_response)
 
         if member_run_response:
-            if (
-                not getattr(member_agent, "store_media", True)
-                or not getattr(member_agent, "store_tool_messages", True)
-                or not getattr(member_agent, "store_history_messages", True)
-            ):
+            if not member_storage(member_agent).keeps_all:
                 from agno.agent._run import scrub_run_output_for_storage
 
                 # Recorded before the scrub: by here the ids exist nowhere else.
-                if not getattr(member_agent, "store_media", True):
+                if not member_storage(member_agent).media:
                     _record_opted_out_media(run_response, member_run_response)
                 scrub_run_output_for_storage(member_agent, run_response=member_run_response)  # type: ignore[arg-type]
             from agno.team._run import _member_run_for_storage
@@ -456,15 +453,11 @@ def _get_task_management_tools(
             run_response.add_member_run(member_run_response)
 
         if member_run_response:
-            if (
-                not getattr(member_agent, "store_media", True)
-                or not getattr(member_agent, "store_tool_messages", True)
-                or not getattr(member_agent, "store_history_messages", True)
-            ):
+            if not member_storage(member_agent).keeps_all:
                 from agno.agent._run import scrub_run_output_for_storage
 
                 # Recorded before the scrub: by here the ids exist nowhere else.
-                if not getattr(member_agent, "store_media", True):
+                if not member_storage(member_agent).media:
                     _record_opted_out_media(run_response, member_run_response)
                 scrub_run_output_for_storage(member_agent, run_response=member_run_response)  # type: ignore[arg-type]
             from agno.team._run import _amember_run_for_storage
@@ -542,9 +535,7 @@ def _get_task_management_tools(
                     add_dependencies_to_context=add_dependencies_to_context,
                     metadata=run_context.metadata,
                     add_session_state_to_context=add_session_state_to_context,
-                    knowledge_filters=run_context.knowledge_filters
-                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
-                    else None,
+                    knowledge_filters=member_knowledge_filters(member_agent, run_context),
                     run_id=member_run_id,
                     yield_run_output=True,
                     **_member_run_kwargs(team, member_agent),
@@ -594,9 +585,7 @@ def _get_task_management_tools(
                     add_dependencies_to_context=add_dependencies_to_context,
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
-                    knowledge_filters=run_context.knowledge_filters
-                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
-                    else None,
+                    knowledge_filters=member_knowledge_filters(member_agent, run_context),
                     run_id=member_run_id,
                     **_member_run_kwargs(team, member_agent),
                 )
@@ -727,9 +716,7 @@ def _get_task_management_tools(
                     add_dependencies_to_context=add_dependencies_to_context,
                     metadata=run_context.metadata,
                     add_session_state_to_context=add_session_state_to_context,
-                    knowledge_filters=run_context.knowledge_filters
-                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
-                    else None,
+                    knowledge_filters=member_knowledge_filters(member_agent, run_context),
                     run_id=member_run_id,
                     yield_run_output=True,
                     **_member_run_kwargs(team, member_agent),
@@ -779,9 +766,7 @@ def _get_task_management_tools(
                     add_dependencies_to_context=add_dependencies_to_context,
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
-                    knowledge_filters=run_context.knowledge_filters
-                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
-                    else None,
+                    knowledge_filters=member_knowledge_filters(member_agent, run_context),
                     run_id=member_run_id,
                     **_member_run_kwargs(team, member_agent),
                 )
@@ -933,9 +918,7 @@ def _get_task_management_tools(
                     add_dependencies_to_context=add_dependencies_to_context,
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
-                    knowledge_filters=run_context.knowledge_filters
-                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
-                    else None,
+                    knowledge_filters=member_knowledge_filters(member_agent, run_context),
                     run_id=member_run_id,
                     **_member_run_kwargs(team, member_agent),
                 )
@@ -1139,9 +1122,7 @@ def _get_task_management_tools(
                     add_dependencies_to_context=add_dependencies_to_context,
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
-                    knowledge_filters=run_context.knowledge_filters
-                    if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
-                    else None,
+                    knowledge_filters=member_knowledge_filters(member_agent, run_context),
                     run_id=member_run_id,
                     **_member_run_kwargs(team, member_agent),
                 )

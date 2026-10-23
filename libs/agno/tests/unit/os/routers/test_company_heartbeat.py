@@ -505,7 +505,9 @@ def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation
         # Generic schedule routes cannot be used to bypass the Company wrapper.
         assert client.post("/schedules/" + routine_id + "/trigger", headers=auth).status_code in (403, 404, 409)
         if isolation:
-            assert client.patch(path, json={"instructions": "Change"}, headers=auth).status_code == 403
+            denied = client.patch(path, json={"instructions": "Change"}, headers=auth)
+            assert denied.status_code == 403
+            assert "routine" in denied.json()["detail"]
             assert client.post(path + "/pause", headers=auth).status_code == 403
             assert client.post(path + "/resume", headers=auth).status_code == 403
         db.update_schedule(routine_id, enabled=False)
@@ -524,6 +526,12 @@ def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation
         db.update_schedule(routine_id, enabled=True, payload={**saved["payload"], "metadata": metadata})
         response = client.post(path + "/trigger", headers=auth)
         assert response.status_code == (403 if isolation else 200), response.text
+        if owner and not managed_roles:
+            # The owner may still start an auto-accept routine and runs as themselves.
+            token = jwt.encode({"sub": owner, "aud": "members", "scopes": scopes}, secret, algorithm="HS256")
+            response = client.post(path + "/trigger", headers={"Authorization": "Bearer " + token})
+            assert response.status_code == 200, response.text
+            assert response.json()["user_id"] == owner
     db.close()
 
 

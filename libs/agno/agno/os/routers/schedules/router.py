@@ -8,7 +8,7 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from agno.db.utils import is_unique_violation
-from agno.os.middleware.user_scope import get_scoped_user_id
+from agno.os.middleware.user_scope import get_scoped_user_id, resolve_run_user_id
 from agno.os.routers.run_permissions import _require_endpoint_permission
 from agno.os.routers.schedules.schema import (
     ScheduleCreate,
@@ -551,7 +551,7 @@ def get_schedule_router(
             # saved owner and authority intact for future scheduled executions.
             existing = {
                 **existing,
-                "user_id": getattr(request.state, "user_id", None),
+                "user_id": resolve_run_user_id(request),
                 "payload": stamp_authorization(existing.get("payload")),
             }
 

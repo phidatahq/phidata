@@ -13,8 +13,8 @@ from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.company.routines import _routine_executor_endpoint, _routine_message, _schedule_fields
 from agno.db.base import AsyncBaseDb
 from agno.os.auth import get_authentication_dependency
-from agno.os.middleware.user_scope import get_scoped_user_id
-from agno.os.routers.company.products import _require_write_ownership
+from agno.os.middleware.user_scope import get_scoped_user_id, resolve_run_user_id
+from agno.os.routers.company.ownership import _require_write_ownership
 from agno.os.routers.schedules.router import get_schedule_router
 from agno.os.routers.schedules.schema import ScheduleCreate, ScheduleResponse, ScheduleRunResponse, ScheduleUpdate
 from agno.os.schema import PaginatedResponse, PaginationInfo
@@ -116,7 +116,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         if not (row.get("payload") or {}).get("metadata", {}).get("product_id"):
             raise HTTPException(409, "Routine is missing its Product metadata")
         if owned and request.method != "GET":
-            _require_write_ownership(row, get_scoped_user_id(request))
+            _require_write_ownership(row, get_scoped_user_id(request), "routine")
         return row
 
     async def routine_responses(rows):
@@ -159,7 +159,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         return await call(
             manager.create_source,
             **body.model_dump(exclude={"id"}),
-            user_id=get_scoped_user_id(request) or getattr(request.state, "user_id", None),
+            user_id=resolve_run_user_id(request),
             scoped_user_id=get_scoped_user_id(request),
         )
 
@@ -209,7 +209,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         row = await routine(routine_id, request, owned=False)
         # Automatic acceptance runs on the owner's saved grant, so only the owner may start it manually.
         if row["payload"]["metadata"].get("auto_accept"):
-            _require_write_ownership(row, get_scoped_user_id(request))
+            _require_write_ownership(row, get_scoped_user_id(request), "routine")
         await product(row["payload"]["metadata"]["product_id"], request, owned=False)
         if not row["enabled"]:
             raise HTTPException(409, "Routine is paused")
@@ -311,7 +311,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
         from agno.os.routers.run_permissions import _require_endpoint_permission
         from agno.run.authorization import current_authorization
 
-        owner = get_scoped_user_id(request) or getattr(request.state, "user_id", None)
+        owner = resolve_run_user_id(request)
         authority = current_authorization()
         if body.sources and authority is not None:
             await authority.arequire("sources", "write")

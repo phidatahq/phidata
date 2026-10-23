@@ -15,7 +15,8 @@ from agno.db.base import AsyncBaseDb
 from agno.db.in_memory import InMemoryDb
 from agno.db.sqlite import AsyncSqliteDb, SqliteDb
 from agno.os import AgentOS, CompanyConfig
-from agno.os.routers.company.products import _require_write_ownership, get_products_router
+from agno.os.routers.company.ownership import _require_write_ownership
+from agno.os.routers.company.products import get_products_router
 from agno.os.scopes import get_default_scope_mappings
 from agno.os.settings import AgnoAPISettings
 

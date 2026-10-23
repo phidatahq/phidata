@@ -180,7 +180,6 @@ def test_a_claude_member_takes_a_delegated_task_and_its_run_lands_in_the_team_se
     assert member_run.agent_id == "claude-coder" and member_run.content == "answer from sdk-1"
     assert member_run.parent_run_id == output.run_id
     assert "Write hello.py" in sdk.calls[0]["prompt"]
-    assert member.team_id == "team"
 
     team_session = db.get_session(session_id="s1", session_type=SessionType.TEAM)
     assert team_session is not None, "the team's session row is the team's, not overwritten by the member"
@@ -261,6 +260,70 @@ def test_a_standalone_harness_agent_keeps_its_session_and_runs(db, sdk):
     assert output.status == RunStatus.completed
     session = db.get_session(session_id="solo", session_type=SessionType.AGENT)
     assert session is not None and session.team_id is None and len(session.runs) == 1
+
+
+def test_running_in_a_team_does_not_change_how_the_agent_saves_standalone_runs(db, sdk):
+    member = _member(db)
+    team = _team(db, [member], [_delegate("claude-coder", "Build", "c1"), ("content", "done")])
+    team.run("Build", session_id="s1")
+
+    output = member.run("hi", session_id="solo")
+    streamed = list(member.run("again", session_id="solo-stream", stream=True, yield_run_output=True))
+
+    assert output.status == RunStatus.completed
+    session = db.get_session(session_id="solo", session_type=SessionType.AGENT)
+    assert session is not None and session.team_id is None and [run.run_id for run in session.runs] == [output.run_id]
+    assert db.get_session(session_id="solo:claude-coder", session_type=SessionType.AGENT) is None
+    streamed_session = db.get_session(session_id="solo-stream", session_type=SessionType.AGENT)
+    assert streamed_session is not None and [run.run_id for run in streamed_session.runs] == [streamed[-1].run_id]
+
+    # The team's own state for the member is untouched by the standalone runs.
+    state = db.get_session(session_id="s1:claude-coder", session_type=SessionType.AGENT)
+    assert state is not None and (state.metadata or {}).get("team_id") == "team" and not state.runs
+
+
+def test_one_harness_instance_serves_a_team_and_its_own_callers_at_once(db, sdk):
+    # AgentOS hands out the same harness agent instance that a team holds as a member.
+    member = _member(db)
+    team = _team(db, [member], [_delegate("claude-coder", "Build", "c1"), ("content", "done")])
+
+    async def both():
+        return await asyncio.gather(team.arun("Build", session_id="s1"), member.arun("hi", session_id="solo"))
+
+    team_output, solo_output = asyncio.run(both())
+
+    assert team_output.status == RunStatus.completed and solo_output.status == RunStatus.completed
+    [member_run] = team_output.member_responses
+    team_session = db.get_session(session_id="s1", session_type=SessionType.TEAM)
+    assert team_session is not None and any(run.run_id == member_run.run_id for run in team_session.runs or [])
+    solo = db.get_session(session_id="solo", session_type=SessionType.AGENT)
+    assert solo is not None and [run.run_id for run in solo.runs] == [solo_output.run_id]
+
+
+def test_a_broadcast_team_streams_to_a_harness_member(db, sdk):
+    from agno.team.mode import TeamMode
+
+    member = _member(db)
+    team = Team(
+        id="team",
+        name="Team",
+        members=[member],
+        mode=TeamMode.broadcast,
+        model=_ScriptedModel([("tool", "delegate_task_to_members", {"task": "Review"}, "c1"), ("content", "done")]),
+        db=db,
+    )
+
+    async def consume():
+        return [event async for event in team.arun("Review it", session_id="s1", stream=True, stream_events=True)]
+
+    events = asyncio.run(consume())
+
+    assert getattr(events[-1], "event", None) == "TeamRunCompleted"
+    assert any(
+        getattr(event, "agent_id", None) == "claude-coder" and getattr(event, "content", None) == "answer from sdk-1"
+        for event in events
+    )
+    assert db.get_session(session_id="s1:claude-coder", session_type=SessionType.AGENT) is not None
 
 
 def test_a_codex_member_takes_a_delegated_task_and_resumes_its_thread(db, monkeypatch):

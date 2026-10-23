@@ -59,6 +59,7 @@ from agno.session import TeamSession
 from agno.team._default_tools import (
     _acascading_cancel_run,
     _cascading_cancel_run,
+    _member_run_kwargs,
 )
 from agno.team.task import TaskList, TaskStatus, save_task_list
 from agno.tools.function import Function
@@ -546,6 +547,7 @@ def _get_task_management_tools(
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 draining_after_cancel = False
                 for event in member_stream:
@@ -596,6 +598,7 @@ def _get_task_management_tools(
                     if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 check_if_run_cancelled(member_run_response)
                 if run_response.run_id is not None:
@@ -729,6 +732,7 @@ def _get_task_management_tools(
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 draining_after_cancel = False
                 async for event in member_stream:
@@ -779,6 +783,7 @@ def _get_task_management_tools(
                     if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 check_if_run_cancelled(member_run_response)
                 if run_response.run_id is not None:
@@ -932,6 +937,7 @@ def _get_task_management_tools(
                     if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 return (task_obj.id, member_run_response, member_session_state_copy, member_task_description, None)
             except RunCancelledException:
@@ -1137,6 +1143,7 @@ def _get_task_management_tools(
                     if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 return (task_obj.id, member_run_response, member_session_state_copy, member_task_description, None)
             except RunCancelledException:

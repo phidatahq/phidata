@@ -519,13 +519,12 @@ def _initialize_member(team: "Team", member: Union["Team", Agent], debug_mode: O
             log_info(f"Agent '{member.name or member.id}' inheriting model from Team: {team.model.id}")
 
     elif isinstance(member, BaseExternalAgent):
-        # A harness agent (Claude Code, Codex) runs its own model and tools; the team only needs to
-        # know it owns it, which also makes the member keep its own state per team session.
+        # A harness agent (Claude Code, Codex) runs its own model and tools. Nothing is set on it:
+        # the same instance can also run on its own, so the team passes its id on each member call.
         if member.sandbox is not None:
             raise ValueError(
                 f"{type(member).__name__} '{member.get_id()}' has a sandbox; sandboxed agents cannot be team members yet"
             )
-        member.team_id = team.id
 
     elif isinstance(member, Team):
         member.parent_team_id = team.id

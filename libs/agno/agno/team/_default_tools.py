@@ -102,6 +102,20 @@ _MEMBER_TERMINAL_EVENT_TYPES = (
 )
 
 
+def _member_run_kwargs(team: "Team", member: Any) -> Dict[str, Any]:
+    """Run options that tell a harness member (Claude Code, Codex) it runs for this team.
+
+    Membership is passed on every call instead of being stored on the member, because the same
+    harness agent instance can also run on its own, for example when AgentOS serves it directly.
+    A native Agent or sub-team gets nothing extra.
+    """
+    from agno.agents.base import BaseExternalAgent
+
+    if isinstance(member, BaseExternalAgent):
+        return {"_team_id": team.id}
+    return {}
+
+
 def _cascading_cancel_run(run_id: str) -> bool:
     """Cancel a run and cascade through children if it's a sub-team.
 
@@ -748,6 +762,7 @@ def _get_delegate_task_function(
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 draining_after_cancel = False
                 for member_agent_run_output_event in member_agent_run_response_stream:
@@ -807,6 +822,7 @@ def _get_delegate_task_function(
                     if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
+                    **_member_run_kwargs(team, member_agent),
                 )
 
                 check_if_run_cancelled(member_agent_run_response)  # type: ignore
@@ -934,6 +950,7 @@ def _get_delegate_task_function(
                     else None,
                     run_id=member_run_id,
                     yield_run_output=True,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 draining_after_cancel = False
                 async for member_agent_run_response_event in member_agent_run_response_stream:
@@ -993,6 +1010,7 @@ def _get_delegate_task_function(
                     if not getattr(member_agent, "knowledge_filters", None) and getattr(member_agent, "knowledge", None)
                     else None,
                     run_id=member_run_id,
+                    **_member_run_kwargs(team, member_agent),
                 )
                 check_if_run_cancelled(member_agent_run_response)  # type: ignore
                 # Also check if the parent team's run was cancelled while the member was executing
@@ -1105,6 +1123,7 @@ def _get_delegate_task_function(
                         metadata=run_context.metadata,
                         run_id=member_run_id,
                         yield_run_output=True,
+                        **_member_run_kwargs(team, member_agent),
                     )
                     draining_after_cancel = False
                     for member_agent_run_response_chunk in member_agent_run_response_stream:
@@ -1168,6 +1187,7 @@ def _get_delegate_task_function(
                         add_session_state_to_context=add_session_state_to_context,
                         metadata=run_context.metadata,
                         run_id=member_run_id,
+                        **_member_run_kwargs(team, member_agent),
                     )
 
                     check_if_run_cancelled(member_agent_run_response)  # type: ignore
@@ -1272,7 +1292,7 @@ def _get_delegate_task_function(
                     stream_events=stream_events or team.stream_member_events,
                     debug_mode=debug_mode,
                     knowledge_filters=run_context.knowledge_filters
-                    if not agent.knowledge_filters and agent.knowledge
+                    if not getattr(agent, "knowledge_filters", None) and getattr(agent, "knowledge", None)
                     else None,
                     dependencies=run_context.dependencies,
                     add_dependencies_to_context=add_dependencies_to_context,
@@ -1280,6 +1300,7 @@ def _get_delegate_task_function(
                     metadata=run_context.metadata,
                     run_id=member_run_id,
                     yield_run_output=True,
+                    **_member_run_kwargs(team, agent),
                 )
                 member_agent_run_response = None
                 try:
@@ -1415,6 +1436,7 @@ def _get_delegate_task_function(
                             add_session_state_to_context=add_session_state_to_context,
                             metadata=run_context.metadata,
                             run_id=member_run_id,
+                            **_member_run_kwargs(team, member_agent),
                         )
                         check_if_run_cancelled(member_agent_run_response)
                         if run_response.run_id is not None:

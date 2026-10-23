@@ -266,9 +266,6 @@ class BaseExternalAgent:
     # Shown to a team leader next to the name and description when this agent is a team member.
     role: Optional[str] = None
 
-    # Set by a team that adds this agent as a member, as on Agent; not a constructor option.
-    team_id: Optional[str] = field(default=None, init=False, repr=False)
-
     # Adapters that pass output_schema to their framework set this; others reject the option.
     _supports_output_schema: ClassVar[bool] = False
     # A second concurrent turn on a session is refused, so the durable queue always serializes these.
@@ -749,32 +746,35 @@ class BaseExternalAgent:
     # Session persistence helpers
     # ---------------------------------------------------------------------------
 
-    def _create_session(self, session_id: str, user_id: Optional[str] = None) -> AgentSession:
-        """Create a new AgentSession."""
+    def _create_session(
+        self, session_id: str, user_id: Optional[str] = None, team_id: Optional[str] = None
+    ) -> AgentSession:
+        """Create a new AgentSession. ``team_id`` is set when this agent runs as that team's member."""
         return AgentSession(
             session_id=session_id,
             agent_id=self.get_id(),
-            team_id=self.team_id,
+            team_id=team_id,
             user_id=user_id,
             session_data={},
             agent_data={"agent_id": self.id, "agent_name": self.name, "sdk": self.sdk},
             # A team member's own session says which team it belongs to; agent session rows do not
             # store team_id, so the link is kept in the metadata.
-            metadata={"team_id": self.team_id} if self.team_id is not None else {},
+            metadata={"team_id": team_id} if team_id is not None else {},
             runs=[],
             created_at=int(time()),
         )
 
-    def _state_session_id(self, session_id: str) -> str:
+    def _state_session_id(self, session_id: str, team_id: Optional[str] = None) -> str:
         """The session this agent keeps its own state in for a run on ``session_id``.
 
         A team runs every member under the team's session id, and that row is the team's. As a
         member, this agent keeps its native conversation (the Claude session, the Codex thread)
         in a session of its own, one per team session and member, so two harness members of one
         team never share a conversation and the team's session row is never overwritten. The
-        member's runs are stored by the team, in the team session.
+        member's runs are stored by the team, in the team session. A team passes ``team_id`` on each
+        member call, so the same agent instance still saves its standalone runs normally.
         """
-        if self.team_id is None:
+        if team_id is None:
             return session_id
         return f"{session_id}:{self.get_id()}"
 
@@ -787,7 +787,9 @@ class BaseExternalAgent:
             if self.strict_persistence:
                 raise
 
-    def read_or_create_session(self, session_id: str, user_id: Optional[str] = None) -> AgentSession:
+    def read_or_create_session(
+        self, session_id: str, user_id: Optional[str] = None, team_id: Optional[str] = None
+    ) -> AgentSession:
         """Read a session from the DB, or create a new one."""
         session = None
         if self.db is not None and isinstance(self.db, BaseDb):
@@ -797,11 +799,13 @@ class BaseExternalAgent:
             session = AgentSession.from_dict(session)
 
         if session is None or not isinstance(session, AgentSession):
-            session = self._create_session(session_id, user_id)
+            session = self._create_session(session_id, user_id, team_id)
 
         return session
 
-    async def aread_or_create_session(self, session_id: str, user_id: Optional[str] = None) -> AgentSession:
+    async def aread_or_create_session(
+        self, session_id: str, user_id: Optional[str] = None, team_id: Optional[str] = None
+    ) -> AgentSession:
         """Async read a session from the DB, or create a new one."""
         session = None
         if self.db is not None:
@@ -814,7 +818,7 @@ class BaseExternalAgent:
             session = AgentSession.from_dict(session)
 
         if session is None or not isinstance(session, AgentSession):
-            session = self._create_session(session_id, user_id)
+            session = self._create_session(session_id, user_id, team_id)
 
         return session
 
@@ -1819,6 +1823,8 @@ class BaseExternalAgent:
     # ---------------------------------------------------------------------------
 
     async def _arun_non_stream(self, input: Any, **kwargs: Any) -> RunOutput:
+        # Set by a team for a member call; never forwarded to the adapter.
+        team_id: Optional[str] = kwargs.pop("_team_id", None)
         if self.sandbox is not None:
             return await _sandbox_harness().arun(self, input, **kwargs)
         run_id = kwargs.pop("run_id", None) or str(uuid4())
@@ -1829,8 +1835,8 @@ class BaseExternalAgent:
         record_input = input if continuation is None else continuation.record_input
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
-        state_session_id = self._state_session_id(session_id)
-        session = await self.aread_or_create_session(state_session_id, user_id) if self.db else None
+        state_session_id = self._state_session_id(session_id, team_id)
+        session = await self.aread_or_create_session(state_session_id, user_id, team_id) if self.db else None
         self._claim_session(session, state_session_id, run_id)
         input = self._input_text(input)
         try:
@@ -1911,7 +1917,7 @@ class BaseExternalAgent:
             if attempts_made > 1:
                 run_output.metadata = {**(run_output.metadata or {}), "attempts": attempts_made}
             self._finish_run_output(run_output, run_state, continuation)
-            if session is not None and self.team_id is not None:
+            if session is not None and team_id is not None:
                 await self._apersist_member_state(session)
             elif session is not None:
                 await self._apersist_run_in_session(session, run_output)
@@ -1920,6 +1926,8 @@ class BaseExternalAgent:
             self._release_session(state_session_id, run_id)
 
     async def _arun_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        # Set by a team for a member call; never forwarded to the adapter.
+        team_id: Optional[str] = kwargs.pop("_team_id", None)
         if self.sandbox is not None:
             events = _sandbox_harness().astream(self, input, **kwargs)
             try:
@@ -1936,8 +1944,8 @@ class BaseExternalAgent:
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
-        state_session_id = self._state_session_id(session_id)
-        session = await self.aread_or_create_session(state_session_id, user_id) if self.db else None
+        state_session_id = self._state_session_id(session_id, team_id)
+        session = await self.aread_or_create_session(state_session_id, user_id, team_id) if self.db else None
         self._claim_session(session, state_session_id, run_id)
         input = self._input_text(input)
         try:
@@ -2059,7 +2067,7 @@ class BaseExternalAgent:
             keep(terminal)
             if stored_events is not None:
                 run.events = list(stored_events)
-            if session is not None and self.team_id is not None:
+            if session is not None and team_id is not None:
                 await self._apersist_member_state(session)
             elif session is not None:
                 await self._apersist_run_in_session(session, run)
@@ -2067,7 +2075,7 @@ class BaseExternalAgent:
             if (
                 stored_events is not None
                 and session is not None
-                and self.team_id is None
+                and team_id is None
                 and getattr(terminal, "event_index", None) is not None
             ):
                 # The consumer stamped the terminal event with its stream index while we were suspended

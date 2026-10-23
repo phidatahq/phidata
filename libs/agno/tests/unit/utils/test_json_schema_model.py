@@ -119,6 +119,15 @@ def test_enum_over_a_type_list_accepts_each_listed_type():
     assert model.model_validate({"p": None}).p is None
 
 
+def test_a_unicode_class_pattern_still_works():
+    model = json_schema_to_model(
+        {"type": "object", "properties": {"s": {"type": "string", "pattern": "^\\p{L}+$"}}, "required": ["s"]}
+    )
+    assert model.model_validate({"s": "Zoë"}).s == "Zoë"
+    with pytest.raises(ValidationError):
+        model.model_validate({"s": "a1"})
+
+
 def test_optional_property_gets_its_default():
     model = json_schema_to_model(
         {"type": "object", "properties": {"a": {"type": "string", "default": "x", "description": "doc"}}}
@@ -259,6 +268,11 @@ def test_additional_properties_false_forbids_extra_keys():
             },
             "required needs the keys declared",
         ),
+        (
+            {"type": "object", "properties": {"s": {"type": "string", "pattern": "(?=a)a"}}},
+            "at properties/s: pattern '(?=a)a' is not supported",
+        ),
+        ({"type": "object", "properties": {"s": {"type": "string", "pattern": "["}}}, "is not supported by the regex"),
     ],
     ids=[
         "array-root",
@@ -288,6 +302,8 @@ def test_additional_properties_false_forbids_extra_keys():
         "const-outside-type",
         "map-with-required",
         "typed-map-with-required",
+        "lookahead-pattern",
+        "invalid-pattern",
     ],
 )
 def test_unrepresentable_schemas_are_refused(schema, reason):

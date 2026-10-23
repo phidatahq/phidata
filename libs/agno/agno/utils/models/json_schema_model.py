@@ -8,7 +8,8 @@ import re
 import warnings
 from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Type, Union
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, create_model
+from pydantic_core import SchemaError as PydanticSchemaError
 
 try:
     from typing import Annotated
@@ -159,7 +160,10 @@ class _ModelBuilder:
             raise UnsupportedJsonSchemaError("the root must be an object schema with properties")
         namespace = {m.__name__: m for m in self.models}
         for built in self.models:
-            built.model_rebuild(_types_namespace=namespace)
+            try:
+                built.model_rebuild(_types_namespace=namespace)
+            except (PydanticSchemaError, TypeError, ValueError) as e:
+                raise UnsupportedJsonSchemaError(f"cannot build a model: {e}") from e
         return model
 
     # Names -------------------------------------------------------------
@@ -250,6 +254,8 @@ class _ModelBuilder:
                 raise UnsupportedJsonSchemaError(f"{_at(path)}{keyword} needs type integer or number")
             if len(types - {"null"}) > 1:
                 raise UnsupportedJsonSchemaError(f"{_at(path)}{keyword} on a multi-type field is not supported")
+            if keyword == "pattern":
+                _check_pattern(value, path)
             kwargs[argument] = value
         if isinstance(schema.get("format"), str):
             kwargs["json_schema_extra"] = {"format": schema["format"]}
@@ -376,7 +382,12 @@ class _ModelBuilder:
         with warnings.catch_warnings():
             # A property named like a BaseModel attribute (json, copy, schema) only shadows it
             warnings.filterwarnings("ignore", message=".*shadows an attribute in parent.*")
-            model = create_model(name, __config__=config or None, **fields)  # type: ignore[call-overload]
+            try:
+                model = create_model(name, __config__=config or None, **fields)  # type: ignore[call-overload]
+            except UnsupportedJsonSchemaError:
+                raise
+            except (PydanticSchemaError, TypeError, ValueError) as e:
+                raise UnsupportedJsonSchemaError(f"{_at(path)}cannot build a model: {e}") from e
         if isinstance(schema.get("description"), str):
             model.__doc__ = schema["description"]
         self.models.append(model)
@@ -436,6 +447,14 @@ def _matches_type(value: Any, json_type: str) -> bool:
     if json_type == "null":
         return value is None
     return False
+
+
+def _check_pattern(pattern: Any, path: str) -> None:
+    """Refuse a pattern Pydantic's regex engine cannot compile (lookarounds, backreferences, bad syntax)."""
+    try:
+        TypeAdapter(Annotated[str, Field(pattern=pattern)])  # type: ignore[arg-type]
+    except (PydanticSchemaError, TypeError, ValueError) as e:
+        raise UnsupportedJsonSchemaError(f"{_at(path)}pattern {pattern!r} is not supported by the regex engine") from e
 
 
 def _drop_default(schema: Dict[str, Any]) -> None:

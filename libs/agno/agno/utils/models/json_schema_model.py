@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Literal, Optional, Set, Tuple, Type, Union
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, create_model
 from pydantic_core import SchemaError as PydanticSchemaError
 
+from agno.utils.models.schema_utils import json_schema_response_format, unwrap_json_schema_response_format
+
 try:
     from typing import Annotated
 except ImportError:  # pragma: no cover
@@ -89,7 +91,8 @@ def json_schema_to_model(schema: Dict[str, Any], name: Optional[str] = None) -> 
     builder = _ModelBuilder(schema)
     root_name = name or schema.get("title") or "OutputSchema"
     model = builder.build_root(schema, str(root_name))
-    setattr(model, SOURCE_SCHEMA_ATTR, schema)
+    # Recorded as a response format, the shape rehydrate_inline_output_schema loads back
+    setattr(model, SOURCE_SCHEMA_ATTR, json_schema_response_format(schema, name=model.__name__))
     return model
 
 
@@ -120,7 +123,6 @@ def rehydrate_inline_output_schema(config: Dict[str, Any], strict: bool, compone
     """
     from agno.exceptions import ComponentRehydrationError
     from agno.utils.log import log_warning
-    from agno.utils.models.schema_utils import unwrap_json_schema_response_format
 
     stored = config.get("output_schema")
     inline = unwrap_json_schema_response_format(stored)

@@ -398,11 +398,33 @@ def test_serialize_writes_back_the_source_dict(ticket):
     class Plain(BaseModel):
         a: str
 
-    assert serialize_output_schema(ticket) == TICKET
-    assert source_json_schema(ticket) == TICKET
+    wrapped = json_schema_response_format(TICKET, name="Ticket")
+    assert serialize_output_schema(ticket) == wrapped
+    assert source_json_schema(ticket) == wrapped
     assert serialize_output_schema(Plain) == "Plain"
     assert source_json_schema(Plain) is None
     assert serialize_output_schema({"type": "json_object"}) == {"type": "json_object"}
+
+
+@pytest.mark.parametrize("owner", ["agent", "team"])
+def test_a_built_model_survives_a_save_and_load(ticket, owner):
+    from agno.agent import Agent
+    from agno.models.openai import OpenAIResponses
+    from agno.registry import Registry
+    from agno.team import Team
+
+    model = OpenAIResponses(id="gpt-5.6-luna")
+    if owner == "agent":
+        original = Agent(id="a", model=model, output_schema=ticket)
+        loaded = Agent.from_dict(original.to_dict(), registry=Registry())
+    else:
+        member = Agent(id="m", model=model)
+        original = Team(id="t", model=model, members=[member], output_schema=ticket)
+        loaded = Team.from_dict(original.to_dict(), registry=Registry())
+
+    assert issubclass(loaded.output_schema, BaseModel)
+    assert loaded.output_schema.model_validate(VALID).owner.manager.name == "Bo"
+    assert serialize_output_schema(loaded.output_schema) == serialize_output_schema(ticket)
 
 
 def test_rehydrate_replaces_a_stored_response_format_and_keeps_it_for_saving():

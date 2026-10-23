@@ -1,5 +1,6 @@
 """json_schema_to_model builds a Pydantic model that keeps what the JSON Schema says, or refuses."""
 
+import re
 import warnings
 
 import pytest
@@ -119,6 +120,35 @@ def test_oneof_over_distinct_types_is_a_union():
     assert model.model_validate({"v": 3}).v == 3
 
 
+def test_an_object_without_declared_properties_is_a_map():
+    model = json_schema_to_model(
+        {
+            "type": "object",
+            "properties": {"bag": {"type": "object", "properties": {}, "additionalProperties": True}},
+            "required": ["bag"],
+        }
+    )
+    assert model.model_validate({"bag": {"k": "v"}}).model_dump() == {"bag": {"k": "v"}}
+
+
+def test_undeclared_keys_are_kept_unless_forbidden():
+    model = json_schema_to_model({"type": "object", "properties": {"a": {"type": "string"}}})
+    assert model.model_validate({"a": "x", "extra": 1}).model_dump() == {"a": "x", "extra": 1}
+
+
+def test_ref_with_a_description_or_nullable_keeps_both():
+    model = json_schema_to_model(
+        {
+            "type": "object",
+            "properties": {"s": {"$ref": "#/$defs/T", "description": "d", "nullable": True}},
+            "required": ["s"],
+            "$defs": {"T": {"type": "string"}},
+        }
+    )
+    assert model.model_json_schema()["properties"]["s"]["description"] == "d"
+    assert model.model_validate({"s": None}).s is None
+
+
 def test_additional_properties_false_forbids_extra_keys():
     model = json_schema_to_model(
         {"type": "object", "properties": {"a": {"type": "string"}}, "additionalProperties": False}
@@ -139,7 +169,7 @@ def test_additional_properties_false_forbids_extra_keys():
                 "type": "object",
                 "properties": {"a": {"oneOf": [{"type": "string"}, {"type": "string", "maxLength": 2}]}},
             },
-            "distinct type",
+            "cannot overlap",
         ),
         ({"type": "object", "properties": {"a": {"type": "string"}}, "required": ["b"]}, "required lists"),
         (
@@ -158,6 +188,19 @@ def test_additional_properties_false_forbids_extra_keys():
         ({"type": "object", "properties": {"a": {"enum": [{"x": 1}]}}}, "enum and const values"),
         ({"type": "object", "properties": {"a": {"type": "integer", "maxLength": 3}}}, "needs type string"),
         ({"type": "object", "properties": {"a": {"type": "strin"}}}, "unknown type 'strin'"),
+        (
+            {
+                "type": "object",
+                "properties": {"s": {"$ref": "#/$defs/T", "enum": ["ok"]}},
+                "$defs": {"T": {"type": "string"}},
+            },
+            "keywords next to $ref",
+        ),
+        (
+            {"type": "object", "properties": {"n": {"oneOf": [{"type": "number"}, {"type": "integer"}]}}},
+            "cannot overlap",
+        ),
+        ({"type": "object", "properties": {}}, "root must be an object"),
     ],
     ids=[
         "array-root",
@@ -175,10 +218,13 @@ def test_additional_properties_false_forbids_extra_keys():
         "object-enum",
         "constraint-wrong-type",
         "unknown-type",
+        "ref-with-enum",
+        "oneOf-number-integer",
+        "root-without-properties",
     ],
 )
 def test_unrepresentable_schemas_are_refused(schema, reason):
-    with pytest.raises(UnsupportedJsonSchemaError, match=reason.replace("(", r"\(").replace(")", r"\)")):
+    with pytest.raises(UnsupportedJsonSchemaError, match=re.escape(reason)):
         json_schema_to_model(schema)
 
 

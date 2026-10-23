@@ -66,6 +66,8 @@ _CONSTRAINTS = {
     "maxItems": "max_length",
 }
 _SUPPORTED_KEYWORDS = _ANNOTATION_KEYWORDS | _STRUCTURAL_KEYWORDS | set(_CONSTRAINTS)
+# Keywords that may sit next to $ref without constraining the value
+_REF_SIBLING_KEYWORDS = _ANNOTATION_KEYWORDS | {"$ref", "$defs", "definitions", "nullable"}
 _PRIMITIVES: Dict[str, Any] = {"string": str, "integer": int, "number": float, "boolean": bool, "null": type(None)}
 
 
@@ -146,7 +148,7 @@ class _ModelBuilder:
     def build_root(self, schema: Dict[str, Any], name: str) -> Type[BaseModel]:
         if "$ref" in schema:
             model = self._ref_annotation(schema["$ref"], "")
-        elif isinstance(schema.get("properties"), dict):
+        elif _declares_properties(schema):
             model = self._object_model(schema, name, "")
         else:
             model = None
@@ -193,7 +195,7 @@ class _ModelBuilder:
             return self.building[ref]
         target = self._lookup_ref(ref, path)
         def_name = ref.rsplit("/", 1)[-1]
-        if not isinstance(target.get("properties"), dict):
+        if not _declares_properties(target):
             self.building[ref] = ""
             annotation = self._annotation(target, def_name, f"{ref}")
             del self.building[ref]
@@ -257,6 +259,11 @@ class _ModelBuilder:
                 raise UnsupportedJsonSchemaError(f"{_at(path)}allOf is only supported with a single member")
             return self._annotation(members[0], hint, f"{path}/allOf/0")
         if "$ref" in schema:
+            siblings = sorted(k for k in schema if k not in _REF_SIBLING_KEYWORDS and not k.startswith("x-"))
+            if siblings:
+                raise UnsupportedJsonSchemaError(
+                    f"{_at(path)}keywords next to $ref are not supported: {', '.join(siblings)}"
+                )
             return self._ref_annotation(schema["$ref"], path)
         if "const" in schema:
             return Literal[_literal_value(schema["const"], path)]  # type: ignore[valid-type]
@@ -305,9 +312,10 @@ class _ModelBuilder:
         if disjoint:
             # oneOf means exactly one; a Union is equivalent only when no value can match two members
             member_types = [m.get("type") if isinstance(m, dict) else None for m in members]
-            if not all(isinstance(t, str) for t in member_types) or len(set(member_types)) != len(member_types):
+            distinct = all(isinstance(t, str) for t in member_types) and len(set(member_types)) == len(member_types)
+            if not distinct or {"integer", "number"} <= set(member_types):
                 raise UnsupportedJsonSchemaError(
-                    f"{_at(path)}oneOf is only supported when every member has a distinct type"
+                    f"{_at(path)}oneOf is only supported when its members' types cannot overlap"
                 )
         annotations = [self._annotation(m, f"{hint}Option{i + 1}", f"{path}/{i}") for i, m in enumerate(members)]
         return annotations[0] if len(annotations) == 1 else Union[tuple(annotations)]  # type: ignore[return-value]
@@ -315,9 +323,10 @@ class _ModelBuilder:
     # Objects -----------------------------------------------------------
 
     def _object_type(self, schema: Dict[str, Any], hint: str, path: str) -> Any:
-        properties = schema.get("properties")
         additional = schema.get("additionalProperties")
-        if properties is None:
+        if not _declares_properties(schema):
+            if "properties" in schema and not isinstance(schema["properties"], dict):
+                raise UnsupportedJsonSchemaError(f"{_at(path)}properties must be an object")
             if isinstance(additional, dict):
                 return Dict[str, self._annotation(additional, f"{hint}Value", f"{path}/additionalProperties")]  # type: ignore[misc]
             if additional is False:
@@ -359,9 +368,8 @@ class _ModelBuilder:
                 default = prop_schema.get("default") if isinstance(prop_schema, dict) else None
                 fields[prop_name] = (Optional[annotation], Field(default, **docs))
 
-        config = ConfigDict()
-        if additional is False:
-            config["extra"] = "forbid"
+        # JSON Schema allows undeclared keys unless additionalProperties is false: keep them rather than drop them
+        config = ConfigDict(extra="forbid" if additional is False else "allow")
         if isinstance(schema.get("title"), str):
             config["title"] = schema["title"]
         with warnings.catch_warnings():
@@ -372,6 +380,11 @@ class _ModelBuilder:
             model.__doc__ = schema["description"]
         self.models.append(model)
         return model
+
+
+def _declares_properties(schema: Dict[str, Any]) -> bool:
+    properties = schema.get("properties")
+    return isinstance(properties, dict) and bool(properties)
 
 
 def _check_keywords(schema: Dict[str, Any], path: str) -> None:

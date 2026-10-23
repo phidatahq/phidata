@@ -63,6 +63,34 @@ def test_claude_accepts_a_nullable_type_list():
     assert output_format["schema"]["additionalProperties"] is False
 
 
+def test_claude_closes_a_nullable_nested_object():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    address = {"type": ["object", "null"], "properties": {"zip": {"type": "string"}}}
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "address": address}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["properties"]["address"]["additionalProperties"] is False
+
+
+def test_claude_leaves_a_map_field_open_in_the_fallback_walk():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    # The type list makes transform_schema raise, so the fallback walk reaches the map field
+    tags = {"type": "object", "additionalProperties": {"type": "string"}}
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "note": {"type": ["string", "null"]}, "tags": tags}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["properties"]["tags"] == tags
+    assert output_format["schema"]["properties"]["address"]["additionalProperties"] is False
+
+
 def test_claude_passes_its_own_flat_shape_through():
     pytest.importorskip("anthropic")
     from agno.models.anthropic.claude import Claude

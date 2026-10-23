@@ -321,8 +321,12 @@ class Claude(Model):
         Recursively ensure all object types have additionalProperties: false.
         """
         if isinstance(schema, dict):
-            if schema.get("type") == "object":
-                schema["additionalProperties"] = False
+            schema_type = schema.get("type")
+            # A type list such as ["object", "null"] is a nullable object
+            if schema_type == "object" or (isinstance(schema_type, list) and "object" in schema_type):
+                # A schema-valued additionalProperties is a map field, left for the API to accept or reject
+                if not isinstance(schema.get("additionalProperties"), dict):
+                    schema["additionalProperties"] = False
 
             # Recursively process nested schemas
             for key, value in schema.items():

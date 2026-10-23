@@ -9,7 +9,8 @@ from fastapi.responses import JSONResponse
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.db.base import AsyncBaseDb, BaseDb
 from agno.os.auth import get_authentication_dependency
-from agno.os.middleware.user_scope import get_scoped_user_id
+from agno.os.middleware.user_scope import get_scoped_user_id, resolve_run_user_id
+from agno.os.routers.company.ownership import _require_write_ownership
 from agno.os.routers.company.schema import (
     ProjectCreate,
     ProjectResponse,
@@ -19,12 +20,6 @@ from agno.os.routers.company.schema import (
 )
 from agno.os.schema import PaginatedResponse, PaginationInfo
 from agno.os.settings import AgnoAPISettings
-
-
-def _require_write_ownership(existing: Dict[str, Any], user_id: Optional[str]) -> None:
-    """Check the scoped caller against the owner after a company-wide read."""
-    if user_id is not None and existing.get("user_id") != user_id:
-        raise HTTPException(status_code=403, detail="Cannot modify project owned by another user")
 
 
 def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: AgnoAPISettings) -> APIRouter:
@@ -76,7 +71,7 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
         existing = await _call("get_project", project_id, user_id=None, include_deleted=include_deleted)
         if existing is None:
             raise HTTPException(status_code=404, detail="Project not found")
-        _require_write_ownership(existing, user_id)
+        _require_write_ownership(existing, user_id, "project")
         return existing
 
     @router.get("/projects", response_model=PaginatedResponse[ProjectResponse])
@@ -110,12 +105,7 @@ def get_projects_router(db: Optional[Union[BaseDb, AsyncBaseDb]], settings: Agno
     async def create_project(
         body: ProjectCreate, request: Request, _: bool = Depends(auth_dependency)
     ) -> Dict[str, Any]:
-        user_id = get_scoped_user_id(request)
-        return await _call(
-            "create_project",
-            **body.model_dump(),
-            user_id=user_id or getattr(request.state, "user_id", None),
-        )
+        return await _call("create_project", **body.model_dump(), user_id=resolve_run_user_id(request))
 
     @router.get("/projects/{project_id}", response_model=ProjectResponse)
     async def get_project(

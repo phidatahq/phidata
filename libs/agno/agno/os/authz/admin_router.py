@@ -61,11 +61,12 @@ User directory admin API -- get_users_router (default prefix ``/users``):
     GET    /users/metrics                        directory size, users created per day, users per role
 """
 
+import asyncio
 import time
 from datetime import date as date_type
 from datetime import datetime, timezone
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
@@ -363,6 +364,25 @@ def _make_require_admin(role_store: "Optional[Authorization]" = None, *, auth_en
     return require_admin
 
 
+async def _product_grant_scopes(db: Any) -> Set[str]:
+    """``products:own:<action>`` plus ``products:<id>:<action>`` for every active Product."""
+    if db is None:
+        return set()
+    from agno.company.manager import AsyncCompanyManager, CompanyManager
+    from agno.db.base import AsyncBaseDb
+    from agno.os.scopes import OWN_RESOURCE_ID
+
+    if isinstance(db, AsyncBaseDb):
+        rows, _ = await AsyncCompanyManager(db).list(limit=1000)
+    else:
+        rows, _ = await asyncio.to_thread(CompanyManager(db).list, limit=1000)
+    return {
+        "products:" + target + ":" + action
+        for target in [OWN_RESOURCE_ID, *(row["id"] for row in rows)]
+        for action in ("write", "delete")
+    }
+
+
 def get_roles_router(
     store: "Authorization",
     prefix: str = "/authz",
@@ -493,6 +513,7 @@ def get_roles_router(
             mappings = get_default_scope_mappings()
         raws = {scope for required in mappings.values() for scope in required}
         raws.add("agent_os:admin")
+        raws |= await _product_grant_scopes(getattr(request.app.state, "company_db", None))
         return [AvailableScopeItem.from_raw(r) for r in sorted(raws)]
 
     # ---- audit ----------------------------------------------------------

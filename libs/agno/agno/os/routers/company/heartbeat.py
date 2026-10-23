@@ -14,7 +14,7 @@ from agno.company.routines import _routine_executor_endpoint, _routine_message, 
 from agno.db.base import AsyncBaseDb
 from agno.os.auth import get_authentication_dependency
 from agno.os.middleware.user_scope import get_scoped_user_id
-from agno.os.routers.company.products import _require_write_ownership
+from agno.os.routers.company.products import _require_product_access, _require_write_ownership
 from agno.os.routers.schedules.router import get_schedule_router
 from agno.os.routers.schedules.schema import ScheduleCreate, ScheduleResponse, ScheduleRunResponse, ScheduleUpdate
 from agno.os.schema import PaginatedResponse, PaginationInfo
@@ -102,7 +102,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
             raise HTTPException(404, "Product not found")
         # Routines are owned by their creator, so any writer may add one to a Product, like Projects and Tasks.
         if owned:
-            _require_write_ownership(row, get_scoped_user_id(request))
+            await _require_product_access(request, row)
         return row
 
     async def routine(routine_id, request):
@@ -323,7 +323,7 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
                 await _require_endpoint_permission(request, fields["endpoint"], "POST")
         existing = await call(manager.get, "company-setup", include_deleted=True)
         if existing is not None:
-            _require_write_ownership(existing, get_scoped_user_id(request))
+            await _require_product_access(request, existing)
             response.status_code = 200
         else:
             rows, _ = await call(manager.list, limit=1, include_deleted=True)

@@ -362,7 +362,7 @@ class CompanyManager:
 
         if isinstance(current_authorization(), _RoutineAuthorization):
             raise PermissionError(
-                "Routines must propose Tasks through intake_company_source with evidence and a dedupe key"
+                "Routines must propose Tasks through intake_product_source with evidence and a dedupe key"
             )
         from agno.db.schemas.tasks import validate_task_fields
 
@@ -1256,7 +1256,7 @@ class AsyncCompanyManager:
 
         if isinstance(current_authorization(), _RoutineAuthorization):
             raise PermissionError(
-                "Routines must propose Tasks through intake_company_source with evidence and a dedupe key"
+                "Routines must propose Tasks through intake_product_source with evidence and a dedupe key"
             )
         from agno.db.schemas.tasks import validate_task_fields
 

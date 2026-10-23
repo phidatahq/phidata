@@ -552,20 +552,20 @@ async def test_source_tools_only_require_source_and_proposal_scopes(tmp_path, as
     with authorization_scope(lambda: _RoutineAuthorization(authority, "routine")):
         if async_tools:
             evidence = [
-                json.loads(await tools.aread_company_source(source["id"], path=path.name, _agno_run_context=context))
+                json.loads(await tools.aread_product_source(source["id"], path=path.name, _agno_run_context=context))
             ]
             args["evidence_hashes"] = {item["link"]: item["content_hash"] for item in evidence}
-            task = json.loads(await tools.aintake_company_source(**args))
+            task = json.loads(await tools.aintake_product_source(**args))
         else:
-            evidence = [json.loads(tools.read_company_source(source["id"], path=path.name, _agno_run_context=context))]
+            evidence = [json.loads(tools.read_product_source(source["id"], path=path.name, _agno_run_context=context))]
             args["evidence_hashes"] = {item["link"]: item["content_hash"] for item in evidence}
-            task = json.loads(tools.intake_company_source(**args))
+            task = json.loads(tools.intake_product_source(**args))
     assert evidence[0]["content_hash"] == task["evidence"][0]["content_hash"]
     assert task["status"] == "backlog"
     authority.context.scopes = ["tasks:write"]
     with authorization_scope(lambda: authority):
         with pytest.raises(PermissionError):
-            tools.read_company_source(source["id"], _agno_run_context=context)
+            tools.read_product_source(source["id"], _agno_run_context=context)
     db.close()
 
 
@@ -712,7 +712,7 @@ async def test_routine_cannot_use_plain_task_proposals(tmp_path, async_tools, ro
     tools = CompanyTools(db)
     context = RunContext(run_id="run", session_id="session", authorization=_RoutineAuthorization(None, routine_id))
     for _ in range(3):
-        with pytest.raises(PermissionError, match="intake_company_source"):
+        with pytest.raises(PermissionError, match="intake_product_source"):
             if async_tools:
                 await tools.apropose_company_task(
                     product["id"], "Repeated", project_id=project["id"], _agno_run_context=context
@@ -1102,7 +1102,7 @@ async def test_source_tool_requires_write_scope_and_hides_injected_identity(tmp_
         _default_authorization_provider(), AuthorizationContext(principal_id="owner", scopes=["sources:read"])
     )
     context = RunContext(run_id="run", session_id="session", authorization=authority)
-    fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
+    fn = toolkit.aadd_product_source if async_tools else toolkit.add_product_source
     arguments = dict(
         product_id=product["id"],
         reference="https://example.test/page",
@@ -1117,7 +1117,7 @@ async def test_source_tool_requires_write_scope_and_hides_injected_identity(tmp_
     authority.context.scopes = ["sources:write"]
     result = json.loads(await fn(**arguments) if async_tools else fn(**arguments))
     assert result["config"]["metadata"] == {"agent_id": "finder", "run_id": "run"}
-    function = (toolkit.get_async_functions() if async_tools else toolkit.functions)["add_company_source"]
+    function = (toolkit.get_async_functions() if async_tools else toolkit.functions)["add_product_source"]
     function.process_entrypoint()
     assert not any(key.startswith("_agno") for key in function.parameters["properties"])
     assert "type" not in function.parameters["properties"]
@@ -1283,7 +1283,7 @@ async def test_team_source_uses_injected_team_identity(tmp_path, async_tools):
     db = SqliteDb(db_file=str(tmp_path / "team.db"))
     product = CompanyManager(db).create(name="SDK")
     toolkit = CompanyTools(db)
-    fn = toolkit.aadd_company_source if async_tools else toolkit.add_company_source
+    fn = toolkit.aadd_product_source if async_tools else toolkit.add_product_source
     kwargs = dict(
         product_id=product["id"],
         reference="https://example.com",

@@ -117,7 +117,9 @@ def attach_routes(router: APIRouter, knowledge_instances: List[Union[Knowledge, 
         background_tasks: BackgroundTasks,
         name: Optional[str] = Form(None, description="Content name (auto-generated from file/URL if not provided)"),
         description: Optional[str] = Form(None, description="Content description for context"),
-        url: Optional[str] = Form(None, description="URL to fetch content from (JSON array or single URL string)"),
+        url: Optional[str] = Form(
+            None, description="Single URL string, optionally JSON encoded. Submit multiple URLs in separate requests."
+        ),
         metadata: Optional[str] = Form(None, description="JSON metadata object for additional content properties"),
         file: Optional[UploadFile] = File(None, description="File to upload for processing"),
         text_content: Optional[str] = Form(None, description="Raw text content to process"),
@@ -170,6 +172,12 @@ def attach_routes(router: APIRouter, knowledge_instances: List[Union[Knowledge, 
             except json.JSONDecodeError:
                 # If it's not valid JSON, treat as a single URL string
                 parsed_urls = url
+
+            if not isinstance(parsed_urls, str) or not parsed_urls.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="URL must be a single non-empty string; submit each URL separately.",
+                )
 
         # # Parse metadata with proper error handling
         parsed_metadata = None

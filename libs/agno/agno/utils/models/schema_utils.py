@@ -167,6 +167,24 @@ def is_object_schema(schema: Dict[str, Any]) -> bool:
     return root_type == "object" or (root_type is None and isinstance(schema.get("properties"), dict))
 
 
+def json_schema_error(schema: Dict[str, Any]) -> Optional[str]:
+    """Why ``schema`` fails the JSON Schema (2020-12) meta-schema, or None when it passes.
+
+    Raises ImportError when jsonschema is not installed; callers decide whether that is fatal.
+    """
+    from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
+    from jsonschema.exceptions import SchemaError  # type: ignore[import-untyped]
+
+    try:
+        Draft202012Validator.check_schema(schema)
+    except SchemaError as e:
+        location = "/".join(str(part) for part in e.path)
+        return f"{e.message} (at {location})" if location else e.message
+    except RecursionError:
+        return "schema is nested too deeply"
+    return None
+
+
 def json_schema_response_format(
     schema: Dict[str, Any], name: Optional[str] = None, strict: Optional[bool] = None
 ) -> Dict[str, Any]:

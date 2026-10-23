@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Optional
 
+import pytest
 from pydantic import BaseModel, Field
 
 from agno.utils.models.schema_utils import (
@@ -11,6 +12,7 @@ from agno.utils.models.schema_utils import (
     get_response_schema_for_provider,
     is_dict_field,
     is_object_schema,
+    json_schema_error,
     json_schema_response_format,
     unwrap_json_schema_response_format,
 )
@@ -263,3 +265,18 @@ def test_is_object_schema():
     assert is_object_schema({"properties": {"a": {"type": "string"}}})
     assert not is_object_schema({"type": "array", "items": {}})
     assert not is_object_schema({"type": "string"})
+
+
+def test_json_schema_error_reports_the_failing_location():
+    pytest.importorskip("jsonschema")
+    assert json_schema_error(OBJECT_SCHEMA) is None
+    error = json_schema_error({"type": "object", "properties": {"a": {"type": "strin"}}})
+    assert error is not None and error.endswith("(at properties/a/type)")
+
+
+def test_json_schema_error_survives_deep_nesting():
+    pytest.importorskip("jsonschema")
+    schema: Dict = {"type": "object"}
+    for _ in range(5000):
+        schema = {"type": "object", "properties": {"n": schema}}
+    assert json_schema_error(schema) == "schema is nested too deeply"

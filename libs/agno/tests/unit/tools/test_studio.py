@@ -2046,6 +2046,24 @@ class TestCoverageFields:
         stored = db.get_config(component_id="strict", version=1)["config"]["output_schema"]
         assert stored == wrapped
 
+    @pytest.mark.parametrize(
+        "wrapper",
+        [
+            {"strict": True},
+            {"name": "Untitled"},
+        ],
+        ids=["strict", "name-without-title"],
+    )
+    def test_read_edit_round_trip_keeps_the_stored_format(self, studio_refs, db, wrapper):
+        schema = {k: v for k, v in self.INLINE_SCHEMA.items() if k != "title"}
+        wrapped = {"type": "json_schema", "json_schema": {"name": "Weather", "schema": schema, **wrapper}}
+        _data(studio_refs.create_agent(name="kept", instructions="i", model_id="gpt-5.4", output_schema=wrapped))
+        stored = db.get_config(component_id="kept", version=1)["config"]["output_schema"]
+
+        shown = _data(studio_refs.get_component("kept"))["output_schema"]
+        _data(studio_refs.edit_agent("kept", output_schema=shown))
+        assert db.get_config(component_id="kept", version=2)["config"]["output_schema"] == stored
+
     def test_inline_output_schema_on_a_team(self, studio_refs, db):
         _data(studio_refs.create_agent(name="member", instructions="i", model_id="gpt-5.4"))
         _data(
@@ -2078,6 +2096,45 @@ class TestCoverageFields:
             )
         )
         assert error["code"] == "invalid_request"
+
+    @pytest.mark.parametrize(
+        "schema, location",
+        [
+            ({"type": "object", "properties": {"a": {"type": "strin"}}}, "properties/a/type"),
+            ({"type": "object", "properties": "nope"}, "properties"),
+        ],
+    )
+    def test_invalid_json_schema_is_refused_and_nothing_is_stored(self, studio_refs, db, schema, location):
+        pytest.importorskip("jsonschema")
+        error = _error(studio_refs.create_agent(name="bad", instructions="i", model_id="gpt-5.4", output_schema=schema))
+        assert error["code"] == "invalid_request"
+        assert location in error["message"]
+        assert db.get_config(component_id="bad", version=1) is None
+
+    def test_invalid_json_schema_edit_keeps_the_stored_version(self, studio_refs):
+        pytest.importorskip("jsonschema")
+        _data(
+            studio_refs.create_agent(
+                name="inline", instructions="i", model_id="gpt-5.4", output_schema=self.INLINE_SCHEMA
+            )
+        )
+        bad = {"type": "object", "properties": {"a": {"type": "strin"}}}
+        assert _error(studio_refs.edit_agent("inline", output_schema=bad))["code"] == "invalid_request"
+        assert _data(studio_refs.get_component("inline"))["output_schema"] == self.INLINE_SCHEMA
+
+    def test_nullable_type_list_is_valid(self, studio_refs):
+        schema = {"type": "object", "properties": {"nickname": {"type": ["string", "null"]}}}
+        _data(studio_refs.create_agent(name="nullable", instructions="i", model_id="gpt-5.4", output_schema=schema))
+        assert _data(studio_refs.get_component("nullable"))["output_schema"] == schema
+
+    def test_without_jsonschema_only_the_object_root_is_checked(self, studio_refs, monkeypatch):
+        import sys
+
+        monkeypatch.setitem(sys.modules, "jsonschema", None)
+        monkeypatch.setitem(sys.modules, "jsonschema.exceptions", None)
+        monkeypatch.setitem(sys.modules, "jsonschema.validators", None)
+        schema = {"type": "object", "properties": {"a": {"type": "strin"}}}
+        _data(studio_refs.create_agent(name="unchecked", instructions="i", model_id="gpt-5.4", output_schema=schema))
 
     def test_inline_output_schema_parameter_accepts_any_json_schema(self, studio_refs):
         for name in ("create_agent", "edit_agent", "create_team", "edit_team"):

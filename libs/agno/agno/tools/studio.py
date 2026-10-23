@@ -89,6 +89,7 @@ from agno.utils.live_sequence import LiveSequence
 from agno.utils.log import log_debug, log_warning, logger
 from agno.utils.models.schema_utils import (
     is_object_schema,
+    json_schema_error,
     json_schema_response_format,
     unwrap_json_schema_response_format,
 )
@@ -1744,13 +1745,17 @@ class StudioTools(Toolkit):
                 view["learning"] = True
             schema = config.get("output_schema")
             # A registry-referenced schema is stored as its class name (a
-            # string); an inline schema stays a dict and is shown as the plain
-            # JSON Schema edit_agent/edit_team accept back.
+            # string). An inline one is shown as plain JSON Schema only when
+            # rewrapping reproduces the stored format, so passing the view back
+            # to an edit never drops its name or strict setting.
             if isinstance(schema, str) and schema:
                 view["output_schema_name"] = schema
             elif isinstance(schema, dict):
                 inline = unwrap_json_schema_response_format(schema)
-                view["output_schema"] = inline.schema if inline is not None else schema
+                if inline is not None and json_schema_response_format(inline.schema) == schema:
+                    view["output_schema"] = inline.schema
+                else:
+                    view["output_schema"] = schema
             reasoning_model = config.get("reasoning_model")
             if isinstance(reasoning_model, dict) and reasoning_model.get("id"):
                 view["reasoning_model_id"] = reasoning_model.get("id")
@@ -5770,6 +5775,13 @@ def _inline_output_schema(output_schema: Dict[str, Any]) -> tuple:
             "invalid_request",
             f"output_schema must be a JSON Schema whose root type is object (got type {schema.get('type')!r})",
         )
+    try:
+        schema_error = json_schema_error(schema)
+    except ImportError:
+        # jsonschema ships with the os extra; without it only the object root is checked
+        schema_error = None
+    if schema_error is not None:
+        return None, error_result("invalid_request", f"output_schema is not a valid JSON Schema: {schema_error}")
     if wrapped is None:
         return json_schema_response_format(schema), None
     return json_schema_response_format(schema, name=wrapped.name, strict=wrapped.strict), None

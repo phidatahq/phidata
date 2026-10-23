@@ -10,7 +10,7 @@ Companies House, G2, Capterra, Google Ads Transparency and the Meta Ad Library -
 plus an extract endpoint that reads any URL as HTML, Markdown or plain text, and
 website map, crawl and batch extract for whole sites.
 
-ScavioTools exposes 194 tools, one per live Scavio endpoint. That is far more
+ScavioTools exposes 195 tools, one per live Scavio endpoint. That is far more
 than any one agent should be shown, so every provider is gated by an enable_*
 flag. The ten providers the toolkit shipped with are on by default; everything
 else is opt-in. Enable only what the agent needs.
@@ -181,7 +181,7 @@ site_agent = Agent(
     ]
 )
 
-# Example 9: enable every tool explicitly - all 194 of them
+# Example 9: enable every tool explicitly - all 195 of them
 all_agent = Agent(tools=[ScavioTools(all=True)])
 
 # ---------------------------------------------------------------------------

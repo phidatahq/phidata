@@ -89,10 +89,10 @@ class ScavioTools(Toolkit):
         Indeed, Glassdoor, the App Store, Google Play, SEC EDGAR, Companies House, G2,
         Capterra, Google Ads Transparency and the Meta Ad Library - plus an extract
         endpoint that reads any URL, and website map, crawl and batch extract for whole
-        sites. The toolkit exposes 194 tools, one per live billable endpoint plus the
+        sites. The toolkit exposes 195 tools, one per live billable endpoint plus the
         free crawl and batch status reads.
 
-        Every provider is gated by an ``enable_*`` flag, because 194 tool definitions is
+        Every provider is gated by an ``enable_*`` flag, because 195 tool definitions is
         far more than any one agent should be shown. The ten providers the toolkit
         already shipped stay on by default, so upgrading does not change an existing
         agent's manifest; the twenty-one added here, ``extract`` and the crawl tools are
@@ -133,7 +133,7 @@ class ScavioTools(Toolkit):
                 comments, batch, search and leaderboards. Defaults to False.
             enable_ebay: Register the 3 eBay tools: search (live or sold listings), listing detail
                 and seller profile. Defaults to False.
-            enable_target: Register the 4 Target tools: search, category, product and reviews.
+            enable_target: Register the 5 Target tools: search, category, product, reviews and availability.
                 Defaults to False.
             enable_home_depot: Register the 3 Home Depot tools: search, product and reviews.
                 Defaults to False.
@@ -330,6 +330,7 @@ class ScavioTools(Toolkit):
             tools.append(self.target_category)
             tools.append(self.target_product)
             tools.append(self.target_reviews)
+            tools.append(self.target_availability)
         if all or enable_home_depot:
             tools.append(self.home_depot_search)
             tools.append(self.home_depot_product)
@@ -3334,7 +3335,7 @@ class ScavioTools(Toolkit):
                 outright.
             sort (Optional[str]): Result sort order. Defaults to 'relevance'. One of: "relevance", "featured",
                 "price_low", "price_high", "rating_high", "best_seller", "newest".
-            store_id (Optional[str]): Numeric Target store id whose prices and availability the response reflects.
+            store_id (Optional[str]): Numeric Target store id whose prices the response reflects.
                 Defaults to '3991', the store target.com uses with no store context.
 
         Returns:
@@ -3370,7 +3371,7 @@ class ScavioTools(Toolkit):
                 outright.
             sort (Optional[str]): Result sort order. Defaults to 'relevance'. One of: "relevance", "featured",
                 "price_low", "price_high", "rating_high", "best_seller", "newest".
-            store_id (Optional[str]): Numeric Target store id whose prices and availability the response reflects.
+            store_id (Optional[str]): Numeric Target store id whose prices the response reflects.
                 Defaults to '3991'.
 
         Returns:
@@ -3394,7 +3395,7 @@ class ScavioTools(Toolkit):
         Args:
             tcin (str): Target catalog id (tcin, e.g. '1010453160'). A colour/size child tcin is answered by its
                 variation parent, with the child present in 'variants'.
-            store_id (Optional[str]): Numeric Target store id whose prices and availability the response reflects.
+            store_id (Optional[str]): Numeric Target store id whose prices the response reflects.
                 Defaults to '3991'.
 
         Returns:
@@ -3421,7 +3422,7 @@ class ScavioTools(Toolkit):
             tcin (str): Target catalog id (tcin, e.g. '1010453160').
             limit (Optional[int]): Trim the returned reviews to at most this many (1 or greater). Target publishes
                 8 anonymously and offers no paging, so this only trims.
-            store_id (Optional[str]): Numeric Target store id whose prices and availability the response reflects.
+            store_id (Optional[str]): Numeric Target store id whose prices the response reflects.
                 Defaults to '3991'.
 
         Returns:
@@ -3431,6 +3432,35 @@ class ScavioTools(Toolkit):
             self.client.target.reviews,
             tcin,
             limit=limit,
+            store_id=store_id,
+        )
+
+    def target_availability(
+        self,
+        tcin: str,
+        zip: str,
+        radius: Optional[int] = None,
+        store_id: Optional[str] = None,
+    ) -> str:
+        """Get the in-store stock for a Target product at every store near a ZIP.
+
+        Units available, in-store, pickup, curbside and ship-to-store status, distance, address and hours, one row
+        per store.
+
+        Args:
+            tcin (str): Target catalog id (tcin, e.g. '85978609').
+            zip (str): 5-digit US ZIP code to search around.
+            radius (Optional[int]): Search radius in miles, 1-100. Defaults to 25. At most 20 stores.
+            store_id (Optional[str]): Return only this Target store. It must be within radius of zip.
+
+        Returns:
+            str: JSON string of the API response. Costs 1 credit.
+        """
+        return self._call(
+            self.client.target.availability,
+            tcin,
+            zip=zip,
+            radius=radius,
             store_id=store_id,
         )
 

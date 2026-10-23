@@ -56,22 +56,22 @@ def test_init_with_param():
 
 
 def test_all_flag_registers_every_tool():
-    """all=True should register all 194 provider tools.
+    """all=True should register all 195 provider tools.
 
     Toolkit keeps `tools` exactly as passed, so the count is the number of
     registrations in __init__: 14 google + 4 amazon + 7 walmart + 15 youtube +
     12 reddit + 11 tiktok + 12 instagram + 11 x + 9 linkedin + 8 tiktok_shop +
-    6 threads + 14 kuaishou + 3 ebay + 4 target + 3 home_depot + 3 zillow +
+    6 threads + 14 kuaishou + 3 ebay + 5 target + 3 home_depot + 3 zillow +
     3 booking + 4 tripadvisor + 4 indeed + 3 airbnb + 4 glassdoor + 3 yelp +
     3 app_store + 3 google_play + 6 sec + 3 redfin + 4 companies_house + 3 g2 +
-    3 capterra + 3 google_ads + 3 meta_ads + 1 extract + 5 crawl = 194, one tool
+    3 capterra + 3 google_ads + 3 meta_ads + 1 extract + 5 crawl = 195, one tool
     for every live billable Scavio endpoint except /youtube/metadata, which is a
     deprecated alias of /youtube/video and is reached through youtube_video, plus
     the two free crawl and batch status reads.
     """
     with patch("agno.tools.scavio.ScavioClient"):
         tools = ScavioTools(all=True)
-        assert len(tools.tools) == 194
+        assert len(tools.tools) == 195
 
 
 def test_default_registers_the_ten_original_providers():
@@ -843,7 +843,7 @@ def _only(**flags) -> list:
         ("enable_threads", "threads_", 6),
         ("enable_kuaishou", "kuaishou_", 14),
         ("enable_ebay", "ebay_", 3),
-        ("enable_target", "target_", 4),
+        ("enable_target", "target_", 5),
         ("enable_home_depot", "home_depot_", 3),
         ("enable_zillow", "zillow_", 3),
         ("enable_booking", "booking_", 3),

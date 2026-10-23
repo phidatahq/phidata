@@ -17,7 +17,7 @@ from pydantic import BeforeValidator
 from agno.company.declarations import Product, Routine, Source
 from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.company.routines import _require_routine_product, _RoutineAuthorization
-from agno.company.sources import _is_remote_git
+from agno.company.sources import is_remote_git
 from agno.db.base import AsyncBaseDb
 from agno.run.authorization import current_authorization, requires_permission
 from agno.tools import Toolkit
@@ -30,7 +30,7 @@ def _empty_to_none(value: Any) -> Any:
 
 def _public_source(source: Dict[str, Any]) -> Dict[str, Any]:
     """Describe supported operations without exposing credentials or probing the Source."""
-    remote_git = _is_remote_git(source)
+    remote_git = is_remote_git(source)
     return {
         **{key: value for key, value in source.items() if key != "credential_ref"},
         "readable": not remote_git,

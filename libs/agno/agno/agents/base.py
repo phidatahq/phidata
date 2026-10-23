@@ -263,6 +263,9 @@ class BaseExternalAgent:
     # content is the parsed model (or dict), and stays the answer text if it cannot be parsed.
     output_schema: Optional[Union[Type[BaseModel], Dict[str, Any]]] = None
 
+    # Shown to a team leader next to the name and description when this agent is a team member.
+    role: Optional[str] = None
+
     # Adapters that pass output_schema to their framework set this; others reject the option.
     _supports_output_schema: ClassVar[bool] = False
     # A second concurrent turn on a session is refused, so the durable queue always serializes these.
@@ -743,20 +746,50 @@ class BaseExternalAgent:
     # Session persistence helpers
     # ---------------------------------------------------------------------------
 
-    def _create_session(self, session_id: str, user_id: Optional[str] = None) -> AgentSession:
-        """Create a new AgentSession."""
+    def _create_session(
+        self, session_id: str, user_id: Optional[str] = None, team_id: Optional[str] = None
+    ) -> AgentSession:
+        """Create a new AgentSession. ``team_id`` is set when this agent runs as that team's member."""
         return AgentSession(
             session_id=session_id,
             agent_id=self.get_id(),
+            team_id=team_id,
             user_id=user_id,
             session_data={},
             agent_data={"agent_id": self.id, "agent_name": self.name, "sdk": self.sdk},
-            metadata={},
+            # A team member's own session says which team it belongs to; agent session rows do not
+            # store team_id, so the link is kept in the metadata.
+            metadata={"team_id": team_id} if team_id is not None else {},
             runs=[],
             created_at=int(time()),
         )
 
-    def read_or_create_session(self, session_id: str, user_id: Optional[str] = None) -> AgentSession:
+    def _state_session_id(self, session_id: str, team_id: Optional[str] = None) -> str:
+        """The session this agent keeps its own state in for a run on ``session_id``.
+
+        A team runs every member under the team's session id, and that row is the team's. As a
+        member, this agent keeps its native conversation (the Claude session, the Codex thread)
+        in a session of its own, one per team session and member, so two harness members of one
+        team never share a conversation and the team's session row is never overwritten. The
+        member's runs are stored by the team, in the team session. A team passes ``team_id`` on each
+        member call, so the same agent instance still saves its standalone runs normally.
+        """
+        if team_id is None:
+            return session_id
+        return f"{session_id}:{self.get_id()}"
+
+    async def _apersist_member_state(self, session: AgentSession) -> None:
+        """Save a team member's own session, which holds its native conversation ids, without runs."""
+        try:
+            await self.aupsert_session(session)
+        except Exception as error:
+            log_warning(f"Failed to persist team member state for {self.sdk} agent '{self.id}': {error}")
+            if self.strict_persistence:
+                raise
+
+    def read_or_create_session(
+        self, session_id: str, user_id: Optional[str] = None, team_id: Optional[str] = None
+    ) -> AgentSession:
         """Read a session from the DB, or create a new one."""
         session = None
         if self.db is not None and isinstance(self.db, BaseDb):
@@ -766,11 +799,13 @@ class BaseExternalAgent:
             session = AgentSession.from_dict(session)
 
         if session is None or not isinstance(session, AgentSession):
-            session = self._create_session(session_id, user_id)
+            session = self._create_session(session_id, user_id, team_id)
 
         return session
 
-    async def aread_or_create_session(self, session_id: str, user_id: Optional[str] = None) -> AgentSession:
+    async def aread_or_create_session(
+        self, session_id: str, user_id: Optional[str] = None, team_id: Optional[str] = None
+    ) -> AgentSession:
         """Async read a session from the DB, or create a new one."""
         session = None
         if self.db is not None:
@@ -783,7 +818,7 @@ class BaseExternalAgent:
             session = AgentSession.from_dict(session)
 
         if session is None or not isinstance(session, AgentSession):
-            session = self._create_session(session_id, user_id)
+            session = self._create_session(session_id, user_id, team_id)
 
         return session
 
@@ -1732,6 +1767,34 @@ class BaseExternalAgent:
                 raise ValueError("Native conversation identity is missing; restore its checkpoint before continuing")
 
     @staticmethod
+    def _input_text(input: Any) -> Any:
+        """Text for input a team hands over as a Message or a list of them.
+
+        A team leader delegates a task string, but with determine_input_for_members=False it
+        forwards the team's own input, which can be a Message or a list of messages. The
+        harnesses take text, so each message becomes its role and content. Anything else,
+        including a plain string or a list of content blocks, is returned unchanged.
+        """
+        if isinstance(input, Message):
+            return input.get_content_string()
+        if not isinstance(input, list) or not input:
+            return input
+        lines: List[str] = []
+        for item in input:
+            role: str
+            content: str
+            if isinstance(item, Message):
+                role, content = item.role, item.get_content_string() if item.content else ""
+            elif isinstance(item, dict) and isinstance(item.get("role"), str):
+                raw = item.get("content")
+                role, content = item["role"], raw if isinstance(raw, str) else ("" if raw is None else str(raw))
+            else:
+                return input
+            if content:
+                lines.append(f"{role}: {content}")
+        return "\n".join(lines)
+
+    @staticmethod
     def _build_prompt(input: Any, history: Optional[List[Dict[str, Any]]], resumed: bool) -> str:
         """Plain prompt when the framework's own session carries the context; otherwise
         prepend the persisted chat history so a fresh session does not lose it.
@@ -1770,6 +1833,8 @@ class BaseExternalAgent:
     # ---------------------------------------------------------------------------
 
     async def _arun_non_stream(self, input: Any, **kwargs: Any) -> RunOutput:
+        # Set by a team for a member call; never forwarded to the adapter.
+        team_id: Optional[str] = kwargs.pop("_team_id", None)
         if self.sandbox is not None:
             return await _sandbox_harness().arun(self, input, **kwargs)
         run_id = kwargs.pop("run_id", None) or str(uuid4())
@@ -1777,11 +1842,15 @@ class BaseExternalAgent:
         kwargs["session_id"] = session_id
         user_id = kwargs.get("user_id")
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+        # Convert before claiming the session, so the stored input is the text the agent received
+        # and nothing between the claim and the try below can leave the session claimed.
+        input = self._input_text(input)
         record_input = input if continuation is None else continuation.record_input
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
-        session = await self.aread_or_create_session(session_id, user_id) if self.db else None
-        self._claim_session(session, session_id, run_id)
+        state_session_id = self._state_session_id(session_id, team_id)
+        session = await self.aread_or_create_session(state_session_id, user_id, team_id) if self.db else None
+        self._claim_session(session, state_session_id, run_id)
         try:
             history = (
                 self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
@@ -1860,13 +1929,17 @@ class BaseExternalAgent:
             if attempts_made > 1:
                 run_output.metadata = {**(run_output.metadata or {}), "attempts": attempts_made}
             self._finish_run_output(run_output, run_state, continuation)
-            if session is not None:
+            if session is not None and team_id is not None:
+                await self._apersist_member_state(session)
+            elif session is not None:
                 await self._apersist_run_in_session(session, run_output)
             return run_output
         finally:
-            self._release_session(session_id, run_id)
+            self._release_session(state_session_id, run_id)
 
     async def _arun_stream(self, input: Any, **kwargs: Any) -> AsyncIterator[Any]:
+        # Set by a team for a member call; never forwarded to the adapter.
+        team_id: Optional[str] = kwargs.pop("_team_id", None)
         if self.sandbox is not None:
             events = _sandbox_harness().astream(self, input, **kwargs)
             try:
@@ -1881,10 +1954,13 @@ class BaseExternalAgent:
         user_id = kwargs.get("user_id")
         yield_run_output = kwargs.pop("yield_run_output", False)
         continuation: Optional[ExternalContinuation] = kwargs.get("continuation")
+        # Convert before claiming the session, as in the non-streaming path.
+        input = self._input_text(input)
         output_schema = self._resolve_output_schema(kwargs)
         run_state: Dict[str, Any] = {}
-        session = await self.aread_or_create_session(session_id, user_id) if self.db else None
-        self._claim_session(session, session_id, run_id)
+        state_session_id = self._state_session_id(session_id, team_id)
+        session = await self.aread_or_create_session(state_session_id, user_id, team_id) if self.db else None
+        self._claim_session(session, state_session_id, run_id)
         try:
             history = (
                 self._get_history_from_session(session, exclude_run_id=run_id) if session and not continuation else None
@@ -2004,10 +2080,17 @@ class BaseExternalAgent:
             keep(terminal)
             if stored_events is not None:
                 run.events = list(stored_events)
-            if session is not None:
+            if session is not None and team_id is not None:
+                await self._apersist_member_state(session)
+            elif session is not None:
                 await self._apersist_run_in_session(session, run)
             yield terminal
-            if stored_events is not None and session is not None and getattr(terminal, "event_index", None) is not None:
+            if (
+                stored_events is not None
+                and session is not None
+                and team_id is None
+                and getattr(terminal, "event_index", None) is not None
+            ):
                 # The consumer stamped the terminal event with its stream index while we were suspended
                 # on the yield (the event stream writes it on the object). Write the row again so the
                 # stored event carries that index and a replay from the database stays in order.
@@ -2015,7 +2098,7 @@ class BaseExternalAgent:
             if yield_run_output:
                 yield run
         finally:
-            self._release_session(session_id, run_id)
+            self._release_session(state_session_id, run_id)
 
     def _run_stream(self, input: Any, **kwargs: Any) -> Iterator[Union[RunOutputEvent, RunOutput]]:
         """Sync streaming wrapper. Runs the async stream on a background thread."""

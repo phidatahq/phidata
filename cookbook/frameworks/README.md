@@ -107,6 +107,10 @@ directory; otherwise it is `tmp/harnesses/<provider>/` under your launch directo
 Stop the server before removing its disposable local state. That does not
 remove SDK-native session files.
 
+## Harness agents in a team
+
+Claude Code and Codex can be members of an Agno team next to native agents; the leader delegates to them like any member. See [harness_teams](harness_teams/README.md).
+
 ## Existing examples and the next exercises
 
 The [Claude guide](claude-agent-sdk/README.md#more-claude-examples) and

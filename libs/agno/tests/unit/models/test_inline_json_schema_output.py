@@ -34,6 +34,63 @@ def test_claude_flattens_the_canonical_shape():
     assert CANONICAL == original
 
 
+def test_claude_closes_nested_objects_when_transform_schema_rejects_the_schema():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    # An enum-only property makes transform_schema raise, so the fallback walk runs
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "tier": {"enum": ["gold", "silver"]}}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["additionalProperties"] is False
+    assert output_format["schema"]["properties"]["address"]["additionalProperties"] is False
+    assert "additionalProperties" not in output_format["schema"]["properties"]
+
+
+def test_claude_accepts_a_nullable_type_list():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    # A type list makes transform_schema raise AssertionError, so the fallback walk runs
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "note": {"type": ["string", "null"]}}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["properties"]["note"] == {"type": ["string", "null"]}
+    assert output_format["schema"]["additionalProperties"] is False
+
+
+def test_claude_closes_a_nullable_nested_object():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    address = {"type": ["object", "null"], "properties": {"zip": {"type": "string"}}}
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "address": address}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["properties"]["address"]["additionalProperties"] is False
+
+
+def test_claude_leaves_a_map_field_open_in_the_fallback_walk():
+    pytest.importorskip("anthropic")
+    from agno.models.anthropic.claude import Claude
+
+    # The type list makes transform_schema raise, so the fallback walk reaches the map field
+    tags = {"type": "object", "additionalProperties": {"type": "string"}}
+    schema = {**SCHEMA, "properties": {**SCHEMA["properties"], "note": {"type": ["string", "null"]}, "tags": tags}}
+    output_format = Claude(id="claude-sonnet-4-6")._build_output_format(
+        json_schema_response_format(schema, name="Weather")
+    )
+
+    assert output_format["schema"]["properties"]["tags"] == tags
+    assert output_format["schema"]["properties"]["address"]["additionalProperties"] is False
+
+
 def test_claude_passes_its_own_flat_shape_through():
     pytest.importorskip("anthropic")
     from agno.models.anthropic.claude import Claude
@@ -84,7 +141,7 @@ def test_gemini_inline_schema_replaces_a_configured_response_schema():
     assert config.response_json_schema == SCHEMA
 
 
-def test_gemini_interactions_sends_the_schema_as_a_json_text_format():
+def test_gemini_interactions_sends_the_schema_with_a_json_mime_type():
     pytest.importorskip("google.genai")
     from agno.models.google.gemini_interactions import GeminiInteractions
 
@@ -92,7 +149,8 @@ def test_gemini_interactions_sends_the_schema_as_a_json_text_format():
         [Message(role="user", content="Hi")], response_format=CANONICAL
     )
 
-    assert kwargs["response_format"] == {"type": "text", "mime_type": "application/json", "schema": SCHEMA}
+    assert kwargs["response_format"] == SCHEMA
+    assert kwargs["response_mime_type"] == "application/json"
 
 
 def test_mistral_sends_the_canonical_shape():

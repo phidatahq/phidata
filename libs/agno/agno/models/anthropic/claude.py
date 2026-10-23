@@ -321,12 +321,20 @@ class Claude(Model):
         Recursively ensure all object types have additionalProperties: false.
         """
         if isinstance(schema, dict):
-            if schema.get("type") == "object":
-                schema["additionalProperties"] = False
+            schema_type = schema.get("type")
+            # A type list such as ["object", "null"] is a nullable object
+            if schema_type == "object" or (isinstance(schema_type, list) and "object" in schema_type):
+                # A schema-valued additionalProperties is a map field, left for the API to accept or reject
+                if not isinstance(schema.get("additionalProperties"), dict):
+                    schema["additionalProperties"] = False
 
             # Recursively process nested schemas
             for key, value in schema.items():
-                if key in ["properties", "items", "allOf", "anyOf", "oneOf"]:
+                if key in ["properties", "$defs", "definitions"] and isinstance(value, dict):
+                    # Maps of name -> schema
+                    for item in value.values():
+                        self._ensure_additional_properties_false(item)
+                elif key in ["items", "allOf", "anyOf", "oneOf"]:
                     if isinstance(value, dict):
                         self._ensure_additional_properties_false(value)
                     elif isinstance(value, list):
@@ -383,7 +391,8 @@ class Claude(Model):
                     from anthropic import transform_schema
 
                     schema = transform_schema(inline.schema)
-                except (ImportError, AttributeError, ValueError):
+                except (ImportError, AttributeError, ValueError, AssertionError):
+                    # transform_schema rejects valid JSON Schema it does not model (a type list, an untyped enum)
                     schema = copy.deepcopy(inline.schema)
                 if "additionalProperties" not in schema:
                     schema["additionalProperties"] = False

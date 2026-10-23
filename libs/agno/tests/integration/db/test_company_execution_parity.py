@@ -166,7 +166,8 @@ async def test_execution_duplicate_context_history_and_attention(system, kind, i
     run_id = starts[0].json()["run_id"]
     job = await worker.store.get_job(run_id)
     payload = json.loads(job["payload"]["input"])
-    assert set(payload) == {"brief", "wiki", "evidence"}
+    assert set(payload) == {"brief", "wiki", "evidence", "execution_context"}
+    assert payload["execution_context"]["stage"] == "accepted_task_execution"
     assert len(payload["wiki"]) == 4 and payload["evidence"][0]["hash"] == "abc"
     assert "never-forward" not in job["payload"]["input"]
     assert job["idempotency_key"] == f"company:{value['id']}:1" and job["max_attempts"] == 2
@@ -930,8 +931,8 @@ async def test_cancel_projection_failure_is_recovered_by_queue(system, monkeypat
         raise RuntimeError("Task projection interrupted")
 
     monkeypatch.setattr(execution, "_project_run", interrupted)
-    with pytest.raises(RuntimeError, match="Task projection interrupted"):
-        await client.post(f"/company/runs/{run_id}/cancel")
+    # The CANCELLED run row is written, so the cancel succeeds and its claim settles the ticket.
+    assert (await client.post(f"/company/runs/{run_id}/cancel")).status_code == 200
     assert (await worker.store.get_job(run_id))["status"] == "queued"
     assert (await client.get(path)).json()["result"] is None
     monkeypatch.setattr(execution, "_project_run", project)

@@ -545,6 +545,7 @@ def _get_task_management_tools(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                     yield_run_output=True,
                 )
                 draining_after_cancel = False
@@ -596,6 +597,7 @@ def _get_task_management_tools(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                 )
                 check_if_run_cancelled(member_run_response)
                 if run_response.run_id is not None:
@@ -728,6 +730,7 @@ def _get_task_management_tools(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                     yield_run_output=True,
                 )
                 draining_after_cancel = False
@@ -779,6 +782,7 @@ def _get_task_management_tools(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                 )
                 check_if_run_cancelled(member_run_response)
                 if run_response.run_id is not None:
@@ -932,6 +936,7 @@ def _get_task_management_tools(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                 )
                 return (task_obj.id, member_run_response, member_session_state_copy, member_task_description, None)
             except RunCancelledException:
@@ -1137,6 +1142,7 @@ def _get_task_management_tools(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                 )
                 return (task_obj.id, member_run_response, member_session_state_copy, member_task_description, None)
             except RunCancelledException:

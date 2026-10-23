@@ -742,6 +742,7 @@ def _get_delegate_task_function(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                     yield_run_output=True,
                 )
                 draining_after_cancel = False
@@ -802,6 +803,7 @@ def _get_delegate_task_function(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                 )
 
                 check_if_run_cancelled(member_agent_run_response)  # type: ignore
@@ -928,6 +930,7 @@ def _get_delegate_task_function(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                     yield_run_output=True,
                 )
                 draining_after_cancel = False
@@ -988,6 +991,7 @@ def _get_delegate_task_function(
                     if not member_agent.knowledge_filters and member_agent.knowledge
                     else None,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                 )
                 check_if_run_cancelled(member_agent_run_response)  # type: ignore
                 # Also check if the parent team's run was cancelled while the member was executing
@@ -1098,6 +1102,7 @@ def _get_delegate_task_function(
                         add_session_state_to_context=add_session_state_to_context,
                         metadata=run_context.metadata,
                         run_id=member_run_id,
+                        store_run=run_context.store_run,
                         yield_run_output=True,
                     )
                     draining_after_cancel = False
@@ -1161,6 +1166,7 @@ def _get_delegate_task_function(
                         add_session_state_to_context=add_session_state_to_context,
                         metadata=run_context.metadata,
                         run_id=member_run_id,
+                        store_run=run_context.store_run,
                     )
 
                     check_if_run_cancelled(member_agent_run_response)  # type: ignore
@@ -1272,6 +1278,7 @@ def _get_delegate_task_function(
                     add_session_state_to_context=add_session_state_to_context,
                     metadata=run_context.metadata,
                     run_id=member_run_id,
+                    store_run=run_context.store_run,
                     yield_run_output=True,
                 )
                 member_agent_run_response = None
@@ -1407,6 +1414,7 @@ def _get_delegate_task_function(
                             add_session_state_to_context=add_session_state_to_context,
                             metadata=run_context.metadata,
                             run_id=member_run_id,
+                            store_run=run_context.store_run,
                         )
                         check_if_run_cancelled(member_agent_run_response)
                         if run_response.run_id is not None:

@@ -87,6 +87,7 @@ from agno.tools.studio_schema import WorkflowStepSpec, error_result, ok_result
 from agno.tools.toolkit import Toolkit
 from agno.utils.live_sequence import LiveSequence
 from agno.utils.log import log_debug, log_warning, logger
+from agno.utils.models.json_schema_model import UnsupportedJsonSchemaError, json_schema_to_model
 from agno.utils.models.schema_utils import (
     is_object_schema,
     json_schema_error,
@@ -5783,6 +5784,11 @@ def _inline_output_schema(output_schema: Dict[str, Any]) -> tuple:
         schema_error = None
     if schema_error is not None:
         return None, error_result("invalid_request", f"output_schema is not a valid JSON Schema: {schema_error}")
+    try:
+        # Stored agents load the schema as a Pydantic model; refuse one that cannot become one
+        json_schema_to_model(schema, name=wrapped.name if wrapped is not None else None)
+    except UnsupportedJsonSchemaError as e:
+        return None, error_result("invalid_request", f"output_schema is not supported: {e}")
     if wrapped is None:
         return json_schema_response_format(schema), None
     return json_schema_response_format(schema, name=wrapped.name, strict=wrapped.strict), None

@@ -1054,16 +1054,11 @@ class BaseExternalAgent:
             return
         if not self._supports_output_schema:
             raise ValueError(f"{type(self).__name__} does not support output_schema")
-        from agno.utils.models.schema_utils import is_object_schema
-
-        schema = (
-            self._output_json_schema(output_schema, "openai")
-            if isinstance(output_schema, dict)
-            else output_schema.model_json_schema()
-        )
-        if not is_object_schema(schema):
+        schema = output_schema if isinstance(output_schema, dict) else output_schema.model_json_schema()
+        root_type = schema.get("type")
+        if root_type != "object" and not (root_type is None and "properties" in schema):
             raise ValueError(
-                f"{type(self).__name__} output_schema must describe a JSON object (got type {schema.get('type')!r}); "
+                f"{type(self).__name__} output_schema must describe a JSON object (got type {root_type!r}); "
                 "wrap a list or scalar in a model field"
             )
 
@@ -1079,13 +1074,10 @@ class BaseExternalAgent:
 
     @staticmethod
     def _output_json_schema(output_schema: Union[Type[BaseModel], Dict[str, Any]], provider: str) -> Dict[str, Any]:
-        """JSON Schema for the framework: a dict is passed as given (unwrapped from a JSON Schema
-        response format), a model is normalized for the provider."""
-        from agno.utils.models.schema_utils import get_response_schema_for_provider, unwrap_json_schema_response_format
-
+        """JSON Schema for the framework: a dict is passed as given, a model is normalized for the provider."""
         if isinstance(output_schema, dict):
-            inline = unwrap_json_schema_response_format(output_schema)
-            return inline.schema if inline is not None else output_schema
+            return output_schema
+        from agno.utils.models.schema_utils import get_response_schema_for_provider
 
         return get_response_schema_for_provider(output_schema, provider)
 

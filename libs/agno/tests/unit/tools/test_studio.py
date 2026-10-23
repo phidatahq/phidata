@@ -17,6 +17,7 @@ from importlib.util import find_spec
 from typing import Any, Dict
 
 import pytest
+from pydantic import BaseModel
 
 from agno.agent import Agent
 from agno.agent._tools import parse_tools
@@ -2008,7 +2009,55 @@ class TestCoverageFields:
             )
         )
         agent = get_agent_by_id("inline", agents=None, db=db, registry=registry)
-        assert agent.output_schema["json_schema"]["schema"] == self.INLINE_SCHEMA
+        model = agent.output_schema
+        assert isinstance(model, type) and issubclass(model, BaseModel)
+        assert model.model_validate({"city": "Paris", "temp_c": 18.5}).city == "Paris"
+        assert model.model_json_schema()["title"] == "Weather Report"
+
+    def test_edit_round_trips_a_loaded_inline_schema_unchanged(self, studio_refs, db):
+        wrapped = {
+            "type": "json_schema",
+            "json_schema": {"name": "Weather", "schema": self.INLINE_SCHEMA, "strict": True},
+        }
+        _data(
+            studio_refs.create_agent(
+                name="kept", instructions="i", model_id="gpt-5.4", output_schema=wrapped, publish=True
+            )
+        )
+        _data(studio_refs.edit_agent("kept", description="edited", publish=True))
+        assert db.get_config(component_id="kept", version=2)["config"]["output_schema"] == wrapped
+
+    def test_team_inline_schema_loads_as_a_model(self, studio_refs, db, registry):
+        from agno.os.utils import get_team_by_id
+
+        _data(studio_refs.create_agent(name="member", instructions="i", model_id="gpt-5.4", publish=True))
+        _data(
+            studio_refs.create_team(
+                name="crew",
+                instructions="i",
+                member_ids=["member"],
+                model_id="gpt-5.4",
+                output_schema=self.INLINE_SCHEMA,
+                publish=True,
+            )
+        )
+        team = get_team_by_id("crew", teams=None, db=db, registry=registry)
+        assert issubclass(team.output_schema, BaseModel)
+
+    @pytest.mark.parametrize(
+        "schema, reason",
+        [
+            ({"type": "object", "properties": {"a": {"allOf": [{"type": "string"}, {"maxLength": 3}]}}}, "allOf"),
+            ({"type": "object", "properties": {"a": {"type": "string"}}, "required": ["b"]}, "required lists"),
+            ({"type": "object", "properties": {"_a": {"type": "string"}}}, "property names"),
+        ],
+        ids=["allOf", "required-missing", "underscore-name"],
+    )
+    def test_unrepresentable_schema_is_refused_and_nothing_is_stored(self, studio_refs, db, schema, reason):
+        error = _error(studio_refs.create_agent(name="bad", instructions="i", model_id="gpt-5.4", output_schema=schema))
+        assert error["code"] == "invalid_request"
+        assert reason in error["message"]
+        assert db.get_config(component_id="bad", version=1) is None
 
     def test_inline_output_schema_replaces_and_detaches(self, studio_refs):
         _data(
@@ -2127,14 +2176,17 @@ class TestCoverageFields:
         _data(studio_refs.create_agent(name="nullable", instructions="i", model_id="gpt-5.4", output_schema=schema))
         assert _data(studio_refs.get_component("nullable"))["output_schema"] == schema
 
-    def test_without_jsonschema_only_the_object_root_is_checked(self, studio_refs, monkeypatch):
+    def test_without_jsonschema_the_converter_still_refuses(self, studio_refs, monkeypatch):
         import sys
 
         monkeypatch.setitem(sys.modules, "jsonschema", None)
         monkeypatch.setitem(sys.modules, "jsonschema.exceptions", None)
         monkeypatch.setitem(sys.modules, "jsonschema.validators", None)
         schema = {"type": "object", "properties": {"a": {"type": "strin"}}}
-        _data(studio_refs.create_agent(name="unchecked", instructions="i", model_id="gpt-5.4", output_schema=schema))
+        error = _error(
+            studio_refs.create_agent(name="unchecked", instructions="i", model_id="gpt-5.4", output_schema=schema)
+        )
+        assert "unknown type 'strin'" in error["message"]
 
     def test_inline_output_schema_parameter_accepts_any_json_schema(self, studio_refs):
         for name in ("create_agent", "edit_agent", "create_team", "edit_team"):

@@ -13,7 +13,7 @@ from agno.company.manager import AsyncCompanyManager, CompanyManager
 from agno.company.routines import _routine_executor_endpoint, _routine_message, _schedule_fields
 from agno.db.base import AsyncBaseDb
 from agno.os.auth import get_authentication_dependency
-from agno.os.middleware.user_scope import get_scoped_user_id, resolve_run_user_id
+from agno.os.middleware.user_scope import caller_is_admin, get_scoped_user_id, resolve_run_user_id
 from agno.os.routers.schedules.router import get_schedule_router
 from agno.os.routers.schedules.schema import ScheduleCreate, ScheduleResponse, ScheduleRunResponse, ScheduleUpdate
 from agno.os.schema import PaginatedResponse, PaginationInfo
@@ -200,11 +200,11 @@ def get_heartbeat_router(agent_os: Any) -> APIRouter:
     @router.post("/routines/{routine_id}/trigger", response_model=ScheduleRunResponse)
     async def trigger_routine(routine_id: str, request: Request, _: bool = Depends(auth)):
         row = await routine(routine_id, request)
-        # Automatic acceptance runs on the saved grant, so only the user who granted it may start it manually.
-        if row["payload"]["metadata"].get("auto_accept"):
-            caller = get_scoped_user_id(request)
+        # Automatic acceptance runs on the saved grant, so only the user who granted it may start it
+        # manually, whether or not user isolation is on. The grant records the raw caller, so compare that.
+        if row["payload"]["metadata"].get("auto_accept") and not caller_is_admin(request):
             grantor = (row["payload"].get("_agno_company_acceptance") or {}).get("user_id")
-            if caller is not None and caller != grantor:
+            if getattr(request.state, "user_id", None) != grantor:
                 raise HTTPException(403, "Only the user who authorized automatic acceptance may run this Routine")
         await product(row["payload"]["metadata"]["product_id"])
         if not row["enabled"]:

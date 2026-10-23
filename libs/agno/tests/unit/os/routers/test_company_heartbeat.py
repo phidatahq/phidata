@@ -514,7 +514,7 @@ def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation
         snapshot = json.loads(forwarded_headers[AUTHORIZATION_HEADER])
         assert snapshot["context"]["principal_id"] == owner
 
-        # Automatic acceptance runs on the saved grant, so only its grantor may start it under isolation.
+        # Automatic acceptance runs on the saved grant, so only its grantor may start it, in both isolation modes.
         metadata = {**saved["payload"]["metadata"], "auto_accept": {"executor_type": "agent", "executor_id": "reader"}}
 
         def grant(user_id):
@@ -522,13 +522,22 @@ def test_members_trigger_routines_as_themselves(tmp_path, monkeypatch, isolation
             db.update_schedule(routine_id, enabled=True, payload=payload)
 
         grant(owner)
+        dispatched = background.await_count
         response = client.post(path + "/trigger", headers=auth)
-        assert response.status_code == (403 if isolation else 200), response.text
+        assert response.status_code == 403, response.text
+        assert background.await_count == dispatched
         if owner and not managed_roles:
             token = jwt.encode({"sub": owner, "aud": "members", "scopes": scopes}, secret, algorithm="HS256")
             response = client.post(path + "/trigger", headers={"Authorization": "Bearer " + token})
             assert response.status_code == 200, response.text
             assert response.json()["user_id"] == owner
+        if not managed_roles:
+            # An admin whose scopes are authoritative keeps the existing bypass.
+            token = jwt.encode(
+                {"sub": "root", "aud": "members", "scopes": ["agent_os:admin"]}, secret, algorithm="HS256"
+            )
+            response = client.post(path + "/trigger", headers={"Authorization": "Bearer " + token})
+            assert response.status_code == 200, response.text
         # A member who re-authorized acceptance holds the grant, whoever created the Routine.
         grant("bob")
         response = client.post(path + "/trigger", headers=auth)

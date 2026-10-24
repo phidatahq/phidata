@@ -477,6 +477,11 @@ NOT_SENT = ["client.create", "get_sandbox", "client.aclose"]
         {"lifetime": 600, "execution_timeout": 600},
         {"lifetime": 600, "execution_timeout": 0},
         {"lifetime": 600, "execution_timeout": float("nan")},
+        {"vcpus": 0},
+        {"vcpus": 9},
+        {"vcpus": True},
+        {"vcpus": 1.5},
+        {"wheel": 5},
     ],
 )
 def test_invalid_configuration_is_rejected(kwargs: Dict[str, Any]) -> None:
@@ -1895,12 +1900,6 @@ async def test_the_resources_follow_the_requested_vcpus(world: World) -> None:
     assert (world.creates[0]["resources"].vcpus, world.creates[0]["resources"].memory) == (4, 8192)
 
 
-@pytest.mark.parametrize("kwargs", [{"vcpus": 0}, {"vcpus": 9}, {"vcpus": True}, {"vcpus": 1.5}, {"wheel": 5}])
-def test_invalid_resources_or_wheel_are_rejected(kwargs: Dict[str, Any]) -> None:
-    with pytest.raises(ValueError):
-        VercelSandbox(**kwargs)
-
-
 def test_the_configuration_digest_covers_everything_a_created_computer_depends_on() -> None:
     base = VercelSandbox()._digest("s", "coder", 1, {})
     assert base == VercelSandbox()._digest("s", "coder", 1, {})
@@ -3106,17 +3105,15 @@ def _source_tree(tmp_path: Path, state: Dict[str, Any], extra: Optional[Callable
     return archive
 
 
-def _stage_archive(layout: guard.Layout, source: Path, name: str = CHECKPOINT_NAME) -> Path:
-    staged = layout.inbox / f"{name}.tar"
+def _stage_archive(layout: guard.Layout, source: Path) -> Path:
+    staged = layout.inbox / f"{CHECKPOINT_NAME}.tar"
     staged.write_bytes(source.read_bytes())
     staged.chmod(0o600)
     return staged
 
 
-def _restore(box: Dict[str, Any], **kwargs: Any) -> Dict[str, Any]:
-    result = box["guard"].restore(
-        CHECKPOINT_NAME, {"limits": JOB["limits"]}, extract=guard._extract(JOB["limits"]), **kwargs
-    )
+def _restore(box: Dict[str, Any]) -> Dict[str, Any]:
+    result = box["guard"].restore(CHECKPOINT_NAME, {"limits": JOB["limits"]}, extract=guard._extract(JOB["limits"]))
     assert isinstance(result, dict)
     return result
 
@@ -3684,8 +3681,8 @@ def store(tmp_path: Path) -> FileCheckpointStore:
     return FileCheckpointStore(tmp_path / "objects")
 
 
-def _restored(store: FileCheckpointStore, reference: Any, tmp_path: Path, name: str = "restored") -> Path:
-    destination = tmp_path / name
+def _restored(store: FileCheckpointStore, reference: Any, tmp_path: Path) -> Path:
+    destination = tmp_path / "restored"
     with store.open_archive(reference) as archive:
         CheckpointArchive().restore(archive, destination)
     return destination
@@ -4939,36 +4936,19 @@ async def test_a_normal_teardown_closes_every_connection_of_the_real_client(monk
     assert first.closed and second.closed and not first.interrupted
 
 
+@pytest.mark.parametrize("cancellations", [1, 2], ids=["single-cancel", "repeated-cancel"])
 async def test_cancelling_during_teardown_still_closes_every_connection_and_stays_a_cancellation(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, cancellations: int
 ) -> None:
     gate = asyncio.Event()
     first, second = _PoolConnection(gate), _PoolConnection()
     sandbox = _real_client_world(monkeypatch, [first, second])
     task = asyncio.ensure_future(sandbox.aget("ag-0123456789-abcdef"))
     await asyncio.wait_for(first.entered.wait(), 5)
-    task.cancel()
-    await _settle()
+    for _ in range(cancellations):
+        task.cancel()
+        await _settle()
     assert not task.done(), "the cancellation abandoned the close that was in progress"
-    gate.set()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    assert first.closed and second.closed and not first.interrupted
-
-
-async def test_a_second_cancellation_during_teardown_does_not_abandon_it_either(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    gate = asyncio.Event()
-    first, second = _PoolConnection(gate), _PoolConnection()
-    sandbox = _real_client_world(monkeypatch, [first, second])
-    task = asyncio.ensure_future(sandbox.aget("ag-0123456789-abcdef"))
-    await asyncio.wait_for(first.entered.wait(), 5)
-    task.cancel()
-    await _settle()
-    task.cancel()
-    await _settle()
-    assert not task.done(), "a repeated cancellation abandoned the close that was in progress"
     gate.set()
     with pytest.raises(asyncio.CancelledError):
         await task

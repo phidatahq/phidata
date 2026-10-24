@@ -13,7 +13,7 @@ import os
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple
+from typing import Any, AsyncIterator, Dict, List, Optional, Protocol, Tuple
 from uuid import uuid4
 
 import pytest
@@ -27,6 +27,7 @@ from agno.sandbox.base import SandboxError, SandboxHandle
 from agno.sandbox.checkpoint import CheckpointArchive, CheckpointLimits, CheckpointRef, FileCheckpointStore
 from agno.sandbox.client import SandboxRuntimeClient
 from agno.sandbox.fixture import FixtureAgent
+from agno.sandbox.postgres import _SandboxStore
 from agno.sandbox.vercel import VercelCheckpointTransfer, VercelSandbox, guard
 from agno.sandbox.vercel import sandbox as provider_module
 from agno.sandbox.vercel.transfer import VERCEL_NATIVE_EXCLUSIONS
@@ -905,18 +906,38 @@ async def test_p4_the_second_public_turn_reuses_the_running_computer(public, tra
 # --- native harnesses ------------------------------------------------------------------------------------
 
 
+@pytest_asyncio.fixture
+async def native_database(tracker: Tracker) -> AsyncIterator[Tuple[PostgresDb, str]]:
+    suffix = uuid4().hex[:12]
+    db = PostgresDb(
+        db_url=DB_URL, session_table="vc_s_" + suffix, runs_table="vc_r_" + suffix, sandbox_table="vc_b_" + suffix
+    )
+    try:
+        yield db, suffix
+    finally:
+        await tracker.cleanup()
+        tracker.created.clear()
+        store = _SandboxStore(db)
+        await store._transaction(lambda c: [t.drop(c) for t in (store.bindings, store.runs, store.sessions)])
+        db.db_engine.dispose()
+
+
+async def _recall(agent: Any) -> Any:
+    await agent.arun(
+        "Remember the codeword BLUE-HERON. Do not write it to a file. Reply with just OK.", session_id="session"
+    )
+    return await agent.arun("What codeword did I ask you to remember?", session_id="session")
+
+
 @needs_database
 @pytest.mark.skipif(
     not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")),
     reason="Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN",
 )
-async def test_claude_recalls_its_conversation_on_a_restored_computer(tracker, tmp_path):
+async def test_claude_recalls_its_conversation_on_a_restored_computer(tracker, tmp_path, native_database):
     from agno.agents.claude import ClaudeAgent
 
-    suffix = uuid4().hex[:12]
-    db = PostgresDb(
-        db_url=DB_URL, session_table="vc_s_" + suffix, runs_table="vc_r_" + suffix, sandbox_table="vc_b_" + suffix
-    )
+    db, suffix = native_database
     agent = ClaudeAgent(
         id="coder",
         model="claude-sonnet-5-5",
@@ -932,30 +953,16 @@ async def test_claude_recalls_its_conversation_on_a_restored_computer(tracker, t
     )
     coordinator = _harness.coordinator(agent)
     coordinator.warm_computer_seconds = 0
-    try:
-        await agent.arun(
-            "Remember the codeword BLUE-HERON. Do not write it to a file. Reply with just OK.",
-            session_id="session",
-        )
-        recalled = await agent.arun("What codeword did I ask you to remember?", session_id="session")
-        assert "BLUE-HERON" in str(recalled.content) and len({h.provider_ref for _, h in tracker.created}) == 2
-    finally:
-        await tracker.cleanup()
-        tracker.created.clear()
-        store = coordinator.store
-        await store._transaction(lambda c: [t.drop(c) for t in (store.bindings, store.runs, store.sessions)])
-        db.db_engine.dispose()
+    recalled = await _recall(agent)
+    assert "BLUE-HERON" in str(recalled.content) and len({h.provider_ref for _, h in tracker.created}) == 2
 
 
 @needs_database
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY")
-async def test_codex_recalls_its_conversation_on_a_restored_computer(tracker, tmp_path):
+async def test_codex_recalls_its_conversation_on_a_restored_computer(tracker, tmp_path, native_database):
     from agno.agents.codex import CodexAgent
 
-    suffix = uuid4().hex[:12]
-    db = PostgresDb(
-        db_url=DB_URL, session_table="vc_s_" + suffix, runs_table="vc_r_" + suffix, sandbox_table="vc_b_" + suffix
-    )
+    db, suffix = native_database
     agent = CodexAgent(
         id="coder",
         db=db,
@@ -968,19 +975,8 @@ async def test_codex_recalls_its_conversation_on_a_restored_computer(tracker, tm
     )
     coordinator = _harness.coordinator(agent)
     coordinator.warm_computer_seconds = 0
-    try:
-        await agent.arun(
-            "Remember the codeword BLUE-HERON. Do not write it to a file. Reply with just OK.",
-            session_id="session",
-        )
-        recalled = await agent.arun("What codeword did I ask you to remember?", session_id="session")
-        assert "BLUE-HERON" in str(recalled.content) and len({h.provider_ref for _, h in tracker.created}) == 2
-    finally:
-        await tracker.cleanup()
-        tracker.created.clear()
-        store = coordinator.store
-        await store._transaction(lambda c: [t.drop(c) for t in (store.bindings, store.runs, store.sessions)])
-        db.db_engine.dispose()
+    recalled = await _recall(agent)
+    assert "BLUE-HERON" in str(recalled.content) and len({h.provider_ref for _, h in tracker.created}) == 2
 
 
 @needs_database
@@ -988,13 +984,10 @@ async def test_codex_recalls_its_conversation_on_a_restored_computer(tracker, tm
     not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")),
     reason="Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN",
 )
-async def test_claude_recalls_its_conversation_on_a_reused_warm_computer(tracker, tmp_path):
+async def test_claude_recalls_its_conversation_on_a_reused_warm_computer(tracker, tmp_path, native_database):
     from agno.agents.claude import ClaudeAgent
 
-    suffix = uuid4().hex[:12]
-    db = PostgresDb(
-        db_url=DB_URL, session_table="vc_s_" + suffix, runs_table="vc_r_" + suffix, sandbox_table="vc_b_" + suffix
-    )
+    db, suffix = native_database
     agent = ClaudeAgent(
         id="coder",
         model="claude-sonnet-5-5",
@@ -1011,31 +1004,20 @@ async def test_claude_recalls_its_conversation_on_a_reused_warm_computer(tracker
     coordinator = _harness.coordinator(agent)
     coordinator.warm_computer_seconds = 300
     try:
-        await agent.arun(
-            "Remember the codeword BLUE-HERON. Do not write it to a file. Reply with just OK.", session_id="session"
-        )
-        recalled = await agent.arun("What codeword did I ask you to remember?", session_id="session")
+        recalled = await _recall(agent)
         assert "BLUE-HERON" in str(recalled.content)
         assert recalled.metadata["sandbox"]["resumed"] is True and len(tracker.created) == 1
     finally:
         record = (await _binding(coordinator))["record"]
         await coordinator.aretire_computer("session", agent_id="coder", user_id=record.get("user_id"))
-        await tracker.cleanup()
-        tracker.created.clear()
-        store = coordinator.store
-        await store._transaction(lambda c: [t.drop(c) for t in (store.bindings, store.runs, store.sessions)])
-        db.db_engine.dispose()
 
 
 @needs_database
 @pytest.mark.skipif(not os.environ.get("OPENAI_API_KEY"), reason="Set OPENAI_API_KEY")
-async def test_codex_recalls_its_conversation_on_a_reused_warm_computer(tracker, tmp_path):
+async def test_codex_recalls_its_conversation_on_a_reused_warm_computer(tracker, tmp_path, native_database):
     from agno.agents.codex import CodexAgent
 
-    suffix = uuid4().hex[:12]
-    db = PostgresDb(
-        db_url=DB_URL, session_table="vc_s_" + suffix, runs_table="vc_r_" + suffix, sandbox_table="vc_b_" + suffix
-    )
+    db, suffix = native_database
     agent = CodexAgent(
         id="coder",
         db=db,
@@ -1052,17 +1034,9 @@ async def test_codex_recalls_its_conversation_on_a_reused_warm_computer(tracker,
     coordinator = _harness.coordinator(agent)
     coordinator.warm_computer_seconds = 300
     try:
-        await agent.arun(
-            "Remember the codeword BLUE-HERON. Do not write it to a file. Reply with just OK.", session_id="session"
-        )
-        recalled = await agent.arun("What codeword did I ask you to remember?", session_id="session")
+        recalled = await _recall(agent)
         assert "BLUE-HERON" in str(recalled.content)
         assert recalled.metadata["sandbox"]["resumed"] is True and len(tracker.created) == 1
     finally:
         record = (await _binding(coordinator))["record"]
         await coordinator.aretire_computer("session", agent_id="coder", user_id=record.get("user_id"))
-        await tracker.cleanup()
-        tracker.created.clear()
-        store = coordinator.store
-        await store._transaction(lambda c: [t.drop(c) for t in (store.bindings, store.runs, store.sessions)])
-        db.db_engine.dispose()
